@@ -1152,8 +1152,9 @@
     - platform: time
       at: "23:57:00"
   action:
-    - service: shell_command.append_daily_csv
-    - service: system_log.write
+    - action: shell_command.append_daily_csv
+      data: {}
+    - action: system_log.write
       data:
         message: "Daily CSV report appended"
         level: info
@@ -1168,8 +1169,9 @@
     - condition: template
       value_template: "{{ now().day == (now().replace(month=now().month % 12 + 1, day=1) - timedelta(days=1)).day }}"
   action:
-    - service: shell_command.append_monthly_csv
-    - service: system_log.write
+    - action: shell_command.append_monthly_csv
+      data: {}
+    - action: system_log.write
       data:
         message: "Monthly CSV report appended"
         level: info

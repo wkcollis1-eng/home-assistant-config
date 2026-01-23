@@ -31,6 +31,7 @@ recorder:
 # SHELL COMMANDS - CSV Report Generation
 # ===============================================================
 shell_command:
+  test_shell: "echo test > /config/test_output.txt"
   append_daily_csv: >
     echo "{{ now().strftime('%Y-%m-%d') }},{{ states('sensor.pirate_weather_today_high') | float(0) | round(1) }},{{ states('sensor.pirate_weather_today_low') | float(0) | round(1) }},{{ ((states('sensor.pirate_weather_today_high') | float(0) + states('sensor.pirate_weather_today_low') | float(0)) / 2) | round(1) }},{{ states('sensor.hvac_hdd65_today') | float(0) | round(1) }},{{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(1) }},{{ states('sensor.hvac_furnace_cycles_today') | int(0) }},{{ states('sensor.hvac_furnace_min_per_cycle') | float(0) | round(1) }},{{ states('sensor.hvac_total_cycles_today') | int(0) }},{{ states('sensor.hvac_chaining_index') | float(1) | round(2) }},{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }},{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }},{{ states('sensor.basement_dew_point') | float(0) | round(1) }}" >> /config/reports/hvac_daily_{{ now().year }}.csv
   append_monthly_csv: >

@@ -1,4 +1,39 @@
 # HA Monitor Agent - Discussion Notes
+
+---
+
+## Part 6: Session Notes - 2026-01-23
+
+### Completed This Session
+1. **GitHub setup complete:**
+   - Repo: https://github.com/wkcollis1-eng/home-assistant-config
+   - GitHub CLI authenticated as wkcollis1-eng
+   - .gitignore excludes secrets, .storage, database
+   - Initial commit pushed
+
+2. **CI/CD pipeline working:**
+   - GitHub Actions validates on every push
+   - yamllint + HA config check
+   - Fixed several lint errors (indentation, duplicate keys, trailing spaces)
+
+3. **Config fixes made:**
+   - `scripts.yaml`: Fixed weather_update_script indentation structure
+   - `configuration.yaml`: Removed duplicate icon key on hvac_2f_setback_start
+   - `automations.yaml`: Changed `service:` to `action:` format for CSV reports
+
+### Issue in Progress: shell_command not loading
+- **Symptom:** `shell_command.append_daily_csv` not appearing in Services after restart
+- **Impact:** Daily CSV report not populating (last data: none, only header exists)
+- **Tried:**
+  - Verified automation is enabled
+  - Checked automation trace - error "This action requires a target"
+  - Restarted HA - shell_command services still don't appear
+- **Next step:** Added `shell_command.test_shell` simple command to isolate issue
+  - Need to restart HA and check if `shell_command.test_shell` appears
+  - Check HA logs for shell_command errors
+  - If simple command works, issue is with template syntax in complex commands
+
+---
 **Date:** 2026-01-22
 
 ---
