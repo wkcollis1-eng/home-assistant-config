@@ -1,0 +1,13 @@
+# Feels Like Temperature - Gauge Card
+# Shows apparent temperature (wind chill/heat index)
+# Dashboard: Weather
+type: gauge
+entity: sensor.pirate_weather_feels_like
+name: Feels Like
+min: 0
+max: 100
+needle: true
+severity:
+  green: 59
+  yellow: 32
+  red: 90

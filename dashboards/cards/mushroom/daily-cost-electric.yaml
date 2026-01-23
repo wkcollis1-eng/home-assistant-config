@@ -1,0 +1,13 @@
+# Daily Electric Cost - Mushroom Template Card
+# Shows estimated electric cost for today
+# Dashboard: HVAC Performance, Billing & Cost
+type: custom:mushroom-template-card
+primary: "${{ states('sensor.hvac_daily_electric_cost_estimate') | round(2) }}"
+secondary: Electric Cost Today
+icon: mdi:flash
+color: yellow
+features_position: bottom
+vertical: true
+grid_options:
+  columns: 6
+  rows: 2

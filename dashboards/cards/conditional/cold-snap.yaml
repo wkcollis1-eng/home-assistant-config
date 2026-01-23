@@ -1,0 +1,17 @@
+# Cold Snap Alert - Conditional Card
+# Only shows when HDD exceeds 90th percentile for date
+# Dashboard: Energy Performance - Climate Norms
+type: conditional
+conditions:
+  - entity: binary_sensor.climate_cold_snap_today
+    state: "on"
+card:
+  type: custom:mushroom-template-card
+  primary: Cold Snap
+  secondary: HDD > 90th percentile
+  icon: mdi:snowflake-alert
+  color: blue
+  vertical: true
+grid_options:
+  columns: 6
+  rows: 3

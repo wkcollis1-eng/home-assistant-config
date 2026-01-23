@@ -1,0 +1,49 @@
+# Humidity & Dew Point (48h) - ApexCharts Card
+# Dual-axis chart showing humidity % and dew point temperature
+# Dashboard: Weather
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Humidity & Dew Point (48h)
+  show_states: true
+  colorize_states: true
+graph_span: 48h
+span:
+  end: hour
+yaxis:
+  - id: humidity
+    min: 0
+    max: 100
+    apex_config:
+      tickAmount: 5
+      title:
+        text: "%"
+  - id: temp
+    opposite: true
+    apex_config:
+      tickAmount: 5
+      title:
+        text: "°F"
+apex_config:
+  chart:
+    height: 250
+  legend:
+    show: true
+    position: bottom
+  stroke:
+    curve: smooth
+series:
+  - entity: sensor.pirate_weather_humidity
+    name: Humidity
+    color: "#2196F3"
+    stroke_width: 2
+    yaxis_id: humidity
+    show:
+      in_header: true
+  - entity: sensor.pirate_weather_dew_point
+    name: Dew Point
+    color: "#00BCD4"
+    stroke_width: 2
+    yaxis_id: temp
+    show:
+      in_header: true

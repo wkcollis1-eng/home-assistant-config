@@ -1,0 +1,35 @@
+# UV Index (7d) - ApexCharts Card
+# Shows UV index as area chart with safe range
+# Dashboard: Weather
+type: custom:apexcharts-card
+header:
+  show: true
+  title: UV Index (7d)
+  show_states: true
+  colorize_states: true
+graph_span: 7d
+span:
+  end: hour
+yaxis:
+  - id: uv
+    min: 0
+    max: 12
+    apex_config:
+      tickAmount: 4
+      title:
+        text: UV
+apex_config:
+  chart:
+    height: 200
+  legend:
+    show: false
+series:
+  - entity: sensor.pirate_weather_uv_index
+    name: UV Index
+    type: area
+    color: "#FF9800"
+    stroke_width: 2
+    opacity: 0.4
+    yaxis_id: uv
+    show:
+      in_header: true

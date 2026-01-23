@@ -1,0 +1,59 @@
+# Rate Changes (Month-over-Month) - Template Cards
+# Shows rate and usage changes vs previous month
+# Dashboard: Energy Performance - Billing & Cost
+
+# Electric Rate MoM
+- type: custom:mushroom-template-card
+  primary: "{{ states('sensor.electricity_rate_change_mom') | round(1) }}%"
+  secondary: Electric Rate
+  icon: mdi:flash
+  color: >-
+    {% set pct = states('sensor.electricity_rate_change_mom') | float(0) %}
+    {% if pct > 0 %}red{% elif pct < 0 %}green{% else %}grey{% endif %}
+  features_position: bottom
+  vertical: true
+  grid_options:
+    columns: 6
+    rows: 2
+
+# Electric Usage MoM
+- type: custom:mushroom-template-card
+  primary: "{{ states('sensor.electricity_usage_change_mom') | round(1) }}%"
+  secondary: Electric Usage
+  icon: mdi:lightning-bolt
+  color: >-
+    {% set pct = states('sensor.electricity_usage_change_mom') | float(0) %}
+    {% if pct > 0 %}orange{% elif pct < 0 %}green{% else %}grey{% endif %}
+  features_position: bottom
+  vertical: true
+  grid_options:
+    columns: 6
+    rows: 2
+
+# Gas Rate MoM
+- type: custom:mushroom-template-card
+  primary: "{{ states('sensor.gas_rate_change_mom') | round(1) }}%"
+  secondary: Gas Rate
+  icon: mdi:fire
+  color: >-
+    {% set pct = states('sensor.gas_rate_change_mom') | float(0) %}
+    {% if pct > 0 %}red{% elif pct < 0 %}green{% else %}grey{% endif %}
+  features_position: bottom
+  vertical: true
+  grid_options:
+    columns: 6
+    rows: 2
+
+# Gas Usage MoM
+- type: custom:mushroom-template-card
+  primary: "{{ states('sensor.gas_usage_change_mom') | round(1) }}%"
+  secondary: Gas Usage
+  icon: mdi:meter-gas
+  color: >-
+    {% set pct = states('sensor.gas_usage_change_mom') | float(0) %}
+    {% if pct > 0 %}orange{% elif pct < 0 %}green{% else %}grey{% endif %}
+  features_position: bottom
+  vertical: true
+  grid_options:
+    columns: 6
+    rows: 2

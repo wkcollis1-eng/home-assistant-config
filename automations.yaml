@@ -1,0 +1,1191 @@
+# ===============================================================
+# COMPLETE AUTOMATIONS.YAML - ENERGY MONITORING
+# ===============================================================
+# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders
+# ===============================================================
+
+# ===============================================================
+# AUTO HDD TRACKING - Daily capture at 11:55 PM (HARDENED)
+# ===============================================================
+- id: capture_daily_hdd
+  alias: "Capture Daily HDD/CDD"
+  description: "Records daily HDD/CDD and updates rolling/cumulative totals"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:55:00"
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ is_number(states('sensor.hvac_hdd65_today')) and
+                   is_number(states('sensor.hvac_cdd65_today')) and
+                   0 <= (states('sensor.hvac_hdd65_today')|float) <= 65 and
+                   0 <= (states('sensor.hvac_cdd65_today')|float) <= 30 }}
+          sequence:
+            - variables:
+                todays_hdd: "{{ states('sensor.hvac_hdd65_today')|float }}"
+                todays_cdd: "{{ states('sensor.hvac_cdd65_today')|float }}"
+                d1: "{{ states('input_number.hdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.hdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.hdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.hdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.hdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.hdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_day_1
+              data:
+                value: "{{ todays_hdd }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_month_auto
+              data:
+                value: "{{ (states('input_number.hdd_cumulative_month_auto')|float(0) + todays_hdd)|round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_month_auto
+              data:
+                value: "{{ (states('input_number.cdd_cumulative_month_auto')|float(0) + todays_cdd)|round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_year_auto
+              data:
+                value: "{{ (states('input_number.hdd_cumulative_year_auto')|float(0) + todays_hdd)|round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_year_auto
+              data:
+                value: "{{ (states('input_number.cdd_cumulative_year_auto')|float(0) + todays_cdd)|round(1) }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.hdd_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.hdd_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
+
+# ===============================================================
+# RUNTIME PER HDD TRACKING - Daily capture at 11:56 PM (HARDENED)
+# ===============================================================
+- id: capture_daily_runtime_per_hdd
+  alias: "Capture Daily Runtime per HDD"
+  description: "Records daily runtime/HDD for 7-day std dev calculation"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:56:00"
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ is_number(states('sensor.hvac_total_runtime_per_hdd_today')) and
+                   0 <= (states('sensor.hvac_total_runtime_per_hdd_today')|float) <= 120 }}
+          sequence:
+            - variables:
+                todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')|float }}"
+                d1: "{{ states('input_number.runtime_per_hdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.runtime_per_hdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.runtime_per_hdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.runtime_per_hdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.runtime_per_hdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.runtime_per_hdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_hdd_day_1
+              data:
+                value: "{{ todays_runtime_per_hdd }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.runtime_per_hdd_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.runtime_per_hdd_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
+
+# ===============================================================
+# MONTHLY REPORT TRACKING - Daily capture at 11:56 PM
+# ===============================================================
+- id: capture_daily_monthly_tracking
+  alias: "Capture Daily Monthly Tracking"
+  description: "Accumulates outdoor temp and expected runtime for monthly report"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:56:30"
+  action:
+    - variables:
+        todays_high: "{{ states('sensor.pirate_weather_today_high') | float(0) }}"
+        todays_low: "{{ states('sensor.pirate_weather_today_low') | float(0) }}"
+        todays_mean: "{{ ((todays_high + todays_low) / 2) | round(1) }}"
+        todays_expected: "{{ states('sensor.expected_runtime_today') | float(0) }}"
+        current_temp_sum: "{{ states('input_number.outdoor_temp_sum_month') | float(0) }}"
+        current_days: "{{ states('input_number.outdoor_temp_days_month') | int(0) }}"
+        current_expected_sum: "{{ states('input_number.expected_runtime_sum_month') | float(0) }}"
+    - condition: template
+      value_template: "{{ todays_high > -50 and todays_low > -50 }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_sum_month
+      data:
+        value: "{{ current_temp_sum + todays_mean }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_days_month
+      data:
+        value: "{{ current_days + 1 }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.expected_runtime_sum_month
+      data:
+        value: "{{ current_expected_sum + todays_expected }}"
+    - service: system_log.write
+      data:
+        message: "Monthly tracking captured: mean={{ todays_mean }}°F, expected={{ todays_expected }}h"
+        level: info
+
+# ===============================================================
+# MONTHLY/YEARLY RESETS - With startup catch-up
+# ===============================================================
+- id: reset_monthly_hdd
+  alias: "Reset Monthly HDD/CDD"
+  description: "Resets month counters on day 1, with startup catch-up if HA was down"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:01:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.hdd_capture_last_ok') %}
+        {% set month_val = states('input_number.hdd_cumulative_month_auto')|float(0) %}
+        {% if now().day != 1 %}
+          false
+        {% elif month_val == 0 %}
+          {# Already reset, don't reset again #}
+          false
+        {% elif now().hour < 3 %}
+          {# Normal window: always reset #}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {# Late startup: only reset if last capture was previous month #}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.month != now().month }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hdd_cumulative_month_auto
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.cdd_cumulative_month_auto
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_sum_month
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_days_month
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.expected_runtime_sum_month
+      data:
+        value: 0
+    - service: system_log.write
+      data:
+        message: "Monthly HDD/CDD reset completed (trigger: {{ trigger.id }})"
+        level: info
+
+- id: reset_yearly_hdd
+  alias: "Reset Yearly HDD/CDD"
+  description: "Resets year counters on Jan 1, with startup catch-up if HA was down"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:02:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.hdd_capture_last_ok') %}
+        {% set year_val = states('input_number.hdd_cumulative_year_auto')|float(0) %}
+        {% if not (now().month == 1 and now().day == 1) %}
+          false
+        {% elif year_val == 0 %}
+          {# Already reset, don't reset again #}
+          false
+        {% elif now().hour < 3 %}
+          {# Normal window: always reset #}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {# Late startup: only reset if last capture was previous year #}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.year != now().year }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hdd_cumulative_year_auto
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.cdd_cumulative_year_auto
+      data:
+        value: 0
+    - service: system_log.write
+      data:
+        message: "Yearly HDD/CDD reset completed (trigger: {{ trigger.id }})"
+        level: info
+
+# ===============================================================
+# BILL SAVE AUTOMATIONS
+# ===============================================================
+- id: save_electric_bill_button
+  alias: "Save Electric Bill - Button Press"
+  trigger:
+    - platform: state
+      entity_id: input_button.save_electric_bill
+  action:
+    - variables:
+        bill_month: "{{ state_attr('input_datetime.electricity_bill_date', 'month') | int }}"
+        current_amount: "{{ states('input_number.electricity_bill_amount') | float }}"
+        current_kwh: "{{ states('input_number.electricity_bill_kwh') | float }}"
+        current_days: "{{ states('input_number.electricity_bill_days') | float }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[bill_month - 1] }}
+        prev_month_name: >
+          {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
+          {{ prev_map[bill_month] }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.electricity_bill_amount_previous
+      data:
+        value: "{{ states('input_number.electric_archive_' ~ (prev_month_name | trim) ~ '_amount') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.electricity_bill_kwh_previous
+      data:
+        value: "{{ states('input_number.electric_archive_' ~ (prev_month_name | trim) ~ '_kwh') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.electricity_bill_days_previous
+      data:
+        value: 30
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.electricity_bill_amount_last_year
+      data:
+        value: >
+          {% set archive_val = states('input_number.electric_archive_' ~ (month_name | trim) ~ '_amount') | float(0) %}
+          {{ archive_val if archive_val != current_amount else states('input_number.electricity_bill_amount_last_year') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.electricity_bill_kwh_last_year
+      data:
+        value: >
+          {% set archive_val = states('input_number.electric_archive_' ~ (month_name | trim) ~ '_kwh') | float(0) %}
+          {{ archive_val if archive_val != current_kwh else states('input_number.electricity_bill_kwh_last_year') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.electric_archive_{{ month_name | trim }}_amount"
+      data:
+        value: "{{ current_amount }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.electric_archive_{{ month_name | trim }}_kwh"
+      data:
+        value: "{{ current_kwh }}"
+    - service: persistent_notification.create
+      data:
+        title: "✅ Electric Bill Saved"
+        message: "{{ (month_name | trim) | upper }}: ${{ current_amount }}, {{ current_kwh }} kWh archived"
+
+- id: save_gas_bill_button
+  alias: "Save Gas Bill - Button Press"
+  trigger:
+    - platform: state
+      entity_id: input_button.save_gas_bill
+  action:
+    - variables:
+        bill_month: "{{ state_attr('input_datetime.gas_bill_date', 'month') | int }}"
+        current_amount: "{{ states('input_number.gas_bill_amount') | float }}"
+        current_ccf: "{{ states('input_number.gas_bill_ccf') | float }}"
+        current_days: "{{ states('input_number.gas_bill_days') | float }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[bill_month - 1] }}
+        prev_month_name: >
+          {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
+          {{ prev_map[bill_month] }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.gas_bill_amount_previous
+      data:
+        value: "{{ states('input_number.gas_archive_' ~ (prev_month_name | trim) ~ '_amount') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.gas_bill_ccf_previous
+      data:
+        value: "{{ states('input_number.gas_archive_' ~ (prev_month_name | trim) ~ '_ccf') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.gas_bill_days_previous
+      data:
+        value: 30
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.gas_bill_amount_last_year
+      data:
+        value: >
+          {% set archive_val = states('input_number.gas_archive_' ~ (month_name | trim) ~ '_amount') | float(0) %}
+          {{ archive_val if archive_val != current_amount else states('input_number.gas_bill_amount_last_year') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.gas_bill_ccf_last_year
+      data:
+        value: >
+          {% set archive_val = states('input_number.gas_archive_' ~ (month_name | trim) ~ '_ccf') | float(0) %}
+          {{ archive_val if archive_val != current_ccf else states('input_number.gas_bill_ccf_last_year') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.gas_archive_{{ month_name | trim }}_amount"
+      data:
+        value: "{{ current_amount }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.gas_archive_{{ month_name | trim }}_ccf"
+      data:
+        value: "{{ current_ccf }}"
+    - service: persistent_notification.create
+      data:
+        title: "✅ Gas Bill Saved"
+        message: "{{ (month_name | trim) | upper }}: ${{ current_amount }}, {{ current_ccf }} CCF archived"
+
+# ===============================================================
+# ALERT AUTOMATIONS
+# ===============================================================
+- id: notify_efficiency_degradation
+  alias: "Notify Efficiency Degradation"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_efficiency_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Heating Efficiency Alert"
+        message: "Current: {{ states('sensor.hvac_heating_efficiency_mtd') }} CCF/1k HDD (Baseline: 82.6)"
+
+- id: notify_short_cycling_1f
+  alias: "Notify Short Cycling 1F"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_short_cycling_alert_1f
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Short Cycling - 1F"
+        message: "1F average cycle < 5 min. Check air filter."
+
+- id: notify_short_cycling_2f
+  alias: "Notify Short Cycling 2F"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_short_cycling_alert_2f
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Short Cycling - 2F"
+        message: "2F average cycle < 5 min. Check air filter."
+
+# ===============================================================
+# REMINDER AUTOMATIONS
+# ===============================================================
+- id: daily_hvac_summary
+  alias: "Daily HVAC Summary"
+  trigger:
+    - platform: time
+      at: "22:00:00"
+  condition:
+    - condition: template
+      value_template: "{{ states('sensor.hvac_hdd65_today') | float(0) > 0 }}"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "📊 Daily HVAC Summary"
+        message: >
+          HDD: {{ states('sensor.hvac_hdd65_today') }}
+          Runtime: {{ states('sensor.hvac_total_heat_runtime_today') }}h
+          Zone Balance: {{ states('sensor.hvac_zone_balance_ratio_today') }}%
+
+# ===============================================================
+# DEHUMIDIFIER AUTOMATIONS
+# ===============================================================
+- id: dehumidifier_auto_on
+  alias: "Dehumidifier Auto On"
+  description: "Turn on dehumidifier when dew point exceeds threshold"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.dehumidifier_should_run
+      to: "on"
+  condition:
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "off"
+    - condition: template
+      value_template: >
+        {% set last_off = state_attr('automation.dehumidifier_auto_off', 'last_triggered') %}
+        {{ last_off is none or (now() - last_off).total_seconds() > 1800 }}
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.dehumidifier
+
+- id: dehumidifier_auto_off
+  alias: "Dehumidifier Auto Off"
+  description: "Turn off dehumidifier after 4 hours or when conditions clear"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.dehumidifier_should_run
+      to: "off"
+      id: conditions_cleared
+    - platform: state
+      entity_id: switch.dehumidifier
+      to: "on"
+      for:
+        hours: 4
+      id: max_runtime
+  condition:
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "on"
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+
+# ===============================================================
+# FILTER TRACKING AUTOMATIONS (HARDENED)
+# ===============================================================
+- id: accumulate_filter_runtime
+  alias: "Accumulate Filter Runtime"
+  description: "Add daily runtime to filter hours at end of day"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:58:00"
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ is_number(states('sensor.hvac_total_heat_runtime_today')) and
+                   (states('sensor.hvac_total_heat_runtime_today')|float) >= 0 }}
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_filter_runtime_hours
+              data:
+                value: >
+                  {{ (states('input_number.hvac_filter_runtime_hours')|float(0) +
+                      states('sensor.hvac_total_heat_runtime_today')|float)|round(2) }}
+      default:
+        - service: system_log.write
+          data:
+            message: "Filter runtime capture skipped - sensor unavailable: {{ states('sensor.hvac_total_heat_runtime_today') }}"
+            level: warning
+
+- id: reset_filter_runtime_button
+  alias: "Reset Filter Runtime"
+  description: "Reset filter runtime when button pressed"
+  trigger:
+    - platform: state
+      entity_id: input_button.reset_filter_runtime
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_filter_runtime_hours
+      data:
+        value: 0
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_filter_last_changed
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+    - service: persistent_notification.create
+      data:
+        title: "Filter Reset"
+        message: "Filter runtime reset to 0 hours. Change date recorded."
+
+- id: notify_filter_change_due
+  alias: "Notify Filter Change Due"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_filter_change_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "HVAC Filter Change Due"
+        message: "Filter has {{ states('input_number.hvac_filter_runtime_hours') | round(0) }} runtime hours. Time to replace!"
+
+# ===============================================================
+# RECOVERY TIME TRACKING
+# ===============================================================
+- id: hvac_1f_recovery_start
+  alias: "1F Recovery Start"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_1f_recovering
+      to: "on"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_1f_recovery_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_recovery_setback_degrees
+      data:
+        value: >
+          {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+          {% set target = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {{ (target - current) | round(1) if target > current else 0 }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_recovery_outdoor_temp
+      data:
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_recovery_start_runtime
+      data:
+        value: "{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }}"
+    # Calculate overnight runtime and efficiency
+    - variables:
+        overnight_runtime: >
+          {{ ((states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) -
+              states('input_number.hvac_1f_setback_start_runtime') | float(0)) | round(1) }}
+        overnight_hours: >
+          {% set start = states('input_datetime.hvac_1f_setback_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+          {% else %}
+            8
+          {% endif %}
+        avg_overnight_temp: >
+          {{ ((states('input_number.hvac_1f_setback_start_outdoor_temp') | float(35) +
+               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_overnight_runtime
+      data:
+        value: "{{ [overnight_runtime | float, 0] | max }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_overnight_efficiency
+      data:
+        value: >
+          {% set hdd_proxy = ((65 - avg_overnight_temp | float) * overnight_hours | float / 24) %}
+          {% if hdd_proxy > 0.1 %}
+            {{ (overnight_runtime | float / hdd_proxy) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+
+- id: hvac_1f_recovery_end
+  alias: "1F Recovery End"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_1f_recovering
+      to: "off"
+  condition:
+    - condition: template
+      value_template: "{{ states('input_datetime.hvac_1f_recovery_start') not in ['unknown', 'unavailable'] }}"
+  action:
+    - variables:
+        recovery_minutes: >
+          {% set start = states('input_datetime.hvac_1f_recovery_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        setback_degrees: "{{ states('input_number.hvac_1f_recovery_setback_degrees') | float(0) }}"
+        recovery_rate: "{{ (recovery_minutes | float / setback_degrees | float) | round(1) if setback_degrees | float > 0 else 0 }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_recovery_minutes
+      data:
+        value: "{{ [recovery_minutes | float, 180] | min }}"
+    # Only store to rate slots if recovery is valid (<=120 min, >=1°F setback)
+    # Discards outliers from stuck sensors or extended heating events
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 120 and setback_degrees | float >= 1 }}"
+          sequence:
+            # Rotate rolling 7 values (shift old values down, new value in slot 1)
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_7
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_6') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_6
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_5') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_5
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_4') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_4
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_3') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_3
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_2') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_2
+              data:
+                value: "{{ states('input_number.hvac_1f_recovery_rate_1') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_1f_recovery_rate_1
+              data:
+                value: "{{ recovery_rate | float | round(1) }}"
+    # Calculate recovery efficiency (min/HDD during recovery window)
+    - variables:
+        recovery_runtime: >
+          {{ ((states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) -
+              states('input_number.hvac_1f_recovery_start_runtime') | float(0)) | round(1) }}
+        recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
+        avg_recovery_temp: >
+          {{ ((states('input_number.hvac_1f_recovery_outdoor_temp') | float(35) +
+               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_recovery_efficiency
+      data:
+        value: >
+          {% set hdd_proxy = ((65 - avg_recovery_temp | float) * recovery_hours | float / 24) %}
+          {% if hdd_proxy > 0.01 %}
+            {{ [((recovery_runtime | float) / hdd_proxy) | round(1), 200] | min }}
+          {% else %}
+            0
+          {% endif %}
+
+- id: hvac_2f_recovery_start
+  alias: "2F Recovery Start"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_2f_recovering
+      to: "on"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_2f_recovery_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_recovery_setback_degrees
+      data:
+        value: >
+          {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+          {% set target = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {{ (target - current) | round(1) if target > current else 0 }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_recovery_outdoor_temp
+      data:
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_recovery_start_runtime
+      data:
+        value: "{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }}"
+    # Calculate overnight runtime and efficiency
+    - variables:
+        overnight_runtime: >
+          {{ ((states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) -
+              states('input_number.hvac_2f_setback_start_runtime') | float(0)) | round(1) }}
+        overnight_hours: >
+          {% set start = states('input_datetime.hvac_2f_setback_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+          {% else %}
+            8
+          {% endif %}
+        avg_overnight_temp: >
+          {{ ((states('input_number.hvac_2f_setback_start_outdoor_temp') | float(35) +
+               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_overnight_runtime
+      data:
+        value: "{{ [overnight_runtime | float, 0] | max }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_overnight_efficiency
+      data:
+        value: >
+          {% set hdd_proxy = ((65 - avg_overnight_temp | float) * overnight_hours | float / 24) %}
+          {% if hdd_proxy > 0.1 %}
+            {{ (overnight_runtime | float / hdd_proxy) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+
+- id: hvac_2f_recovery_end
+  alias: "2F Recovery End"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_2f_recovering
+      to: "off"
+  condition:
+    - condition: template
+      value_template: "{{ states('input_datetime.hvac_2f_recovery_start') not in ['unknown', 'unavailable'] }}"
+  action:
+    - variables:
+        recovery_minutes: >
+          {% set start = states('input_datetime.hvac_2f_recovery_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        setback_degrees: "{{ states('input_number.hvac_2f_recovery_setback_degrees') | float(0) }}"
+        recovery_rate: "{{ (recovery_minutes | float / setback_degrees | float) | round(1) if setback_degrees | float > 0 else 0 }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_recovery_minutes
+      data:
+        value: "{{ [recovery_minutes | float, 180] | min }}"
+    # Only store to rate slots if recovery is valid (<=120 min, >=1°F setback)
+    # Discards outliers from stuck sensors or extended heating events
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 120 and setback_degrees | float >= 1 }}"
+          sequence:
+            # Rotate rolling 7 values (shift old values down, new value in slot 1)
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_7
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_6') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_6
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_5') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_5
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_4') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_4
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_3') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_3
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_2') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_2
+              data:
+                value: "{{ states('input_number.hvac_2f_recovery_rate_1') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hvac_2f_recovery_rate_1
+              data:
+                value: "{{ recovery_rate | float | round(1) }}"
+    # Calculate recovery efficiency (min/HDD during recovery window)
+    - variables:
+        recovery_runtime: >
+          {{ ((states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) -
+              states('input_number.hvac_2f_recovery_start_runtime') | float(0)) | round(1) }}
+        recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
+        avg_recovery_temp: >
+          {{ ((states('input_number.hvac_2f_recovery_outdoor_temp') | float(35) +
+               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_recovery_efficiency
+      data:
+        value: >
+          {% set hdd_proxy = ((65 - avg_recovery_temp | float) * recovery_hours | float / 24) %}
+          {% if hdd_proxy > 0.01 %}
+            {{ [((recovery_runtime | float) / hdd_proxy) | round(1), 200] | min }}
+          {% else %}
+            0
+          {% endif %}
+
+# ===============================================================
+# SETBACK EFFICIENCY TRACKING
+# ===============================================================
+- id: hvac_1f_setback_start
+  alias: "1F Setback Start"
+  trigger:
+    - platform: state
+      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      attribute: temperature
+  condition:
+    - condition: template
+      value_template: >
+        {{ (trigger.from_state.attributes.temperature | float(0) -
+            trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_1f_setback_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_start_runtime
+      data:
+        value: "{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_start_outdoor_temp
+      data:
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_degree_hours
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_hold_setpoint
+      data:
+        value: "{{ trigger.from_state.attributes.temperature | float(67) }}"
+
+- id: hvac_2f_setback_start
+  alias: "2F Setback Start"
+  trigger:
+    - platform: state
+      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      attribute: temperature
+  condition:
+    - condition: template
+      value_template: >
+        {{ (trigger.from_state.attributes.temperature | float(0) -
+            trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_2f_setback_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_start_runtime
+      data:
+        value: "{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_start_outdoor_temp
+      data:
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_degree_hours
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_hold_setpoint
+      data:
+        value: "{{ trigger.from_state.attributes.temperature | float(67) }}"
+
+# ===============================================================
+# SETBACK DEGREE-HOURS SAMPLING (every 15 min during setback)
+# ===============================================================
+- id: hvac_1f_degree_hours_sample
+  alias: "1F Degree-Hours Sample"
+  trigger:
+    - platform: time_pattern
+      minutes: "/15"
+  condition:
+    - condition: template
+      value_template: >
+        {% set setpoint = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
+        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(67) %}
+        {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(67) %}
+        {{ setpoint < hold and current < hold }}
+  action:
+    - variables:
+        hold_temp: "{{ states('input_number.hvac_1f_hold_setpoint') | float(67) }}"
+        indoor_temp: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
+        deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
+        increment: "{{ (deficit | float * 0.25) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_degree_hours
+      data:
+        value: "{{ (states('input_number.hvac_1f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
+
+- id: hvac_2f_degree_hours_sample
+  alias: "2F Degree-Hours Sample"
+  trigger:
+    - platform: time_pattern
+      minutes: "/15"
+  condition:
+    - condition: template
+      value_template: >
+        {% set setpoint = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
+        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(67) %}
+        {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(67) %}
+        {{ setpoint < hold and current < hold }}
+  action:
+    - variables:
+        hold_temp: "{{ states('input_number.hvac_2f_hold_setpoint') | float(67) }}"
+        indoor_temp: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
+        deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
+        increment: "{{ (deficit | float * 0.25) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_degree_hours
+      data:
+        value: "{{ (states('input_number.hvac_2f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
+
+# ===============================================================
+# EFFICIENCY ALERTS
+# ===============================================================
+- id: notify_runtime_per_hdd_high
+  alias: "Notify Runtime per HDD High"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_hdd_high_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "HVAC Efficiency Warning"
+        message: >
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound_1s') }} = mean + 2σ).
+          Check for air leaks, filter condition, or thermostat issues.
+
+- id: notify_runtime_per_hdd_low
+  alias: "Notify Runtime per HDD Low"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_hdd_low_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "HVAC Efficiency Notice"
+        message: >
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
+          System running more efficiently than expected.
+
+- id: notify_1f_recovery_rate_high
+  alias: "Notify 1F Recovery Rate High"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_1f_recovery_rate_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ 1F Recovery Rate Alert"
+        message: >
+          1F recovery rate avg is {{ states('sensor.hvac_1f_recovery_rate_avg') }} min/°F,
+          which exceeds upper bound ({{ states('sensor.hvac_1f_recovery_rate_upper_bound') }} = mean + 2σ).
+          Check filter, ductwork, or thermostat placement.
+
+- id: notify_2f_recovery_rate_high
+  alias: "Notify 2F Recovery Rate High"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_2f_recovery_rate_alert
+      to: "on"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ 2F Recovery Rate Alert"
+        message: >
+          2F recovery rate avg is {{ states('sensor.hvac_2f_recovery_rate_avg') }} min/°F,
+          which exceeds upper bound ({{ states('sensor.hvac_2f_recovery_rate_upper_bound') }} = mean + 2σ).
+          Check filter, ductwork, or cathedral ceiling heat loss.
+
+# ===============================================================
+# DATABASE MAINTENANCE
+# ===============================================================
+- id: database_maintenance_weekly
+  alias: "Database Maintenance Weekly"
+  description: "Purge old data and repack database every Sunday at 3 AM"
+  trigger:
+    - platform: time
+      at: "03:00:00"
+  condition:
+    - condition: time
+      weekday:
+        - sun
+  action:
+    - service: recorder.purge
+      data:
+        keep_days: 14
+        repack: true
+    - service: system_log.write
+      data:
+        message: "Weekly database maintenance completed - purged and repacked"
+        level: info
+
+# ===============================================================
+# CSV REPORT GENERATION
+# ===============================================================
+- id: csv_daily_report
+  alias: "CSV Daily Report"
+  description: "Append daily HVAC data to CSV at 23:57 (after HDD capture)"
+  trigger:
+    - platform: time
+      at: "23:57:00"
+  action:
+    - service: shell_command.append_daily_csv
+    - service: system_log.write
+      data:
+        message: "Daily CSV report appended"
+        level: info
+
+- id: csv_monthly_report
+  alias: "CSV Monthly Report"
+  description: "Append monthly HVAC data to CSV on last day of month at 23:58"
+  trigger:
+    - platform: time
+      at: "23:58:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().day == (now().replace(month=now().month % 12 + 1, day=1) - timedelta(days=1)).day }}"
+  action:
+    - service: shell_command.append_monthly_csv
+    - service: system_log.write
+      data:
+        message: "Monthly CSV report appended"
+        level: info
+
+- id: csv_yearly_rotation
+  alias: "CSV Yearly Rotation"
+  description: "Create new daily CSV file on Jan 1st"
+  trigger:
+    - platform: time
+      at: "00:01:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().month == 1 and now().day == 1 }}"
+  action:
+    - service: shell_command.rotate_daily_csv
+    - service: system_log.write
+      data:
+        message: "Daily CSV rotated for new year"
+        level: info

@@ -1,0 +1,84 @@
+# Dashboard Card Snippet Library
+# ================================
+#
+# This folder contains "known good" YAML snippets for dashboard cards.
+# These are extracted from your production dashboards and can be
+# copy-pasted into the HA UI card editor (Manual/YAML mode).
+#
+# WORKFLOW:
+# 1. Open dashboard in HA
+# 2. Edit view → Add Card → Manual
+# 3. Copy snippet from this library
+# 4. Paste into card editor
+# 5. Adjust entity IDs if needed
+# 6. Save
+#
+# FOLDER STRUCTURE:
+# ├── apexcharts/     - ApexCharts time series and bar charts
+# ├── mushroom/       - Mushroom template and entity cards
+# ├── climate/        - Thermostat control cards
+# ├── gauges/         - Built-in gauge cards
+# ├── conditional/    - Cards that show/hide based on state
+# ├── weather/        - Weather display cards
+# └── billing/        - Bill entry and cost tracking cards
+#
+# CARD CATEGORIES:
+#
+# === ApexCharts (10 cards) ===
+# temperature-trend-48h.yaml      - Multi-source outdoor temp comparison
+# runtime-per-hdd-control-chart.yaml - Statistical process control chart
+# recovery-rate-trend.yaml        - Setback recovery performance
+# hdd-actual-14d.yaml             - Daily HDD bar chart
+# energy-month-30d.yaml           - Monthly energy consumption
+# power-24h.yaml                  - Real-time power draw
+# temperature-heating-48h.yaml    - Indoor temps with heat call overlay
+# humidity-dewpoint-48h.yaml      - Dual-axis humidity chart
+# wind-speed-24h.yaml             - Wind speed area chart
+# uv-index-7d.yaml                - UV index area chart
+#
+# === Mushroom Template (20+ cards) ===
+# outdoor-temp-dynamic.yaml       - Temp with color by range
+# hdd-today.yaml / cdd-today.yaml - Degree day displays
+# runtime-*.yaml                  - Zone runtime cards
+# avg-cycle-*-dynamic.yaml        - Cycle length with short-cycling colors
+# short-cycling-alert-*.yaml      - OK/ALERT status cards
+# efficiency-deviation-dynamic.yaml - Baseline comparison
+# chaining-index.yaml             - Zone overlap efficiency
+# recovery-status-*.yaml          - Setback recovery state
+# daily-cost-*.yaml               - Daily HVAC costs
+#
+# === Climate (4 cards) ===
+# thermostat-1f.yaml              - Full 1F thermostat control
+# thermostat-2f.yaml              - Full 2F thermostat control
+# thermostat-1f-compact.yaml      - Status-only display
+# thermostat-2f-compact.yaml      - Status-only display
+#
+# === Gauges (6 cards) ===
+# runtime-per-hdd-7d.yaml         - Efficiency gauge
+# heating-efficiency-mtd.yaml     - CCF/1k HDD gauge
+# building-ua.yaml                - Envelope heat loss gauge
+# zone-balance.yaml               - 2F runtime percentage gauge
+# feels-like.yaml                 - Apparent temperature gauge
+# battery-voltage.yaml            - UPS battery gauge
+#
+# === Conditional (4 cards) ===
+# filter-alert.yaml               - Filter change due alert
+# efficiency-alert.yaml           - Efficiency deviation alert
+# cold-snap.yaml                  - Extreme cold alert
+# climate-efficiency-alert.yaml   - Climate-adjusted efficiency alert
+#
+# === Weather (2 cards) ===
+# current-conditions-grid.yaml    - 8-card weather metrics grid
+# forecast-card.yaml              - HA weather forecast card
+#
+# === Billing (4 files) ===
+# electric-bill-entry.yaml        - Electric bill input cards
+# gas-bill-entry.yaml             - Gas bill input cards
+# rate-change-mom.yaml            - Month-over-month comparisons
+# filter-status.yaml              - HVAC filter tracking cards
+#
+# NOTES:
+# - grid_options vs layout_options: Both work, grid_options is newer
+# - Color templates use Jinja2: {% if %}...{% endif %}
+# - Some cards use tap_action for more-info popups
+# - Multi-card sections stored as YAML arrays (billing folder)

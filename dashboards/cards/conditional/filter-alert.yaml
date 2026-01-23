@@ -1,0 +1,20 @@
+# Filter Change Alert - Conditional Card
+# Only shows when filter change is due (>= 1000 runtime hours)
+# Dashboard: Home, HVAC Performance
+type: conditional
+conditions:
+  - entity: binary_sensor.hvac_filter_change_alert
+    state: "on"
+card:
+  type: custom:mushroom-template-card
+  primary: Filter Due!
+  icon: mdi:air-filter
+  color: red
+  vertical: true
+  features_position: bottom
+  tap_action:
+    action: more-info
+    entity: sensor.hvac_filter_hours_remaining
+grid_options:
+  columns: 3
+  rows: 2

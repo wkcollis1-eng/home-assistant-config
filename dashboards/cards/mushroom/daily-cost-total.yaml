@@ -1,0 +1,13 @@
+# Daily Total HVAC Cost - Mushroom Template Card
+# Shows combined gas + electric cost for today
+# Dashboard: HVAC Performance, Billing & Cost
+type: custom:mushroom-template-card
+primary: "${{ states('sensor.hvac_daily_total_cost_estimate') | round(2) }}"
+secondary: Total HVAC Cost Today
+icon: mdi:currency-usd
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+color: green
+features_position: bottom
+vertical: true

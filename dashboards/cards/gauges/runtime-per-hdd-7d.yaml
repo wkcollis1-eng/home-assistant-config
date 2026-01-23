@@ -1,0 +1,13 @@
+# Runtime/HDD (7d) - Gauge Card
+# Shows 7-day rolling runtime per HDD
+# Dashboard: Energy Performance - Operations
+type: gauge
+entity: sensor.hvac_runtime_per_hdd_7_day
+name: Runtime/HDD (7d)
+min: 0
+max: 25
+needle: true
+severity:
+  green: 0
+  yellow: 12
+  red: 20

@@ -1,0 +1,32 @@
+# Energy This Month (30 Days) - ApexCharts Card
+# Shows energy consumption for TV Room, Computer, Dehumidifier
+# Dashboard: Energy Monitoring
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Energy This Month (30 Days)
+  show_states: true
+  colorize_states: true
+graph_span: 30d
+yaxis:
+  - id: energy
+    min: 0
+    apex_config:
+      title:
+        text: kWh
+series:
+  - entity: sensor.tv_room_this_month_s_consumption
+    name: TV Room
+    color: "#4CAF50"
+    stroke_width: 2
+    yaxis_id: energy
+  - entity: sensor.computer_outlet_this_month_s_consumption
+    name: Computer
+    color: "#2196F3"
+    stroke_width: 2
+    yaxis_id: energy
+  - entity: sensor.dehumidifier_this_month_s_consumption
+    name: Dehumidifier
+    color: "#00BCD4"
+    stroke_width: 2
+    yaxis_id: energy

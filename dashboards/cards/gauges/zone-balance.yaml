@@ -1,0 +1,22 @@
+# Zone Balance (2F %) - Gauge Card
+# Shows 2nd floor as percentage of total runtime
+# Red: 0-40%, Green: 40-60%, Orange: 60-75%, Red: 75-100%
+# Dashboard: Energy Performance - Operations
+type: gauge
+entity: sensor.hvac_zone_balance_ratio_today
+name: Zone Balance (2F %)
+min: 0
+max: 100
+needle: true
+segments:
+  - from: 0
+    color: "#db4437"
+  - from: 40
+    color: "#43a047"
+  - from: 60
+    color: "#ff9800"
+  - from: 75
+    color: "#db4437"
+grid_options:
+  columns: 6
+  rows: 3

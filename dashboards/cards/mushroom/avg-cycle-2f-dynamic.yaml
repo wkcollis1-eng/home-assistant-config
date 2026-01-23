@@ -1,0 +1,26 @@
+# 2F Average Cycle Length - Dynamic Color
+# Color indicates short cycling risk (red < 3min, orange < 5min, green >= 8min)
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: >-
+  {% set r2 = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
+  {% set c2 = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}
+  {{ ((r2 * 60 / c2) | round(1)) if c2 > 0 else 'N/A' }} min
+secondary: 2F Avg Cycle
+icon: mdi:home-floor-2
+color: >-
+  {% set r2 = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
+  {% set c2 = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}
+  {% set a2 = (r2 * 60 / c2) if c2 > 0 else 0 %}
+  {% if a2 == 0 %}grey
+  {% elif a2 < 3 %}red
+  {% elif a2 < 5 %}orange
+  {% elif a2 < 8 %}amber
+  {% else %}green{% endif %}
+features_position: bottom
+vertical: true
+grid_options:
+  columns: 6
+  rows: 2
+tap_action:
+  action: more-info

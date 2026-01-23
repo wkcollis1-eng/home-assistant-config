@@ -1,0 +1,14 @@
+- id: '1766968350764'
+  name: Lights Off (Living Room)
+  entities:
+    switch.family_room_2:
+      friendly_name: Lamp 1
+      state: 'off'
+    switch.family_room_3:
+      friendly_name: Lamp 2
+      state: 'off'
+  metadata:
+    switch.family_room_2:
+      entity_only: true
+    switch.family_room_3:
+      entity_only: true

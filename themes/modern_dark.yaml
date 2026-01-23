@@ -1,0 +1,63 @@
+modern_dark:
+  # Primary colors
+  primary-color: "#6C63FF"
+  accent-color: "#6C63FF"
+
+  # Background colors
+  primary-background-color: "#1a1a2e"
+  secondary-background-color: "#16213e"
+  card-background-color: "#1f2940"
+
+  # Text colors
+  primary-text-color: "#e4e4e7"
+  secondary-text-color: "#a1a1aa"
+  text-primary-color: "#e4e4e7"
+  disabled-text-color: "#52525b"
+
+  # Header/Sidebar
+  app-header-background-color: "#16213e"
+  app-header-text-color: "#e4e4e7"
+  sidebar-background-color: "#0f0f23"
+  sidebar-text-color: "#e4e4e7"
+  sidebar-selected-background-color: "#6C63FF20"
+  sidebar-selected-icon-color: "#6C63FF"
+
+  # Dividers and borders
+  divider-color: "#27272a"
+
+  # States
+  state-icon-color: "#a1a1aa"
+  state-icon-active-color: "#6C63FF"
+  switch-checked-color: "#6C63FF"
+  switch-unchecked-button-color: "#52525b"
+  switch-unchecked-track-color: "#27272a"
+
+  # Cards
+  ha-card-border-radius: "16px"
+  ha-card-border-width: "0px"
+  ha-card-box-shadow: "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2)"
+
+  # Mushroom specific
+  mush-card-primary-color: "#e4e4e7"
+  mush-card-secondary-color: "#a1a1aa"
+  mush-control-border-radius: "12px"
+  mush-chip-border-radius: "20px"
+  mush-chip-background-color: "#27272a"
+  mush-chip-box-shadow: "none"
+
+  # Graph/Chart colors
+  graph-color-1: "#6C63FF"
+  graph-color-2: "#22D3EE"
+  graph-color-3: "#F97316"
+
+  # Modes
+  modes:
+    light:
+      primary-background-color: "#f4f4f5"
+      secondary-background-color: "#ffffff"
+      card-background-color: "#ffffff"
+      primary-text-color: "#18181b"
+      secondary-text-color: "#52525b"
+      ha-card-box-shadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)"
+      sidebar-background-color: "#f4f4f5"
+      app-header-background-color: "#ffffff"

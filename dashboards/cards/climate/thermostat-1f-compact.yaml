@@ -1,0 +1,12 @@
+# 1st Floor Thermostat Compact - Mushroom Climate Card
+# Status display only (no temperature control)
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-climate-card
+entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+name: 1st Floor
+icon: mdi:home-floor-1
+show_temperature_control: false
+fill_container: true
+layout_options:
+  grid_columns: 2
+  grid_rows: 2

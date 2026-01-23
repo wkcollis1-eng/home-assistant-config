@@ -1,0 +1,20 @@
+# 1F Setback Degree-Hours - Mushroom Template Card
+# Shows accumulated thermal deficit during setback
+# Lower = better insulated / less heat loss
+# Dashboard: Energy Performance - Setback Optimization
+type: custom:mushroom-template-card
+primary: "{{ states('input_number.hvac_1f_setback_degree_hours') }} °F·h"
+secondary: "1st Floor Degree-Hours"
+icon: mdi:thermometer-minus
+icon_color: >
+  {% set val = states('input_number.hvac_1f_setback_degree_hours') | float(0) %}
+  {% if val < 16 %}green
+  {% elif val < 24 %}orange
+  {% else %}red{% endif %}
+tap_action:
+  action: more-info
+entity: input_number.hvac_1f_setback_degree_hours
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+vertical: true

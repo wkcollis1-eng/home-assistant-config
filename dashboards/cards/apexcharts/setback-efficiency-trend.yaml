@@ -1,0 +1,93 @@
+# Setback Efficiency Analysis - ApexCharts Card
+# Shows overnight vs recovery efficiency and daily savings over time
+# Dashboard: Energy Performance - Setback Optimization
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Setback Efficiency Analysis
+  show_states: true
+  colorize_states: true
+graph_span: 14d
+span:
+  end: day
+yaxis:
+  - id: efficiency
+    min: 0
+    apex_config:
+      tickAmount: 5
+      title:
+        text: min/HDD
+  - id: savings
+    opposite: true
+    apex_config:
+      tickAmount: 5
+      title:
+        text: $/day
+apex_config:
+  chart:
+    height: 280
+  legend:
+    show: true
+    position: bottom
+  stroke:
+    curve: smooth
+series:
+  - entity: input_number.hvac_1f_overnight_efficiency
+    name: 1F Overnight
+    color: "#2ecc71"
+    stroke_width: 2
+    yaxis_id: efficiency
+    extend_to: now
+    show:
+      in_header: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: input_number.hvac_1f_recovery_efficiency
+    name: 1F Recovery
+    color: "#e67e22"
+    stroke_width: 2
+    yaxis_id: efficiency
+    extend_to: now
+    show:
+      in_header: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: input_number.hvac_2f_overnight_efficiency
+    name: 2F Overnight
+    color: "#27ae60"
+    stroke_width: 2
+    opacity: 0.6
+    yaxis_id: efficiency
+    extend_to: now
+    show:
+      in_header: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: input_number.hvac_2f_recovery_efficiency
+    name: 2F Recovery
+    color: "#d35400"
+    stroke_width: 2
+    opacity: 0.6
+    yaxis_id: efficiency
+    extend_to: now
+    show:
+      in_header: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: sensor.hvac_total_setback_daily_savings
+    name: Daily Savings
+    color: "#3498db"
+    stroke_width: 3
+    yaxis_id: savings
+    extend_to: now
+    type: area
+    opacity: 0.3
+    show:
+      in_header: true
+    group_by:
+      func: last
+      duration: 1d

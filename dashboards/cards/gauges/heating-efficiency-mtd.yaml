@@ -1,0 +1,20 @@
+# Heating Efficiency (CCF/1k HDD) - Gauge Card
+# Shows month-to-date heating efficiency
+# Green: 0-82, Yellow: 82-91, Red: 91+
+# Dashboard: Energy Performance - Diagnostics, Engineering
+type: gauge
+entity: sensor.hvac_heating_efficiency_mtd
+name: CCF/1k HDD
+min: 0
+max: 110
+needle: true
+segments:
+  - from: 0
+    color: "#43a047"
+  - from: 82
+    color: "#ffeb3b"
+  - from: 91
+    color: "#db4437"
+grid_options:
+  columns: 9
+  rows: 4

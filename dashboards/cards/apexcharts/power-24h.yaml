@@ -1,0 +1,32 @@
+# Power - Last 24 Hours - ApexCharts Card
+# Shows real-time power consumption for monitored outlets
+# Dashboard: Energy Monitoring
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Power - Last 24 Hours
+  show_states: true
+  colorize_states: true
+graph_span: 24h
+yaxis:
+  - id: power
+    min: 0
+    apex_config:
+      title:
+        text: Watts
+series:
+  - entity: sensor.tv_room_current_consumption
+    name: TV Room
+    color: "#4CAF50"
+    stroke_width: 2
+    yaxis_id: power
+  - entity: sensor.computer_outlet_current_consumption
+    name: Computer
+    color: "#2196F3"
+    stroke_width: 2
+    yaxis_id: power
+  - entity: sensor.dehumidifier_current_consumption
+    name: Dehumidifier
+    color: "#00BCD4"
+    stroke_width: 2
+    yaxis_id: power

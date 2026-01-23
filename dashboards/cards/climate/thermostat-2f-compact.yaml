@@ -1,0 +1,12 @@
+# 2nd Floor Thermostat Compact - Mushroom Climate Card
+# Status display only (no temperature control)
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-climate-card
+entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+name: 2nd Floor
+icon: mdi:home-floor-2
+show_temperature_control: false
+fill_container: true
+layout_options:
+  grid_columns: 2
+  grid_rows: 2

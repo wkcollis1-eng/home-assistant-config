@@ -1,0 +1,34 @@
+# Wind Speed (24h) - ApexCharts Card
+# Shows wind speed as area chart
+# Dashboard: Weather
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Wind Speed (24h)
+  show_states: true
+  colorize_states: true
+graph_span: 24h
+span:
+  end: hour
+yaxis:
+  - id: wind
+    min: 0
+    apex_config:
+      tickAmount: 5
+      title:
+        text: mph
+apex_config:
+  chart:
+    height: 200
+  legend:
+    show: false
+series:
+  - entity: sensor.pirate_weather_wind_speed
+    name: Wind Speed
+    type: area
+    color: "#607D8B"
+    stroke_width: 2
+    opacity: 0.3
+    yaxis_id: wind
+    show:
+      in_header: true

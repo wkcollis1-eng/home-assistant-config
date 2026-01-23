@@ -1,0 +1,13 @@
+# Daily Gas Cost - Mushroom Template Card
+# Shows estimated gas cost for today
+# Dashboard: HVAC Performance, Billing & Cost
+type: custom:mushroom-template-card
+primary: "${{ states('sensor.hvac_daily_gas_cost_estimate') | round(2) }}"
+secondary: Gas Cost Today
+icon: mdi:fire
+color: orange
+features_position: bottom
+vertical: true
+grid_options:
+  columns: 6
+  rows: 2

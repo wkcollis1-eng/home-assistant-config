@@ -1,0 +1,18 @@
+# 2nd Floor Thermostat - Mushroom Climate Card
+# Full thermostat control with temperature adjustment
+# Dashboard: Home
+type: custom:mushroom-climate-card
+entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+name: 2nd Floor
+icon: mdi:home-floor-2
+hvac_modes:
+  - "off"
+  - heat
+  - cool
+show_temperature_control: true
+collapsible_controls: true
+fill_container: true
+layout: vertical
+grid_options:
+  columns: 6
+  rows: 3

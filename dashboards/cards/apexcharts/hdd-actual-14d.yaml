@@ -1,0 +1,36 @@
+# HDD Actual (14-Day) - ApexCharts Card
+# Shows daily HDD as bar chart
+# Dashboard: Weather
+type: custom:apexcharts-card
+header:
+  show: true
+  title: HDD - Actual
+  show_states: true
+  colorize_states: true
+graph_span: 14d
+span:
+  end: day
+yaxis:
+  - id: hdd
+    min: 0
+    apex_config:
+      tickAmount: 5
+      title:
+        text: HDD
+apex_config:
+  chart:
+    height: 280
+  legend:
+    show: true
+    position: bottom
+series:
+  - entity: sensor.hvac_hdd65_today
+    name: Actual HDD
+    type: column
+    color: "#3B82F6"
+    yaxis_id: hdd
+    show:
+      in_header: true
+    group_by:
+      func: last
+      duration: 1d

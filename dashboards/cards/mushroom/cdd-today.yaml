@@ -1,0 +1,13 @@
+# CDD Today - Mushroom Template Card
+# Shows today's cooling degree days
+# Dashboard: HVAC Performance
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.hvac_cdd65_today')|round(1) }}"
+secondary: CDD Today
+icon: mdi:sun-thermometer
+color: orange
+vertical: true
+features_position: bottom
+grid_options:
+  columns: 3
+  rows: 2

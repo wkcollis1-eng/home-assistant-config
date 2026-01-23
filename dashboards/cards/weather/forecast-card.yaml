@@ -1,0 +1,8 @@
+# Weather Forecast Card
+# Built-in HA weather forecast card using Pirate Weather
+# Dashboard: Home, Weather
+type: weather-forecast
+entity: weather.pirateweather
+show_current: true
+show_forecast: true
+forecast_type: daily

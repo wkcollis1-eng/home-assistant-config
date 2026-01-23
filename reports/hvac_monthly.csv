@@ -1,0 +1,1 @@
+month,days,mean_outdoor_temp,total_hdd65,furnace_runtime_hours,avg_runtime_per_hdd,heating_efficiency_ccf_per_1k_hdd,actual_runtime,expected_runtime,efficiency_deviation_pct,gas_usage_ccf,gas_cost,electric_kwh

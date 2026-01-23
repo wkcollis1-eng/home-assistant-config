@@ -1,0 +1,18 @@
+# Efficiency Deviation - Dynamic Color
+# Shows efficiency vs baseline with color coding
+# Green < 5%, Orange 5-10%, Red > 10%
+# Dashboard: Energy Performance - Diagnostics
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.hvac_performance_vs_baseline') | round(1) }}%"
+secondary: Efficiency vs Baseline
+icon: mdi:gauge
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+color: >-
+  {% set pct = states('sensor.hvac_performance_vs_baseline') | float(0) %}
+  {% if pct > 10 %}red
+  {% elif pct > 5 %}orange
+  {% else %}green{% endif %}
+features_position: bottom
+vertical: true

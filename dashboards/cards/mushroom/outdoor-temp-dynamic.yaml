@@ -1,0 +1,18 @@
+# Outdoor Temperature - Dynamic Color
+# Changes color based on temperature range
+# Dashboard: Home, HVAC Performance, Energy Performance
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.outdoor_temp_live')|round(0) }}°F"
+secondary: Outside
+icon: mdi:thermometer
+color: >-
+  {% set temp = states('sensor.outdoor_temp_live')|float(50) %}
+  {% if temp < 32 %}cyan
+  {% elif temp < 50 %}blue
+  {% elif temp < 70 %}green
+  {% else %}orange{% endif %}
+vertical: true
+features_position: bottom
+grid_options:
+  columns: 3
+  rows: 2

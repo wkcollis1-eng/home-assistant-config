@@ -1,0 +1,53 @@
+# Secrets and sensitive data
+secrets.yaml
+secrets_*.yaml
+*.pem
+*.key
+
+# Home Assistant internal storage (contains auth tokens, user data)
+.storage/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Cloud connection
+.cloud/
+
+# Dependencies (auto-downloaded)
+deps/
+
+# Text-to-speech cache
+tts/
+
+# Log files
+*.log
+*.log.*
+home-assistant.log.fault
+
+# Backups (if any)
+*.bak
+backups/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS files
+.DS_Store
+Thumbs.db
+*.lnk
+
+# IDE files
+.vscode/
+.idea/
+
+# Lock files
+.ha_run.lock
+
+# Null file (artifact)
+nul
+
+# Custom components downloaded via HACS (optional - uncomment if you want to exclude)
+# custom_components/hacs/

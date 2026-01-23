@@ -1,0 +1,77 @@
+# Current Weather Conditions Grid
+# 8 weather metric cards in a grid layout
+# Dashboard: Weather
+# Note: This is a grid card containing multiple mushroom cards
+type: grid
+columns: 4
+cards:
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_temperature')|round(0) }}°F"
+    secondary: "Feels {{ states('sensor.pirate_weather_feels_like')|round(0) }}°F"
+    icon: mdi:thermometer
+    color: >-
+      {% set temp = states('sensor.pirate_weather_temperature')|float(65) %}
+      {% if temp < 32 %}cyan
+      {% elif temp < 50 %}blue
+      {% elif temp < 70 %}green
+      {% elif temp < 85 %}orange
+      {% else %}red{% endif %}
+    vertical: true
+    features_position: bottom
+    tap_action:
+      action: more-info
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_humidity')|round(0) }}%"
+    secondary: Humidity
+    icon: mdi:water-percent
+    icon_color: blue
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_wind_speed')|round(0) }} mph"
+    secondary: "{{ states('sensor.pirate_weather_wind_direction') }}"
+    icon: mdi:weather-windy
+    icon_color: grey
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_pressure')|round(1) }} hPa"
+    secondary: Pressure
+    icon: mdi:gauge
+    icon_color: purple
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_dew_point')|round(0) }}°F"
+    secondary: Dew Point
+    icon: mdi:water-thermometer
+    icon_color: cyan
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_visibility')|round(1) }} mi"
+    secondary: Visibility
+    icon: mdi:eye
+    icon_color: green
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_cloud_cover')|round(0) }}%"
+    secondary: Cloud Cover
+    icon: mdi:cloud-percent
+    icon_color: grey
+    fill_container: true
+    layout: vertical
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_uv_index')|round(1) }}"
+    secondary: UV Index
+    icon: mdi:sun-wireless
+    icon_color: >-
+      {% set uv = states('sensor.pirate_weather_uv_index')|float(0) %}
+      {% if uv < 3 %}green
+      {% elif uv < 6 %}yellow
+      {% elif uv < 8 %}orange
+      {% elif uv < 11 %}red
+      {% else %}purple{% endif %}
+    fill_container: true
+    layout: vertical

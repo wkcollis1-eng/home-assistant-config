@@ -1,0 +1,76 @@
+# Temperature & Heating (48h) - ApexCharts Card
+# Shows indoor/outdoor temps with heat call overlay (shaded areas)
+# Dashboard: Energy Performance - Charts view
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Temperature & Heating (48h)
+  show_states: false
+graph_span: 48h
+span:
+  end: hour
+yaxis:
+  - id: temp
+    min: "~10"
+    max: "~80"
+    apex_config:
+      tickAmount: 4
+      title:
+        text: "°F"
+        style:
+          color: "#BAC0C6"
+      labels:
+        style:
+          colors: "#BAC0C6"
+  - id: heat
+    opposite: true
+    min: 0
+    max: 1.5
+    show: false
+apex_config:
+  chart:
+    height: 310
+    background: transparent
+  grid:
+    borderColor: "#3a4a5e"
+  legend:
+    show: true
+    position: top
+    labels:
+      colors: "#BAC0C6"
+  tooltip:
+    theme: dark
+series:
+  - entity: sensor.outdoor_temp_live
+    name: Outside
+    color: "#1A89F5"
+    stroke_width: 2
+    yaxis_id: temp
+  - entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+    attribute: current_temperature
+    name: 1F Indoor
+    color: "#00CA8B"
+    stroke_width: 2
+    yaxis_id: temp
+  - entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+    attribute: current_temperature
+    name: 2F Indoor
+    color: "#F7D88B"
+    stroke_width: 2
+    yaxis_id: temp
+  - entity: binary_sensor.hvac_1f_call_for_heat
+    name: 1F Heat
+    type: area
+    color: "#F97316"
+    yaxis_id: heat
+    transform: "return x === 'on' ? 1 : 0;"
+    opacity: 0.3
+    stroke_width: 0
+  - entity: binary_sensor.hvac_2f_call_for_heat
+    name: 2F Heat
+    type: area
+    color: "#FC937E"
+    yaxis_id: heat
+    transform: "return x === 'on' ? 1 : 0;"
+    opacity: 0.3
+    stroke_width: 0

@@ -1,0 +1,16 @@
+# Alert Status Template - Mushroom Template Card
+# Generic alert card showing OK/ALERT based on binary sensor
+# Replace BINARY_SENSOR_ID and LABEL with actual values
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: >-
+  {% if is_state('binary_sensor.BINARY_SENSOR_ID', 'on') %}ALERT{% else %}OK{% endif %}
+secondary: LABEL
+icon: mdi:alert-circle
+color: >-
+  {% if is_state('binary_sensor.BINARY_SENSOR_ID', 'on') %}red{% else %}green{% endif %}
+features_position: bottom
+vertical: true
+grid_options:
+  columns: 6
+  rows: 2
