@@ -1,14 +1,14 @@
 weather_update_script:
+  alias: "Weather update script"
+  description: ""
   sequence:
     - action: weather.get_forecasts
-    metadata: {}
-    target:
-      device_id: 0ab523fba3daaef140af4822794e6ecf
-    data:
-      type: hourly
-    response_variable: temperature
-  alias: 'Weather update script '
-  description: ''
+      metadata: {}
+      target:
+        device_id: 0ab523fba3daaef140af4822794e6ecf
+      data:
+        type: hourly
+      response_variable: temperature
 # ===============================================================
 # COMPLETE SCRIPTS.YAML
 # ===============================================================
