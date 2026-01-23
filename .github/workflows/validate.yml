@@ -1,0 +1,44 @@
+name: Validate Home Assistant Config
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run yamllint
+        uses: frenck/action-yamllint@v1
+        with:
+          path: .
+          config: .yamllint.yml
+
+  ha-config-check:
+    name: Home Assistant Config Check
+    runs-on: ubuntu-latest
+    needs: yamllint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create dummy secrets.yaml
+        run: |
+          echo "# Dummy secrets for CI validation" > secrets.yaml
+          echo "latitude: 41.28" >> secrets.yaml
+          echo "longitude: -72.81" >> secrets.yaml
+          echo "elevation: 50" >> secrets.yaml
+          echo "pirate_weather_api_key: dummy_key_for_ci" >> secrets.yaml
+
+      - name: Home Assistant Config Check
+        uses: frenck/action-home-assistant@v1
+        with:
+          path: "."
+          secrets: secrets.yaml
+          version: stable
