@@ -1,6 +1,6 @@
 weather_update_script:
   sequence:
-  - action: weather.get_forecasts
+    - action: weather.get_forecasts
     metadata: {}
     target:
       device_id: 0ab523fba3daaef140af4822794e6ecf

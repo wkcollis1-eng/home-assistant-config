@@ -14,11 +14,8 @@ ignore: |
   .storage/
 
 rules:
-  # Allow long lines (HA templates can be verbose)
-  line-length:
-    max: 500
-    allow-non-breakable-words: true
-    allow-non-breakable-inline-mappings: true
+  # Disable line-length - HA shell commands and templates are inherently long
+  line-length: disable
 
   # Home Assistant uses 2-space indentation
   indentation:

@@ -2,7 +2,7 @@
 # COMPLETE CONFIGURATION.YAML - ENERGY PERFORMANCE TRACKING
 # ===============================================================
 # Version: Final with Auto HDD + Live Weather (10 min updates)
-# 
+#
 # INSTRUCTIONS:
 # 1. Backup your current configuration.yaml
 # 2. Replace ENTIRE contents with this file
@@ -1128,7 +1128,6 @@ input_datetime:
     name: "2F Setback Start Time"
     has_date: true
     has_time: true
-    icon: mdi:clock-start
     icon: mdi:clock-start
 
   hvac_filter_last_changed:
