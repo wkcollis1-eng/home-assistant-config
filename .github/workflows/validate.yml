@@ -40,5 +40,4 @@ jobs:
         uses: frenck/action-home-assistant@v1
         with:
           path: "."
-          secrets: secrets.yaml
           version: stable
