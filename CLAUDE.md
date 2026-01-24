@@ -317,8 +317,8 @@ Captured at 23:57 daily. Annual rotation on Jan 1st.
 | Field | Source |
 |-------|--------|
 | date | Current date |
-| outdoor_high | sensor.pirate_weather_today_high |
-| outdoor_low | sensor.pirate_weather_today_low |
+| outdoor_high | input_number.outdoor_temp_daily_high (actual observed) |
+| outdoor_low | input_number.outdoor_temp_daily_low (actual observed) |
 | outdoor_mean | Calculated (high + low) / 2 |
 | hdd65 | sensor.hvac_hdd65_today |
 | furnace_runtime_min | sensor.hvac_furnace_runtime_today × 60 |
@@ -555,6 +555,19 @@ Log errors: `TypeError: can't subtract offset-naive and offset-aware datetimes`
 - `sensor.hvac_runtime_per_hdd_7_day` → `sensor.hvac_runtime_per_hdd_7day`
 - `sensor.hvac_runtime_per_hdd_upper_bound_1s` → `sensor.hvac_runtime_per_hdd_upper_bound`
 - `sensor.hvac_runtime_per_hdd_lower_bound_1s` → `sensor.hvac_runtime_per_hdd_lower_bound`
+
+### Daily Outdoor Temp Tracking (same date)
+Added actual observed daily high/low tracking instead of using Pirate Weather forecast temps (which were unreliable at 23:57 report time).
+
+**New entities:**
+- `input_number.outdoor_temp_daily_high` - Updated every 10 min if current temp exceeds stored high
+- `input_number.outdoor_temp_daily_low` - Updated every 10 min if current temp is below stored low
+
+**Automations:**
+- `update_outdoor_temp_daily_high_low` - Runs every 10 minutes, updates high/low based on `sensor.hvac_outdoor_temp_hartford_proxy`
+- `reset_outdoor_temp_daily_high_low` - Runs at 00:00:30, resets both to current temp for new day
+
+**CSV Report:** Now uses actual observed temps instead of forecast temps.
 
 ### Known Limitation: Overnight Efficiency = 0
 

@@ -14,7 +14,7 @@ default_config:
 # Shell commands for CSV reports
 shell_command:
   testcmd: "echo hello"
-  appenddailycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''sensor.pirate_weather_today_high'') | float(0) | round(1) }},{{ states(''sensor.pirate_weather_today_low'') | float(0) | round(1) }},{{ ((states(''sensor.pirate_weather_today_high'') | float(0) + states(''sensor.pirate_weather_today_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\" >> /config/reports/hvac_daily_{{ now().year }}.csv"'
+  appenddailycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''input_number.outdoor_temp_daily_high'') | float(0) | round(1) }},{{ states(''input_number.outdoor_temp_daily_low'') | float(0) | round(1) }},{{ ((states(''input_number.outdoor_temp_daily_high'') | float(0) + states(''input_number.outdoor_temp_daily_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\" >> /config/reports/hvac_daily_{{ now().year }}.csv"'
   appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_heat_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_heat_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
   rotatedailycsv: 'bash -c "head -1 /config/reports/hvac_daily_{{ now().year - 1 }}.csv > /config/reports/hvac_daily_{{ now().year }}.csv"'
 
@@ -158,6 +158,25 @@ input_number:
     mode: box
     icon: mdi:home-analytics
     initial: 41.7
+
+  # === DAILY OUTDOOR TEMP TRACKING ===
+  outdoor_temp_daily_high:
+    name: "Outdoor Temp Daily High"
+    min: -50
+    max: 150
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-up
+
+  outdoor_temp_daily_low:
+    name: "Outdoor Temp Daily Low"
+    min: -50
+    max: 150
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-down
 
   # === CURRENT MONTH BILLS ===
   electricity_bill_amount:

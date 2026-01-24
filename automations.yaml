@@ -5,6 +5,69 @@
 # ===============================================================
 
 # ===============================================================
+# OUTDOOR TEMP DAILY HIGH/LOW TRACKING
+# ===============================================================
+- id: update_outdoor_temp_daily_high_low
+  alias: "Update Outdoor Temp Daily High/Low"
+  description: "Updates daily high/low every 10 minutes based on actual observed temps"
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/10"
+    - platform: homeassistant
+      event: start
+  action:
+    - variables:
+        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
+        current_high: "{{ states('input_number.outdoor_temp_daily_high') | float(-50) }}"
+        current_low: "{{ states('input_number.outdoor_temp_daily_low') | float(150) }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ current_temp is not none and current_temp > current_high }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_daily_high
+              data:
+                value: "{{ current_temp | round(1) }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ current_temp is not none and current_temp < current_low }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_daily_low
+              data:
+                value: "{{ current_temp | round(1) }}"
+
+- id: reset_outdoor_temp_daily_high_low
+  alias: "Reset Outdoor Temp Daily High/Low"
+  description: "Resets daily high/low at midnight for new day"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:00:30"
+  action:
+    - variables:
+        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_daily_high
+      data:
+        value: "{{ current_temp | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.outdoor_temp_daily_low
+      data:
+        value: "{{ current_temp | round(1) }}"
+    - service: system_log.write
+      data:
+        message: "Daily outdoor temp high/low reset to {{ current_temp }}°F"
+        level: info
+
+# ===============================================================
 # AUTO HDD TRACKING - Daily capture at 11:55 PM (HARDENED)
 # ===============================================================
 - id: capture_daily_hdd
