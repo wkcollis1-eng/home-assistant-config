@@ -21,17 +21,21 @@
    - `configuration.yaml`: Removed duplicate icon key on hvac_2f_setback_start
    - `automations.yaml`: Changed `service:` to `action:` format for CSV reports
 
-### Issue in Progress: shell_command not loading
-- **Symptom:** `shell_command.append_daily_csv` not appearing in Services after restart
-- **Impact:** Daily CSV report not populating (last data: none, only header exists)
-- **Tried:**
-  - Verified automation is enabled
-  - Checked automation trace - error "This action requires a target"
-  - Restarted HA - shell_command services still don't appear
-- **Next step:** Added `shell_command.test_shell` simple command to isolate issue
-  - Need to restart HA and check if `shell_command.test_shell` appears
-  - Check HA logs for shell_command errors
-  - If simple command works, issue is with template syntax in complex commands
+### Issue RESOLVED: shell_command not loading
+
+**Root Cause:** Underscores in shell_command names caused services to silently fail to register in HA 2026.1.x
+
+**Fix Applied:**
+1. Renamed all shell commands to remove underscores:
+   - `append_daily_csv` → `appenddailycsv`
+   - `append_monthly_csv` → `appendmonthlycsv`
+   - `rotate_daily_csv` → `rotatedailycsv`
+
+2. Wrapped commands in `bash -c "..."` to ensure shell redirects (`>>`) work properly
+
+3. Updated automations.yaml to use new service names
+
+**Verified:** Daily CSV report now appending data correctly.
 
 ---
 **Date:** 2026-01-22

@@ -1152,7 +1152,7 @@
     - platform: time
       at: "23:57:00"
   action:
-    - action: shell_command.append_daily_csv
+    - action: shell_command.appenddailycsv
       data: {}
     - action: system_log.write
       data:
@@ -1169,7 +1169,7 @@
     - condition: template
       value_template: "{{ now().day == (now().replace(month=now().month % 12 + 1, day=1) - timedelta(days=1)).day }}"
   action:
-    - action: shell_command.append_monthly_csv
+    - action: shell_command.appendmonthlycsv
       data: {}
     - action: system_log.write
       data:
@@ -1186,7 +1186,8 @@
     - condition: template
       value_template: "{{ now().month == 1 and now().day == 1 }}"
   action:
-    - service: shell_command.rotate_daily_csv
+    - action: shell_command.rotatedailycsv
+      data: {}
     - service: system_log.write
       data:
         message: "Daily CSV rotated for new year"

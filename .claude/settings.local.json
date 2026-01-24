@@ -3,7 +3,8 @@
     "allow": [
       "Bash(powershell:*)",
       "Bash(cmd //c \"dir H:\\\\.storage\\\\lovelace* 2>nul || echo No lovelace files found\")",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git add:*)"
     ]
   }
 }
