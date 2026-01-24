@@ -1360,9 +1360,10 @@ template:
         state_class: measurement
         icon: mdi:snowflake
         state: >
-          {% set mean_t = states('sensor.hvac_outdoor_temp_mean_24h') | float(0) %}
+          {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
+          {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
           {% set cur_t = states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) %}
-          {% set t = mean_t if mean_t > 0 else cur_t %}
+          {% set t = mean_t if mean_t is not none else cur_t %}
           {{ [65 - t, 0] | max | round(1) }}
 
       - name: "HVAC CDD65 Today"
@@ -1371,9 +1372,10 @@ template:
         state_class: measurement
         icon: mdi:sun-thermometer
         state: >
-          {% set mean_t = states('sensor.hvac_outdoor_temp_mean_24h') | float(0) %}
+          {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
+          {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
           {% set cur_t = states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) %}
-          {% set t = mean_t if mean_t > 0 else cur_t %}
+          {% set t = mean_t if mean_t is not none else cur_t %}
           {{ [t - 65, 0] | max | round(1) }}
 
       - name: "HDD Rolling 7-Day Auto"
