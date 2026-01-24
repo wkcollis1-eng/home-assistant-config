@@ -520,3 +520,17 @@ Fixed entity ID typo in dashboard card snippets:
 - `dashboards/cards/mushroom/setback-benefit-1f.yaml`
 - `dashboards/cards/mushroom/setback-benefit-2f.yaml`
 - Changed `hvac_runtime_per_hdd_7_day` → `hvac_runtime_per_hdd_7day`
+
+### Recovery Rate Sensor Fix (same date)
+The recovery rate averages were showing static values (e.g., 2.7, 3.0 min/°F) instead of updating after cold-night recoveries.
+
+**Root Causes:**
+1. `binary_sensor.hvac_*_recovering` depended on `hvac_action == 'heating'`, which flickered OFF during furnace cycles, triggering `recovery_end` prematurely (capturing single furnace cycles instead of full recovery)
+2. 120-minute cap discarded valid cold-night recoveries that exceeded 2 hours
+
+**Fixes Applied:**
+1. Changed recovering sensors to use temperature gap with hysteresis:
+   - Starts: gap > 2°F (significant setback detected)
+   - Ends: gap ≤ 0.5°F (near setpoint)
+   - No longer depends on furnace cycling state
+2. Increased recovery time cap from 120 to 180 minutes

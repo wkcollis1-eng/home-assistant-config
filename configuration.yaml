@@ -1258,21 +1258,33 @@ template:
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current < lower and current > 0 and count >= 4 }}
 
+      # Recovery sensors use hysteresis to avoid flickering during furnace cycles
+      # Starts: gap > 2°F (significant setback), Ends: gap <= 0.5°F (near setpoint)
       - name: "HVAC 1F Recovering"
         unique_id: hvac_1f_recovering
         state: >
           {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
           {% set target = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set heating = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'hvac_action') == 'heating' %}
-          {{ heating and (target - current) > 1 }}
+          {% set gap = target - current %}
+          {% set was_recovering = this.state == 'on' %}
+          {% if was_recovering %}
+            {{ gap > 0.5 }}
+          {% else %}
+            {{ gap > 2 }}
+          {% endif %}
 
       - name: "HVAC 2F Recovering"
         unique_id: hvac_2f_recovering
         state: >
           {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
           {% set target = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set heating = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'hvac_action') == 'heating' %}
-          {{ heating and (target - current) > 1 }}
+          {% set gap = target - current %}
+          {% set was_recovering = this.state == 'on' %}
+          {% if was_recovering %}
+            {{ gap > 0.5 }}
+          {% else %}
+            {{ gap > 2 }}
+          {% endif %}
 
       - name: "HVAC 1F Recovery Rate Alert"
         unique_id: hvac_1f_recovery_rate_alert
