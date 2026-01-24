@@ -661,10 +661,32 @@
       data:
         value: "{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }}"
     # Calculate overnight runtime and efficiency
+    # Handles midnight boundary - estimates pre-midnight runtime proportionally
     - variables:
         overnight_runtime: >
-          {{ ((states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) -
-              states('input_number.hvac_1f_setback_start_runtime') | float(0)) | round(1) }}
+          {% set today_runtime_min = states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60 %}
+          {% set setback_start_runtime = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
+          {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
+          {% if setback_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = setback_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - setback_start_runtime) | round(1) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
+              {% else %}
+                {{ today_runtime_min | round(1) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
         overnight_hours: >
           {% set start = states('input_datetime.hvac_1f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
@@ -767,10 +789,32 @@
               data:
                 value: "{{ recovery_rate | float | round(1) }}"
     # Calculate recovery efficiency (min/HDD during recovery window)
+    # Handles midnight boundary for rare cases where recovery spans midnight
     - variables:
         recovery_runtime: >
-          {{ ((states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) -
-              states('input_number.hvac_1f_recovery_start_runtime') | float(0)) | round(1) }}
+          {% set today_runtime_min = states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60 %}
+          {% set recovery_start_runtime = states('input_number.hvac_1f_recovery_start_runtime') | float(0) %}
+          {% set recovery_start = states('input_datetime.hvac_1f_recovery_start') %}
+          {% if recovery_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = recovery_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - recovery_start_runtime) | round(1) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
+              {% else %}
+                {{ today_runtime_min | round(1) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
         recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
         avg_recovery_temp: >
           {{ ((states('input_number.hvac_1f_recovery_outdoor_temp') | float(35) +
@@ -818,10 +862,32 @@
       data:
         value: "{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }}"
     # Calculate overnight runtime and efficiency
+    # Handles midnight boundary - estimates pre-midnight runtime proportionally
     - variables:
         overnight_runtime: >
-          {{ ((states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) -
-              states('input_number.hvac_2f_setback_start_runtime') | float(0)) | round(1) }}
+          {% set today_runtime_min = states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60 %}
+          {% set setback_start_runtime = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
+          {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
+          {% if setback_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = setback_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - setback_start_runtime) | round(1) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
+              {% else %}
+                {{ today_runtime_min | round(1) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
         overnight_hours: >
           {% set start = states('input_datetime.hvac_2f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
@@ -924,10 +990,32 @@
               data:
                 value: "{{ recovery_rate | float | round(1) }}"
     # Calculate recovery efficiency (min/HDD during recovery window)
+    # Handles midnight boundary for rare cases where recovery spans midnight
     - variables:
         recovery_runtime: >
-          {{ ((states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) -
-              states('input_number.hvac_2f_recovery_start_runtime') | float(0)) | round(1) }}
+          {% set today_runtime_min = states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60 %}
+          {% set recovery_start_runtime = states('input_number.hvac_2f_recovery_start_runtime') | float(0) %}
+          {% set recovery_start = states('input_datetime.hvac_2f_recovery_start') %}
+          {% if recovery_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = recovery_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - recovery_start_runtime) | round(1) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
+              {% else %}
+                {{ today_runtime_min | round(1) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
         recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
         avg_recovery_temp: >
           {{ ((states('input_number.hvac_2f_recovery_outdoor_temp') | float(35) +

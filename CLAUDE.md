@@ -492,3 +492,31 @@ This catches real issues while ignoring noise on mild days.
 ### Sensor Configuration
 - `sensor.climate_norms_today` - Command-line sensor with 1-hour scan_interval
 - Hourly updates ensure day rollover is captured promptly after midnight
+
+---
+
+## Setback Optimization Bug Fix - 2026-01-24
+
+### Issue
+Setback net benefit sensors (`sensor.hvac_1f_setback_net_benefit`, `sensor.hvac_2f_setback_net_benefit`) were returning 0 for overnight setbacks.
+
+### Root Cause
+The `overnight_runtime` and `recovery_runtime` calculations used `sensor.hvac_*_heat_runtime_today` which resets at midnight. For setbacks spanning midnight (e.g., 10 PM → 6 AM), the calculation produced negative values that were clamped to 0, causing the entire net benefit calculation to return 0.
+
+### Fix Applied
+Updated `automations.yaml` to detect midnight boundary crossings and estimate pre-midnight runtime proportionally:
+- `hvac_1f_recovery_start` - overnight_runtime calculation
+- `hvac_2f_recovery_start` - overnight_runtime calculation
+- `hvac_1f_recovery_end` - recovery_runtime calculation
+- `hvac_2f_recovery_end` - recovery_runtime calculation
+
+Logic:
+1. Compare setback/recovery start date to current date
+2. If same day: use simple subtraction (original behavior)
+3. If different days: estimate pre-midnight runtime using post-midnight heating rate
+
+### Additional Fix
+Fixed entity ID typo in dashboard card snippets:
+- `dashboards/cards/mushroom/setback-benefit-1f.yaml`
+- `dashboards/cards/mushroom/setback-benefit-2f.yaml`
+- Changed `hvac_runtime_per_hdd_7_day` → `hvac_runtime_per_hdd_7day`

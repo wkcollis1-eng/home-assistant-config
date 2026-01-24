@@ -9,7 +9,7 @@ secondary: >
 icon: mdi:scale-balance
 color: >
   {% set val = states('sensor.hvac_1f_setback_net_benefit') | float(0) %}
-  {% set baseline = states('sensor.hvac_runtime_per_hdd_7_day') | float(10) %}
+  {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(10) %}
   {% set pct = (val / baseline * 100) if baseline > 0 else 0 %}
   {% if pct > 10 %}green
   {% elif pct < -10 %}red
