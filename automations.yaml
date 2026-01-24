@@ -94,11 +94,13 @@
               data:
                 datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
       default:
-        - service: input_datetime.set_datetime
-          target:
-            entity_id: input_datetime.hdd_capture_last_ok
+        - service: system_log.write
           data:
-            datetime: "1970-01-01 00:00:00"
+            level: warning
+            message: >
+              HDD/CDD capture skipped (invalid values):
+              HDD={{ states('sensor.hvac_hdd65_today') }},
+              CDD={{ states('sensor.hvac_cdd65_today') }}
 
 # ===============================================================
 # RUNTIME PER HDD TRACKING - Daily capture at 11:56 PM (HARDENED)
@@ -336,13 +338,15 @@
       entity_id: input_button.save_electric_bill
   action:
     - variables:
-        bill_month: "{{ state_attr('input_datetime.electricity_bill_date', 'month') | int }}"
+        bill_month: >
+          {% set dt = states('input_datetime.electricity_bill_date') %}
+          {{ (dt | as_datetime | as_local).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
         current_amount: "{{ states('input_number.electricity_bill_amount') | float }}"
         current_kwh: "{{ states('input_number.electricity_bill_kwh') | float }}"
         current_days: "{{ states('input_number.electricity_bill_days') | float }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[bill_month - 1] }}
+          {{ months[(bill_month | int) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -397,13 +401,15 @@
       entity_id: input_button.save_gas_bill
   action:
     - variables:
-        bill_month: "{{ state_attr('input_datetime.gas_bill_date', 'month') | int }}"
+        bill_month: >
+          {% set dt = states('input_datetime.gas_bill_date') %}
+          {{ (dt | as_datetime | as_local).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
         current_amount: "{{ states('input_number.gas_bill_amount') | float }}"
         current_ccf: "{{ states('input_number.gas_bill_ccf') | float }}"
         current_days: "{{ states('input_number.gas_bill_days') | float }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[bill_month - 1] }}
+          {{ months[(bill_month | int) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -705,7 +711,13 @@
             0
           {% endif %}
         setback_degrees: "{{ states('input_number.hvac_1f_recovery_setback_degrees') | float(0) }}"
-        recovery_rate: "{{ (recovery_minutes | float / setback_degrees | float) | round(1) if setback_degrees | float > 0 else 0 }}"
+        recovery_rate: >
+          {% set deg = setback_degrees | float(0) %}
+          {% if deg > 0 %}
+            {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
@@ -856,7 +868,13 @@
             0
           {% endif %}
         setback_degrees: "{{ states('input_number.hvac_2f_recovery_setback_degrees') | float(0) }}"
-        recovery_rate: "{{ (recovery_minutes | float / setback_degrees | float) | round(1) if setback_degrees | float > 0 else 0 }}"
+        recovery_rate: >
+          {% set deg = setback_degrees | float(0) %}
+          {% if deg > 0 %}
+            {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
@@ -1152,9 +1170,8 @@
     - platform: time
       at: "23:57:00"
   action:
-    - action: shell_command.appenddailycsv
-      data: {}
-    - action: system_log.write
+    - service: shell_command.appenddailycsv
+    - service: system_log.write
       data:
         message: "Daily CSV report appended"
         level: info
@@ -1167,11 +1184,10 @@
       at: "23:58:00"
   condition:
     - condition: template
-      value_template: "{{ now().day == (now().replace(month=now().month % 12 + 1, day=1) - timedelta(days=1)).day }}"
+      value_template: "{{ (now() + timedelta(days=1)).day == 1 }}"
   action:
-    - action: shell_command.appendmonthlycsv
-      data: {}
-    - action: system_log.write
+    - service: shell_command.appendmonthlycsv
+    - service: system_log.write
       data:
         message: "Monthly CSV report appended"
         level: info
@@ -1186,8 +1202,7 @@
     - condition: template
       value_template: "{{ now().month == 1 and now().day == 1 }}"
   action:
-    - action: shell_command.rotatedailycsv
-      data: {}
+    - service: shell_command.rotatedailycsv
     - service: system_log.write
       data:
         message: "Daily CSV rotated for new year"
