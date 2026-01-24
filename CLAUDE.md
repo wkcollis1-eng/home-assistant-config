@@ -94,7 +94,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_filter_change_alert` - Alert when >= 1000 hours
 
 ### Efficiency Monitoring
-- `sensor.hvac_runtime_per_hdd_7_day` - 7-day rolling runtime per HDD (min/HDD)
+- `sensor.hvac_runtime_per_hdd_7day` - 7-day rolling runtime per HDD (min/HDD)
 - `sensor.hvac_total_runtime_per_hdd_today` - Today's runtime per HDD (min/HDD)
 - `sensor.hvac_1f_runtime_per_hdd_today` - 1F today's runtime per HDD
 - `sensor.hvac_2f_runtime_per_hdd_today` - 2F today's runtime per HDD
@@ -117,8 +117,8 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.runtime_per_hdd_month_calc` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
-- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation
+- `sensor.hvac_runtime_per_hdd_7day_mean` - Rolling 7-day mean
+- `sensor.hvac_runtime_per_hdd_7day_stddev` - Rolling 7-day standard deviation
 - `sensor.hvac_runtime_per_hdd_upper_bound_1s` - Mean + 2σ boundary
 - `sensor.hvac_runtime_per_hdd_lower_bound_1s` - Mean - 2σ boundary
 - `sensor.hvac_runtime_per_hdd_data_count` - Number of valid samples (alerts suppressed if <4)

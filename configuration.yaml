@@ -1244,7 +1244,7 @@ template:
         unique_id: hvac_runtime_per_hdd_high_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set current = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
           {% set upper = states('sensor.hvac_runtime_per_hdd_upper_bound') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current > upper and upper > 0 and count >= 4 }}
@@ -1253,7 +1253,7 @@ template:
         unique_id: hvac_runtime_per_hdd_low_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set current = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
           {% set lower = states('sensor.hvac_runtime_per_hdd_lower_bound') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current < lower and current > 0 and count >= 4 }}
@@ -1609,8 +1609,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-up-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7day_mean') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7day_stddev') | float(2) %}
           {{ (mean + (stddev * 2)) | round(1) }}
 
       - name: "HVAC Runtime per HDD Lower Bound"
@@ -1619,8 +1619,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-down-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7day_mean') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7day_stddev') | float(2) %}
           {% set lower = mean - (stddev * 2) %}
           {{ lower | round(1) if lower > 0 else 0 }}
 
@@ -2503,7 +2503,7 @@ template:
         state: >
           {% set overnight = states('input_number.hvac_1f_overnight_efficiency') | float(0) %}
           {% set recovery = states('input_number.hvac_1f_recovery_efficiency') | float(0) %}
-          {% set baseline = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
           {% if baseline > 0 and overnight > 0 %}
             {{ (baseline - (overnight + recovery)) | round(1) }}
           {% else %}
@@ -2512,10 +2512,10 @@ template:
         attributes:
           overnight_efficiency: "{{ states('input_number.hvac_1f_overnight_efficiency') }}"
           recovery_efficiency: "{{ states('input_number.hvac_1f_recovery_efficiency') }}"
-          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7_day') }}"
+          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7day') }}"
           interpretation: >
             {% set benefit = this.state | float(0) %}
-            {% set baseline = states('sensor.hvac_runtime_per_hdd_7_day') | float(10) %}
+            {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(10) %}
             {% set pct = (benefit / baseline * 100) | round(0) if baseline > 0 else 0 %}
             {% if pct > 10 %}Setback saving energy
             {% elif pct < -10 %}Setback costing energy
@@ -2529,7 +2529,7 @@ template:
         state: >
           {% set overnight = states('input_number.hvac_2f_overnight_efficiency') | float(0) %}
           {% set recovery = states('input_number.hvac_2f_recovery_efficiency') | float(0) %}
-          {% set baseline = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
           {% if baseline > 0 and overnight > 0 %}
             {{ (baseline - (overnight + recovery)) | round(1) }}
           {% else %}
@@ -2538,10 +2538,10 @@ template:
         attributes:
           overnight_efficiency: "{{ states('input_number.hvac_2f_overnight_efficiency') }}"
           recovery_efficiency: "{{ states('input_number.hvac_2f_recovery_efficiency') }}"
-          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7_day') }}"
+          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7day') }}"
           interpretation: >
             {% set benefit = this.state | float(0) %}
-            {% set baseline = states('sensor.hvac_runtime_per_hdd_7_day') | float(10) %}
+            {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(10) %}
             {% set pct = (benefit / baseline * 100) | round(0) if baseline > 0 else 0 %}
             {% if pct > 10 %}Setback saving energy
             {% elif pct < -10 %}Setback costing energy
@@ -2658,7 +2658,7 @@ template:
         icon: mdi:timer-outline
         state: >
           {% set expected_hdd = states('sensor.expected_hdd_today') | float(0) %}
-          {% set runtime_per_hdd = states('sensor.hvac_runtime_per_hdd_7_day') | float(10.6) %}
+          {% set runtime_per_hdd = states('sensor.hvac_runtime_per_hdd_7day') | float(10.6) %}
           {% if expected_hdd > 0 %}
             {{ (expected_hdd * runtime_per_hdd / 60) | round(2) }}
           {% else %}
