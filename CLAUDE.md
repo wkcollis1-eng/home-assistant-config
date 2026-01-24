@@ -543,3 +543,22 @@ Log errors: `TypeError: can't subtract offset-naive and offset-aware datetimes`
 **Fix:** Added `| as_local` after `| as_datetime` in all affected locations:
 - `configuration.yaml`: `binary_sensor.hdd_capture_stale`, `binary_sensor.runtime_per_hdd_capture_stale`
 - `automations.yaml`: `reset_monthly_hdd`, `reset_yearly_hdd`, `hvac_1f_recovery_start` (overnight_hours), `hvac_1f_recovery_end` (recovery_minutes), `hvac_2f_recovery_start`, `hvac_2f_recovery_end`
+
+### Additional Fixes (same date)
+
+**Recovery time cap raised to 300 minutes:**
+- Changed from 180 to 300 minutes (5 hours) to capture extreme cold days
+- Previously, very cold mornings would silently discard data when recovery exceeded 3 hours
+- 300-minute cap still filters stuck sensors while capturing real-world extremes
+
+**Notification entity ID typos fixed:**
+- `sensor.hvac_runtime_per_hdd_7_day` → `sensor.hvac_runtime_per_hdd_7day`
+- `sensor.hvac_runtime_per_hdd_upper_bound_1s` → `sensor.hvac_runtime_per_hdd_upper_bound`
+- `sensor.hvac_runtime_per_hdd_lower_bound_1s` → `sensor.hvac_runtime_per_hdd_lower_bound`
+
+### Known Limitation: Overnight Efficiency = 0
+
+If `sensor.hvac_*f_setback_net_benefit` shows 0, check:
+1. **Setback automation didn't fire** - `hvac_1f_setback_start` triggers on thermostat `temperature` attribute dropping ≥2°F. Some thermostats with built-in schedules may not report setpoint changes in a way that triggers this.
+2. **Check input_datetime values** - In Developer Tools → States, verify `input_datetime.hvac_1f_setback_start` has a recent timestamp from last night's setback.
+3. **Workaround** - Can manually set `input_datetime.hvac_1f_setback_start` before recovery to test the calculation flow.

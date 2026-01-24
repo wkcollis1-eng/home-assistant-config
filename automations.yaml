@@ -745,12 +745,12 @@
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
         value: "{{ [recovery_minutes | float, 180] | min }}"
-    # Only store to rate slots if recovery is valid (<=180 min, >=1°F setback)
-    # Allows longer recoveries on cold nights; discards extreme outliers
+    # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
+    # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
     - choose:
         - conditions:
             - condition: template
-              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 180 and setback_degrees | float >= 1 }}"
+              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
           sequence:
             # Rotate rolling 7 values (shift old values down, new value in slot 1)
             - service: input_number.set_value
@@ -946,12 +946,12 @@
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
         value: "{{ [recovery_minutes | float, 180] | min }}"
-    # Only store to rate slots if recovery is valid (<=180 min, >=1°F setback)
-    # Allows longer recoveries on cold nights; discards extreme outliers
+    # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
+    # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
     - choose:
         - conditions:
             - condition: template
-              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 180 and setback_degrees | float >= 1 }}"
+              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
           sequence:
             # Rotate rolling 7 values (shift old values down, new value in slot 1)
             - service: input_number.set_value
@@ -1176,8 +1176,8 @@
       data:
         title: "HVAC Efficiency Warning"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
-          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound_1s') }} = mean + 2σ).
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7day') }} min/HDD,
+          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound') }} = mean + 2σ).
           Check for air leaks, filter condition, or thermostat issues.
 
 - id: notify_runtime_per_hdd_low
@@ -1191,8 +1191,8 @@
       data:
         title: "HVAC Efficiency Notice"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
-          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7day') }} min/HDD,
+          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound') }} = mean - 2σ).
           System running more efficiently than expected.
 
 - id: notify_1f_recovery_rate_high
