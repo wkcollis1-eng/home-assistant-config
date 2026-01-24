@@ -534,3 +534,12 @@ The recovery rate averages were showing static values (e.g., 2.7, 3.0 min/°F) i
    - Ends: gap ≤ 0.5°F (near setpoint)
    - No longer depends on furnace cycling state
 2. Increased recovery time cap from 120 to 180 minutes
+
+### Timezone Mismatch Fix (same date)
+Log errors: `TypeError: can't subtract offset-naive and offset-aware datetimes`
+
+**Root Cause:** `as_datetime` filter returns naive datetime, but `now()` returns timezone-aware datetime. Subtraction fails.
+
+**Fix:** Added `| as_local` after `| as_datetime` in all affected locations:
+- `configuration.yaml`: `binary_sensor.hdd_capture_stale`, `binary_sensor.runtime_per_hdd_capture_stale`
+- `automations.yaml`: `reset_monthly_hdd`, `reset_yearly_hdd`, `hvac_1f_recovery_start` (overnight_hours), `hvac_1f_recovery_end` (recovery_minutes), `hvac_2f_recovery_start`, `hvac_2f_recovery_end`

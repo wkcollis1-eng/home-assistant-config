@@ -1315,7 +1315,7 @@ template:
           {% if last_ok in ['unknown', 'unavailable'] or last_ok == '1970-01-01 00:00:00' %}
             true
           {% else %}
-            {% set dt = last_ok | as_datetime %}
+            {% set dt = last_ok | as_datetime | as_local %}
             {{ (now() - dt).total_seconds() > 93600 }}
           {% endif %}
 
@@ -1327,7 +1327,7 @@ template:
           {% if last_ok in ['unknown', 'unavailable'] or last_ok == '1970-01-01 00:00:00' %}
             true
           {% else %}
-            {% set dt = last_ok | as_datetime %}
+            {% set dt = last_ok | as_datetime | as_local %}
             {{ (now() - dt).total_seconds() > 93600 }}
           {% endif %}
 

@@ -245,7 +245,7 @@
           true
         {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
           {# Late startup: only reset if last capture was previous month #}
-          {% set last_capture = last_ok | as_datetime %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
           {{ last_capture.month != now().month }}
         {% else %}
           false
@@ -307,7 +307,7 @@
           true
         {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
           {# Late startup: only reset if last capture was previous year #}
-          {% set last_capture = last_ok | as_datetime %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
           {{ last_capture.year != now().year }}
         {% else %}
           false
@@ -690,7 +690,7 @@
         overnight_hours: >
           {% set start = states('input_datetime.hvac_1f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime)).total_seconds() / 3600) | round(2) }}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
           {% else %}
             8
           {% endif %}
@@ -728,7 +728,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_1f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime)).total_seconds() / 60) | round(1) }}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -891,7 +891,7 @@
         overnight_hours: >
           {% set start = states('input_datetime.hvac_2f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime)).total_seconds() / 3600) | round(2) }}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
           {% else %}
             8
           {% endif %}
@@ -929,7 +929,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_2f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime)).total_seconds() / 60) | round(1) }}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
           {% else %}
             0
           {% endif %}
