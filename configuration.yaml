@@ -1325,17 +1325,18 @@ template:
         device_class: temperature
         state_class: measurement
         state: >
-          {% set live = states('sensor.outdoor_temp_live') | float(0) %}
+          {% set live_state = states('sensor.outdoor_temp_live') %}
+          {% set live = live_state | float(-999) %}
           {% set pw = state_attr('weather.pirateweather', 'temperature') %}
           {% set nws = state_attr('weather.local_weather_2','temperature') %}
           {% set om = state_attr('weather.home','temperature') %}
-          {% if live > 0 %}
+          {% if live_state not in ['unknown', 'unavailable'] and live > -50 %}
             {{ live | round(1) }}
           {% elif pw is number and pw > -50 %}
             {{ pw | round(1) }}
-          {% elif nws is number %}
+          {% elif nws is number and nws > -50 %}
             {{ nws | round(1) }}
-          {% elif om is number %}
+          {% elif om is number and om > -50 %}
             {{ om | round(1) }}
           {% else %}
             {{ 35 }}
@@ -1344,12 +1345,13 @@ template:
       - name: "HVAC Outdoor Weather Source"
         unique_id: hvac_outdoor_weather_source
         state: >
-          {% set live = states('sensor.outdoor_temp_live') | float(0) %}
+          {% set live_state = states('sensor.outdoor_temp_live') %}
+          {% set live = live_state | float(-999) %}
           {% set pw = state_attr('weather.pirateweather', 'temperature') %}
           {% set nws = state_attr('weather.local_weather_2','temperature') %}
-          {% if live > 0 %}Live API (10min)
+          {% if live_state not in ['unknown', 'unavailable'] and live > -50 %}Live API (10min)
           {% elif pw is number and pw > -50 %}Pirate Weather
-          {% elif nws is number %}NWS/NOAA
+          {% elif nws is number and nws > -50 %}NWS/NOAA
           {% else %}Open-Meteo{% endif %}
 
       - name: "HVAC HDD65 Today"
