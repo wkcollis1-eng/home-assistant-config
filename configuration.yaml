@@ -2042,7 +2042,7 @@ template:
         state: >
           {% set amt = states('input_number.electricity_bill_amount') | float(124) %}
           {% set days = states('input_number.electricity_bill_days') | float(30) %}
-          {{ ((amt / days) * now().day) | round(2) }}
+          {{ ((amt / days) * now().day) | round(2) if days > 0 else 0 }}
 
       - name: "Total Utility Cost Month"
         unique_id: total_utility_cost_month
