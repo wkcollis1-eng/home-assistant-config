@@ -1303,7 +1303,8 @@ template:
           {% if last_ok in ['unknown', 'unavailable'] or last_ok == '1970-01-01 00:00:00' %}
             true
           {% else %}
-            {{ (now() - (last_ok | as_datetime | as_local)).total_seconds() > 93600 }}
+            {% set dt = last_ok | as_datetime %}
+            {{ (now() - dt).total_seconds() > 93600 }}
           {% endif %}
 
       - name: "Runtime per HDD Capture Stale"
@@ -1314,7 +1315,8 @@ template:
           {% if last_ok in ['unknown', 'unavailable'] or last_ok == '1970-01-01 00:00:00' %}
             true
           {% else %}
-            {{ (now() - (last_ok | as_datetime | as_local)).total_seconds() > 93600 }}
+            {% set dt = last_ok | as_datetime %}
+            {{ (now() - dt).total_seconds() > 93600 }}
           {% endif %}
 
   - sensor:

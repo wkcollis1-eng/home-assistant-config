@@ -245,7 +245,7 @@
           true
         {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
           {# Late startup: only reset if last capture was previous month #}
-          {% set last_capture = last_ok | as_datetime | as_local %}
+          {% set last_capture = last_ok | as_datetime %}
           {{ last_capture.month != now().month }}
         {% else %}
           false
@@ -307,7 +307,7 @@
           true
         {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
           {# Late startup: only reset if last capture was previous year #}
-          {% set last_capture = last_ok | as_datetime | as_local %}
+          {% set last_capture = last_ok | as_datetime %}
           {{ last_capture.year != now().year }}
         {% else %}
           false
@@ -340,7 +340,7 @@
     - variables:
         bill_month: >
           {% set dt = states('input_datetime.electricity_bill_date') %}
-          {{ (dt | as_datetime | as_local).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
+          {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
         current_amount: "{{ states('input_number.electricity_bill_amount') | float }}"
         current_kwh: "{{ states('input_number.electricity_bill_kwh') | float }}"
         current_days: "{{ states('input_number.electricity_bill_days') | float }}"
@@ -403,7 +403,7 @@
     - variables:
         bill_month: >
           {% set dt = states('input_datetime.gas_bill_date') %}
-          {{ (dt | as_datetime | as_local).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
+          {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
         current_amount: "{{ states('input_number.gas_bill_amount') | float }}"
         current_ccf: "{{ states('input_number.gas_bill_ccf') | float }}"
         current_days: "{{ states('input_number.gas_bill_days') | float }}"
@@ -668,7 +668,7 @@
         overnight_hours: >
           {% set start = states('input_datetime.hvac_1f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+            {{ ((now() - (start | as_datetime)).total_seconds() / 3600) | round(2) }}
           {% else %}
             8
           {% endif %}
@@ -706,7 +706,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_1f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ ((now() - (start | as_datetime)).total_seconds() / 60) | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -825,7 +825,7 @@
         overnight_hours: >
           {% set start = states('input_datetime.hvac_2f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+            {{ ((now() - (start | as_datetime)).total_seconds() / 3600) | round(2) }}
           {% else %}
             8
           {% endif %}
@@ -863,7 +863,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_2f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ ((now() - (start | as_datetime)).total_seconds() / 60) | round(1) }}
           {% else %}
             0
           {% endif %}
