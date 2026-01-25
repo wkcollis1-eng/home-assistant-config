@@ -622,3 +622,38 @@ Now uses `hvac_furnace_runtime_*` which tracks actual furnace on-time via `binar
 - Runtime/HDD values will be **lower** than before (no overlap double-counting)
 - Historical data in `input_number.runtime_per_hdd_day_1..7` will gradually update over 7 days
 - Statistical bounds (mean ± 2σ) will recalibrate automatically
+
+---
+
+## Degree-Hours Accumulation Fix - 2026-01-24
+
+### Issue
+2F setback degree-hours kept climbing after recovery started (5am), accumulating ~8 extra degree-hours during the recovery period when it should have stopped.
+
+### Root Cause
+The degree-hours sampling condition requires `setpoint < hold AND current < hold`. During recovery:
+- Setpoint returns to comfort (67°F)
+- But `hold_setpoint` wasn't reset until `recovery_end` fired
+- If current temp was still below hold during recovery, sampling continued
+
+1F stopped correctly because its sampling condition became FALSE immediately. 2F's condition stayed TRUE due to timing/state differences.
+
+### Fix Applied
+Reset `hold_setpoint` at **recovery_start** (not just recovery_end) so sampling stops immediately when recovery begins.
+
+### Automations Modified
+- `hvac_1f_recovery_start` - Added hold_setpoint reset
+- `hvac_2f_recovery_start` - Added hold_setpoint reset
+- `reset_hold_setpoint_afternoon` - Safety net at 2pm (replaces midnight reset)
+
+### Safety Net Logic
+The 2pm reset only fires if NOT in active setback:
+```yaml
+condition: sp1 >= hold1 - 1 and sp2 >= hold2 - 1
+```
+This prevents interrupting overnight setback tracking (which spans midnight).
+
+### Degree-Hours Protection Layers
+1. **recovery_start** - Resets hold_setpoint immediately when recovery begins
+2. **recovery_end** - Redundant reset when recovery completes
+3. **2pm safety net** - Catches stuck states, only if not in setback
