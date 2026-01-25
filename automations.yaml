@@ -776,6 +776,12 @@
           {% else %}
             0
           {% endif %}
+    # Reset hold_setpoint immediately when recovery starts to stop degree-hours accumulation
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 - id: hvac_1f_recovery_end
   alias: "1F Recovery End"
@@ -983,6 +989,12 @@
           {% else %}
             0
           {% endif %}
+    # Reset hold_setpoint immediately when recovery starts to stop degree-hours accumulation
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 - id: hvac_2f_recovery_end
   alias: "2F Recovery End"
