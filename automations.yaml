@@ -1249,13 +1249,23 @@
       data:
         value: "{{ (states('input_number.hvac_2f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
 
-# Reset hold_setpoint at midnight to prevent runaway degree-hours accumulation
+# Reset hold_setpoint in afternoon to prevent runaway degree-hours accumulation
 # Safety net in case recovery_end never fires (sensor glitch, etc.)
-- id: reset_hold_setpoint_midnight
-  alias: "Reset Hold Setpoint at Midnight"
+# Runs at 2pm when setbacks are unlikely (not midnight which is mid-setback)
+- id: reset_hold_setpoint_afternoon
+  alias: "Reset Hold Setpoint Afternoon"
   trigger:
     - platform: time
-      at: "00:00:30"
+      at: "14:00:00"
+  condition:
+    # Only reset if NOT in active setback (setpoint is near or above hold)
+    - condition: template
+      value_template: >
+        {% set sp1 = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
+        {% set hold1 = states('input_number.hvac_1f_hold_setpoint') | float(67) %}
+        {% set sp2 = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
+        {% set hold2 = states('input_number.hvac_2f_hold_setpoint') | float(67) %}
+        {{ sp1 >= hold1 - 1 and sp2 >= hold2 - 1 }}
   action:
     - service: input_number.set_value
       target:
