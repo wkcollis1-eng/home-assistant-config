@@ -1237,6 +1237,25 @@
       data:
         value: "{{ (states('input_number.hvac_2f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
 
+# Reset hold_setpoint at midnight to prevent runaway degree-hours accumulation
+# Safety net in case recovery_end never fires (sensor glitch, etc.)
+- id: reset_hold_setpoint_midnight
+  alias: "Reset Hold Setpoint at Midnight"
+  trigger:
+    - platform: time
+      at: "00:00:30"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
+
 # ===============================================================
 # EFFICIENCY ALERTS
 # ===============================================================
