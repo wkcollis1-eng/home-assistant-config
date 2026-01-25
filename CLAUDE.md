@@ -105,6 +105,8 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_furnace_running` - ON when either zone is calling for heat
 - `sensor.hvac_furnace_cycles_today` - Actual furnace cycles (overlapping calls = 1 cycle)
 - `sensor.hvac_furnace_runtime_today` - Actual furnace runtime (hours)
+- `sensor.hvac_furnace_runtime_week` - Rolling 7-day furnace runtime (hours)
+- `sensor.hvac_furnace_runtime_month` - Month-to-date furnace runtime (hours)
 - `sensor.hvac_furnace_min_per_cycle` - Minutes per actual furnace cycle
 - `sensor.hvac_chaining_index` - Zone calls / furnace cycles (1.0=no overlap, 2.0=full overlap)
 - `sensor.hvac_zone_overlap_today` - Minutes both zones called simultaneously
@@ -433,7 +435,8 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 - All sensor entity IDs verified correct
 
 ### Runtime/HDD 7-Day Calculation
-- Formula: `(hvac_total_heat_runtime_week × 60) / hdd_rolling_7_day_auto_2`
+- Formula: `(hvac_furnace_runtime_week × 60) / hdd_rolling_7_day_auto_2`
+- Uses furnace runtime (actual on-time) not sum of zone calls
 - Updates daily at 11:55 PM
 - Stable values indicate consistent heating performance (not a bug)
 
@@ -575,3 +578,40 @@ If `sensor.hvac_*f_setback_net_benefit` shows 0, check:
 1. **Setback automation didn't fire** - `hvac_1f_setback_start` triggers on thermostat `temperature` attribute dropping ≥2°F. Some thermostats with built-in schedules may not report setpoint changes in a way that triggers this.
 2. **Check input_datetime values** - In Developer Tools → States, verify `input_datetime.hvac_1f_setback_start` has a recent timestamp from last night's setback.
 3. **Workaround** - Can manually set `input_datetime.hvac_1f_setback_start` before recovery to test the calculation flow.
+
+---
+
+## Runtime per HDD Standardization - 2026-01-24
+
+### Change
+Standardized all runtime per HDD sensors to use **furnace runtime** instead of **sum of zone call times**.
+
+### Rationale
+Previously, runtime per HDD calculations used `hvac_total_heat_runtime_*` which sums 1F + 2F thermostat call times. When zones overlap (both calling simultaneously), runtime was double-counted, artificially inflating the metric and penalizing efficient operation.
+
+Now uses `hvac_furnace_runtime_*` which tracks actual furnace on-time via `binary_sensor.hvac_furnace_running` (ON when either zone is calling).
+
+**Example:** If 1F calls for 3 hours and 2F calls for 2 hours with 1 hour overlap:
+- Old method: 3 + 2 = 5 hours (inflated)
+- New method: 4 hours (actual furnace operation)
+
+### Sensors Updated
+| Sensor | Old Source | New Source |
+|--------|------------|------------|
+| `hvac_total_runtime_per_hdd_today` | `hvac_total_heat_runtime_today` | `hvac_furnace_runtime_today` |
+| `hvac_runtime_per_hdd_7day` | `hvac_total_heat_runtime_week` | `hvac_furnace_runtime_week` |
+| `hvac_runtime_per_hdd_month` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+| `runtime_per_hdd_month_calc` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+
+### New History Stats Sensors
+- `sensor.hvac_furnace_runtime_week` - Rolling 7-day furnace runtime
+- `sensor.hvac_furnace_runtime_month` - Month-to-date furnace runtime
+
+### Zone-Specific Sensors (Unchanged)
+- `hvac_1f_runtime_per_hdd_today` - Still uses 1F zone call time (intentional for zone analysis)
+- `hvac_2f_runtime_per_hdd_today` - Still uses 2F zone call time (intentional for zone analysis)
+
+### Impact
+- Runtime/HDD values will be **lower** than before (no overlap double-counting)
+- Historical data in `input_number.runtime_per_hdd_day_1..7` will gradually update over 7 days
+- Statistical bounds (mean ± 2σ) will recalibrate automatically

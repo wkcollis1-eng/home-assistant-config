@@ -893,6 +893,12 @@
           {% else %}
             0
           {% endif %}
+    # Reset hold_setpoint to current setpoint to stop degree-hours accumulation
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 - id: hvac_2f_recovery_start
   alias: "2F Recovery Start"
@@ -1094,6 +1100,12 @@
           {% else %}
             0
           {% endif %}
+    # Reset hold_setpoint to current setpoint to stop degree-hours accumulation
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_hold_setpoint
+      data:
+        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 # ===============================================================
 # SETBACK EFFICIENCY TRACKING
