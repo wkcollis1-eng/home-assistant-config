@@ -602,6 +602,13 @@ Now uses `hvac_furnace_runtime_*` which tracks actual furnace on-time via `binar
 | `hvac_runtime_per_hdd_7day` | `hvac_total_heat_runtime_week` | `hvac_furnace_runtime_week` |
 | `hvac_runtime_per_hdd_month` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
 | `runtime_per_hdd_month_calc` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+| `efficiency_deviation_index` | `hvac_total_heat_runtime_today` | `hvac_furnace_runtime_today` |
+| `efficiency_deviation_month` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+| `hvac_daily_gas_cost_estimate` | `hvac_total_heat_runtime_today` | `hvac_furnace_runtime_today` |
+| `hvac_daily_electric_cost_estimate` | `hvac_total_heat_runtime_today` | `hvac_furnace_runtime_today` |
+| `hvac_heating_efficiency_mtd` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+| `hvac_building_load_ua_estimate` | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
+| `appendmonthlycsv` (shell_command) | `hvac_total_heat_runtime_month` | `hvac_furnace_runtime_month` |
 
 ### New History Stats Sensors
 - `sensor.hvac_furnace_runtime_week` - Rolling 7-day furnace runtime

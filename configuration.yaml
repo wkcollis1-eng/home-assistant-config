@@ -15,7 +15,7 @@ default_config:
 shell_command:
   testcmd: "echo hello"
   appenddailycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''input_number.outdoor_temp_daily_high'') | float(0) | round(1) }},{{ states(''input_number.outdoor_temp_daily_low'') | float(0) | round(1) }},{{ ((states(''input_number.outdoor_temp_daily_high'') | float(0) + states(''input_number.outdoor_temp_daily_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\" >> /config/reports/hvac_daily_{{ now().year }}.csv"'
-  appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_heat_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_heat_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
+  appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
   rotatedailycsv: 'bash -c "head -1 /config/reports/hvac_daily_{{ now().year - 1 }}.csv > /config/reports/hvac_daily_{{ now().year }}.csv"'
 
 frontend:
@@ -1678,25 +1678,27 @@ template:
           ] %}
           {{ days | select('gt', 0) | list | count }}
 
+      # Uses furnace runtime (gas burns when furnace runs, not per zone call)
       - name: "HVAC Daily Gas Cost Estimate"
         unique_id: hvac_daily_gas_cost_estimate
         unit_of_measurement: "$"
         state_class: measurement
         icon: mdi:currency-usd
         state: >
-          {% set runtime = states('sensor.hvac_total_heat_runtime_today') | float(0) %}
+          {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(60556) %}
           {% set gas_rate = states('sensor.gas_effective_rate') | float(1.68) %}
           {% set ccf_used = (runtime * rate) / (103700 * 0.95) %}
           {{ (ccf_used * gas_rate) | round(2) }}
 
+      # Uses furnace runtime (blower runs when furnace runs)
       - name: "HVAC Daily Electric Cost Estimate"
         unique_id: hvac_daily_electric_cost_estimate
         unit_of_measurement: "$"
         state_class: measurement
         icon: mdi:currency-usd
         state: >
-          {% set runtime = states('sensor.hvac_total_heat_runtime_today') | float(0) %}
+          {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set blower_kw = 0.5 %}
           {% set elec_rate = states('sensor.electricity_effective_rate') | float(0.27) %}
           {{ (runtime * blower_kw * elec_rate) | round(2) }}
@@ -1747,6 +1749,7 @@ template:
           {% set total = r1 + r2 %}
           {{ ((r2 / total) * 100) | round(1) if total > 0 else 50 }}
 
+      # Uses furnace runtime (gas usage matches actual furnace operation)
       - name: "HVAC Heating Efficiency MTD"
         unique_id: hvac_heating_efficiency_mtd
         unit_of_measurement: "CCF/1k HDD"
@@ -1754,19 +1757,20 @@ template:
         icon: mdi:chart-bell-curve-cumulative
         state: >
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
-          {% set runtime = states('sensor.hvac_total_heat_runtime_month') | float(0) %}
+          {% set runtime = states('sensor.hvac_furnace_runtime_month') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(60556) %}
           {% if hdd > 0 and runtime > 0 %}
             {% set gas = (runtime * rate) / (103700 * 0.95) %}
             {{ ((gas / hdd) * 1000) | round(1) }}
           {% else %}{{ 0 }}{% endif %}
 
+      # Uses furnace runtime (heat delivery matches actual furnace operation)
       - name: "HVAC Building Load UA Estimate"
         unique_id: hvac_building_load_ua_estimate
         unit_of_measurement: "BTU/hr-°F"
         state_class: measurement
         state: >
-          {% set runtime = states('sensor.hvac_total_heat_runtime_month') | float(0) %}
+          {% set runtime = states('sensor.hvac_furnace_runtime_month') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(60556) %}
           {% set days = now().day %}
@@ -2703,13 +2707,14 @@ template:
             0
           {% endif %}
 
+      # Uses furnace runtime (not sum of zone calls) for consistency with expected
       - name: "Efficiency Deviation Index"
         unique_id: efficiency_deviation_index
         unit_of_measurement: "%"
         state_class: measurement
         icon: mdi:gauge
         state: >
-          {% set actual = states('sensor.hvac_total_heat_runtime_today') | float(0) %}
+          {% set actual = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set expected = states('sensor.expected_runtime_today') | float(0) %}
           {% if expected > 0.1 %}
             {{ ((actual / expected) - 1) * 100 | round(1) }}
@@ -2757,13 +2762,14 @@ template:
         state: >
           {{ states('input_number.expected_runtime_sum_month') | float(0) | round(2) }}
 
+      # Uses furnace runtime (not sum of zone calls) for consistency with expected
       - name: "Efficiency Deviation Month"
         unique_id: efficiency_deviation_month
         unit_of_measurement: "%"
         state_class: measurement
         icon: mdi:gauge
         state: >
-          {% set actual = states('sensor.hvac_total_heat_runtime_month') | float(0) %}
+          {% set actual = states('sensor.hvac_furnace_runtime_month') | float(0) %}
           {% set expected = states('input_number.expected_runtime_sum_month') | float(0) %}
           {% if expected > 0.1 %}
             {{ ((actual / expected) - 1) * 100 | round(1) }}
