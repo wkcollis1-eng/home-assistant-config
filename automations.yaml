@@ -905,6 +905,10 @@
         entity_id: input_number.hvac_1f_hold_setpoint
       data:
         value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
+    # Clear setback latch - cycle complete
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
 
 - id: hvac_2f_recovery_start
   alias: "2F Recovery Start"
@@ -1118,6 +1122,10 @@
         entity_id: input_number.hvac_2f_hold_setpoint
       data:
         value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
+    # Clear setback latch - cycle complete
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
 
 # ===============================================================
 # SETBACK EFFICIENCY TRACKING
@@ -1129,11 +1137,19 @@
       entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
       attribute: temperature
   condition:
+    # Must be a >=2°F drop AND not already in an active setback
     - condition: template
       value_template: >
         {{ (trigger.from_state.attributes.temperature | float(0) -
             trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+    - condition: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      state: "off"
   action:
+    # Latch setback active first to prevent re-firing
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.hvac_1f_setback_start
@@ -1167,11 +1183,19 @@
       entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
       attribute: temperature
   condition:
+    # Must be a >=2°F drop AND not already in an active setback
     - condition: template
       value_template: >
         {{ (trigger.from_state.attributes.temperature | float(0) -
             trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+    - condition: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      state: "off"
   action:
+    # Latch setback active first to prevent re-firing
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.hvac_2f_setback_start

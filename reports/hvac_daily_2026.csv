@@ -1,3 +1,4 @@
 date,outdoor_high,outdoor_low,outdoor_mean,hdd65,furnace_runtime_min,furnace_cycles,avg_min_per_cycle,zone_calls_total,chaining_index,runtime_1f_min,runtime_2f_min,basement_dew_point
 2026-01-23,0.0,0.0,0.0,32.1,315.0,45,7.0,56,1.24,156.3,195.6,31.7
 2026-01-23,0.0,0.0,0.0,35.2,337.2,49,6.9,60,1.22,160.7,213.6,29.9
+2026-01-24,14.9,-50.0,-17.6,54.6,548.5,66,8.3,93,1.41,284.1,345.3,25.9

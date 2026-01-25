@@ -153,6 +153,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `input_number.hvac_2f_recovery_rate_1` through `_7` - Rolling storage slots
 
 ### Setback Efficiency Tracking
+- `input_boolean.hvac_1f_setback_active` / `hvac_2f_*` - Setback cycle latch (prevents re-firing)
 - `input_datetime.hvac_1f_setback_start` / `hvac_2f_setback_start` - Setback start timestamp
 - `input_number.hvac_1f_setback_start_runtime` / `hvac_2f_*` - Runtime at setback start (min)
 - `input_number.hvac_1f_setback_start_outdoor_temp` / `hvac_2f_*` - Outdoor temp at setback
@@ -534,7 +535,7 @@ The recovery rate averages were showing static values (e.g., 2.7, 3.0 min/°F) i
 **Fixes Applied:**
 1. Changed recovering sensors to use temperature gap with hysteresis:
    - Starts: gap > 2°F (significant setback detected)
-   - Ends: gap ≤ 0.5°F (near setpoint)
+   - Ends: 1F ≤ 1.0°F, 2F ≤ 1.25°F (zone-specific thresholds for stratification)
    - No longer depends on furnace cycling state
 2. Increased recovery time cap from 120 to 180 minutes
 
@@ -657,3 +658,90 @@ This prevents interrupting overnight setback tracking (which spans midnight).
 1. **recovery_start** - Resets hold_setpoint immediately when recovery begins
 2. **recovery_end** - Redundant reset when recovery completes
 3. **2pm safety net** - Catches stuck states, only if not in setback
+
+---
+
+## Recovery END Threshold Fix - 2026-01-25
+
+### Issue
+Recovery rate history was frozen/missing during cold weather. The rolling 7-recovery averages stopped updating because recovery events were never completing.
+
+### Root Cause
+The recovery END threshold (gap ≤ 0.5°F) was too strict for real-world thermostat behavior during cold weather. Temperature traces showed:
+- Temps rise quickly at first during recovery
+- Then asymptotically approach setpoint
+- Hover at ~0.6–1.1°F below setpoint for extended periods
+- Rarely cross the 0.5°F threshold on very cold days
+
+This caused `binary_sensor.hvac_*_recovering` to never turn OFF, so `recovery_end` automations never fired, and no recovery data was recorded.
+
+### Fix Applied
+Increased recovery END thresholds to account for thermostat resolution and thermal stratification:
+
+| Zone | Old Threshold | New Threshold | Rationale |
+|------|---------------|---------------|-----------|
+| 1F | ≤ 0.5°F | ≤ 1.0°F | Standard zone |
+| 2F | ≤ 0.5°F | ≤ 1.25°F | Cathedral ceiling causes additional stratification |
+
+### Files Modified
+- `configuration.yaml`: `binary_sensor.hvac_1f_recovering`, `binary_sensor.hvac_2f_recovering`
+
+### Impact
+- Recovery events will now complete reliably on cold days
+- Rolling recovery rate averages will update properly
+- Setback net benefit calculations will have valid data
+- No downside: the 0.5–1.0°F difference is within thermostat resolution
+
+---
+
+## Setback Latch Fix - 2026-01-25
+
+### Issue
+Degree-hours accumulator showing 0 and setback efficiency calculations returning $0 savings despite active setbacks.
+
+### Root Cause
+The `hvac_*f_setback_start` automations were **not idempotent**. They triggered on any ≥2°F setpoint drop, which could fire multiple times per setback cycle due to:
+- Thermostat attribute re-reporting
+- Manual setpoint adjustments during setback
+- Schedule sync glitches
+
+Each re-fire would:
+1. Zero `input_number.hvac_*f_setback_degree_hours` (wiping accumulated data)
+2. Overwrite `input_datetime.hvac_*f_setback_start` timestamp
+3. Overwrite `input_number.hvac_*f_setback_start_runtime` baseline
+4. Overwrite `input_number.hvac_*f_hold_setpoint`
+
+This corrupted both degree-hours tracking and setback efficiency calculations.
+
+### Fix Applied
+Added explicit `input_boolean` latch to enforce one setback-start capture per cycle.
+
+**New entities:**
+- `input_boolean.hvac_1f_setback_active` - Latch for 1F setback cycle
+- `input_boolean.hvac_2f_setback_active` - Latch for 2F setback cycle
+
+**Automation changes:**
+
+| Automation | Change |
+|------------|--------|
+| `hvac_1f_setback_start` | Added condition: `setback_active = off`; Added action: turn on latch |
+| `hvac_2f_setback_start` | Added condition: `setback_active = off`; Added action: turn on latch |
+| `hvac_1f_recovery_end` | Added action: turn off latch |
+| `hvac_2f_recovery_end` | Added action: turn off latch |
+
+### State Machine
+```
+setback_start fires → setback_active = ON → (accumulates degree-hours, tracks efficiency)
+                                          ↓
+recovery_end fires  → setback_active = OFF → ready for next cycle
+```
+
+### Files Modified
+- `configuration.yaml`: Added `input_boolean` section with latch entities
+- `automations.yaml`: `hvac_1f_setback_start`, `hvac_2f_setback_start`, `hvac_1f_recovery_end`, `hvac_2f_recovery_end`
+
+### Impact
+- Degree-hours will no longer be wiped mid-setback
+- Setback efficiency baselines (timestamp, runtime, outdoor temp) remain stable
+- Net benefit calculations will have valid inputs
+- Debugging is easier: check `input_boolean.hvac_*f_setback_active` in Developer Tools

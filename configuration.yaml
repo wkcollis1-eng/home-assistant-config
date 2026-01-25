@@ -75,6 +75,18 @@ input_button:
     icon: mdi:air-filter
 
 # ===============================================================
+# INPUT BOOLEAN HELPERS
+# ===============================================================
+input_boolean:
+  hvac_1f_setback_active:
+    name: "HVAC 1F Setback Active"
+    icon: mdi:thermometer-minus
+
+  hvac_2f_setback_active:
+    name: "HVAC 2F Setback Active"
+    icon: mdi:thermometer-minus
+
+# ===============================================================
 # INPUT NUMBER HELPERS
 # ===============================================================
 input_number:
@@ -1278,7 +1290,7 @@ template:
           {{ current < lower and current > 0 and count >= 4 }}
 
       # Recovery sensors use hysteresis to avoid flickering during furnace cycles
-      # Starts: gap > 2°F (significant setback), Ends: gap <= 0.5°F (near setpoint)
+      # Starts: gap > 2°F (significant setback), Ends: 1F <= 1.0°F, 2F <= 1.25°F (accounts for stratification)
       - name: "HVAC 1F Recovering"
         unique_id: hvac_1f_recovering
         state: >
@@ -1287,7 +1299,7 @@ template:
           {% set gap = target - current %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
-            {{ gap > 0.5 }}
+            {{ gap > 1.0 }}
           {% else %}
             {{ gap > 2 }}
           {% endif %}
@@ -1300,7 +1312,7 @@ template:
           {% set gap = target - current %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
-            {{ gap > 0.5 }}
+            {{ gap > 1.25 }}
           {% else %}
             {{ gap > 2 }}
           {% endif %}
