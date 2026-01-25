@@ -341,10 +341,10 @@ Captured at 23:58 on last day of each month.
 | days | input_number.outdoor_temp_days_month (actual days tracked) |
 | mean_outdoor_temp | sensor.outdoor_temp_mean_month (accumulated daily averages) |
 | total_hdd65 | input_number.hdd_cumulative_month_auto |
-| furnace_runtime_hours | sensor.hvac_total_heat_runtime_month |
+| furnace_runtime_hours | sensor.hvac_furnace_runtime_month |
 | avg_runtime_per_hdd | sensor.runtime_per_hdd_month_calc (monthly calculation) |
 | heating_efficiency_ccf_per_1k_hdd | sensor.hvac_heating_efficiency_mtd |
-| actual_runtime | sensor.hvac_total_heat_runtime_month |
+| actual_runtime | sensor.hvac_furnace_runtime_month |
 | expected_runtime | sensor.expected_runtime_month (accumulated daily expected) |
 | efficiency_deviation_pct | sensor.efficiency_deviation_month (monthly actual vs expected) |
 | gas_usage_ccf | input_number.gas_bill_ccf |
