@@ -21,26 +21,47 @@
         current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
         current_high: "{{ states('input_number.outdoor_temp_daily_high') | float(-50) }}"
         current_low: "{{ states('input_number.outdoor_temp_daily_low') | float(150) }}"
+        # Detect corrupt/uninitialized values (at initial extremes)
+        high_is_corrupt: "{{ current_high <= -49 }}"
+        low_is_corrupt: "{{ current_low >= 149 }}"
     - choose:
+        # Update high if: new high OR high was corrupt/uninitialized
         - conditions:
             - condition: template
-              value_template: "{{ current_temp is not none and current_temp > current_high }}"
+              value_template: "{{ current_temp is not none and (current_temp > current_high or high_is_corrupt) }}"
           sequence:
             - service: input_number.set_value
               target:
                 entity_id: input_number.outdoor_temp_daily_high
               data:
                 value: "{{ current_temp | round(1) }}"
+            - if:
+                - condition: template
+                  value_template: "{{ high_is_corrupt }}"
+              then:
+                - service: system_log.write
+                  data:
+                    message: "Outdoor temp daily high was corrupt (-50), initialized to {{ current_temp | round(1) }}°F"
+                    level: warning
     - choose:
+        # Update low if: new low OR low was corrupt/uninitialized
         - conditions:
             - condition: template
-              value_template: "{{ current_temp is not none and current_temp < current_low }}"
+              value_template: "{{ current_temp is not none and (current_temp < current_low or low_is_corrupt) }}"
           sequence:
             - service: input_number.set_value
               target:
                 entity_id: input_number.outdoor_temp_daily_low
               data:
                 value: "{{ current_temp | round(1) }}"
+            - if:
+                - condition: template
+                  value_template: "{{ low_is_corrupt }}"
+              then:
+                - service: system_log.write
+                  data:
+                    message: "Outdoor temp daily low was corrupt (150), initialized to {{ current_temp | round(1) }}°F"
+                    level: warning
 
 - id: reset_outdoor_temp_daily_high_low
   alias: "Reset Outdoor Temp Daily High/Low"
@@ -51,21 +72,44 @@
       at: "00:00:30"
   action:
     - variables:
-        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_daily_high
-      data:
-        value: "{{ current_temp | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_daily_low
-      data:
-        value: "{{ current_temp | round(1) }}"
-    - service: system_log.write
-      data:
-        message: "Daily outdoor temp high/low reset to {{ current_temp }}°F"
-        level: info
+        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
+        sensor_valid: "{{ current_temp is not none and current_temp > -40 and current_temp < 120 }}"
+    - choose:
+        # Sensor available and valid - reset to current temp
+        - conditions:
+            - condition: template
+              value_template: "{{ sensor_valid }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_daily_high
+              data:
+                value: "{{ current_temp | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_daily_low
+              data:
+                value: "{{ current_temp | round(1) }}"
+            - service: system_log.write
+              data:
+                message: "Daily outdoor temp high/low reset to {{ current_temp }}°F"
+                level: info
+      # Sensor unavailable - reset to initial values (update automation will fix when sensor returns)
+      default:
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.outdoor_temp_daily_high
+          data:
+            value: -50
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.outdoor_temp_daily_low
+          data:
+            value: 150
+        - service: system_log.write
+          data:
+            message: "Outdoor temp sensor unavailable at midnight reset - using initial values (will auto-correct when sensor available)"
+            level: warning
 
 # ===============================================================
 # AUTO HDD TRACKING - Daily capture at 11:55 PM (HARDENED)

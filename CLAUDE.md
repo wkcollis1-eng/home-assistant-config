@@ -745,3 +745,35 @@ recovery_end fires  → setback_active = OFF → ready for next cycle
 - Setback efficiency baselines (timestamp, runtime, outdoor temp) remain stable
 - Net benefit calculations will have valid inputs
 - Debugging is easier: check `input_boolean.hvac_*f_setback_active` in Developer Tools
+
+---
+
+## Daily Outdoor Temp Tracking Fix - 2026-01-25
+
+### Issue
+Daily report showed `outdoor_low=-50` and `outdoor_mean=-17.6` for Jan 24 despite HDD being correct. The -50 value is the input_number minimum, indicating corrupt/uninitialized state.
+
+### Root Cause
+`input_number.outdoor_temp_daily_low` had no `initial` value. When Home Assistant restarts, input_numbers without stored state default to their `min` value (-50). Since no actual temperature is lower than -50°F, the update automation never corrected it.
+
+### Fix Applied
+
+**1. Added initial values to input_numbers** (`configuration.yaml`):
+- `outdoor_temp_daily_high`: `initial: -50` (any real temp is higher)
+- `outdoor_temp_daily_low`: `initial: 150` (any real temp is lower)
+
+**2. Hardened update automation** (`automations.yaml`):
+- Detects corrupt values (high ≤ -49 or low ≥ 149)
+- Auto-corrects to current temp when corruption detected
+- Logs warning when auto-correction occurs
+
+**3. Hardened midnight reset automation** (`automations.yaml`):
+- Validates sensor reading before reset (must be between -40°F and 120°F)
+- If sensor unavailable at midnight: resets to initial values instead of hardcoded 35°F
+- Update automation will auto-correct when sensor becomes available
+
+### Resilience Layers
+1. **Initial values**: Proper defaults on HA restart
+2. **Corruption detection**: Auto-fix within 10 minutes of valid sensor data
+3. **Sensor validation**: Rejects obviously bad readings
+4. **Logging**: Warnings logged when auto-correction occurs
