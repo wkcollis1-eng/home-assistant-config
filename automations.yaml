@@ -805,9 +805,17 @@
           {% else %}
             8
           {% endif %}
+        # True integrated average from 15-min samples (replaces 2-point proxy)
         avg_overnight_temp: >
-          {{ ((states('input_number.hvac_1f_setback_start_outdoor_temp') | float(35) +
-               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+          {% set temp_sum = states('input_number.hvac_1f_setback_temp_sum') | float(0) %}
+          {% set sample_count = states('input_number.hvac_1f_setback_sample_count') | int(0) %}
+          {% if sample_count > 0 %}
+            {{ (temp_sum / sample_count) | round(1) }}
+          {% else %}
+            {# Fallback to 2-point average if no samples (edge case) #}
+            {{ ((states('input_number.hvac_1f_setback_start_outdoor_temp') | float(35) +
+                 states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_overnight_runtime
@@ -1029,9 +1037,17 @@
           {% else %}
             8
           {% endif %}
+        # True integrated average from 15-min samples (replaces 2-point proxy)
         avg_overnight_temp: >
-          {{ ((states('input_number.hvac_2f_setback_start_outdoor_temp') | float(35) +
-               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+          {% set temp_sum = states('input_number.hvac_2f_setback_temp_sum') | float(0) %}
+          {% set sample_count = states('input_number.hvac_2f_setback_sample_count') | int(0) %}
+          {% if sample_count > 0 %}
+            {{ (temp_sum / sample_count) | round(1) }}
+          {% else %}
+            {# Fallback to 2-point average if no samples (edge case) #}
+            {{ ((states('input_number.hvac_2f_setback_start_outdoor_temp') | float(35) +
+                 states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_overnight_runtime
@@ -1228,6 +1244,17 @@
         entity_id: input_number.hvac_1f_setback_degree_hours
       data:
         value: 0
+    # Reset outdoor temp accumulators for true HDD integration
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_temp_sum
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_sample_count
+      data:
+        value: 0
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_hold_setpoint
@@ -1274,6 +1301,17 @@
         entity_id: input_number.hvac_2f_setback_degree_hours
       data:
         value: 0
+    # Reset outdoor temp accumulators for true HDD integration
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_temp_sum
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_sample_count
+      data:
+        value: 0
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_hold_setpoint
@@ -1299,13 +1337,26 @@
     - variables:
         hold_temp: "{{ states('input_number.hvac_1f_hold_setpoint') | float(67) }}"
         indoor_temp: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
+        outdoor_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
         deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
         increment: "{{ (deficit | float * 0.25) | round(3) }}"
+    # Accumulate degree-hours
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_setback_degree_hours
       data:
         value: "{{ (states('input_number.hvac_1f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
+    # Accumulate outdoor temp for true HDD integration
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_temp_sum
+      data:
+        value: "{{ (states('input_number.hvac_1f_setback_temp_sum') | float(0) + outdoor_temp | float) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_sample_count
+      data:
+        value: "{{ states('input_number.hvac_1f_setback_sample_count') | int(0) + 1 }}"
 
 - id: hvac_2f_degree_hours_sample
   alias: "2F Degree-Hours Sample"
@@ -1323,13 +1374,26 @@
     - variables:
         hold_temp: "{{ states('input_number.hvac_2f_hold_setpoint') | float(67) }}"
         indoor_temp: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
+        outdoor_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
         deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
         increment: "{{ (deficit | float * 0.25) | round(3) }}"
+    # Accumulate degree-hours
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_setback_degree_hours
       data:
         value: "{{ (states('input_number.hvac_2f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
+    # Accumulate outdoor temp for true HDD integration
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_temp_sum
+      data:
+        value: "{{ (states('input_number.hvac_2f_setback_temp_sum') | float(0) + outdoor_temp | float) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_sample_count
+      data:
+        value: "{{ states('input_number.hvac_2f_setback_sample_count') | int(0) + 1 }}"
 
 # Reset hold_setpoint in afternoon to prevent runaway degree-hours accumulation
 # Safety net in case recovery_end never fires (sensor glitch, etc.)

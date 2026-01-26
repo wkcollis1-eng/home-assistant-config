@@ -870,23 +870,45 @@ The metric now answers: "How long did it take for the house to actually warm up?
 
 ---
 
-## Known Limitation: Overnight Efficiency Proxy - 2026-01-26
+## Overnight Efficiency True HDD Integration - 2026-01-26
 
-### Current Implementation
-Overnight efficiency (`input_number.hvac_*f_overnight_efficiency`) uses a **2-point temperature average** proxy for HDD:
+### Issue
+Overnight efficiency (`input_number.hvac_*f_overnight_efficiency`) used a **2-point temperature average** proxy for HDD calculation. On nights with significant temperature ramps (common in CT cold snaps), the 2-point average could be biased vs actual HDD over the setback window.
+
+### Previous Implementation (Proxy)
 ```
 avg_overnight_temp = (outdoor_temp_at_setback_start + outdoor_temp_at_recovery_start) / 2
 hdd_proxy = (65 - avg_overnight_temp) × (overnight_hours / 24)
-overnight_efficiency = overnight_runtime / hdd_proxy
 ```
 
-### Limitation
-This is a coarse approximation. On nights with significant temperature ramps (common in CT cold snaps), the 2-point average can be biased vs actual HDD over the setback window.
+### Fix Applied: True HDD Integration via Riemann Sum
+Now uses 15-minute outdoor temperature sampling (piggybacks on existing degree-hours sampler) to compute a true integrated average:
 
-### Future Enhancement
-For engineering-grade accuracy, upgrade to true HDD integration over the setback window:
-- Option A: Hourly outdoor temp sampling with discrete integration
-- Option B: HA statistics helper tracking outdoor temp mean over dynamic window
-- Option C: Riemann sum using 15-min samples (align with degree-hours sampler)
+**New entities:**
+- `input_number.hvac_1f_setback_temp_sum` / `hvac_2f_*` - Accumulates outdoor temps during setback
+- `input_number.hvac_1f_setback_sample_count` / `hvac_2f_*` - Counts samples
 
-This is a precision improvement, not a bug fix. The current proxy is directionally correct and useful for trending.
+**How it works:**
+1. **setback_start**: Reset `temp_sum` and `sample_count` to 0
+2. **Every 15 min during setback**: Add current outdoor temp to `temp_sum`, increment `sample_count`
+3. **recovery_start**: Calculate `true_avg_temp = temp_sum / sample_count`
+4. Use true average for HDD calculation instead of 2-point proxy
+
+**Example:** 8-hour setback = 32 samples vs 2 samples previously
+
+### Files Modified
+- `configuration.yaml`: Added 4 new input_numbers (temp_sum + sample_count × 2 floors)
+- `automations.yaml`:
+  - `hvac_1f_degree_hours_sample` / `hvac_2f_*` - Also accumulates outdoor temp
+  - `hvac_1f_setback_start` / `hvac_2f_*` - Resets temp accumulators
+  - `hvac_1f_recovery_start` / `hvac_2f_*` - Uses true integrated average
+
+### Impact
+| Before | After |
+|--------|-------|
+| 2-point average (start + end) | 15-min Riemann sum (~32 samples) |
+| Biased on ramping nights | Accurate regardless of temp trajectory |
+| Coarse proxy | Engineering-grade integration |
+
+### Fallback
+If no samples collected (edge case), falls back to 2-point average to prevent division by zero.
