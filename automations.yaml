@@ -293,16 +293,17 @@
     - platform: time
       at: "23:56:30"
   action:
+    # Use actual observed temps (matches daily CSV) instead of forecast
     - variables:
-        todays_high: "{{ states('sensor.pirate_weather_today_high') | float(0) }}"
-        todays_low: "{{ states('sensor.pirate_weather_today_low') | float(0) }}"
+        todays_high: "{{ states('input_number.outdoor_temp_daily_high') | float(0) }}"
+        todays_low: "{{ states('input_number.outdoor_temp_daily_low') | float(0) }}"
         todays_mean: "{{ ((todays_high + todays_low) / 2) | round(1) }}"
         todays_expected: "{{ states('sensor.expected_runtime_today') | float(0) }}"
         current_temp_sum: "{{ states('input_number.outdoor_temp_sum_month') | float(0) }}"
         current_days: "{{ states('input_number.outdoor_temp_days_month') | int(0) }}"
         current_expected_sum: "{{ states('input_number.expected_runtime_sum_month') | float(0) }}"
     - condition: template
-      value_template: "{{ todays_high > -50 and todays_low > -50 }}"
+      value_template: "{{ todays_high > -49 and todays_low < 149 }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.outdoor_temp_sum_month

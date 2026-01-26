@@ -2820,7 +2820,7 @@ template:
           {% set actual = states('sensor.hvac_furnace_runtime_month') | float(0) %}
           {% set expected = states('input_number.expected_runtime_sum_month') | float(0) %}
           {% if expected > 0.1 %}
-            {{ ((actual / expected) - 1) * 100 | round(1) }}
+            {{ (((actual / expected) - 1) * 100) | round(1) }}
           {% else %}
             0
           {% endif %}
