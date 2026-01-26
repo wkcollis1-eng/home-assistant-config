@@ -777,3 +777,93 @@ Daily report showed `outdoor_low=-50` and `outdoor_mean=-17.6` for Jan 24 despit
 2. **Corruption detection**: Auto-fix within 10 minutes of valid sensor data
 3. **Sensor validation**: Rejects obviously bad readings
 4. **Logging**: Warnings logged when auto-correction occurs
+
+---
+
+## Recovery Rate Measurement Fix - 2026-01-26
+
+### Issue
+Recovery rate metrics were measuring **control-loop gap decay** instead of **actual thermal recovery**. Both floors showed artificially long recovery times (often maxing at 180 minutes) even when thermostat temperature showed the space reached comfort in 20-40 minutes.
+
+### Root Cause
+The previous implementation had three problems:
+
+1. **Recovery END used live setpoint**: `binary_sensor.hvac_*_recovering` checked `target - current` where `target` was the **live thermostat setpoint**. If the setpoint changed (schedule transition, user adjustment, API lag), the recovery metric tracked that new gap rather than the actual thermal recovery.
+
+2. **No stability requirement**: Recovery ended immediately when temperature crossed threshold, making it sensitive to single-sample noise and furnace cycling.
+
+3. **180-minute cap hid errors**: Long recovery durations were silently capped, hiding the magnitude of the measurement problem.
+
+### Engineering-Grade Recovery Definition (NEW)
+Recovery now ends when:
+- **Temperature reaches within 0.5°F of hold_setpoint** (the stored comfort temperature from before setback)
+- **AND** that condition has been true for **10 continuous minutes** (stability filter)
+
+This measures actual thermal recovery, not control-system gap decay.
+
+### Files Modified
+
+**configuration.yaml** - Binary sensor logic:
+```yaml
+# OLD: Used live setpoint, ended immediately
+{% set target = state_attr(..., 'temperature') %}
+{{ gap > 1.0 }}
+
+# NEW: Uses stored hold_setpoint, 0.5°F threshold
+{% set hold_setpoint = states('input_number.hvac_*f_hold_setpoint') %}
+{% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
+{{ current < (target - 0.5) }}
+```
+
+**automations.yaml** - Recovery end trigger:
+```yaml
+# OLD: Immediate trigger
+trigger:
+  - platform: state
+    entity_id: binary_sensor.hvac_*f_recovering
+    to: "off"
+
+# NEW: 10-minute stability requirement
+trigger:
+  - platform: state
+    entity_id: binary_sensor.hvac_*f_recovering
+    to: "off"
+    for:
+      minutes: 10
+```
+
+**automations.yaml** - Setback degrees calculation:
+```yaml
+# OLD: Used live setpoint
+{% set target = state_attr(..., 'temperature') %}
+
+# NEW: Uses hold_setpoint for consistent denominator
+{% set hold = states('input_number.hvac_*f_hold_setpoint') %}
+{% set target = hold if hold > 50 else live %}
+```
+
+**automations.yaml** - Recovery time cap:
+```yaml
+# OLD: 180-minute cap
+value: "{{ [recovery_minutes | float, 180] | min }}"
+
+# NEW: 300-minute cap (matches rate storage sanity check)
+value: "{{ [recovery_minutes | float, 300] | min }}"
+```
+
+### Impact
+| Before | After |
+|--------|-------|
+| Recovery = time until HA gap clears | Recovery = time until house reaches stable comfort temp |
+| Could show 180+ min | Will show realistic 15-45 min |
+| Sensitive to setpoint changes | Immune to setpoint/API quirks |
+| Not comparable day-to-day | Comparable across conditions |
+
+### How It Works Now
+1. **Setback starts**: `hold_setpoint` stores the comfort temperature (e.g., 67°F)
+2. **Setback period**: Temperature drops to setback level (e.g., 63°F)
+3. **Recovery starts**: When gap > 2°F based on live setpoint (detects thermostat calling for heat)
+4. **Recovery ends**: When `current_temp >= hold_setpoint - 0.5°F` for 10 continuous minutes
+5. **Recovery rate**: `recovery_minutes / (hold_setpoint - temp_at_recovery_start)`
+
+The metric now answers: "How long did it take for the house to actually warm up?" rather than "How long did it take for HA's gap calculation to clear?"

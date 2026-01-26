@@ -749,13 +749,17 @@
         entity_id: input_datetime.hvac_1f_recovery_start
       data:
         datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
+    # This gives consistent denominator for recovery rate regardless of setpoint changes
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_recovery_setback_degrees
       data:
         value: >
           {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set target = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set live = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set target = hold if hold > 50 else live %}
           {{ (target - current) | round(1) if target > current else 0 }}
     - service: input_number.set_value
       target:
@@ -833,6 +837,8 @@
     - platform: state
       entity_id: binary_sensor.hvac_1f_recovering
       to: "off"
+      for:
+        minutes: 10
   condition:
     - condition: template
       value_template: "{{ states('input_datetime.hvac_1f_recovery_start') not in ['unknown', 'unavailable'] }}"
@@ -857,7 +863,8 @@
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 180] | min }}"
+        # Store actual recovery time (300-min cap matches rate storage sanity check)
+        value: "{{ [recovery_minutes | float, 300] | min }}"
     # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
     # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
     - choose:
@@ -966,13 +973,17 @@
         entity_id: input_datetime.hvac_2f_recovery_start
       data:
         datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
+    # This gives consistent denominator for recovery rate regardless of setpoint changes
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_recovery_setback_degrees
       data:
         value: >
           {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set target = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set live = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set target = hold if hold > 50 else live %}
           {{ (target - current) | round(1) if target > current else 0 }}
     - service: input_number.set_value
       target:
@@ -1050,6 +1061,8 @@
     - platform: state
       entity_id: binary_sensor.hvac_2f_recovering
       to: "off"
+      for:
+        minutes: 10
   condition:
     - condition: template
       value_template: "{{ states('input_datetime.hvac_2f_recovery_start') not in ['unknown', 'unavailable'] }}"
@@ -1074,7 +1087,8 @@
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 180] | min }}"
+        # Store actual recovery time (300-min cap matches rate storage sanity check)
+        value: "{{ [recovery_minutes | float, 300] | min }}"
     # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
     # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
     - choose:
