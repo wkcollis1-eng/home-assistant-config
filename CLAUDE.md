@@ -867,3 +867,26 @@ value: "{{ [recovery_minutes | float, 300] | min }}"
 5. **Recovery rate**: `recovery_minutes / (hold_setpoint - temp_at_recovery_start)`
 
 The metric now answers: "How long did it take for the house to actually warm up?" rather than "How long did it take for HA's gap calculation to clear?"
+
+---
+
+## Known Limitation: Overnight Efficiency Proxy - 2026-01-26
+
+### Current Implementation
+Overnight efficiency (`input_number.hvac_*f_overnight_efficiency`) uses a **2-point temperature average** proxy for HDD:
+```
+avg_overnight_temp = (outdoor_temp_at_setback_start + outdoor_temp_at_recovery_start) / 2
+hdd_proxy = (65 - avg_overnight_temp) × (overnight_hours / 24)
+overnight_efficiency = overnight_runtime / hdd_proxy
+```
+
+### Limitation
+This is a coarse approximation. On nights with significant temperature ramps (common in CT cold snaps), the 2-point average can be biased vs actual HDD over the setback window.
+
+### Future Enhancement
+For engineering-grade accuracy, upgrade to true HDD integration over the setback window:
+- Option A: Hourly outdoor temp sampling with discrete integration
+- Option B: HA statistics helper tracking outdoor temp mean over dynamic window
+- Option C: Riemann sum using 15-min samples (align with degree-hours sampler)
+
+This is a precision improvement, not a bug fix. The current proxy is directionally correct and useful for trending.
