@@ -23,7 +23,7 @@
         message: >
           HDD capture has not succeeded in over 26 hours.
           Last successful: {{ states('input_datetime.hdd_capture_last_ok') }}
-          
+
           Check:
           - sensor.hvac_hdd65_today state: {{ states('sensor.hvac_hdd65_today') }}
           - sensor.hvac_cdd65_today state: {{ states('sensor.hvac_cdd65_today') }}
@@ -48,7 +48,7 @@
         message: >
           Runtime per HDD capture has not succeeded in over 26 hours.
           Last successful: {{ states('input_datetime.runtime_per_hdd_capture_last_ok') }}
-          
+
           Check:
           - sensor.hvac_total_runtime_per_hdd_today: {{ states('sensor.hvac_total_runtime_per_hdd_today') }}
 
@@ -88,7 +88,7 @@
                   HDD cumulative values may be corrupt:
                   - Year-to-date: {{ states('input_number.hdd_cumulative_year_auto') }} HDD
                   - Month-to-date: {{ states('input_number.hdd_cumulative_month_auto') }} HDD
-                  
+
                   Please verify and manually correct if needed.
                   Reasonable values: Year < 8000, Month < 2500
     - choose:
@@ -141,12 +141,12 @@
         title: "⚠️ Climate Norms Script Error"
         message: >
           The climate_norms_today.py script has been returning errors for 2+ hours.
-          
+
           Check:
           - /config/scripts/climate_norms_today.py exists
           - /config/climate_daily_norms.csv exists
           - Python dependencies are installed
-          
+
           You can test manually with:
           python3 /config/scripts/climate_norms_today.py
 
@@ -176,9 +176,9 @@
                 message: >
                   All primary weather sources may be down.
                   Current source: {{ states('sensor.hvac_outdoor_weather_source') }}
-                  
+
                   Using fallback value of 35°F which may affect HDD calculations.
-                  
+
                   Check integrations:
                   - weather.pirateweather
                   - weather.local_weather_2
