@@ -825,6 +825,23 @@
         setback_depth: >
           {{ (states('input_number.hvac_1f_hold_setpoint') | float(67) -
               states('input_number.hvac_1f_setback_setpoint') | float(62)) | round(1) }}
+        # Net Runtime Benefit calculation
+        setback_hours: >
+          {% set start = states('input_datetime.hvac_1f_setback_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+          {% else %}
+            8
+          {% endif %}
+        hdd_setback: >
+          {% set hours = setback_hours | float(8) %}
+          {% set outdoor = overnight_low | float(35) %}
+          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) }}
+        baseline_min_per_hdd: "{{ states('sensor.hvac_runtime_per_hdd_7day') | float(10) }}"
+        expected_hold_runtime: >
+          {{ (hdd_setback | float(0) * baseline_min_per_hdd | float(10)) | round(0) }}
+        net_runtime: >
+          {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
@@ -878,6 +895,8 @@
         overnight_low: "{{ overnight_low }}"
         setback_depth: "{{ setback_depth }}"
         total_runtime: "{{ total_runtime }}"
+        expected_hold: "{{ expected_hold_runtime }}"
+        net_runtime: "{{ net_runtime }}"
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -976,6 +995,23 @@
         setback_depth: >
           {{ (states('input_number.hvac_2f_hold_setpoint') | float(67) -
               states('input_number.hvac_2f_setback_setpoint') | float(62)) | round(1) }}
+        # Net Runtime Benefit calculation
+        setback_hours: >
+          {% set start = states('input_datetime.hvac_2f_setback_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
+          {% else %}
+            8
+          {% endif %}
+        hdd_setback: >
+          {% set hours = setback_hours | float(8) %}
+          {% set outdoor = overnight_low | float(35) %}
+          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) }}
+        baseline_min_per_hdd: "{{ states('sensor.hvac_runtime_per_hdd_7day') | float(10) }}"
+        expected_hold_runtime: >
+          {{ (hdd_setback | float(0) * baseline_min_per_hdd | float(10)) | round(0) }}
+        net_runtime: >
+          {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
@@ -1029,6 +1065,8 @@
         overnight_low: "{{ overnight_low }}"
         setback_depth: "{{ setback_depth }}"
         total_runtime: "{{ total_runtime }}"
+        expected_hold: "{{ expected_hold_runtime }}"
+        net_runtime: "{{ net_runtime }}"
     # Reset hold_setpoint
     - service: input_number.set_value
       target:

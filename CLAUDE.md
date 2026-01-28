@@ -369,7 +369,24 @@ Captured at recovery_end for each zone. Used to empirically optimize setback tem
 | zone | 1F or 2F |
 | overnight_low | input_number.outdoor_temp_daily_low (actual observed) |
 | setback_depth | hold_setpoint - setback_setpoint (°F) |
-| total_runtime_min | Furnace runtime from setback start to recovery end |
+| total_runtime | Furnace runtime from setback start to recovery end (min) |
+| expected_hold | Expected runtime if comfort temp held all night (min) |
+| net_runtime | expected_hold - total_runtime (positive = saved, negative = cost) |
+
+**Net Runtime Benefit Calculation:**
+```
+setback_hours = (recovery_end - setback_start) in hours
+hdd_setback = max(65 - overnight_low, 0) × (setback_hours / 24)
+expected_hold = hdd_setback × baseline_min_per_hdd
+net_runtime = expected_hold - total_runtime
+```
+
+**Interpretation:**
+- `net_runtime > 0`: Setback saved furnace runtime (good)
+- `net_runtime ≈ 0`: Marginal benefit
+- `net_runtime < 0`: Recovery penalty exceeded overnight savings (setback too deep for conditions)
+
+**Finding your breakpoint:** Plot overnight_low vs net_runtime. The temperature where net_runtime crosses zero is your optimal setback threshold.
 
 ### Related Automations
 - `capture_daily_monthly_tracking` - Runs at 23:56:30, accumulates daily values
@@ -514,11 +531,18 @@ The original setback efficiency tracking used complex calculations with degree-h
 - Difficult to validate (calculations were unintuitive)
 - Over-engineered for the actual goal: finding optimal setback depth by outdoor temp
 
-### New Approach: Empirical Data Collection
-Replaced with simple logging to enable direct observation of what works:
+### New Approach: Net Runtime Benefit
+Replaced with a single intuitive metric that directly answers "did setback save furnace time?"
 
-**New CSV Log** (`reports/hvac_setback_log.csv`):
-| date | zone | overnight_low | setback_depth | total_runtime_min |
+**Key Metric - Net Runtime (minutes):**
+```
+net_runtime = expected_hold_runtime - actual_runtime
+```
+- Positive = setback saved time (good)
+- Negative = recovery penalty exceeded savings (setback too deep)
+
+**CSV Log** (`reports/hvac_setback_log.csv`):
+| date | zone | overnight_low | setback_depth | total_runtime | expected_hold | net_runtime |
 
 **Recommendation Sensor** (`sensor.recommended_setback_depth`):
 Based on Pirate Weather forecast low temperature:
@@ -526,7 +550,7 @@ Based on Pirate Weather forecast low temperature:
 - Low 15-30°F → 3°F setback (balanced)
 - Low < 15°F → 1°F setback (avoid recovery penalty)
 
-Thresholds can be adjusted as empirical data is collected.
+Thresholds adjustable as data is collected. Plot overnight_low vs net_runtime to find optimal breakpoints.
 
 ### Entities Removed
 - `input_number.hvac_*f_setback_start_outdoor_temp`
