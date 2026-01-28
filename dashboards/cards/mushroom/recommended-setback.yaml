@@ -1,0 +1,22 @@
+# Recommended Setback Depth
+# Shows forecast-based setback recommendation for tonight
+# Dashboard: Energy Performance, Home
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.recommended_setback_depth') }}°F"
+secondary: >-
+  {% set low = states('sensor.pirate_weather_today_low') | float(35) %}
+  Tonight's low: {{ low | round(0) }}°F
+icon: mdi:thermometer-chevron-down
+color: >-
+  {% set depth = states('sensor.recommended_setback_depth') | int(3) %}
+  {% if depth >= 5 %}green
+  {% elif depth >= 3 %}amber
+  {% else %}red{% endif %}
+features_position: bottom
+vertical: true
+tap_action:
+  action: more-info
+  entity: sensor.recommended_setback_depth
+grid_options:
+  columns: 6
+  rows: 2

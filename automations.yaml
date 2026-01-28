@@ -751,7 +751,6 @@
       data:
         datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
-    # This gives consistent denominator for recovery rate regardless of setpoint changes
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_recovery_setback_degrees
@@ -767,78 +766,6 @@
         entity_id: input_number.hvac_1f_recovery_outdoor_temp
       data:
         value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_recovery_start_runtime
-      data:
-        value: "{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }}"
-    # Calculate overnight runtime and efficiency
-    # Handles midnight boundary - estimates pre-midnight runtime proportionally
-    - variables:
-        overnight_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60 %}
-          {% set setback_start_runtime = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
-          {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
-          {% if setback_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = setback_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - setback_start_runtime) | round(1) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
-              {% else %}
-                {{ today_runtime_min | round(1) }}
-              {% endif %}
-            {% endif %}
-          {% else %}
-            0
-          {% endif %}
-        overnight_hours: >
-          {% set start = states('input_datetime.hvac_1f_setback_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
-          {% else %}
-            8
-          {% endif %}
-        # True integrated average from 15-min samples (replaces 2-point proxy)
-        avg_overnight_temp: >
-          {% set temp_sum = states('input_number.hvac_1f_setback_temp_sum') | float(0) %}
-          {% set sample_count = states('input_number.hvac_1f_setback_sample_count') | int(0) %}
-          {% if sample_count > 0 %}
-            {{ (temp_sum / sample_count) | round(1) }}
-          {% else %}
-            {# Fallback to 2-point average if no samples (edge case) #}
-            {{ ((states('input_number.hvac_1f_setback_start_outdoor_temp') | float(35) +
-                 states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
-          {% endif %}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_overnight_runtime
-      data:
-        value: "{{ [overnight_runtime | float, 0] | max }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_overnight_efficiency
-      data:
-        value: >
-          {% set hdd_proxy = ((65 - avg_overnight_temp | float) * overnight_hours | float / 24) %}
-          {% if hdd_proxy > 0.1 %}
-            {{ (overnight_runtime | float / hdd_proxy) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-    # Reset hold_setpoint immediately when recovery starts to stop degree-hours accumulation
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 - id: hvac_1f_recovery_end
   alias: "1F Recovery End"
@@ -868,20 +795,47 @@
           {% else %}
             0
           {% endif %}
+        # Calculate total runtime from setback start to recovery end
+        # Handles midnight boundary
+        total_runtime: >
+          {% set today_runtime_min = states('sensor.hvac_furnace_runtime_today') | float(0) * 60 %}
+          {% set setback_start_runtime = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
+          {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
+          {% if setback_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = setback_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - setback_start_runtime) | round(0) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(0) }}
+              {% else %}
+                {{ today_runtime_min | round(0) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
+        overnight_low: "{{ states('input_number.outdoor_temp_daily_low') | float(35) }}"
+        setback_depth: >
+          {{ (states('input_number.hvac_1f_hold_setpoint') | float(67) -
+              states('input_number.hvac_1f_setback_setpoint') | float(62)) | round(1) }}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        # Store actual recovery time (300-min cap matches rate storage sanity check)
         value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
-    # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
+    # Store recovery rate if valid (>=1°F setback, <=300 min)
     - choose:
         - conditions:
             - condition: template
               value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
           sequence:
-            # Rotate rolling 7 values (shift old values down, new value in slot 1)
             - service: input_number.set_value
               target:
                 entity_id: input_number.hvac_1f_recovery_rate_7
@@ -917,49 +871,14 @@
                 entity_id: input_number.hvac_1f_recovery_rate_1
               data:
                 value: "{{ recovery_rate | float | round(1) }}"
-    # Calculate recovery efficiency (min/HDD during recovery window)
-    # Handles midnight boundary for rare cases where recovery spans midnight
-    - variables:
-        recovery_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60 %}
-          {% set recovery_start_runtime = states('input_number.hvac_1f_recovery_start_runtime') | float(0) %}
-          {% set recovery_start = states('input_datetime.hvac_1f_recovery_start') %}
-          {% if recovery_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = recovery_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - recovery_start_runtime) | round(1) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
-              {% else %}
-                {{ today_runtime_min | round(1) }}
-              {% endif %}
-            {% endif %}
-          {% else %}
-            0
-          {% endif %}
-        recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
-        avg_recovery_temp: >
-          {{ ((states('input_number.hvac_1f_recovery_outdoor_temp') | float(35) +
-               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_recovery_efficiency
+    # Log to setback optimization CSV
+    - service: shell_command.appendsetbacklog
       data:
-        value: >
-          {% set hdd_proxy = ((65 - avg_recovery_temp | float) * recovery_hours | float / 24) %}
-          {% if hdd_proxy > 0.01 %}
-            {{ [((recovery_runtime | float) / hdd_proxy) | round(1), 200] | min }}
-          {% else %}
-            0
-          {% endif %}
-    # Reset hold_setpoint to current setpoint to stop degree-hours accumulation
+        zone: "1F"
+        overnight_low: "{{ overnight_low }}"
+        setback_depth: "{{ setback_depth }}"
+        total_runtime: "{{ total_runtime }}"
+    # Reset hold_setpoint
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_hold_setpoint
@@ -983,7 +902,6 @@
       data:
         datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
-    # This gives consistent denominator for recovery rate regardless of setpoint changes
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_recovery_setback_degrees
@@ -999,78 +917,6 @@
         entity_id: input_number.hvac_2f_recovery_outdoor_temp
       data:
         value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_recovery_start_runtime
-      data:
-        value: "{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }}"
-    # Calculate overnight runtime and efficiency
-    # Handles midnight boundary - estimates pre-midnight runtime proportionally
-    - variables:
-        overnight_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60 %}
-          {% set setback_start_runtime = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
-          {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
-          {% if setback_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = setback_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - setback_start_runtime) | round(1) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
-              {% else %}
-                {{ today_runtime_min | round(1) }}
-              {% endif %}
-            {% endif %}
-          {% else %}
-            0
-          {% endif %}
-        overnight_hours: >
-          {% set start = states('input_datetime.hvac_2f_setback_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
-          {% else %}
-            8
-          {% endif %}
-        # True integrated average from 15-min samples (replaces 2-point proxy)
-        avg_overnight_temp: >
-          {% set temp_sum = states('input_number.hvac_2f_setback_temp_sum') | float(0) %}
-          {% set sample_count = states('input_number.hvac_2f_setback_sample_count') | int(0) %}
-          {% if sample_count > 0 %}
-            {{ (temp_sum / sample_count) | round(1) }}
-          {% else %}
-            {# Fallback to 2-point average if no samples (edge case) #}
-            {{ ((states('input_number.hvac_2f_setback_start_outdoor_temp') | float(35) +
-                 states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
-          {% endif %}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_overnight_runtime
-      data:
-        value: "{{ [overnight_runtime | float, 0] | max }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_overnight_efficiency
-      data:
-        value: >
-          {% set hdd_proxy = ((65 - avg_overnight_temp | float) * overnight_hours | float / 24) %}
-          {% if hdd_proxy > 0.1 %}
-            {{ (overnight_runtime | float / hdd_proxy) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-    # Reset hold_setpoint immediately when recovery starts to stop degree-hours accumulation
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
 
 - id: hvac_2f_recovery_end
   alias: "2F Recovery End"
@@ -1100,20 +946,47 @@
           {% else %}
             0
           {% endif %}
+        # Calculate total runtime from setback start to recovery end
+        # Handles midnight boundary
+        total_runtime: >
+          {% set today_runtime_min = states('sensor.hvac_furnace_runtime_today') | float(0) * 60 %}
+          {% set setback_start_runtime = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
+          {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
+          {% if setback_start not in ['unknown', 'unavailable'] %}
+            {% set start_dt = setback_start | as_datetime | as_local %}
+            {% set start_date = start_dt.date() %}
+            {% set today_date = now().date() %}
+            {% if start_date == today_date %}
+              {{ (today_runtime_min - setback_start_runtime) | round(0) }}
+            {% else %}
+              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
+              {% set hours_after_midnight = now().hour + now().minute/60 %}
+              {% if hours_after_midnight > 0.1 %}
+                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
+                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
+                {{ (today_runtime_min + estimated_pre_midnight) | round(0) }}
+              {% else %}
+                {{ today_runtime_min | round(0) }}
+              {% endif %}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
+        overnight_low: "{{ states('input_number.outdoor_temp_daily_low') | float(35) }}"
+        setback_depth: >
+          {{ (states('input_number.hvac_2f_hold_setpoint') | float(67) -
+              states('input_number.hvac_2f_setback_setpoint') | float(62)) | round(1) }}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        # Store actual recovery time (300-min cap matches rate storage sanity check)
         value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store to rate slots if recovery is valid (>=1°F setback, <=300 min to filter stuck sensors)
-    # 300 min (5 hr) cap allows extreme cold days while catching sensor errors
+    # Store recovery rate if valid (>=1°F setback, <=300 min)
     - choose:
         - conditions:
             - condition: template
               value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
           sequence:
-            # Rotate rolling 7 values (shift old values down, new value in slot 1)
             - service: input_number.set_value
               target:
                 entity_id: input_number.hvac_2f_recovery_rate_7
@@ -1149,49 +1022,14 @@
                 entity_id: input_number.hvac_2f_recovery_rate_1
               data:
                 value: "{{ recovery_rate | float | round(1) }}"
-    # Calculate recovery efficiency (min/HDD during recovery window)
-    # Handles midnight boundary for rare cases where recovery spans midnight
-    - variables:
-        recovery_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60 %}
-          {% set recovery_start_runtime = states('input_number.hvac_2f_recovery_start_runtime') | float(0) %}
-          {% set recovery_start = states('input_datetime.hvac_2f_recovery_start') %}
-          {% if recovery_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = recovery_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - recovery_start_runtime) | round(1) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(1) }}
-              {% else %}
-                {{ today_runtime_min | round(1) }}
-              {% endif %}
-            {% endif %}
-          {% else %}
-            0
-          {% endif %}
-        recovery_hours: "{{ (recovery_minutes | float / 60) | round(2) }}"
-        avg_recovery_temp: >
-          {{ ((states('input_number.hvac_2f_recovery_outdoor_temp') | float(35) +
-               states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35)) / 2) | round(1) }}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_recovery_efficiency
+    # Log to setback optimization CSV
+    - service: shell_command.appendsetbacklog
       data:
-        value: >
-          {% set hdd_proxy = ((65 - avg_recovery_temp | float) * recovery_hours | float / 24) %}
-          {% if hdd_proxy > 0.01 %}
-            {{ [((recovery_runtime | float) / hdd_proxy) | round(1), 200] | min }}
-          {% else %}
-            0
-          {% endif %}
-    # Reset hold_setpoint to current setpoint to stop degree-hours accumulation
+        zone: "2F"
+        overnight_low: "{{ overnight_low }}"
+        setback_depth: "{{ setback_depth }}"
+        total_runtime: "{{ total_runtime }}"
+    # Reset hold_setpoint
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_hold_setpoint
@@ -1203,7 +1041,7 @@
         entity_id: input_boolean.hvac_2f_setback_active
 
 # ===============================================================
-# SETBACK EFFICIENCY TRACKING
+# SETBACK TRACKING - Simplified for empirical data collection
 # ===============================================================
 - id: hvac_1f_setback_start
   alias: "1F Setback Start"
@@ -1234,33 +1072,17 @@
       target:
         entity_id: input_number.hvac_1f_setback_start_runtime
       data:
-        value: "{{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_start_outdoor_temp
-      data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_degree_hours
-      data:
-        value: 0
-    # Reset outdoor temp accumulators for true HDD integration
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_temp_sum
-      data:
-        value: 0
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_sample_count
-      data:
-        value: 0
+        value: "{{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(1) }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_hold_setpoint
       data:
         value: "{{ trigger.from_state.attributes.temperature | float(67) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_setpoint
+      data:
+        value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
 
 - id: hvac_2f_setback_start
   alias: "2F Setback Start"
@@ -1291,139 +1113,17 @@
       target:
         entity_id: input_number.hvac_2f_setback_start_runtime
       data:
-        value: "{{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_start_outdoor_temp
-      data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_degree_hours
-      data:
-        value: 0
-    # Reset outdoor temp accumulators for true HDD integration
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_temp_sum
-      data:
-        value: 0
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_sample_count
-      data:
-        value: 0
+        value: "{{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(1) }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_hold_setpoint
       data:
         value: "{{ trigger.from_state.attributes.temperature | float(67) }}"
-
-# ===============================================================
-# SETBACK DEGREE-HOURS SAMPLING (every 15 min during setback)
-# ===============================================================
-- id: hvac_1f_degree_hours_sample
-  alias: "1F Degree-Hours Sample"
-  trigger:
-    - platform: time_pattern
-      minutes: "/15"
-  condition:
-    - condition: template
-      value_template: >
-        {% set setpoint = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
-        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(67) %}
-        {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(67) %}
-        {{ setpoint < hold and current < hold }}
-  action:
-    - variables:
-        hold_temp: "{{ states('input_number.hvac_1f_hold_setpoint') | float(67) }}"
-        indoor_temp: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
-        outdoor_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-        deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
-        increment: "{{ (deficit | float * 0.25) | round(3) }}"
-    # Accumulate degree-hours
     - service: input_number.set_value
       target:
-        entity_id: input_number.hvac_1f_setback_degree_hours
+        entity_id: input_number.hvac_2f_setback_setpoint
       data:
-        value: "{{ (states('input_number.hvac_1f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
-    # Accumulate outdoor temp for true HDD integration
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_temp_sum
-      data:
-        value: "{{ (states('input_number.hvac_1f_setback_temp_sum') | float(0) + outdoor_temp | float) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_sample_count
-      data:
-        value: "{{ states('input_number.hvac_1f_setback_sample_count') | int(0) + 1 }}"
-
-- id: hvac_2f_degree_hours_sample
-  alias: "2F Degree-Hours Sample"
-  trigger:
-    - platform: time_pattern
-      minutes: "/15"
-  condition:
-    - condition: template
-      value_template: >
-        {% set setpoint = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
-        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(67) %}
-        {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(67) %}
-        {{ setpoint < hold and current < hold }}
-  action:
-    - variables:
-        hold_temp: "{{ states('input_number.hvac_2f_hold_setpoint') | float(67) }}"
-        indoor_temp: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(67) }}"
-        outdoor_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
-        deficit: "{{ [(hold_temp | float - indoor_temp | float), 0] | max }}"
-        increment: "{{ (deficit | float * 0.25) | round(3) }}"
-    # Accumulate degree-hours
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_degree_hours
-      data:
-        value: "{{ (states('input_number.hvac_2f_setback_degree_hours') | float(0) + increment | float) | round(2) }}"
-    # Accumulate outdoor temp for true HDD integration
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_temp_sum
-      data:
-        value: "{{ (states('input_number.hvac_2f_setback_temp_sum') | float(0) + outdoor_temp | float) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_sample_count
-      data:
-        value: "{{ states('input_number.hvac_2f_setback_sample_count') | int(0) + 1 }}"
-
-# Reset hold_setpoint in afternoon to prevent runaway degree-hours accumulation
-# Safety net in case recovery_end never fires (sensor glitch, etc.)
-# Runs at 2pm when setbacks are unlikely (not midnight which is mid-setback)
-- id: reset_hold_setpoint_afternoon
-  alias: "Reset Hold Setpoint Afternoon"
-  trigger:
-    - platform: time
-      at: "14:00:00"
-  condition:
-    # Only reset if NOT in active setback (setpoint is near or above hold)
-    - condition: template
-      value_template: >
-        {% set sp1 = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
-        {% set hold1 = states('input_number.hvac_1f_hold_setpoint') | float(67) %}
-        {% set sp2 = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) %}
-        {% set hold2 = states('input_number.hvac_2f_hold_setpoint') | float(67) %}
-        {{ sp1 >= hold1 - 1 and sp2 >= hold2 - 1 }}
-  action:
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
+        value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
 
 # ===============================================================
 # EFFICIENCY ALERTS

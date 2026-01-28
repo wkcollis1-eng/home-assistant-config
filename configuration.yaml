@@ -17,6 +17,7 @@ shell_command:
   appenddailycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''input_number.outdoor_temp_daily_high'') | float(0) | round(1) }},{{ states(''input_number.outdoor_temp_daily_low'') | float(0) | round(1) }},{{ ((states(''input_number.outdoor_temp_daily_high'') | float(0) + states(''input_number.outdoor_temp_daily_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\" >> /config/reports/hvac_daily_{{ now().year }}.csv"'
   appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
   rotatedailycsv: 'bash -c "head -1 /config/reports/hvac_daily_{{ now().year - 1 }}.csv > /config/reports/hvac_daily_{{ now().year }}.csv"'
+  appendsetbacklog: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ zone }},{{ overnight_low | round(1) }},{{ setback_depth | round(1) }},{{ total_runtime | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
 
 frontend:
   themes: !include_dir_merge_named themes
@@ -988,7 +989,7 @@ input_number:
     mode: box
 
   # ===============================================================
-  # SETBACK EFFICIENCY TRACKING - 1F
+  # SETBACK TRACKING - Simplified for empirical data collection
   # ===============================================================
   hvac_1f_setback_start_runtime:
     name: "1F Setback Start Runtime"
@@ -997,61 +998,6 @@ input_number:
     step: 0.1
     unit_of_measurement: "min"
     mode: box
-  hvac_1f_setback_start_outdoor_temp:
-    name: "1F Setback Start Outdoor Temp"
-    min: -20
-    max: 100
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_1f_recovery_start_runtime:
-    name: "1F Recovery Start Runtime"
-    min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_1f_overnight_runtime:
-    name: "1F Overnight Runtime"
-    min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_1f_overnight_efficiency:
-    name: "1F Overnight Efficiency"
-    min: 0
-    max: 200
-    step: 0.1
-    unit_of_measurement: "min/HDD"
-    mode: box
-  hvac_1f_recovery_efficiency:
-    name: "1F Recovery Efficiency"
-    min: 0
-    max: 200
-    step: 0.1
-    unit_of_measurement: "min/HDD"
-    mode: box
-  hvac_1f_setback_degree_hours:
-    name: "1F Setback Degree-Hours"
-    min: 0
-    max: 100
-    step: 0.01
-    unit_of_measurement: "°F·h"
-    mode: box
-  hvac_1f_setback_temp_sum:
-    name: "1F Setback Temp Sum"
-    min: -5000
-    max: 5000
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_1f_setback_sample_count:
-    name: "1F Setback Sample Count"
-    min: 0
-    max: 200
-    step: 1
-    mode: box
   hvac_1f_hold_setpoint:
     name: "1F Hold Setpoint"
     min: 50
@@ -1059,10 +1005,13 @@ input_number:
     step: 0.5
     unit_of_measurement: "°F"
     mode: box
-
-  # ===============================================================
-  # SETBACK EFFICIENCY TRACKING - 2F
-  # ===============================================================
+  hvac_1f_setback_setpoint:
+    name: "1F Setback Setpoint"
+    min: 50
+    max: 80
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
   hvac_2f_setback_start_runtime:
     name: "2F Setback Start Runtime"
     min: 0
@@ -1070,63 +1019,15 @@ input_number:
     step: 0.1
     unit_of_measurement: "min"
     mode: box
-  hvac_2f_setback_start_outdoor_temp:
-    name: "2F Setback Start Outdoor Temp"
-    min: -20
-    max: 100
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_recovery_start_runtime:
-    name: "2F Recovery Start Runtime"
-    min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_2f_overnight_runtime:
-    name: "2F Overnight Runtime"
-    min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_2f_overnight_efficiency:
-    name: "2F Overnight Efficiency"
-    min: 0
-    max: 200
-    step: 0.1
-    unit_of_measurement: "min/HDD"
-    mode: box
-  hvac_2f_recovery_efficiency:
-    name: "2F Recovery Efficiency"
-    min: 0
-    max: 200
-    step: 0.1
-    unit_of_measurement: "min/HDD"
-    mode: box
-  hvac_2f_setback_degree_hours:
-    name: "2F Setback Degree-Hours"
-    min: 0
-    max: 100
-    step: 0.01
-    unit_of_measurement: "°F·h"
-    mode: box
-  hvac_2f_setback_temp_sum:
-    name: "2F Setback Temp Sum"
-    min: -5000
-    max: 5000
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_setback_sample_count:
-    name: "2F Setback Sample Count"
-    min: 0
-    max: 200
-    step: 1
-    mode: box
   hvac_2f_hold_setpoint:
     name: "2F Hold Setpoint"
+    min: 50
+    max: 80
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
+  hvac_2f_setback_setpoint:
+    name: "2F Setback Setpoint"
     min: 50
     max: 80
     step: 0.5
@@ -2584,110 +2485,26 @@ template:
           ] %}
           {{ rates | select('gt', 0) | list | count }}
 
-      # === SETBACK EFFICIENCY SENSORS ===
-      - name: "HVAC 1F Setback Net Benefit"
-        unique_id: hvac_1f_setback_net_benefit
-        unit_of_measurement: "min/HDD"
+      # === SETBACK RECOMMENDATION SENSOR ===
+      # Recommends setback depth based on forecast overnight low
+      # Thresholds adjustable as data is collected in hvac_setback_log.csv
+      - name: "Recommended Setback Depth"
+        unique_id: recommended_setback_depth
+        unit_of_measurement: "°F"
         state_class: measurement
-        icon: mdi:scale-balance
+        icon: mdi:thermometer-chevron-down
         state: >
-          {% set overnight = states('input_number.hvac_1f_overnight_efficiency') | float(0) %}
-          {% set recovery = states('input_number.hvac_1f_recovery_efficiency') | float(0) %}
-          {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
-          {% if baseline > 0 and overnight > 0 %}
-            {{ (baseline - (overnight + recovery)) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
+          {% set low = states('sensor.pirate_weather_today_low') | float(35) %}
+          {% if low > 30 %}5
+          {% elif low > 15 %}3
+          {% else %}1{% endif %}
         attributes:
-          overnight_efficiency: "{{ states('input_number.hvac_1f_overnight_efficiency') }}"
-          recovery_efficiency: "{{ states('input_number.hvac_1f_recovery_efficiency') }}"
-          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7day') }}"
-          interpretation: >
-            {% set benefit = this.state | float(0) %}
-            {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(10) %}
-            {% set pct = (benefit / baseline * 100) | round(0) if baseline > 0 else 0 %}
-            {% if pct > 10 %}Setback saving energy
-            {% elif pct < -10 %}Setback costing energy
-            {% else %}Marginal benefit{% endif %}
-
-      - name: "HVAC 2F Setback Net Benefit"
-        unique_id: hvac_2f_setback_net_benefit
-        unit_of_measurement: "min/HDD"
-        state_class: measurement
-        icon: mdi:scale-balance
-        state: >
-          {% set overnight = states('input_number.hvac_2f_overnight_efficiency') | float(0) %}
-          {% set recovery = states('input_number.hvac_2f_recovery_efficiency') | float(0) %}
-          {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(0) %}
-          {% if baseline > 0 and overnight > 0 %}
-            {{ (baseline - (overnight + recovery)) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-        attributes:
-          overnight_efficiency: "{{ states('input_number.hvac_2f_overnight_efficiency') }}"
-          recovery_efficiency: "{{ states('input_number.hvac_2f_recovery_efficiency') }}"
-          baseline: "{{ states('sensor.hvac_runtime_per_hdd_7day') }}"
-          interpretation: >
-            {% set benefit = this.state | float(0) %}
-            {% set baseline = states('sensor.hvac_runtime_per_hdd_7day') | float(10) %}
-            {% set pct = (benefit / baseline * 100) | round(0) if baseline > 0 else 0 %}
-            {% if pct > 10 %}Setback saving energy
-            {% elif pct < -10 %}Setback costing energy
-            {% else %}Marginal benefit{% endif %}
-
-      - name: "HVAC 1F Setback Daily Savings"
-        unique_id: hvac_1f_setback_daily_savings
-        unit_of_measurement: "$"
-        state_class: measurement
-        icon: mdi:currency-usd
-        state: >
-          {% set benefit = states('sensor.hvac_1f_setback_net_benefit') | float(0) %}
-          {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
-          {% set gas_rate = states('sensor.gas_effective_rate') | float(1.68) %}
-          {% set furnace_btu = 60556 %}
-          {% set runtime_min_saved = benefit * hdd %}
-          {% set runtime_hr_saved = runtime_min_saved / 60 %}
-          {% set ccf_saved = (runtime_hr_saved * furnace_btu) / (103700 * 0.95) %}
-          {{ (ccf_saved * gas_rate) | round(2) }}
-        attributes:
-          runtime_saved_min: "{{ (states('sensor.hvac_1f_setback_net_benefit') | float(0) * states('sensor.hvac_hdd65_today') | float(0)) | round(1) }}"
-          ccf_saved: >
-            {% set benefit = states('sensor.hvac_1f_setback_net_benefit') | float(0) %}
-            {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
-            {{ ((benefit * hdd / 60) * 60556 / (103700 * 0.95)) | round(3) }}
-
-      - name: "HVAC 2F Setback Daily Savings"
-        unique_id: hvac_2f_setback_daily_savings
-        unit_of_measurement: "$"
-        state_class: measurement
-        icon: mdi:currency-usd
-        state: >
-          {% set benefit = states('sensor.hvac_2f_setback_net_benefit') | float(0) %}
-          {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
-          {% set gas_rate = states('sensor.gas_effective_rate') | float(1.68) %}
-          {% set furnace_btu = 60556 %}
-          {% set runtime_min_saved = benefit * hdd %}
-          {% set runtime_hr_saved = runtime_min_saved / 60 %}
-          {% set ccf_saved = (runtime_hr_saved * furnace_btu) / (103700 * 0.95) %}
-          {{ (ccf_saved * gas_rate) | round(2) }}
-        attributes:
-          runtime_saved_min: "{{ (states('sensor.hvac_2f_setback_net_benefit') | float(0) * states('sensor.hvac_hdd65_today') | float(0)) | round(1) }}"
-          ccf_saved: >
-            {% set benefit = states('sensor.hvac_2f_setback_net_benefit') | float(0) %}
-            {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
-            {{ ((benefit * hdd / 60) * 60556 / (103700 * 0.95)) | round(3) }}
-
-      - name: "HVAC Total Setback Daily Savings"
-        unique_id: hvac_total_setback_daily_savings
-        unit_of_measurement: "$"
-        state_class: measurement
-        icon: mdi:piggy-bank
-        state: >
-          {% set s1 = states('sensor.hvac_1f_setback_daily_savings') | float(0) %}
-          {% set s2 = states('sensor.hvac_2f_setback_daily_savings') | float(0) %}
-          {{ (s1 + s2) | round(2) }}
+          forecast_low: "{{ states('sensor.pirate_weather_today_low') }}"
+          guidance: >
+            {% set low = states('sensor.pirate_weather_today_low') | float(35) %}
+            {% if low > 30 %}Mild night - deeper setback saves gas
+            {% elif low > 15 %}Moderate cold - balanced setback
+            {% else %}Very cold - shallow setback avoids recovery penalty{% endif %}
 
       # === CLIMATE NORMS DERIVED SENSORS ===
       - name: "Expected HDD Today"

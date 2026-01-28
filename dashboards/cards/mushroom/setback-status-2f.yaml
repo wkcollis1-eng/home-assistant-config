@@ -1,0 +1,25 @@
+# 2F Setback Status
+# Shows if setback is active and the current depth
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: >-
+  {% if is_state('input_boolean.hvac_2f_setback_active', 'on') %}
+    {% set depth = (states('input_number.hvac_2f_hold_setpoint') | float(67) -
+                    states('input_number.hvac_2f_setback_setpoint') | float(62)) | round(0) %}
+    Setback {{ depth }}°F
+  {% else %}
+    No Setback
+  {% endif %}
+secondary: 2F Tonight
+icon: mdi:home-floor-2
+color: >-
+  {% if is_state('input_boolean.hvac_2f_setback_active', 'on') %}blue
+  {% else %}grey{% endif %}
+features_position: bottom
+vertical: true
+tap_action:
+  action: more-info
+  entity: input_boolean.hvac_2f_setback_active
+grid_options:
+  columns: 6
+  rows: 2

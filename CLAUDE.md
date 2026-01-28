@@ -152,16 +152,13 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `input_number.hvac_1f_recovery_rate_1` through `_7` - Rolling storage slots
 - `input_number.hvac_2f_recovery_rate_1` through `_7` - Rolling storage slots
 
-### Setback Efficiency Tracking
+### Setback Optimization (Simplified)
 - `input_boolean.hvac_1f_setback_active` / `hvac_2f_*` - Setback cycle latch (prevents re-firing)
 - `input_datetime.hvac_1f_setback_start` / `hvac_2f_setback_start` - Setback start timestamp
-- `input_number.hvac_1f_setback_start_runtime` / `hvac_2f_*` - Runtime at setback start (min)
-- `input_number.hvac_1f_setback_start_outdoor_temp` / `hvac_2f_*` - Outdoor temp at setback
-- `input_number.hvac_1f_recovery_start_runtime` / `hvac_2f_*` - Runtime at recovery start (min)
-- `input_number.hvac_1f_overnight_runtime` / `hvac_2f_*` - Overnight runtime (min)
-- `input_number.hvac_1f_overnight_efficiency` / `hvac_2f_*` - Overnight min/HDD
-- `input_number.hvac_1f_recovery_efficiency` / `hvac_2f_*` - Recovery min/HDD
-- `sensor.hvac_1f_setback_net_benefit` / `hvac_2f_*` - Net benefit (positive = saving)
+- `input_number.hvac_1f_setback_start_runtime` / `hvac_2f_*` - Furnace runtime at setback start (min)
+- `input_number.hvac_1f_hold_setpoint` / `hvac_2f_*` - Comfort setpoint before setback
+- `input_number.hvac_1f_setback_setpoint` / `hvac_2f_*` - Setback setpoint
+- `sensor.recommended_setback_depth` - Recommended setback depth based on forecast low
 
 ### Daily Cost Estimates
 - `sensor.hvac_daily_gas_cost_estimate` - Today's estimated gas cost
@@ -363,6 +360,17 @@ Captured at 23:58 on last day of each month.
 - `sensor.efficiency_deviation_month` - Monthly efficiency deviation %
 - `sensor.runtime_per_hdd_month_calc` - Monthly runtime per HDD (min/HDD)
 
+### Setback Optimization Log (`reports/hvac_setback_log.csv`)
+Captured at recovery_end for each zone. Used to empirically optimize setback temps by outdoor low.
+
+| Field | Source |
+|-------|--------|
+| date | Current date |
+| zone | 1F or 2F |
+| overnight_low | input_number.outdoor_temp_daily_low (actual observed) |
+| setback_depth | hold_setpoint - setback_setpoint (°F) |
+| total_runtime_min | Furnace runtime from setback start to recovery end |
+
 ### Related Automations
 - `capture_daily_monthly_tracking` - Runs at 23:56:30, accumulates daily values
 - `csv_daily_report` - Runs at 23:57, appends daily data
@@ -499,86 +507,53 @@ This catches real issues while ignoring noise on mild days.
 
 ---
 
-## Setback Optimization Bug Fix - 2026-01-24
+## Setback Optimization Simplified - 2026-01-27
 
-### Issue
-Setback net benefit sensors (`sensor.hvac_1f_setback_net_benefit`, `sensor.hvac_2f_setback_net_benefit`) were returning 0 for overnight setbacks.
+### Previous Approach (Removed)
+The original setback efficiency tracking used complex calculations with degree-hours, overnight efficiency (min/HDD), recovery efficiency (min/HDD), and net benefit sensors. This approach was:
+- Difficult to validate (calculations were unintuitive)
+- Over-engineered for the actual goal: finding optimal setback depth by outdoor temp
 
-### Root Cause
-The `overnight_runtime` and `recovery_runtime` calculations used `sensor.hvac_*_heat_runtime_today` which resets at midnight. For setbacks spanning midnight (e.g., 10 PM → 6 AM), the calculation produced negative values that were clamped to 0, causing the entire net benefit calculation to return 0.
+### New Approach: Empirical Data Collection
+Replaced with simple logging to enable direct observation of what works:
 
-### Fix Applied
-Updated `automations.yaml` to detect midnight boundary crossings and estimate pre-midnight runtime proportionally:
-- `hvac_1f_recovery_start` - overnight_runtime calculation
-- `hvac_2f_recovery_start` - overnight_runtime calculation
-- `hvac_1f_recovery_end` - recovery_runtime calculation
-- `hvac_2f_recovery_end` - recovery_runtime calculation
+**New CSV Log** (`reports/hvac_setback_log.csv`):
+| date | zone | overnight_low | setback_depth | total_runtime_min |
 
-Logic:
-1. Compare setback/recovery start date to current date
-2. If same day: use simple subtraction (original behavior)
-3. If different days: estimate pre-midnight runtime using post-midnight heating rate
+**Recommendation Sensor** (`sensor.recommended_setback_depth`):
+Based on Pirate Weather forecast low temperature:
+- Low > 30°F → 5°F setback (deeper saves gas)
+- Low 15-30°F → 3°F setback (balanced)
+- Low < 15°F → 1°F setback (avoid recovery penalty)
 
-### Additional Fix
-Fixed entity ID typo in dashboard card snippets:
-- `dashboards/cards/mushroom/setback-benefit-1f.yaml`
-- `dashboards/cards/mushroom/setback-benefit-2f.yaml`
-- Changed `hvac_runtime_per_hdd_7_day` → `hvac_runtime_per_hdd_7day`
+Thresholds can be adjusted as empirical data is collected.
 
-### Recovery Rate Sensor Fix (same date)
-The recovery rate averages were showing static values (e.g., 2.7, 3.0 min/°F) instead of updating after cold-night recoveries.
+### Entities Removed
+- `input_number.hvac_*f_setback_start_outdoor_temp`
+- `input_number.hvac_*f_recovery_start_runtime`
+- `input_number.hvac_*f_overnight_runtime`
+- `input_number.hvac_*f_overnight_efficiency`
+- `input_number.hvac_*f_recovery_efficiency`
+- `input_number.hvac_*f_setback_degree_hours`
+- `input_number.hvac_*f_setback_temp_sum`
+- `input_number.hvac_*f_setback_sample_count`
+- `sensor.hvac_*f_setback_net_benefit`
+- `sensor.hvac_*f_setback_daily_savings`
+- `sensor.hvac_total_setback_daily_savings`
 
-**Root Causes:**
-1. `binary_sensor.hvac_*_recovering` depended on `hvac_action == 'heating'`, which flickered OFF during furnace cycles, triggering `recovery_end` prematurely (capturing single furnace cycles instead of full recovery)
-2. 120-minute cap discarded valid cold-night recoveries that exceeded 2 hours
+### Automations Removed
+- `hvac_1f_degree_hours_sample` / `hvac_2f_degree_hours_sample`
+- `reset_hold_setpoint_afternoon`
 
-**Fixes Applied:**
-1. Changed recovering sensors to use temperature gap with hysteresis:
-   - Starts: gap > 2°F (significant setback detected)
-   - Ends: 1F ≤ 1.0°F, 2F ≤ 1.25°F (zone-specific thresholds for stratification)
-   - No longer depends on furnace cycling state
-2. Increased recovery time cap from 120 to 180 minutes
+### Entities Kept (for recovery rate tracking)
+- `input_number.hvac_*f_hold_setpoint` - Comfort setpoint (used by recovering binary sensor)
+- `input_number.hvac_*f_setback_start_runtime` - For total runtime calculation
+- `input_datetime.hvac_*f_setback_start` - Setback timestamp
+- `input_boolean.hvac_*f_setback_active` - Setback latch
 
-### Timezone Mismatch Fix (same date)
-Log errors: `TypeError: can't subtract offset-naive and offset-aware datetimes`
-
-**Root Cause:** `as_datetime` filter returns naive datetime, but `now()` returns timezone-aware datetime. Subtraction fails.
-
-**Fix:** Added `| as_local` after `| as_datetime` in all affected locations:
-- `configuration.yaml`: `binary_sensor.hdd_capture_stale`, `binary_sensor.runtime_per_hdd_capture_stale`
-- `automations.yaml`: `reset_monthly_hdd`, `reset_yearly_hdd`, `hvac_1f_recovery_start` (overnight_hours), `hvac_1f_recovery_end` (recovery_minutes), `hvac_2f_recovery_start`, `hvac_2f_recovery_end`
-
-### Additional Fixes (same date)
-
-**Recovery time cap raised to 300 minutes:**
-- Changed from 180 to 300 minutes (5 hours) to capture extreme cold days
-- Previously, very cold mornings would silently discard data when recovery exceeded 3 hours
-- 300-minute cap still filters stuck sensors while capturing real-world extremes
-
-**Notification entity ID typos fixed:**
-- `sensor.hvac_runtime_per_hdd_7_day` → `sensor.hvac_runtime_per_hdd_7day`
-- `sensor.hvac_runtime_per_hdd_upper_bound_1s` → `sensor.hvac_runtime_per_hdd_upper_bound`
-- `sensor.hvac_runtime_per_hdd_lower_bound_1s` → `sensor.hvac_runtime_per_hdd_lower_bound`
-
-### Daily Outdoor Temp Tracking (same date)
-Added actual observed daily high/low tracking instead of using Pirate Weather forecast temps (which were unreliable at 23:57 report time).
-
-**New entities:**
-- `input_number.outdoor_temp_daily_high` - Updated every 10 min if current temp exceeds stored high
-- `input_number.outdoor_temp_daily_low` - Updated every 10 min if current temp is below stored low
-
-**Automations:**
-- `update_outdoor_temp_daily_high_low` - Runs every 10 minutes, updates high/low based on `sensor.hvac_outdoor_temp_hartford_proxy`
-- `reset_outdoor_temp_daily_high_low` - Runs at 00:00:30, resets both to current temp for new day
-
-**CSV Report:** Now uses actual observed temps instead of forecast temps.
-
-### Known Limitation: Overnight Efficiency = 0
-
-If `sensor.hvac_*f_setback_net_benefit` shows 0, check:
-1. **Setback automation didn't fire** - `hvac_1f_setback_start` triggers on thermostat `temperature` attribute dropping ≥2°F. Some thermostats with built-in schedules may not report setpoint changes in a way that triggers this.
-2. **Check input_datetime values** - In Developer Tools → States, verify `input_datetime.hvac_1f_setback_start` has a recent timestamp from last night's setback.
-3. **Workaround** - Can manually set `input_datetime.hvac_1f_setback_start` before recovery to test the calculation flow.
+### Entities Added
+- `input_number.hvac_*f_setback_setpoint` - Stores setback temp for depth calculation
+- `sensor.recommended_setback_depth` - Forecast-based recommendation
 
 ---
 
@@ -626,41 +601,6 @@ Now uses `hvac_furnace_runtime_*` which tracks actual furnace on-time via `binar
 
 ---
 
-## Degree-Hours Accumulation Fix - 2026-01-24
-
-### Issue
-2F setback degree-hours kept climbing after recovery started (5am), accumulating ~8 extra degree-hours during the recovery period when it should have stopped.
-
-### Root Cause
-The degree-hours sampling condition requires `setpoint < hold AND current < hold`. During recovery:
-- Setpoint returns to comfort (67°F)
-- But `hold_setpoint` wasn't reset until `recovery_end` fired
-- If current temp was still below hold during recovery, sampling continued
-
-1F stopped correctly because its sampling condition became FALSE immediately. 2F's condition stayed TRUE due to timing/state differences.
-
-### Fix Applied
-Reset `hold_setpoint` at **recovery_start** (not just recovery_end) so sampling stops immediately when recovery begins.
-
-### Automations Modified
-- `hvac_1f_recovery_start` - Added hold_setpoint reset
-- `hvac_2f_recovery_start` - Added hold_setpoint reset
-- `reset_hold_setpoint_afternoon` - Safety net at 2pm (replaces midnight reset)
-
-### Safety Net Logic
-The 2pm reset only fires if NOT in active setback:
-```yaml
-condition: sp1 >= hold1 - 1 and sp2 >= hold2 - 1
-```
-This prevents interrupting overnight setback tracking (which spans midnight).
-
-### Degree-Hours Protection Layers
-1. **recovery_start** - Resets hold_setpoint immediately when recovery begins
-2. **recovery_end** - Redundant reset when recovery completes
-3. **2pm safety net** - Catches stuck states, only if not in setback
-
----
-
 ## Recovery END Threshold Fix - 2026-01-25
 
 ### Issue
@@ -697,54 +637,24 @@ Increased recovery END thresholds to account for thermostat resolution and therm
 ## Setback Latch Fix - 2026-01-25
 
 ### Issue
-Degree-hours accumulator showing 0 and setback efficiency calculations returning $0 savings despite active setbacks.
+Setback tracking data was being overwritten mid-cycle when thermostat reported attribute changes.
 
 ### Root Cause
-The `hvac_*f_setback_start` automations were **not idempotent**. They triggered on any ≥2°F setpoint drop, which could fire multiple times per setback cycle due to:
-- Thermostat attribute re-reporting
-- Manual setpoint adjustments during setback
-- Schedule sync glitches
-
-Each re-fire would:
-1. Zero `input_number.hvac_*f_setback_degree_hours` (wiping accumulated data)
-2. Overwrite `input_datetime.hvac_*f_setback_start` timestamp
-3. Overwrite `input_number.hvac_*f_setback_start_runtime` baseline
-4. Overwrite `input_number.hvac_*f_hold_setpoint`
-
-This corrupted both degree-hours tracking and setback efficiency calculations.
+The `hvac_*f_setback_start` automations triggered on any ≥2°F setpoint drop, which could fire multiple times per setback cycle.
 
 ### Fix Applied
 Added explicit `input_boolean` latch to enforce one setback-start capture per cycle.
 
-**New entities:**
+**Entities:**
 - `input_boolean.hvac_1f_setback_active` - Latch for 1F setback cycle
 - `input_boolean.hvac_2f_setback_active` - Latch for 2F setback cycle
 
-**Automation changes:**
-
-| Automation | Change |
-|------------|--------|
-| `hvac_1f_setback_start` | Added condition: `setback_active = off`; Added action: turn on latch |
-| `hvac_2f_setback_start` | Added condition: `setback_active = off`; Added action: turn on latch |
-| `hvac_1f_recovery_end` | Added action: turn off latch |
-| `hvac_2f_recovery_end` | Added action: turn off latch |
-
-### State Machine
+**State Machine:**
 ```
-setback_start fires → setback_active = ON → (accumulates degree-hours, tracks efficiency)
+setback_start fires → setback_active = ON → (tracks setback)
                                           ↓
 recovery_end fires  → setback_active = OFF → ready for next cycle
 ```
-
-### Files Modified
-- `configuration.yaml`: Added `input_boolean` section with latch entities
-- `automations.yaml`: `hvac_1f_setback_start`, `hvac_2f_setback_start`, `hvac_1f_recovery_end`, `hvac_2f_recovery_end`
-
-### Impact
-- Degree-hours will no longer be wiped mid-setback
-- Setback efficiency baselines (timestamp, runtime, outdoor temp) remain stable
-- Net benefit calculations will have valid inputs
-- Debugging is easier: check `input_boolean.hvac_*f_setback_active` in Developer Tools
 
 ---
 
@@ -870,45 +780,19 @@ The metric now answers: "How long did it take for the house to actually warm up?
 
 ---
 
-## Overnight Efficiency True HDD Integration - 2026-01-26
+## Known Limitations
 
-### Issue
-Overnight efficiency (`input_number.hvac_*f_overnight_efficiency`) used a **2-point temperature average** proxy for HDD calculation. On nights with significant temperature ramps (common in CT cold snaps), the 2-point average could be biased vs actual HDD over the setback window.
+### API-Based Outdoor Temperature Accuracy
 
-### Previous Implementation (Proxy)
-```
-avg_overnight_temp = (outdoor_temp_at_setback_start + outdoor_temp_at_recovery_start) / 2
-hdd_proxy = (65 - avg_overnight_temp) × (overnight_hours / 24)
-```
+Weather APIs (Open-Meteo, Pirate Weather, NWS) report **regional** temperatures, not local microclimate conditions. On cold clear nights, actual temperatures at your location can be 5-10°F colder than API reports due to:
 
-### Fix Applied: True HDD Integration via Riemann Sum
-Now uses 15-minute outdoor temperature sampling (piggybacks on existing degree-hours sampler) to compute a true integrated average:
+1. **Radiative cooling** - Clear nights allow ground-level temps to drop well below regional averages
+2. **Regional averaging** - APIs blend data from stations that may be miles away or at different elevations
+3. **Update frequency** - APIs may miss rapid temperature changes between updates
 
-**New entities:**
-- `input_number.hvac_1f_setback_temp_sum` / `hvac_2f_*` - Accumulates outdoor temps during setback
-- `input_number.hvac_1f_setback_sample_count` / `hvac_2f_*` - Counts samples
+**Impact on metrics:**
+- `outdoor_low` in daily CSV may be higher than actual overnight minimum
+- HDD calculations may undercount degree-days on very cold nights
+- Overnight efficiency (min/HDD) may appear artificially high
 
-**How it works:**
-1. **setback_start**: Reset `temp_sum` and `sample_count` to 0
-2. **Every 15 min during setback**: Add current outdoor temp to `temp_sum`, increment `sample_count`
-3. **recovery_start**: Calculate `true_avg_temp = temp_sum / sample_count`
-4. Use true average for HDD calculation instead of 2-point proxy
-
-**Example:** 8-hour setback = 32 samples vs 2 samples previously
-
-### Files Modified
-- `configuration.yaml`: Added 4 new input_numbers (temp_sum + sample_count × 2 floors)
-- `automations.yaml`:
-  - `hvac_1f_degree_hours_sample` / `hvac_2f_*` - Also accumulates outdoor temp
-  - `hvac_1f_setback_start` / `hvac_2f_*` - Resets temp accumulators
-  - `hvac_1f_recovery_start` / `hvac_2f_*` - Uses true integrated average
-
-### Impact
-| Before | After |
-|--------|-------|
-| 2-point average (start + end) | 15-min Riemann sum (~32 samples) |
-| Biased on ramping nights | Accurate regardless of temp trajectory |
-| Coarse proxy | Engineering-grade integration |
-
-### Fallback
-If no samples collected (edge case), falls back to 2-point average to prevent division by zero.
+**Workaround:** A local Zigbee/Z-Wave outdoor temperature sensor (Shelly H&T, Aqara, etc.) would provide actual readings. Until then, treat overnight temperature data as approximate on clear cold nights.
