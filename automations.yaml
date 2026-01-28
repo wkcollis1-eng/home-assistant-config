@@ -129,7 +129,7 @@
                 {{ is_number(states('sensor.hvac_hdd65_today')) and
                    is_number(states('sensor.hvac_cdd65_today')) and
                    0 <= (states('sensor.hvac_hdd65_today')|float) <= 65 and
-                   0 <= (states('sensor.hvac_cdd65_today')|float) <= 30 }}
+                   0 <= (states('sensor.hvac_cdd65_today')|float) <= 50 }}
           sequence:
             - variables:
                 todays_hdd: "{{ states('sensor.hvac_hdd65_today')|float }}"
@@ -574,6 +574,14 @@
     - platform: state
       entity_id: binary_sensor.hvac_efficiency_alert
       to: "on"
+      for:
+        minutes: 30
+  condition:
+    # Rate limit: only once per 24 hours
+    - condition: template
+      value_template: >
+        {% set last = state_attr('automation.notify_efficiency_degradation', 'last_triggered') %}
+        {{ last is none or (now() - last).total_seconds() > 86400 }}
   action:
     - service: persistent_notification.create
       data:
@@ -887,17 +895,8 @@
               target:
                 entity_id: input_number.hvac_1f_recovery_rate_1
               data:
-                value: "{{ recovery_rate | float | round(1) }}"
-    # Log to setback optimization CSV
-    - service: shell_command.appendsetbacklog
-      data:
-        zone: "1F"
-        overnight_low: "{{ overnight_low }}"
-        setback_depth: "{{ setback_depth }}"
-        total_runtime: "{{ total_runtime }}"
-        expected_hold: "{{ expected_hold_runtime }}"
-        net_runtime: "{{ net_runtime }}"
-    # Store last setback results for dashboard display
+                value: "{{ [recovery_rate | float | round(1), 99] | min }}"
+    # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_overnight_low
@@ -913,6 +912,8 @@
         entity_id: input_number.hvac_1f_last_net_runtime
       data:
         value: "{{ net_runtime }}"
+    # Log to setback optimization CSV (after input_numbers are set)
+    - service: shell_command.appendsetbacklog_1f
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -1073,17 +1074,8 @@
               target:
                 entity_id: input_number.hvac_2f_recovery_rate_1
               data:
-                value: "{{ recovery_rate | float | round(1) }}"
-    # Log to setback optimization CSV
-    - service: shell_command.appendsetbacklog
-      data:
-        zone: "2F"
-        overnight_low: "{{ overnight_low }}"
-        setback_depth: "{{ setback_depth }}"
-        total_runtime: "{{ total_runtime }}"
-        expected_hold: "{{ expected_hold_runtime }}"
-        net_runtime: "{{ net_runtime }}"
-    # Store last setback results for dashboard display
+                value: "{{ [recovery_rate | float | round(1), 99] | min }}"
+    # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_overnight_low
@@ -1099,6 +1091,8 @@
         entity_id: input_number.hvac_2f_last_net_runtime
       data:
         value: "{{ net_runtime }}"
+    # Log to setback optimization CSV (after input_numbers are set)
+    - service: shell_command.appendsetbacklog_2f
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -1299,10 +1293,10 @@
 
 - id: csv_monthly_report
   alias: "CSV Monthly Report"
-  description: "Append monthly HVAC data to CSV on last day of month at 23:58"
+  description: "Append monthly HVAC data to CSV on last day of month at 23:58:30"
   trigger:
     - platform: time
-      at: "23:58:00"
+      at: "23:58:30"
   condition:
     - condition: template
       value_template: "{{ (now() + timedelta(days=1)).day == 1 }}"
@@ -1318,7 +1312,7 @@
   description: "Create new daily CSV file on Jan 1st"
   trigger:
     - platform: time
-      at: "00:01:00"
+      at: "00:03:00"
   condition:
     - condition: template
       value_template: "{{ now().month == 1 and now().day == 1 }}"
@@ -1328,3 +1322,322 @@
       data:
         message: "Daily CSV rotated for new year"
         level: info
+
+# ===============================================================
+# WATCHDOG & ROBUSTNESS AUTOMATIONS
+# ===============================================================
+
+# WATCHDOG: HDD Capture Health Monitor
+# Alerts if daily capture hasn't succeeded in 26+ hours
+- id: notify_hdd_capture_stale
+  alias: "Notify HDD Capture Stale"
+  description: "Alert if HDD capture hasn't succeeded recently"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ HDD Capture Health Alert"
+        message: >
+          HDD capture has not succeeded in over 26 hours.
+          Last successful: {{ states('input_datetime.hdd_capture_last_ok') }}
+
+          Check:
+          - sensor.hvac_hdd65_today state: {{ states('sensor.hvac_hdd65_today') }}
+          - sensor.hvac_cdd65_today state: {{ states('sensor.hvac_cdd65_today') }}
+          - sensor.hvac_outdoor_temp_hartford_proxy state: {{ states('sensor.hvac_outdoor_temp_hartford_proxy') }}
+
+# WATCHDOG: Runtime per HDD Capture Health Monitor
+- id: notify_runtime_per_hdd_capture_stale
+  alias: "Notify Runtime/HDD Capture Stale"
+  description: "Alert if runtime/HDD capture hasn't succeeded recently"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.runtime_per_hdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Runtime/HDD Capture Alert"
+        message: >
+          Runtime per HDD capture has not succeeded in over 26 hours.
+          Last successful: {{ states('input_datetime.runtime_per_hdd_capture_last_ok') }}
+
+          Check:
+          - sensor.hvac_total_runtime_per_hdd_today: {{ states('sensor.hvac_total_runtime_per_hdd_today') }}
+
+# STARTUP VALIDATION: Check for corrupt cumulative values
+- id: validate_input_numbers_startup
+  alias: "Validate Input Numbers on Startup"
+  description: "Check for implausible values in cumulative trackers"
+  trigger:
+    - platform: homeassistant
+      event: start
+  action:
+    - delay:
+        seconds: 60
+    - choose:
+        # Check for corrupt HDD cumulative values
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.hdd_cumulative_year_auto') | float(0) > 8000 or
+                   states('input_number.hdd_cumulative_month_auto') | float(0) > 2500 or
+                   states('input_number.hdd_cumulative_year_auto') | float(0) < 0 or
+                   states('input_number.hdd_cumulative_month_auto') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: HDD cumulative values appear corrupt.
+                  Year: {{ states('input_number.hdd_cumulative_year_auto') }},
+                  Month: {{ states('input_number.hdd_cumulative_month_auto') }}
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ HDD Data Validation Warning"
+                message: >
+                  HDD cumulative values may be corrupt:
+                  - Year-to-date: {{ states('input_number.hdd_cumulative_year_auto') }} HDD
+                  - Month-to-date: {{ states('input_number.hdd_cumulative_month_auto') }} HDD
+
+                  Please verify and manually correct if needed.
+                  Reasonable values: Year < 8000, Month < 2500
+    - choose:
+        # Check for corrupt filter runtime
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.hvac_filter_runtime_hours') | float(0) > 2000 or
+                   states('input_number.hvac_filter_runtime_hours') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: Filter runtime appears corrupt: {{ states('input_number.hvac_filter_runtime_hours') }} hours
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ Filter Runtime Warning"
+                message: >
+                  Filter runtime value appears corrupt: {{ states('input_number.hvac_filter_runtime_hours') }} hours
+                  Expected range: 0-1500 hours
+    - choose:
+        # Check outdoor temp trackers initialization
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.outdoor_temp_daily_high') | float(0) <= -49 and
+                   states('input_number.outdoor_temp_daily_low') | float(150) >= 149 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: "INFO: Outdoor temp daily high/low at initial values - will auto-correct when sensor available"
+                level: info
+
+# CLIMATE NORMS SCRIPT FAILURE HANDLER
+- id: notify_climate_norms_failure
+  alias: "Notify Climate Norms Script Failure"
+  description: "Alert if climate norms script returns error"
+  trigger:
+    - platform: state
+      entity_id: sensor.climate_norms_today
+      to: "error"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Climate Norms Script Error"
+        message: >
+          The climate_norms_today.py script has been returning errors for 2+ hours.
+
+          Check:
+          - /config/scripts/climate_norms_today.py exists
+          - /config/climate_daily_norms.csv exists
+          - Python dependencies are installed
+
+          You can test manually with:
+          python3 /config/scripts/climate_norms_today.py
+
+# WEATHER SOURCE FAILOVER MONITOR
+# Alert if all weather sources are down
+- id: notify_weather_sources_down
+  alias: "Notify All Weather Sources Down"
+  description: "Alert if all weather data sources are unavailable"
+  trigger:
+    - platform: state
+      entity_id: sensor.hvac_outdoor_weather_source
+      to: "Open-Meteo"
+      for:
+        hours: 6
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(-999) == 35 }}
+          sequence:
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ Weather Data Warning"
+                message: >
+                  All primary weather sources may be down.
+                  Current source: {{ states('sensor.hvac_outdoor_weather_source') }}
+
+                  Using fallback value of 35°F which may affect HDD calculations.
+
+                  Check integrations:
+                  - weather.pirateweather
+                  - weather.local_weather_2
+                  - sensor.outdoor_temp_live (Open-Meteo REST)
+
+# SETBACK ACTIVE TIMEOUT
+# Clear stale setback latch after 18 hours (prevents stuck state)
+- id: clear_stale_setback_latch_1f
+  alias: "Clear Stale 1F Setback Latch"
+  description: "Reset setback active if stuck for >18 hours"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      to: "on"
+      for:
+        hours: 18
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
+    - service: system_log.write
+      data:
+        message: "Cleared stale 1F setback latch after 18-hour timeout"
+        level: warning
+
+- id: clear_stale_setback_latch_2f
+  alias: "Clear Stale 2F Setback Latch"
+  description: "Reset setback active if stuck for >18 hours"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      to: "on"
+      for:
+        hours: 18
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
+    - service: system_log.write
+      data:
+        message: "Cleared stale 2F setback latch after 18-hour timeout"
+        level: warning
+
+# DATABASE SIZE MONITOR
+# Warn if database grows too large (indicates recording issue)
+# THERMOSTAT OFFLINE DETECTION
+- id: notify_thermostat_offline
+  alias: "Notify Thermostat Offline"
+  description: "Alert if either thermostat goes unavailable"
+  trigger:
+    - platform: state
+      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      to: "unavailable"
+      for:
+        minutes: 15
+      id: "1f"
+    - platform: state
+      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      to: "unavailable"
+      for:
+        minutes: 15
+      id: "2f"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Thermostat Offline"
+        message: >
+          {{ trigger.id | upper }} thermostat has been unavailable for 15+ minutes.
+
+          Entity: {{ trigger.entity_id }}
+          Check WiFi connectivity and thermostat power.
+
+- id: database_size_monitor
+  alias: "Database Size Monitor"
+  description: "Weekly database health check reminder"
+  trigger:
+    - platform: time
+      at: "05:00:00"
+  condition:
+    - condition: time
+      weekday:
+        - mon
+  action:
+    - service: system_log.write
+      data:
+        message: >
+          Weekly database check: home-assistant_v2.db size monitoring.
+          If HA is sluggish, consider running manual VACUUM via SSH.
+        level: info
+
+# ===============================================================
+# DATA BACKUP & ROTATION
+# ===============================================================
+
+# Weekly backup of critical input_number values to CSV
+- id: backup_input_numbers_weekly
+  alias: "Backup Input Numbers Weekly"
+  description: "Backs up accumulated input_number values every Sunday at 4 AM"
+  trigger:
+    - platform: time
+      at: "04:00:00"
+  condition:
+    - condition: time
+      weekday:
+        - sun
+  action:
+    - service: shell_command.backup_input_numbers
+    - service: system_log.write
+      data:
+        message: "Weekly input_number backup completed"
+        level: info
+
+# Yearly rotation for setback log (runs Jan 1st)
+- id: rotate_setback_log_yearly
+  alias: "Rotate Setback Log Yearly"
+  description: "Archives previous year setback data and starts fresh log"
+  trigger:
+    - platform: time
+      at: "00:05:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().month == 1 and now().day == 1 }}"
+  action:
+    - service: shell_command.rotate_setback_log
+    - service: system_log.write
+      data:
+        message: "Setback log rotated for new year"
+        level: info
+
+# ===============================================================
+# PIRATE WEATHER DATA FRESHNESS CHECK
+# ===============================================================
+- id: notify_pirate_weather_stale
+  alias: "Notify Pirate Weather Stale"
+  description: "Alert if Pirate Weather data hasn't updated in 2+ hours"
+  trigger:
+    - platform: template
+      value_template: >
+        {{ states('sensor.pirate_weather_data_age') | float(0) > 120 }}
+      for:
+        minutes: 30
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Pirate Weather Stale"
+        message: >
+          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int }} minutes old.
+          Check API key and integration status.

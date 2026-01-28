@@ -1,0 +1,45 @@
+# System Health Summary Card
+# Shows overall data capture health status
+# Dashboard: HVAC Performance, Energy Performance - Diagnostics
+type: custom:mushroom-template-card
+primary: >-
+  {% set hdd_ok = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+  {% set runtime_ok = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
+  {% set climate_ok = states('sensor.climate_norms_today') not in ['error', 'unknown', 'unavailable'] %}
+  {% set weather_ok = states('sensor.hvac_outdoor_weather_source') != 'Open-Meteo' or
+                      states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) != 35 %}
+  {% set all_ok = hdd_ok and runtime_ok and climate_ok and weather_ok %}
+  {% if all_ok %}All Systems OK
+  {% else %}
+    {% set issues = [] %}
+    {% if not hdd_ok %}{% set issues = issues + ['HDD'] %}{% endif %}
+    {% if not runtime_ok %}{% set issues = issues + ['Runtime'] %}{% endif %}
+    {% if not climate_ok %}{% set issues = issues + ['Climate'] %}{% endif %}
+    {% if not weather_ok %}{% set issues = issues + ['Weather'] %}{% endif %}
+    {{ issues | join(', ') }} Issue{% if issues | length > 1 %}s{% endif %}
+  {% endif %}
+secondary: Data Capture Health
+icon: >-
+  {% set hdd_ok = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+  {% set runtime_ok = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
+  {% set climate_ok = states('sensor.climate_norms_today') not in ['error', 'unknown', 'unavailable'] %}
+  {% set weather_ok = states('sensor.hvac_outdoor_weather_source') != 'Open-Meteo' or
+                      states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) != 35 %}
+  {% if hdd_ok and runtime_ok and climate_ok and weather_ok %}mdi:check-circle
+  {% else %}mdi:alert-circle{% endif %}
+color: >-
+  {% set hdd_ok = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+  {% set runtime_ok = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
+  {% set climate_ok = states('sensor.climate_norms_today') not in ['error', 'unknown', 'unavailable'] %}
+  {% set weather_ok = states('sensor.hvac_outdoor_weather_source') != 'Open-Meteo' or
+                      states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) != 35 %}
+  {% if hdd_ok and runtime_ok and climate_ok and weather_ok %}green
+  {% else %}red{% endif %}
+vertical: true
+features_position: bottom
+tap_action:
+  action: navigate
+  navigation_path: /lovelace-energy-performance/diagnostics
+grid_options:
+  columns: 6
+  rows: 2

@@ -17,7 +17,13 @@ shell_command:
   appenddailycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''input_number.outdoor_temp_daily_high'') | float(0) | round(1) }},{{ states(''input_number.outdoor_temp_daily_low'') | float(0) | round(1) }},{{ ((states(''input_number.outdoor_temp_daily_high'') | float(0) + states(''input_number.outdoor_temp_daily_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\" >> /config/reports/hvac_daily_{{ now().year }}.csv"'
   appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
   rotatedailycsv: 'bash -c "head -1 /config/reports/hvac_daily_{{ now().year - 1 }}.csv > /config/reports/hvac_daily_{{ now().year }}.csv"'
-  appendsetbacklog: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d'') }},{{ zone }},{{ overnight_low | round(1) }},{{ setback_depth | round(1) }},{{ total_runtime | round(0) }},{{ expected_hold | round(0) }},{{ net_runtime | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
+  # Zone-specific setback log commands (shell_command doesn't support runtime variables)
+  appendsetbacklog_1f: 'bash -c "echo \"$(date +%Y-%m-%d),1F,{{ states(''input_number.hvac_1f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_1f_last_setback_depth'') | round(1) }},{{ (states(''input_number.hvac_1f_last_recovery_minutes'') | float(0) * states(''input_number.hvac_1f_recovery_setback_degrees'') | float(1)) | round(0) }},{{ ((states(''sensor.hvac_runtime_per_hdd_7day'') | float(10)) * ([(65 - states(''input_number.hvac_1f_last_overnight_low'') | float(35)), 0] | max) * 8 / 24) | round(0) }},{{ states(''input_number.hvac_1f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
+  appendsetbacklog_2f: 'bash -c "echo \"$(date +%Y-%m-%d),2F,{{ states(''input_number.hvac_2f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_2f_last_setback_depth'') | round(1) }},{{ (states(''input_number.hvac_2f_last_recovery_minutes'') | float(0) * states(''input_number.hvac_2f_recovery_setback_degrees'') | float(1)) | round(0) }},{{ ((states(''sensor.hvac_runtime_per_hdd_7day'') | float(10)) * ([(65 - states(''input_number.hvac_2f_last_overnight_low'') | float(35)), 0] | max) * 8 / 24) | round(0) }},{{ states(''input_number.hvac_2f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
+  # Weekly backup of critical input_number values
+  backup_input_numbers: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d %H:%M'') }},{{ states(''input_number.hdd_cumulative_year_auto'') }},{{ states(''input_number.hdd_cumulative_month_auto'') }},{{ states(''input_number.cdd_cumulative_year_auto'') }},{{ states(''input_number.cdd_cumulative_month_auto'') }},{{ states(''input_number.hvac_filter_runtime_hours'') }},{{ states(''input_number.outdoor_temp_sum_month'') }},{{ states(''input_number.outdoor_temp_days_month'') }},{{ states(''input_number.expected_runtime_sum_month'') }},{{ states(''input_number.hdd_day_1'') }},{{ states(''input_number.hdd_day_2'') }},{{ states(''input_number.hdd_day_3'') }},{{ states(''input_number.hdd_day_4'') }},{{ states(''input_number.hdd_day_5'') }},{{ states(''input_number.hdd_day_6'') }},{{ states(''input_number.hdd_day_7'') }}\" >> /config/reports/input_number_backup.csv"'
+  # Monthly rotation for setback log (keeps current year only)
+  rotate_setback_log: 'bash -c "if [ -f /config/reports/hvac_setback_log.csv ]; then head -1 /config/reports/hvac_setback_log.csv > /config/reports/hvac_setback_log_{{ now().year }}.csv && tail -n +2 /config/reports/hvac_setback_log.csv | grep \"^{{ now().year }}\" >> /config/reports/hvac_setback_log_{{ now().year }}.csv && head -1 /config/reports/hvac_setback_log.csv > /config/reports/hvac_setback_log.csv; fi"'
 
 frontend:
   themes: !include_dir_merge_named themes
@@ -45,6 +51,7 @@ scene: !include scenes.yaml
 rest:
   - resource: "https://api.open-meteo.com/v1/forecast?latitude=41.28&longitude=-72.81&current=temperature_2m&temperature_unit=fahrenheit"
     scan_interval: 600
+    timeout: 30
     sensor:
       - name: "Outdoor Temp Live"
         unique_id: outdoor_temp_live
@@ -1272,9 +1279,9 @@ template:
           {% set hold_setpoint = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
-            {# END: temp must reach within 0.5°F of stored comfort setpoint #}
+            {# END: temp must reach within 1.0°F of stored comfort setpoint #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-            {{ current < (target - 0.5) }}
+            {{ current < (target - 1.0) }}
           {% else %}
             {# START: use live setpoint to detect significant gap #}
             {{ (live_setpoint - current) > 2 }}
@@ -1288,9 +1295,9 @@ template:
           {% set hold_setpoint = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
-            {# END: temp must reach within 0.5°F of stored comfort setpoint #}
+            {# END: temp must reach within 1.25°F of stored comfort setpoint (cathedral ceiling) #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-            {{ current < (target - 0.5) }}
+            {{ current < (target - 1.25) }}
           {% else %}
             {# START: use live setpoint to detect significant gap #}
             {{ (live_setpoint - current) > 2 }}
@@ -1348,6 +1355,11 @@ template:
         unit_of_measurement: "°F"
         device_class: temperature
         state_class: measurement
+        availability: >
+          {{ states('sensor.outdoor_temp_live') not in ['unknown', 'unavailable'] or
+             state_attr('weather.pirateweather', 'temperature') is number or
+             state_attr('weather.local_weather_2', 'temperature') is number or
+             state_attr('weather.home', 'temperature') is number }}
         state: >
           {% set live_state = states('sensor.outdoor_temp_live') %}
           {% set live = live_state | float(-999) %}
@@ -1830,7 +1842,11 @@ template:
           } %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set month_normal = monthly_normals[now().month] | float(1) %}
-          {% set daily_rate = month_normal / (now().replace(month=now().month % 12 + 1, day=1) - timedelta(days=1)).day %}
+          {# Calculate days in current month correctly (handles December) #}
+          {% set next_month = now().replace(day=28) + timedelta(days=4) %}
+          {% set last_day = next_month - timedelta(days=next_month.day) %}
+          {% set days_in_month = last_day.day %}
+          {% set daily_rate = month_normal / days_in_month %}
           {% set expected = daily_rate * now().day %}
           {{ ((hdd / expected - 1) * 100) | round(1) if expected > 0 else 0 }}
 
@@ -2554,6 +2570,9 @@ template:
         unit_of_measurement: "HDD"
         state_class: measurement
         icon: mdi:snowflake-thermometer
+        availability: >
+          {{ states('sensor.climate_norms_today') not in ['unknown', 'unavailable', 'error'] and
+             state_attr('sensor.climate_norms_today', 'hdd_mean') is not none }}
         state: >
           {{ state_attr('sensor.climate_norms_today', 'hdd_mean') | float(0) | round(1) }}
         attributes:
@@ -2624,7 +2643,7 @@ template:
           {% set actual = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set expected = states('sensor.expected_runtime_today') | float(0) %}
           {% if expected > 0.1 %}
-            {{ ((actual / expected) - 1) * 100 | round(1) }}
+            {{ (((actual / expected) - 1) * 100) | round(1) }}
           {% else %}
             0
           {% endif %}

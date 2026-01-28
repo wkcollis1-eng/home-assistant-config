@@ -1,0 +1,23 @@
+# Weather Fallback Alert - Conditional Card
+# Shows when using fallback weather source (Open-Meteo) for extended period
+# Dashboard: Weather, HVAC Performance
+type: conditional
+conditions:
+  - entity: sensor.hvac_outdoor_weather_source
+    state: "Open-Meteo"
+card:
+  type: custom:mushroom-template-card
+  primary: Weather Fallback
+  secondary: >-
+    {% set temp = states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) %}
+    {% if temp == 35 %}Using default 35F{% else %}Open-Meteo active{% endif %}
+  icon: mdi:weather-cloudy-alert
+  color: amber
+  vertical: true
+  features_position: bottom
+  tap_action:
+    action: more-info
+    entity: sensor.hvac_outdoor_weather_source
+grid_options:
+  columns: 6
+  rows: 2

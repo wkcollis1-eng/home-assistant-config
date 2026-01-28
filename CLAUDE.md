@@ -277,10 +277,10 @@ Located in `dashboards/cards/` with organized subfolders:
 | Folder | Contents | Card Count |
 |--------|----------|------------|
 | `apexcharts/` | Time series charts, control charts | 10 |
-| `mushroom/` | Template cards, entity cards | 18 |
+| `mushroom/` | Template cards, entity cards | 19 |
 | `climate/` | Thermostat control cards | 4 |
 | `gauges/` | Built-in gauge cards | 6 |
-| `conditional/` | Alert cards (show/hide based on state) | 4 |
+| `conditional/` | Alert cards (show/hide based on state) | 8 |
 | `weather/` | Weather display cards | 2 |
 | `billing/` | Bill entry and cost tracking | 4 |
 
@@ -820,3 +820,130 @@ Weather APIs (Open-Meteo, Pirate Weather, NWS) report **regional** temperatures,
 - Overnight efficiency (min/HDD) may appear artificially high
 
 **Workaround:** A local Zigbee/Z-Wave outdoor temperature sensor (Shelly H&T, Aqara, etc.) would provide actual readings. Until then, treat overnight temperature data as approximate on clear cold nights.
+
+---
+
+## Configuration Audit & Robustness Improvements - 2026-01-28
+
+### Critical Fixes Applied
+
+| Issue | Location | Fix |
+|-------|----------|-----|
+| Recovery END thresholds | `configuration.yaml` ~line 1277, 1293 | 1F: 0.5°F → 1.0°F, 2F: 0.5°F → 1.25°F (cathedral ceiling) |
+| Operator precedence | `configuration.yaml` ~line 2646 | `* 100 \| round(1)` → `* 100) \| round(1)` in efficiency deviation |
+| Days-in-month calculation | `configuration.yaml` ~line 1846 | Fixed December edge case with safe algorithm |
+| Shell command variables | `configuration.yaml` lines 20-22 | Split `appendsetbacklog` into zone-specific `_1f` and `_2f` commands |
+
+### Shell Command Variable Fix (Critical)
+
+Home Assistant's `shell_command` does **not** support runtime variables via `data:`. The original `appendsetbacklog` command received literal `{{ zone }}` text instead of actual values.
+
+**Old (broken):**
+```yaml
+shell_command:
+  appendsetbacklog: '... {{ zone }},{{ overnight_low }} ...'
+# Called with: service: shell_command.appendsetbacklog data: { zone: "1F" }
+# Result: CSV contained "{{ zone }}" literally
+```
+
+**New (working):**
+```yaml
+shell_command:
+  appendsetbacklog_1f: '... {{ states("input_number.hvac_1f_last_overnight_low") }} ...'
+  appendsetbacklog_2f: '... {{ states("input_number.hvac_2f_last_overnight_low") }} ...'
+# Called with: service: shell_command.appendsetbacklog_1f (no data)
+# Result: CSV contains actual values
+```
+
+### New Watchdog Automations
+
+| Automation ID | Trigger | Action |
+|--------------|---------|--------|
+| `notify_hdd_capture_stale` | `binary_sensor.hdd_capture_stale` ON for 2h | Persistent notification |
+| `notify_runtime_per_hdd_capture_stale` | `binary_sensor.runtime_per_hdd_capture_stale` ON for 2h | Persistent notification |
+| `validate_input_numbers_startup` | HA start + 60s | Checks for corrupt cumulative values |
+| `notify_climate_norms_failure` | `sensor.climate_norms_today` = "error" for 2h | Persistent notification |
+| `notify_weather_sources_down` | Weather source = Open-Meteo for 6h | Persistent notification |
+| `notify_thermostat_offline` | Either thermostat unavailable 15min | Persistent notification |
+| `clear_stale_setback_latch_1f` | `input_boolean.hvac_1f_setback_active` ON 18h | Auto-clear latch |
+| `clear_stale_setback_latch_2f` | `input_boolean.hvac_2f_setback_active` ON 18h | Auto-clear latch |
+| `database_size_monitor` | Monday 5 AM | Log reminder |
+| `backup_input_numbers_weekly` | Sunday 4 AM | Backup critical values to CSV |
+| `rotate_setback_log_yearly` | Jan 1 00:05 | Archive previous year data |
+| `notify_pirate_weather_stale` | Data age > 120 min for 30min | Persistent notification |
+
+### New Dashboard Cards
+
+| Card | Location | Purpose |
+|------|----------|---------|
+| `hdd-capture-stale.yaml` | `dashboards/cards/conditional/` | Shows when HDD capture stale |
+| `runtime-capture-stale.yaml` | `dashboards/cards/conditional/` | Shows when runtime/HDD capture stale |
+| `climate-norms-error.yaml` | `dashboards/cards/conditional/` | Shows when climate script errors |
+| `weather-fallback.yaml` | `dashboards/cards/conditional/` | Shows when using fallback weather |
+| `system-health-summary.yaml` | `dashboards/cards/mushroom/` | Combined health status (green/red) |
+
+### Additional Robustness Improvements
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| REST timeout | `configuration.yaml` line 46 | Added `timeout: 30` to Open-Meteo REST sensor |
+| Availability templates | `configuration.yaml` | Added to `hvac_outdoor_temp_hartford_proxy` and `expected_hdd_today` |
+| Notification rate limiting | `automations.yaml` | Added 24h cooldown + 30min delay to efficiency alert |
+| CDD validation cap | `automations.yaml` | Increased from 30 to 50 for extreme heat |
+| Recovery rate clamp | `automations.yaml` | Added `[rate, 99] \| min` to prevent input_number overflow |
+| Timing stagger | `automations.yaml` | `csv_monthly_report` 23:58→23:58:30, `csv_yearly_rotation` 00:01→00:03 |
+
+### New Shell Commands
+
+| Command | Purpose |
+|---------|---------|
+| `backup_input_numbers` | Weekly backup of critical accumulated values to CSV |
+| `rotate_setback_log` | Yearly archive of setback log data |
+
+### New CSV Report
+
+**`reports/input_number_backup.csv`** - Weekly backup of accumulated values
+
+| Field | Source |
+|-------|--------|
+| timestamp | Backup datetime |
+| hdd_year | `input_number.hdd_cumulative_year_auto` |
+| hdd_month | `input_number.hdd_cumulative_month_auto` |
+| cdd_year | `input_number.cdd_cumulative_year_auto` |
+| cdd_month | `input_number.cdd_cumulative_month_auto` |
+| filter_hrs | `input_number.hvac_filter_runtime_hours` |
+| temp_sum | `input_number.outdoor_temp_sum_month` |
+| temp_days | `input_number.outdoor_temp_days_month` |
+| expected_runtime | `input_number.expected_runtime_sum_month` |
+| hdd_d1..d7 | `input_number.hdd_day_1` through `_7` |
+
+### Validation Checks at Startup
+
+The `validate_input_numbers_startup` automation checks for corrupt values:
+- HDD cumulative year > 8000 or < 0
+- HDD cumulative month > 2500 or < 0
+- Filter runtime > 2000 or < 0
+- Outdoor temp high/low at initial values (uninitialized)
+
+### Updated Automation Timing (Midnight Sequence)
+
+| Time | Automation | Purpose |
+|------|------------|---------|
+| 23:55:00 | `capture_daily_hdd` | Capture daily HDD/CDD |
+| 23:56:00 | `capture_daily_runtime_per_hdd` | Store runtime/HDD for std dev |
+| 23:56:30 | `capture_daily_monthly_tracking` | Accumulate monthly values |
+| 23:57:00 | `csv_daily_report` | Append daily CSV |
+| 23:58:00 | `accumulate_filter_runtime` | Add runtime to filter hours |
+| 23:58:30 | `csv_monthly_report` | Append monthly CSV (last day only) |
+| 00:00:30 | `reset_outdoor_temp_daily_high_low` | Reset daily temp trackers |
+| 00:01:00 | `reset_monthly_hdd` | Reset monthly counters (1st only) |
+| 00:02:00 | `reset_yearly_hdd` | Reset yearly counters (Jan 1 only) |
+| 00:03:00 | `csv_yearly_rotation` | Create new annual CSV (Jan 1 only) |
+| 00:05:00 | `rotate_setback_log_yearly` | Archive setback log (Jan 1 only) |
+
+### Files Modified
+- `configuration.yaml` - All sensor/shell command fixes
+- `automations.yaml` - All automation additions/fixes
+- `dashboards/cards/conditional/*.yaml` - New alert cards
+- `dashboards/cards/mushroom/system-health-summary.yaml` - New health card
+- `reports/input_number_backup.csv` - New backup file (header only)

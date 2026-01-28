@@ -1,0 +1,358 @@
+# ========================================================
+# MISSING ENTITY DEFINITIONS
+# Add to configuration.yaml
+# ========================================================
+
+# --------------------------------------------------------
+# INPUT DATETIME HELPERS (Required by automations)
+# --------------------------------------------------------
+input_datetime:
+  hdd_capture_last_ok:
+    name: "HDD Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-check
+    
+  runtime_per_hdd_capture_last_ok:
+    name: "Runtime per HDD Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-check
+    
+  hvac_filter_last_changed:
+    name: "Filter Last Changed"
+    has_date: true
+    has_time: false
+    icon: mdi:air-filter
+    
+  electricity_bill_date:
+    name: "Electricity Bill Date"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar
+    
+  gas_bill_date:
+    name: "Gas Bill Date"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar
+    
+  hvac_1f_recovery_start:
+    name: "1F Recovery Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-start
+    
+  hvac_2f_recovery_start:
+    name: "2F Recovery Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-start
+    
+  hvac_1f_setback_start:
+    name: "1F Setback Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:thermometer-minus
+    
+  hvac_2f_setback_start:
+    name: "2F Setback Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:thermometer-minus
+
+# --------------------------------------------------------
+# INPUT NUMBER HELPERS - Recovery/Setback Tracking
+# --------------------------------------------------------
+input_number:
+  # Dehumidifier threshold
+  dehumidifier_dewpoint_threshold:
+    name: "Dehumidifier Dew Point Threshold"
+    min: 40
+    max: 70
+    step: 1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:water-percent
+    initial: 52
+    
+  # Filter tracking
+  hvac_filter_runtime_hours:
+    name: "HVAC Filter Runtime Hours"
+    min: 0
+    max: 2000
+    step: 0.1
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:air-filter
+    initial: 0
+    
+  # 1F Recovery tracking
+  hvac_1f_recovery_setback_degrees:
+    name: "1F Recovery Setback Degrees"
+    min: 0
+    max: 20
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-minus
+    
+  hvac_1f_recovery_outdoor_temp:
+    name: "1F Recovery Outdoor Temp"
+    min: -50
+    max: 120
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer
+    
+  hvac_1f_last_recovery_minutes:
+    name: "1F Last Recovery Minutes"
+    min: 0
+    max: 500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer
+    
+  hvac_1f_hold_setpoint:
+    name: "1F Hold Setpoint"
+    min: 50
+    max: 85
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-lines
+    initial: 67
+    
+  hvac_1f_setback_setpoint:
+    name: "1F Setback Setpoint"
+    min: 50
+    max: 85
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-down
+    initial: 62
+    
+  hvac_1f_setback_start_runtime:
+    name: "1F Setback Start Runtime"
+    min: 0
+    max: 1500
+    step: 0.1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:clock-start
+    
+  hvac_1f_last_overnight_low:
+    name: "1F Last Overnight Low"
+    min: -50
+    max: 100
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-down
+    
+  hvac_1f_last_setback_depth:
+    name: "1F Last Setback Depth"
+    min: 0
+    max: 20
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:arrow-collapse-vertical
+    
+  hvac_1f_last_net_runtime:
+    name: "1F Last Net Runtime"
+    min: -500
+    max: 500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:plus-minus-variant
+    
+  # 1F Recovery rate rolling storage
+  hvac_1f_recovery_rate_1:
+    name: "1F Recovery Rate 1 (Most Recent)"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_2:
+    name: "1F Recovery Rate 2"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_3:
+    name: "1F Recovery Rate 3"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_4:
+    name: "1F Recovery Rate 4"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_5:
+    name: "1F Recovery Rate 5"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_6:
+    name: "1F Recovery Rate 6"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_1f_recovery_rate_7:
+    name: "1F Recovery Rate 7 (Oldest)"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+    
+  # 2F Recovery tracking (same pattern as 1F)
+  hvac_2f_recovery_setback_degrees:
+    name: "2F Recovery Setback Degrees"
+    min: 0
+    max: 20
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-minus
+    
+  hvac_2f_recovery_outdoor_temp:
+    name: "2F Recovery Outdoor Temp"
+    min: -50
+    max: 120
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer
+    
+  hvac_2f_last_recovery_minutes:
+    name: "2F Last Recovery Minutes"
+    min: 0
+    max: 500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer
+    
+  hvac_2f_hold_setpoint:
+    name: "2F Hold Setpoint"
+    min: 50
+    max: 85
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-lines
+    initial: 67
+    
+  hvac_2f_setback_setpoint:
+    name: "2F Setback Setpoint"
+    min: 50
+    max: 85
+    step: 0.5
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-down
+    initial: 62
+    
+  hvac_2f_setback_start_runtime:
+    name: "2F Setback Start Runtime"
+    min: 0
+    max: 1500
+    step: 0.1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:clock-start
+    
+  hvac_2f_last_overnight_low:
+    name: "2F Last Overnight Low"
+    min: -50
+    max: 100
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-chevron-down
+    
+  hvac_2f_last_setback_depth:
+    name: "2F Last Setback Depth"
+    min: 0
+    max: 20
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:arrow-collapse-vertical
+    
+  hvac_2f_last_net_runtime:
+    name: "2F Last Net Runtime"
+    min: -500
+    max: 500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:plus-minus-variant
+    
+  # 2F Recovery rate rolling storage
+  hvac_2f_recovery_rate_1:
+    name: "2F Recovery Rate 1 (Most Recent)"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_2:
+    name: "2F Recovery Rate 2"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_3:
+    name: "2F Recovery Rate 3"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_4:
+    name: "2F Recovery Rate 4"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_5:
+    name: "2F Recovery Rate 5"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_6:
+    name: "2F Recovery Rate 6"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box
+  hvac_2f_recovery_rate_7:
+    name: "2F Recovery Rate 7 (Oldest)"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "min/°F"
+    mode: box

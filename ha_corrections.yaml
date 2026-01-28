@@ -1,0 +1,155 @@
+# ========================================================
+# CORRECTIONS TO APPLY TO configuration.yaml
+# ========================================================
+
+# --------------------------------------------------------
+# CORRECTION 1: Recovery END Threshold Fix
+# Location: template binary_sensor section (~line 1267-1297)
+# Issue: Thresholds still at 0.5°F, should be 1.0°F (1F) and 1.25°F (2F)
+# --------------------------------------------------------
+
+# REPLACE binary_sensor.hvac_1f_recovering with:
+      - name: "HVAC 1F Recovering"
+        unique_id: hvac_1f_recovering
+        state: >
+          {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+          {% set live_setpoint = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set hold_setpoint = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set was_recovering = this.state == 'on' %}
+          {% if was_recovering %}
+            {# END: temp must reach within 1.0°F of stored comfort setpoint #}
+            {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
+            {{ current < (target - 1.0) }}
+          {% else %}
+            {# START: use live setpoint to detect significant gap #}
+            {{ (live_setpoint - current) > 2 }}
+          {% endif %}
+
+# REPLACE binary_sensor.hvac_2f_recovering with:
+      - name: "HVAC 2F Recovering"
+        unique_id: hvac_2f_recovering
+        state: >
+          {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+          {% set live_setpoint = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+          {% set hold_setpoint = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set was_recovering = this.state == 'on' %}
+          {% if was_recovering %}
+            {# END: temp must reach within 1.25°F of stored comfort setpoint (cathedral ceiling) #}
+            {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
+            {{ current < (target - 1.25) }}
+          {% else %}
+            {# START: use live setpoint to detect significant gap #}
+            {{ (live_setpoint - current) > 2 }}
+          {% endif %}
+
+
+# --------------------------------------------------------
+# CORRECTION 2: Efficiency Deviation Index Operator Precedence
+# Location: ~line 2627
+# Issue: round(1) only applies to 100, not entire expression
+# --------------------------------------------------------
+
+# REPLACE sensor.efficiency_deviation_index with:
+      - name: "Efficiency Deviation Index"
+        unique_id: efficiency_deviation_index
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:gauge
+        state: >
+          {% set actual = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set expected = states('sensor.expected_runtime_today') | float(0) %}
+          {% if expected > 0.1 %}
+            {{ (((actual / expected) - 1) * 100) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        attributes:
+          interpretation: >
+            {% set dev = this.state | float(0) %}
+            {% if dev > 15 %}Working harder than expected
+            {% elif dev < -15 %}Outperforming baseline
+            {% else %}Normal performance{% endif %}
+
+
+# --------------------------------------------------------
+# CORRECTION 3: Weather Severity Days-in-Month Calculation
+# Location: ~line 1833
+# Issue: Edge case failure in December
+# --------------------------------------------------------
+
+# REPLACE sensor.weather_severity_vs_normal_mtd with:
+      - name: "Weather Severity vs Normal MTD"
+        unique_id: weather_severity_vs_normal_mtd
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:thermometer-alert
+        state: >
+          {# Monthly normal HDD for CT (6,270 annual baseline) #}
+          {% set monthly_normals = {
+            1: 1085, 2: 925, 3: 750, 4: 420, 5: 155, 6: 20,
+            7: 0, 8: 5, 9: 55, 10: 280, 11: 540, 12: 1035
+          } %}
+          {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
+          {% set month_normal = monthly_normals[now().month] | float(1) %}
+          {# Calculate days in current month correctly #}
+          {% set next_month = now().replace(day=28) + timedelta(days=4) %}
+          {% set last_day = next_month - timedelta(days=next_month.day) %}
+          {% set days_in_month = last_day.day %}
+          {% set daily_rate = month_normal / days_in_month %}
+          {% set expected = daily_rate * now().day %}
+          {{ ((hdd / expected - 1) * 100) | round(1) if expected > 0 else 0 }}
+
+
+# --------------------------------------------------------
+# CORRECTION 4: Add Availability to Critical Sensors
+# --------------------------------------------------------
+
+# ADD availability template to sensor.hvac_outdoor_temp_hartford_proxy:
+      - name: "HVAC Outdoor Temp Hartford Proxy"
+        unique_id: hvac_outdoor_temp_hartford_proxy
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        availability: >
+          {{ states('sensor.outdoor_temp_live') not in ['unknown', 'unavailable'] or
+             state_attr('weather.pirateweather', 'temperature') is number or
+             state_attr('weather.local_weather_2', 'temperature') is number or
+             state_attr('weather.home', 'temperature') is number }}
+        state: >
+          {% set live_state = states('sensor.outdoor_temp_live') %}
+          {% set live = live_state | float(-999) %}
+          {% set pw = state_attr('weather.pirateweather', 'temperature') %}
+          {% set nws = state_attr('weather.local_weather_2','temperature') %}
+          {% set om = state_attr('weather.home','temperature') %}
+          {% if live_state not in ['unknown', 'unavailable'] and live > -50 %}
+            {{ live | round(1) }}
+          {% elif pw is number and pw > -50 %}
+            {{ pw | round(1) }}
+          {% elif nws is number and nws > -50 %}
+            {{ nws | round(1) }}
+          {% elif om is number and om > -50 %}
+            {{ om | round(1) }}
+          {% else %}
+            {{ 35 }}
+          {% endif %}
+
+
+# --------------------------------------------------------
+# CORRECTION 5: Add Availability to Climate Norms Derived Sensors
+# --------------------------------------------------------
+
+# ADD availability to sensor.expected_hdd_today:
+      - name: "Expected HDD Today"
+        unique_id: expected_hdd_today
+        unit_of_measurement: "HDD"
+        state_class: measurement
+        icon: mdi:snowflake-thermometer
+        availability: >
+          {{ states('sensor.climate_norms_today') not in ['unknown', 'unavailable', 'error'] and
+             state_attr('sensor.climate_norms_today', 'hdd_mean') is not none }}
+        state: >
+          {{ state_attr('sensor.climate_norms_today', 'hdd_mean') | float(0) | round(1) }}
+        attributes:
+          p10: "{{ state_attr('sensor.climate_norms_today', 'hdd_p10') }}"
+          p90: "{{ state_attr('sensor.climate_norms_today', 'hdd_p90') }}"
+          smoothed: "{{ state_attr('sensor.climate_norms_today', 'hdd_mean_smoothed') }}"
