@@ -897,6 +897,22 @@
         total_runtime: "{{ total_runtime }}"
         expected_hold: "{{ expected_hold_runtime }}"
         net_runtime: "{{ net_runtime }}"
+    # Store last setback results for dashboard display
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_overnight_low
+      data:
+        value: "{{ overnight_low }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_setback_depth
+      data:
+        value: "{{ setback_depth }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_net_runtime
+      data:
+        value: "{{ net_runtime }}"
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -1067,6 +1083,22 @@
         total_runtime: "{{ total_runtime }}"
         expected_hold: "{{ expected_hold_runtime }}"
         net_runtime: "{{ net_runtime }}"
+    # Store last setback results for dashboard display
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_overnight_low
+      data:
+        value: "{{ overnight_low }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_setback_depth
+      data:
+        value: "{{ setback_depth }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_net_runtime
+      data:
+        value: "{{ net_runtime }}"
     # Reset hold_setpoint
     - service: input_number.set_value
       target:

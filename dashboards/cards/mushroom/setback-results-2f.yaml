@@ -1,0 +1,25 @@
+# 2F Last Setback Results
+# Shows overnight low, setback depth, and net runtime benefit
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: >-
+  {% set net = states('input_number.hvac_2f_last_net_runtime') | int(0) %}
+  {% if net > 0 %}Saved {{ net }} min
+  {% elif net < 0 %}Lost {{ net | abs }} min
+  {% else %}Break-even{% endif %}
+secondary: >-
+  Low {{ states('input_number.hvac_2f_last_overnight_low') | round(0) }}°F | Setback {{ states('input_number.hvac_2f_last_setback_depth') | round(0) }}°F
+icon: mdi:home-floor-2
+color: >-
+  {% set net = states('input_number.hvac_2f_last_net_runtime') | int(0) %}
+  {% if net > 10 %}green
+  {% elif net < -10 %}red
+  {% else %}amber{% endif %}
+features_position: bottom
+vertical: true
+tap_action:
+  action: more-info
+  entity: input_number.hvac_2f_last_net_runtime
+grid_options:
+  columns: 6
+  rows: 2

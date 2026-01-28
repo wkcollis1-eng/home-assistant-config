@@ -11,7 +11,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix entity ID mismatches for runtime_per_hdd sensors\n\nUnique IDs used 7day/stddev but references used 7_day/std_dev\n- sensor.hvac_runtime_per_hdd_7day \\(not 7_day\\)\n- sensor.hvac_runtime_per_hdd_7day_mean \\(not 7_day_mean\\)\n- sensor.hvac_runtime_per_hdd_7day_stddev \\(not std_dev\\)\n\nUpdated all references in configuration.yaml and CLAUDE.md\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix mean temp selection breaking below 0°F in HDD/CDD sensors\n\nBug: mean_t > 0 check rejected valid sub-zero temperatures,\nfalling back to instantaneous temp incorrectly\n\nFix: Check if state is valid \\(not unknown/unavailable\\) instead\nof checking if value > 0\n\nAffects: sensor.hvac_hdd65_today, sensor.hvac_cdd65_today\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(Setback Y°F\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
