@@ -1114,11 +1114,11 @@
       entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
       attribute: temperature
   condition:
-    # Must be a >=2°F drop AND not already in an active setback
+    # Must be a >=1°F drop AND not already in an active setback
     - condition: template
       value_template: >
         {{ (trigger.from_state.attributes.temperature | float(0) -
-            trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+            trigger.to_state.attributes.temperature | float(0)) >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_1f_setback_active
       state: "off"
@@ -1155,11 +1155,11 @@
       entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
       attribute: temperature
   condition:
-    # Must be a >=2°F drop AND not already in an active setback
+    # Must be a >=1°F drop AND not already in an active setback
     - condition: template
       value_template: >
         {{ (trigger.from_state.attributes.temperature | float(0) -
-            trigger.to_state.attributes.temperature | float(0)) >= 2 }}
+            trigger.to_state.attributes.temperature | float(0)) >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_2f_setback_active
       state: "off"

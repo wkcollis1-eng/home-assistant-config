@@ -947,3 +947,35 @@ The `validate_input_numbers_startup` automation checks for corrupt values:
 - `dashboards/cards/conditional/*.yaml` - New alert cards
 - `dashboards/cards/mushroom/system-health-summary.yaml` - New health card
 - `reports/input_number_backup.csv` - New backup file (header only)
+
+---
+
+## Setback Tracking Threshold Change - 2026-01-28
+
+### Change
+Lowered setback_start trigger threshold from `>= 2°F` to `>= 1°F` for both zones.
+
+### Rationale
+Previously, setback events were only tracked when the thermostat setpoint dropped by 2°F or more. This missed 1°F setbacks, preventing data collection for analysis of marginal setback benefits.
+
+### Impact
+- **Before:** Only 2°F+ setbacks logged to `hvac_setback_log.csv`
+- **After:** 1°F+ setbacks logged, enabling analysis of smaller setback benefits
+
+### Note on 0°F Setbacks
+Days with no setback (0°F) are still not logged since there's no temperature drop to trigger the automation. To capture these, a scheduled daily automation would be needed.
+
+### Files Modified
+- `automations.yaml` - `hvac_1f_setback_start`, `hvac_2f_setback_start` conditions
+
+---
+
+## Review Files Cleanup - 2026-01-28
+
+### Removed Files
+The following temporary review/audit files were deleted after their recommendations were implemented and documented in claude.md:
+
+- `ha_corrections.yaml` - Configuration fixes (applied in Configuration Audit section)
+- `ha_missing_entities.yaml` - Missing entity analysis (resolved)
+- `ha_monitor_agent_notes.md` - Agent session notes (superseded by claude.md)
+- `ha_watchdog_automations.yaml` - Watchdog automations (merged into automations.yaml)
