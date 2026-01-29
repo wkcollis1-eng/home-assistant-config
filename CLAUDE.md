@@ -1351,3 +1351,137 @@ Now sensors become `unavailable` when no data, preventing false zeros in history
 | **Never default persisted values** | Conditions validate before writes; sentinels detect corruption |
 | **Watchdogs alarm on "unavailable"** | All alerts now key off availability, not magic numbers |
 | **KPIs unavailable when no data** | Recovery rate avg returns unavailable, not 0 |
+
+---
+
+## Tier 1 Data Integrity Matrix - 2026-01-29
+
+### Overview
+Formalizes data quality tracking for the four highest-risk pipelines: stateful, cumulative, and decision-driving metrics where silent data issues can distort weeks of analysis.
+
+### Matrix Summary
+
+| Pipeline | Primary KPIs | Freshness | Coverage | Validity | Composite Health Rule |
+|----------|--------------|-----------|----------|----------|----------------------|
+| **Outdoor Weather → HDD** | HDD daily, HDD 7-day, CDD | `hdd_capture_age_hours` | `hdd_valid_days_7d` | Temp bounds, HDD 0-65 | Proxy available AND capture <36h AND ≥5 valid days |
+| **Runtime ÷ HDD** | Runtime/HDD daily, 7-day mean | `runtime_per_hdd_capture_age_hours` | `runtime_per_hdd_valid_days_7d` | Runtime ≥0, HDD >0 | HDD healthy AND ≥4 valid days AND capture <36h |
+| **Setback Recovery** | Recovery rate avg, weather-adjusted | `recovery_last_event_age_hours` | `recovery_events_7d` | ΔT >0, Runtime >0, outdoor available | ≥3 events in 7d AND last event <7d AND proxy available |
+| **Setback Optimization** | Net benefit avg, optimal setback trend | `setback_opt_last_run_age_hours` | `setback_opt_valid_days_14d` | Recovery + overnight runtime valid | Recovery healthy AND ≥5 valid days in 14d |
+
+### Status Types
+
+| Type | Purpose | Prevents |
+|------|---------|----------|
+| **Freshness** | Detects stalled pipelines | "Metric frozen for weeks but looks normal" |
+| **Coverage** | Measures completeness in rolling windows | "7-day mean built from only 2 good days" |
+| **Validity** | Range + dependency checks | "Math worked but inputs were garbage" |
+| **Composite Health** | Single boolean for UI + alerting | Dashboard shows KPI only when trustworthy |
+
+### Entity Naming Pattern
+
+Each pipeline follows this pattern:
+
+```
+# Freshness
+sensor.<pipeline>_last_capture_ts
+sensor.<pipeline>_age_hours
+binary_sensor.<pipeline>_stale
+
+# Coverage
+sensor.<pipeline>_valid_days_7d (or _events_7d)
+sensor.<pipeline>_coverage_pct
+
+# Validity
+binary_sensor.<pipeline>_inputs_valid
+
+# Composite Health (drives KPI visibility)
+binary_sensor.<pipeline>_healthy
+```
+
+### Dashboard Philosophy
+
+Each Tier 1 KPI shows a status badge:
+
+| State | Badge | Meaning |
+|-------|-------|---------|
+| Healthy | 🟢 | All checks pass, KPI trustworthy |
+| Partial | 🟡 | Coverage <100% but usable |
+| Stale | 🔴 | Freshness check failed |
+| Blocked | 🔴 | Upstream dependency invalid |
+
+### Pipeline Implementations
+
+#### 1. HDD Pipeline
+
+**Existing Entities (already implemented):**
+- `sensor.hvac_outdoor_temp_hartford_proxy` - Fail-fast weather source
+- `binary_sensor.hdd_capture_stale` - 25h threshold
+- `sensor.hvac_hdd65_today` - With availability template
+
+**New Entities:**
+- `sensor.hdd_valid_days_7d` - Count of valid slots (0-65 range)
+- `binary_sensor.hdd_pipeline_healthy` - Composite health
+
+**Composite Health Rule:**
+```yaml
+{{ proxy_available and not stale and valid_days >= 5 }}
+```
+
+#### 2. Runtime/HDD Pipeline
+
+**Existing Entities:**
+- `binary_sensor.runtime_per_hdd_capture_stale` - 25h threshold
+- `sensor.hvac_runtime_per_hdd_7day_mean` - With slot validation
+- `sensor.hvac_runtime_per_hdd_data_count` - Valid sample count
+
+**New Entities:**
+- `binary_sensor.runtime_per_hdd_pipeline_healthy` - Composite health
+
+**Composite Health Rule:**
+```yaml
+{{ hdd_healthy and not stale and data_count >= 4 }}
+```
+
+#### 3. Recovery Pipeline
+
+**Existing Entities:**
+- `binary_sensor.hvac_1f_recovery_rate_stale` / `_2f_` - 14-day threshold
+- `sensor.hvac_1f_recovery_rate_data_count` / `_2f_` - Valid sample count
+- `sensor.hvac_1f_recovery_rate_avg` / `_2f_` - With availability template
+
+**New Entities:**
+- `sensor.hvac_1f_recovery_age_hours` / `_2f_` - Hours since last event
+- `binary_sensor.hvac_1f_recovery_inputs_valid` / `_2f_` - Input validation
+- `binary_sensor.hvac_1f_recovery_healthy` / `_2f_` - Composite health
+
+**Composite Health Rule:**
+```yaml
+{{ not stale and data_count >= 3 and inputs_valid and proxy_available }}
+```
+
+#### 4. Setback Optimization Pipeline (Future)
+
+Depends on Recovery pipeline health. Implementation deferred until Recovery pipeline data is stable.
+
+### New Entities Summary
+
+| Entity | Type | Pipeline |
+|--------|------|----------|
+| `sensor.hdd_valid_days_7d` | template | HDD |
+| `binary_sensor.hdd_pipeline_healthy` | template | HDD |
+| `binary_sensor.runtime_per_hdd_pipeline_healthy` | template | Runtime/HDD |
+| `sensor.hvac_1f_recovery_age_hours` | template | Recovery |
+| `sensor.hvac_2f_recovery_age_hours` | template | Recovery |
+| `binary_sensor.hvac_1f_recovery_inputs_valid` | template | Recovery |
+| `binary_sensor.hvac_2f_recovery_inputs_valid` | template | Recovery |
+| `binary_sensor.hvac_1f_recovery_healthy` | template | Recovery |
+| `binary_sensor.hvac_2f_recovery_healthy` | template | Recovery |
+
+### Dashboard Cards
+
+New cards in `dashboards/cards/mushroom/`:
+- `pipeline-health-hdd.yaml` - HDD pipeline status chip
+- `pipeline-health-runtime-hdd.yaml` - Runtime/HDD pipeline status chip
+- `pipeline-health-recovery-1f.yaml` - 1F Recovery pipeline status chip
+- `pipeline-health-recovery-2f.yaml` - 2F Recovery pipeline status chip
+- `tier1-health-summary.yaml` - Combined Tier 1 health overview

@@ -1,0 +1,61 @@
+# Tier 1 Data Integrity Summary Card
+# Shows combined health status of all Tier 1 pipelines
+# Dashboard: HVAC Performance, Energy Performance - Diagnostics
+type: custom:mushroom-template-card
+primary: >-
+  {% set hdd = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set runtime = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set rec_1f = is_state('binary_sensor.hvac_1f_recovery_healthy', 'on') %}
+  {% set rec_2f = is_state('binary_sensor.hvac_2f_recovery_healthy', 'on') %}
+  {% set healthy_count = [hdd, runtime, rec_1f, rec_2f] | select('eq', true) | list | count %}
+  {% if healthy_count == 4 %}All Pipelines OK
+  {% else %}
+    {% set issues = [] %}
+    {% if not hdd %}{% set issues = issues + ['HDD'] %}{% endif %}
+    {% if not runtime %}{% set issues = issues + ['R/HDD'] %}{% endif %}
+    {% if not rec_1f %}{% set issues = issues + ['Rec1F'] %}{% endif %}
+    {% if not rec_2f %}{% set issues = issues + ['Rec2F'] %}{% endif %}
+    {{ healthy_count }}/4 OK - {{ issues | join(', ') }}
+  {% endif %}
+secondary: Tier 1 Data Integrity
+icon: >-
+  {% set hdd = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set runtime = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set rec_1f = is_state('binary_sensor.hvac_1f_recovery_healthy', 'on') %}
+  {% set rec_2f = is_state('binary_sensor.hvac_2f_recovery_healthy', 'on') %}
+  {% set all_ok = hdd and runtime and rec_1f and rec_2f %}
+  {% if all_ok %}mdi:shield-check{% else %}mdi:shield-alert{% endif %}
+icon_color: >-
+  {% set hdd = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set runtime = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set rec_1f = is_state('binary_sensor.hvac_1f_recovery_healthy', 'on') %}
+  {% set rec_2f = is_state('binary_sensor.hvac_2f_recovery_healthy', 'on') %}
+  {% set healthy_count = [hdd, runtime, rec_1f, rec_2f] | select('eq', true) | list | count %}
+  {% if healthy_count == 4 %}green
+  {% elif healthy_count >= 2 %}amber
+  {% else %}red
+  {% endif %}
+badge_icon: >-
+  {% set hdd = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set runtime = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set rec_1f = is_state('binary_sensor.hvac_1f_recovery_healthy', 'on') %}
+  {% set rec_2f = is_state('binary_sensor.hvac_2f_recovery_healthy', 'on') %}
+  {% set healthy_count = [hdd, runtime, rec_1f, rec_2f] | select('eq', true) | list | count %}
+  mdi:numeric-{{ healthy_count }}
+badge_color: >-
+  {% set hdd = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set runtime = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set rec_1f = is_state('binary_sensor.hvac_1f_recovery_healthy', 'on') %}
+  {% set rec_2f = is_state('binary_sensor.hvac_2f_recovery_healthy', 'on') %}
+  {% set healthy_count = [hdd, runtime, rec_1f, rec_2f] | select('eq', true) | list | count %}
+  {% if healthy_count == 4 %}green
+  {% elif healthy_count >= 2 %}amber
+  {% else %}red
+  {% endif %}
+vertical: true
+tap_action:
+  action: navigate
+  navigation_path: /lovelace-energy-performance/diagnostics
+grid_options:
+  columns: 6
+  rows: 2

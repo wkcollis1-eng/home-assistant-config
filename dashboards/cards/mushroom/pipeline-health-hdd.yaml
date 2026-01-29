@@ -1,0 +1,34 @@
+# HDD Pipeline Health Card
+# Shows HDD data integrity status (freshness + coverage)
+# Dashboard: Energy Performance - Diagnostics
+type: custom:mushroom-template-card
+primary: >-
+  {% set healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set stale = is_state('binary_sensor.hdd_capture_stale', 'on') %}
+  {% set valid_days = states('sensor.hdd_valid_days_7d') | int(0) %}
+  {% if healthy %}Healthy ({{ valid_days }}/7)
+  {% elif stale %}Stale
+  {% else %}Partial ({{ valid_days }}/7)
+  {% endif %}
+secondary: HDD Pipeline
+icon: >-
+  {% set healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}mdi:thermometer-check{% else %}mdi:thermometer-alert{% endif %}
+icon_color: >-
+  {% set healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set stale = is_state('binary_sensor.hdd_capture_stale', 'on') %}
+  {% set valid_days = states('sensor.hdd_valid_days_7d') | int(0) %}
+  {% if healthy %}green
+  {% elif stale %}red
+  {% elif valid_days >= 3 %}amber
+  {% else %}red
+  {% endif %}
+badge_icon: >-
+  {% set healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}mdi:check{% else %}mdi:alert{% endif %}
+badge_color: >-
+  {% set healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}green{% else %}red{% endif %}
+tap_action:
+  action: more-info
+  entity: binary_sensor.hdd_pipeline_healthy

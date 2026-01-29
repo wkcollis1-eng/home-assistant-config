@@ -1,0 +1,37 @@
+# Runtime/HDD Pipeline Health Card
+# Shows Runtime/HDD data integrity status (depends on HDD pipeline)
+# Dashboard: Energy Performance - Diagnostics
+type: custom:mushroom-template-card
+primary: >-
+  {% set healthy = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set hdd_healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set stale = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'on') %}
+  {% set data_count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
+  {% if healthy %}Healthy ({{ data_count }}/7)
+  {% elif not hdd_healthy %}Blocked (HDD)
+  {% elif stale %}Stale
+  {% else %}Partial ({{ data_count }}/7)
+  {% endif %}
+secondary: Runtime/HDD Pipeline
+icon: >-
+  {% set healthy = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}mdi:chart-timeline-variant-shimmer{% else %}mdi:chart-timeline-variant{% endif %}
+icon_color: >-
+  {% set healthy = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% set hdd_healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+  {% set stale = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'on') %}
+  {% set data_count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
+  {% if healthy %}green
+  {% elif not hdd_healthy or stale %}red
+  {% elif data_count >= 2 %}amber
+  {% else %}red
+  {% endif %}
+badge_icon: >-
+  {% set healthy = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}mdi:check{% else %}mdi:alert{% endif %}
+badge_color: >-
+  {% set healthy = is_state('binary_sensor.runtime_per_hdd_pipeline_healthy', 'on') %}
+  {% if healthy %}green{% else %}red{% endif %}
+tap_action:
+  action: more-info
+  entity: binary_sensor.runtime_per_hdd_pipeline_healthy

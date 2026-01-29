@@ -1494,6 +1494,25 @@ template:
           {% set valid = days | select('>=', 0) | select('<=', 65) | list %}
           {{ valid | sum | round(1) }}
 
+      # --- Tier 1 Data Integrity: HDD Coverage ---
+      - name: "HDD Valid Days 7d"
+        unique_id: hdd_valid_days_7d
+        unit_of_measurement: "days"
+        state_class: measurement
+        icon: mdi:calendar-check
+        state: >
+          {% set days = [
+            states('input_number.hdd_day_1') | float(-1),
+            states('input_number.hdd_day_2') | float(-1),
+            states('input_number.hdd_day_3') | float(-1),
+            states('input_number.hdd_day_4') | float(-1),
+            states('input_number.hdd_day_5') | float(-1),
+            states('input_number.hdd_day_6') | float(-1),
+            states('input_number.hdd_day_7') | float(-1)
+          ] %}
+          {# Count slots with valid HDD values (0-65 range, -1 = uninitialized) #}
+          {{ days | select('>=', 0) | select('<=', 65) | list | count }}
+
       - name: "HVAC HDD65 Cumulative Month"
         unique_id: hvac_hdd65_cumulative_month
         unit_of_measurement: "HDD"
@@ -2533,6 +2552,24 @@ template:
           ] %}
           {{ rates | select('gt', 0) | list | count }}
 
+      # --- Tier 1 Data Integrity: 1F Recovery Freshness ---
+      - name: "HVAC 1F Recovery Age Hours"
+        unique_id: hvac_1f_recovery_age_hours
+        unit_of_measurement: "hours"
+        state_class: measurement
+        icon: mdi:clock-alert-outline
+        state: >
+          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
+          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
+            999
+          {% else %}
+            {% set dt = last | as_datetime | as_local %}
+            {{ ((now() - dt).total_seconds() / 3600) | round(1) }}
+          {% endif %}
+        availability: >
+          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
+          {{ last not in ['unknown', 'unavailable'] and last != '1970-01-01 00:00:00' }}
+
       # ===============================================================
       # RECOVERY RATE SENSORS - 2F
       # ===============================================================
@@ -2639,6 +2676,24 @@ template:
             states('input_number.hvac_2f_recovery_rate_7') | float(0)
           ] %}
           {{ rates | select('gt', 0) | list | count }}
+
+      # --- Tier 1 Data Integrity: 2F Recovery Freshness ---
+      - name: "HVAC 2F Recovery Age Hours"
+        unique_id: hvac_2f_recovery_age_hours
+        unit_of_measurement: "hours"
+        state_class: measurement
+        icon: mdi:clock-alert-outline
+        state: >
+          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
+          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
+            999
+          {% else %}
+            {% set dt = last | as_datetime | as_local %}
+            {{ ((now() - dt).total_seconds() / 3600) | round(1) }}
+          {% endif %}
+        availability: >
+          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
+          {{ last not in ['unknown', 'unavailable'] and last != '1970-01-01 00:00:00' }}
 
       # === SETBACK RECOMMENDATION SENSOR ===
       # Recommends setback depth based on forecast overnight low
@@ -2848,6 +2903,70 @@ template:
           {% set status = states('sensor.climate_norms_today') %}
           {# Stale if: sensor unavailable/error, OR day_of_year doesn't match today #}
           {{ status in ['unknown', 'unavailable', 'error'] or sensor_doy != actual_doy }}
+
+      # ===============================================================
+      # TIER 1 DATA INTEGRITY - PIPELINE HEALTH
+      # ===============================================================
+
+      # --- HDD Pipeline Health ---
+      - name: "HDD Pipeline Healthy"
+        unique_id: hdd_pipeline_healthy
+        icon: mdi:thermometer-check
+        state: >
+          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {% set not_stale = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+          {% set valid_days = states('sensor.hdd_valid_days_7d') | int(0) %}
+          {{ proxy_available and not_stale and valid_days >= 5 }}
+
+      # --- Runtime/HDD Pipeline Health ---
+      - name: "Runtime per HDD Pipeline Healthy"
+        unique_id: runtime_per_hdd_pipeline_healthy
+        icon: mdi:chart-timeline-variant-shimmer
+        state: >
+          {% set hdd_healthy = is_state('binary_sensor.hdd_pipeline_healthy', 'on') %}
+          {% set not_stale = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
+          {% set data_count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
+          {{ hdd_healthy and not_stale and data_count >= 4 }}
+
+      # --- Recovery Pipeline Health (1F) ---
+      - name: "HVAC 1F Recovery Inputs Valid"
+        unique_id: hvac_1f_recovery_inputs_valid
+        icon: mdi:check-decagram
+        state: >
+          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {% set tstat_available = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') is not none %}
+          {{ hold > 50 and proxy_available and tstat_available }}
+
+      - name: "HVAC 1F Recovery Healthy"
+        unique_id: hvac_1f_recovery_healthy
+        icon: mdi:home-thermometer
+        state: >
+          {% set not_stale = is_state('binary_sensor.hvac_1f_recovery_rate_stale', 'off') %}
+          {% set data_count = states('sensor.hvac_1f_recovery_rate_data_count') | int(0) %}
+          {% set inputs_valid = is_state('binary_sensor.hvac_1f_recovery_inputs_valid', 'on') %}
+          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {{ not_stale and data_count >= 3 and inputs_valid and proxy_available }}
+
+      # --- Recovery Pipeline Health (2F) ---
+      - name: "HVAC 2F Recovery Inputs Valid"
+        unique_id: hvac_2f_recovery_inputs_valid
+        icon: mdi:check-decagram
+        state: >
+          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {% set tstat_available = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') is not none %}
+          {{ hold > 50 and proxy_available and tstat_available }}
+
+      - name: "HVAC 2F Recovery Healthy"
+        unique_id: hvac_2f_recovery_healthy
+        icon: mdi:home-thermometer
+        state: >
+          {% set not_stale = is_state('binary_sensor.hvac_2f_recovery_rate_stale', 'off') %}
+          {% set data_count = states('sensor.hvac_2f_recovery_rate_data_count') | int(0) %}
+          {% set inputs_valid = is_state('binary_sensor.hvac_2f_recovery_inputs_valid', 'on') %}
+          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {{ not_stale and data_count >= 3 and inputs_valid and proxy_available }}
 
 # ===============================================================
 # PLATFORM SENSORS
