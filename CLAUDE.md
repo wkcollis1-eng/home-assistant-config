@@ -796,7 +796,7 @@ value: "{{ [recovery_minutes | float, 300] | min }}"
 ### How It Works Now
 1. **Setback starts**: `hold_setpoint` stores the comfort temperature (e.g., 67°F)
 2. **Setback period**: Temperature drops to setback level (e.g., 63°F)
-3. **Recovery starts**: When gap > 2°F based on live setpoint (detects thermostat calling for heat)
+3. **Recovery starts**: When gap > 1°F AND furnace is running (hybrid logic)
 4. **Recovery ends**: When `current_temp >= hold_setpoint - 0.5°F` for 10 continuous minutes
 5. **Recovery rate**: `recovery_minutes / (hold_setpoint - temp_at_recovery_start)`
 
@@ -1038,3 +1038,53 @@ Added robust validation to both `hvac_1f_setback_start` and `hvac_2f_setback_sta
 
 ### Files Modified
 - `automations.yaml` - `hvac_1f_setback_start`, `hvac_2f_setback_start` conditions
+
+---
+
+## Recovery START Hybrid Logic Fix - 2026-01-29
+
+### Issue
+Recovery binary sensors (`binary_sensor.hvac_*f_recovering`) weren't triggering reliably. Recovery start times were frozen at 2026-01-25, meaning no new recovery events were being captured for 4+ days. The 2F recovery rate slots showed stale values (last 4 slots all 3.0).
+
+### Root Cause
+The START condition required gap **greater than** 2°F:
+```yaml
+{{ (live_setpoint - current) > 2 }}
+```
+
+When the house maintained temperature well overnight:
+- Setback drops setpoint to 63°F, room cools to 65°F
+- Morning schedule raises setpoint to 67°F
+- Gap = 67 - 65 = **2°F exactly** (not >2)
+- Recovery never triggers
+
+### Fix Applied
+Changed to **hybrid logic** requiring both conditions:
+
+| Condition | Purpose |
+|-----------|---------|
+| `gap > 1` | Lower threshold catches shallow setbacks |
+| `furnace_on` | Confirms actual heating demand, prevents false positives |
+
+```yaml
+# OLD START condition:
+{{ (live_setpoint - current) > 2 }}
+
+# NEW START condition (hybrid):
+{% set gap = live_setpoint - current %}
+{% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
+{{ gap > 1 and furnace_on }}
+```
+
+### Why Hybrid Works
+1. **Gap > 1°F** catches recovery even when house stayed warm overnight
+2. **Furnace running** ensures we only trigger during actual heating demand
+3. Together: prevents false positives during normal thermostat cycling while reliably detecting morning recovery
+
+### Files Modified
+- `configuration.yaml` - `binary_sensor.hvac_1f_recovering`, `binary_sensor.hvac_2f_recovering` START conditions
+
+### Impact
+- Recovery events will now trigger reliably each morning
+- Recovery rate rolling averages will update with fresh data
+- Setback optimization calculations will have valid measurements

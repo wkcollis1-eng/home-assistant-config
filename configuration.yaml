@@ -1268,8 +1268,8 @@ template:
           {{ current < lower and current > 0 and count >= 4 }}
 
       # Recovery sensors measure actual thermal recovery, not control-loop gap decay
-      # START: Uses live setpoint gap > 2°F to detect recovery beginning
-      # END: Uses fixed hold_setpoint (comfort temp) - considers recovered when within 0.5°F
+      # START: Hybrid logic - gap > 1°F AND furnace running (prevents false positives)
+      # END: Uses fixed hold_setpoint (comfort temp) - considers recovered when within threshold
       # The 10-minute stability requirement is enforced in the recovery_end automation trigger
       - name: "HVAC 1F Recovering"
         unique_id: hvac_1f_recovering
@@ -1277,14 +1277,16 @@ template:
           {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
           {% set live_setpoint = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
           {% set hold_setpoint = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
             {# END: temp must reach within 1.0°F of stored comfort setpoint #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
             {{ current < (target - 1.0) }}
           {% else %}
-            {# START: use live setpoint to detect significant gap #}
-            {{ (live_setpoint - current) > 2 }}
+            {# START: hybrid - gap > 1°F AND furnace running #}
+            {% set gap = live_setpoint - current %}
+            {{ gap > 1 and furnace_on }}
           {% endif %}
 
       - name: "HVAC 2F Recovering"
@@ -1293,14 +1295,16 @@ template:
           {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
           {% set live_setpoint = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
           {% set hold_setpoint = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
           {% set was_recovering = this.state == 'on' %}
           {% if was_recovering %}
             {# END: temp must reach within 1.25°F of stored comfort setpoint (cathedral ceiling) #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
             {{ current < (target - 1.25) }}
           {% else %}
-            {# START: use live setpoint to detect significant gap #}
-            {{ (live_setpoint - current) > 2 }}
+            {# START: hybrid - gap > 1°F AND furnace running #}
+            {% set gap = live_setpoint - current %}
+            {{ gap > 1 and furnace_on }}
           {% endif %}
 
       - name: "HVAC 1F Recovery Rate Alert"
