@@ -979,3 +979,24 @@ The following temporary review/audit files were deleted after their recommendati
 - `ha_missing_entities.yaml` - Missing entity analysis (resolved)
 - `ha_monitor_agent_notes.md` - Agent session notes (superseded by claude.md)
 - `ha_watchdog_automations.yaml` - Watchdog automations (merged into automations.yaml)
+- `ha_config_review.md` - Configuration review (issues addressed)
+
+---
+
+## Recovery Rate Cap Fix - 2026-01-28
+
+### Issue
+Recovery rate input_numbers (`hvac_*f_recovery_rate_1` through `_7`) have `max: 60`, but the automation capped values at 99. Values between 60-99 would be silently clamped by Home Assistant, causing data integrity issues.
+
+### Fix
+Changed automation cap from 99 to 60 to match input_number max:
+```yaml
+# Before:
+value: "{{ [recovery_rate | float | round(1), 99] | min }}"
+
+# After:
+value: "{{ [recovery_rate | float | round(1), 60] | min }}"
+```
+
+### Files Modified
+- `automations.yaml` - Lines 898, 1077 (`hvac_1f_recovery_end`, `hvac_2f_recovery_end`)
