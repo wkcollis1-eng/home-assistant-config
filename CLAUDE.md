@@ -1203,3 +1203,83 @@ Added detailed logging when captures fail:
 - Recovery tracking won't use stale/invalid hold_setpoint values
 - Faster alerting when daily captures fail
 - Clear logging when validation prevents capture
+
+---
+
+## Phase 3: Staleness Detection & Slot Validation - 2026-01-29
+
+### Overview
+Added staleness detection for recovery rates and climate norms, plus validation for 7-day rolling slot values to filter out corrupt data.
+
+### 1. Recovery Rate Staleness Tracking
+
+**New Entities:**
+- `input_datetime.hvac_1f_recovery_rate_last_updated` - Timestamp when 1F rate last stored
+- `input_datetime.hvac_2f_recovery_rate_last_updated` - Timestamp when 2F rate last stored
+- `binary_sensor.hvac_1f_recovery_rate_stale` - ON when >14 days since update
+- `binary_sensor.hvac_2f_recovery_rate_stale` - ON when >14 days since update
+
+**Automation Changes:**
+- `hvac_1f_recovery_end` / `hvac_2f_recovery_end` - Now sets timestamp when recovery rate is stored
+
+**Alert:**
+- `notify_recovery_rate_stale` - Fires after 24h of staleness, with diagnostic info
+
+### 2. 7-Day Rolling Slot Validation
+
+**Problem:** Corrupt values in rolling slots (e.g., HDD > 65 or runtime/HDD > 120) would persist for 7 days and skew averages.
+
+**Fix:** All sensors now filter slot values to valid ranges:
+
+| Sensor | Valid Range | Invalid Values |
+|--------|-------------|----------------|
+| HDD Rolling 7-Day | 0-65 | Excluded from sum |
+| Runtime/HDD Mean | 0-120 | Excluded from average |
+| Runtime/HDD Std Dev | 0-120 | Excluded from calculation |
+| Runtime/HDD Data Count | 0-120 | Not counted |
+
+**Template Pattern:**
+```yaml
+{% set days = [
+  states('input_number.hdd_day_1') | float(-1),
+  ...
+] %}
+{% set valid = days | select('>=', 0) | select('<=', 65) | list %}
+{{ valid | sum | round(1) }}
+```
+
+### 3. Climate Norms Staleness Detection
+
+**New Entity:**
+- `binary_sensor.climate_norms_stale` - ON when `day_of_year` attribute doesn't match today
+
+**Logic:**
+```yaml
+{% set sensor_doy = state_attr('sensor.climate_norms_today', 'day_of_year') | int(0) %}
+{% set actual_doy = now().timetuple().tm_yday %}
+{{ status in ['unknown', 'unavailable', 'error'] or sensor_doy != actual_doy }}
+```
+
+**Alert:**
+- `notify_climate_norms_stale` - Fires after 2h of staleness, with diagnostic info
+
+### Files Modified
+- `configuration.yaml`:
+  - Added `input_datetime.hvac_*f_recovery_rate_last_updated`
+  - Added `binary_sensor.hvac_*f_recovery_rate_stale`
+  - Added `binary_sensor.climate_norms_stale`
+  - Updated HDD rolling 7-day sensor with validation
+  - Updated runtime/HDD mean, std dev, data count sensors with validation
+- `automations.yaml`:
+  - Updated `hvac_*f_recovery_end` to set timestamp
+  - Added `notify_recovery_rate_stale` automation
+  - Added `notify_climate_norms_stale` automation
+
+### Staleness Thresholds Summary
+
+| Sensor | Threshold | Alert Delay | Total |
+|--------|-----------|-------------|-------|
+| HDD Capture | 25 hours | 2 hours | 27h |
+| Runtime/HDD Capture | 25 hours | 2 hours | 27h |
+| Recovery Rate | 14 days | 24 hours | 14d + 24h |
+| Climate Norms | Immediate | 2 hours | 2h |

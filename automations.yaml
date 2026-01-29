@@ -940,6 +940,12 @@
                 entity_id: input_number.hvac_1f_recovery_rate_1
               data:
                 value: "{{ [recovery_rate | float | round(1), 60] | min }}"
+            # Track when recovery rate was last updated (for staleness detection)
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.hvac_1f_recovery_rate_last_updated
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
@@ -1135,6 +1141,12 @@
                 entity_id: input_number.hvac_2f_recovery_rate_1
               data:
                 value: "{{ [recovery_rate | float | round(1), 60] | min }}"
+            # Track when recovery rate was last updated (for staleness detection)
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.hvac_2f_recovery_rate_last_updated
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
@@ -1437,6 +1449,59 @@
 
           Check:
           - sensor.hvac_total_runtime_per_hdd_today: {{ states('sensor.hvac_total_runtime_per_hdd_today') }}
+
+# WATCHDOG: Recovery Rate Staleness Monitor
+- id: notify_recovery_rate_stale
+  alias: "Notify Recovery Rate Stale"
+  description: "Alert if recovery rates haven't been updated in 14+ days"
+  trigger:
+    - platform: state
+      entity_id:
+        - binary_sensor.hvac_1f_recovery_rate_stale
+        - binary_sensor.hvac_2f_recovery_rate_stale
+      to: "on"
+      for:
+        hours: 24
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Recovery Rate Data Stale"
+        message: >
+          Recovery rate data hasn't been updated in over 14 days.
+          This may indicate setback recovery isn't being tracked.
+
+          1F last updated: {{ states('input_datetime.hvac_1f_recovery_rate_last_updated') }}
+          2F last updated: {{ states('input_datetime.hvac_2f_recovery_rate_last_updated') }}
+
+          Check:
+          - Setback schedule is active
+          - binary_sensor.hvac_*f_recovering is triggering
+          - Recovery end automation conditions
+
+# WATCHDOG: Climate Norms Staleness Monitor
+- id: notify_climate_norms_stale
+  alias: "Notify Climate Norms Stale"
+  description: "Alert if climate norms data doesn't match today"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.climate_norms_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Climate Norms Data Stale"
+        message: >
+          Climate norms day_of_year doesn't match today, or sensor is unavailable.
+
+          Sensor status: {{ states('sensor.climate_norms_today') }}
+          Sensor DOY: {{ state_attr('sensor.climate_norms_today', 'day_of_year') }}
+          Actual DOY: {{ now().timetuple().tm_yday }}
+
+          Check:
+          - Python script /config/scripts/climate_norms_today.py
+          - CSV file /config/climate_daily_norms.csv
 
 # STARTUP VALIDATION: Check for corrupt cumulative values
 - id: validate_input_numbers_startup

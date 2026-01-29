@@ -1135,6 +1135,19 @@ input_datetime:
     has_time: true
     icon: mdi:clock-start
 
+  # Recovery rate staleness tracking - timestamps when rates were last updated
+  hvac_1f_recovery_rate_last_updated:
+    name: "1F Recovery Rate Last Updated"
+    has_date: true
+    has_time: true
+    icon: mdi:update
+
+  hvac_2f_recovery_rate_last_updated:
+    name: "2F Recovery Rate Last Updated"
+    has_date: true
+    has_time: true
+    icon: mdi:update
+
   hvac_filter_last_changed:
     name: "Filter Last Changed"
     has_date: true
@@ -1325,6 +1338,31 @@ template:
           {% set count = states('sensor.hvac_2f_recovery_rate_data_count') | int(0) %}
           {{ current > upper and upper > 0 and count >= 4 }}
 
+      # Recovery rate staleness detection (>14 days since last valid update)
+      - name: "HVAC 1F Recovery Rate Stale"
+        unique_id: hvac_1f_recovery_rate_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
+          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime | as_local %}
+            {{ (now() - dt).total_seconds() > 1209600 }}
+          {% endif %}
+
+      - name: "HVAC 2F Recovery Rate Stale"
+        unique_id: hvac_2f_recovery_rate_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
+          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime | as_local %}
+            {{ (now() - dt).total_seconds() > 1209600 }}
+          {% endif %}
+
       # ===============================================================
       # CAPTURE HEALTH MONITORING
       # ===============================================================
@@ -1439,14 +1477,19 @@ template:
         unit_of_measurement: "HDD"
         state_class: measurement
         icon: mdi:snowflake-thermometer
+        # Validates each day slot is within valid range (0-65), excludes corrupt values
         state: >
-          {{ (states('input_number.hdd_day_1') | float(0) +
-              states('input_number.hdd_day_2') | float(0) +
-              states('input_number.hdd_day_3') | float(0) +
-              states('input_number.hdd_day_4') | float(0) +
-              states('input_number.hdd_day_5') | float(0) +
-              states('input_number.hdd_day_6') | float(0) +
-              states('input_number.hdd_day_7') | float(0)) | round(1) }}
+          {% set days = [
+            states('input_number.hdd_day_1') | float(-1),
+            states('input_number.hdd_day_2') | float(-1),
+            states('input_number.hdd_day_3') | float(-1),
+            states('input_number.hdd_day_4') | float(-1),
+            states('input_number.hdd_day_5') | float(-1),
+            states('input_number.hdd_day_6') | float(-1),
+            states('input_number.hdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>=', 0) | select('<=', 65) | list %}
+          {{ valid | sum | round(1) }}
 
       - name: "HVAC HDD65 Cumulative Month"
         unique_id: hvac_hdd65_cumulative_month
@@ -1623,17 +1666,20 @@ template:
         unit_of_measurement: "min/HDD"
         state_class: measurement
         icon: mdi:chart-bell-curve
+        # Validates each day slot is within valid range (0-120), excludes corrupt values
         state: >
-          {% set d1 = states('input_number.runtime_per_hdd_day_1') | float(0) %}
-          {% set d2 = states('input_number.runtime_per_hdd_day_2') | float(0) %}
-          {% set d3 = states('input_number.runtime_per_hdd_day_3') | float(0) %}
-          {% set d4 = states('input_number.runtime_per_hdd_day_4') | float(0) %}
-          {% set d5 = states('input_number.runtime_per_hdd_day_5') | float(0) %}
-          {% set d6 = states('input_number.runtime_per_hdd_day_6') | float(0) %}
-          {% set d7 = states('input_number.runtime_per_hdd_day_7') | float(0) %}
-          {% set values = [d1, d2, d3, d4, d5, d6, d7] | select('gt', 0) | list %}
-          {% if values | length > 0 %}
-            {{ (values | sum / values | length) | round(1) }}
+          {% set days = [
+            states('input_number.runtime_per_hdd_day_1') | float(-1),
+            states('input_number.runtime_per_hdd_day_2') | float(-1),
+            states('input_number.runtime_per_hdd_day_3') | float(-1),
+            states('input_number.runtime_per_hdd_day_4') | float(-1),
+            states('input_number.runtime_per_hdd_day_5') | float(-1),
+            states('input_number.runtime_per_hdd_day_6') | float(-1),
+            states('input_number.runtime_per_hdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 120) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
           {% else %}
             10.6
           {% endif %}
@@ -1643,22 +1689,25 @@ template:
         unit_of_measurement: "min/HDD"
         state_class: measurement
         icon: mdi:sigma
+        # Validates each day slot is within valid range (0-120), excludes corrupt values
         state: >
-          {% set d1 = states('input_number.runtime_per_hdd_day_1') | float(0) %}
-          {% set d2 = states('input_number.runtime_per_hdd_day_2') | float(0) %}
-          {% set d3 = states('input_number.runtime_per_hdd_day_3') | float(0) %}
-          {% set d4 = states('input_number.runtime_per_hdd_day_4') | float(0) %}
-          {% set d5 = states('input_number.runtime_per_hdd_day_5') | float(0) %}
-          {% set d6 = states('input_number.runtime_per_hdd_day_6') | float(0) %}
-          {% set d7 = states('input_number.runtime_per_hdd_day_7') | float(0) %}
-          {% set values = [d1, d2, d3, d4, d5, d6, d7] | select('gt', 0) | list %}
-          {% if values | length > 1 %}
-            {% set mean = values | sum / values | length %}
+          {% set days = [
+            states('input_number.runtime_per_hdd_day_1') | float(-1),
+            states('input_number.runtime_per_hdd_day_2') | float(-1),
+            states('input_number.runtime_per_hdd_day_3') | float(-1),
+            states('input_number.runtime_per_hdd_day_4') | float(-1),
+            states('input_number.runtime_per_hdd_day_5') | float(-1),
+            states('input_number.runtime_per_hdd_day_6') | float(-1),
+            states('input_number.runtime_per_hdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 120) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
             {% set variance = namespace(sum=0) %}
-            {% for v in values %}
+            {% for v in valid %}
               {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
             {% endfor %}
-            {{ ((variance.sum / (values | length - 1)) ** 0.5) | round(1) }}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) | round(1) }}
           {% else %}
             1.1
           {% endif %}
@@ -1689,17 +1738,18 @@ template:
         unit_of_measurement: "samples"
         state_class: measurement
         icon: mdi:counter
+        # Counts only valid values (0-120 range)
         state: >
           {% set days = [
-            states('input_number.runtime_per_hdd_day_1') | float(0),
-            states('input_number.runtime_per_hdd_day_2') | float(0),
-            states('input_number.runtime_per_hdd_day_3') | float(0),
-            states('input_number.runtime_per_hdd_day_4') | float(0),
-            states('input_number.runtime_per_hdd_day_5') | float(0),
-            states('input_number.runtime_per_hdd_day_6') | float(0),
-            states('input_number.runtime_per_hdd_day_7') | float(0)
+            states('input_number.runtime_per_hdd_day_1') | float(-1),
+            states('input_number.runtime_per_hdd_day_2') | float(-1),
+            states('input_number.runtime_per_hdd_day_3') | float(-1),
+            states('input_number.runtime_per_hdd_day_4') | float(-1),
+            states('input_number.runtime_per_hdd_day_5') | float(-1),
+            states('input_number.runtime_per_hdd_day_6') | float(-1),
+            states('input_number.runtime_per_hdd_day_7') | float(-1)
           ] %}
-          {{ days | select('gt', 0) | list | count }}
+          {{ days | select('>', 0) | select('<=', 120) | list | count }}
 
       # Uses furnace runtime (gas burns when furnace runs, not per zone call)
       - name: "HVAC Daily Gas Cost Estimate"
@@ -2759,6 +2809,18 @@ template:
           {% set actual_hdd = states('sensor.hvac_hdd65_today') | float(0) %}
           {# Only alert if: deviation > 15%, expected HDD > 20, and actual > expected #}
           {{ deviation > 15 and expected_hdd > 20 and actual_hdd > expected_hdd }}
+
+      # Climate norms staleness - day_of_year should match today
+      - name: "Climate Norms Stale"
+        unique_id: climate_norms_stale
+        device_class: problem
+        icon: mdi:calendar-alert
+        state: >
+          {% set sensor_doy = state_attr('sensor.climate_norms_today', 'day_of_year') | int(0) %}
+          {% set actual_doy = now().timetuple().tm_yday %}
+          {% set status = states('sensor.climate_norms_today') %}
+          {# Stale if: sensor unavailable/error, OR day_of_year doesn't match today #}
+          {{ status in ['unknown', 'unavailable', 'error'] or sensor_doy != actual_doy }}
 
 # ===============================================================
 # PLATFORM SENSORS
