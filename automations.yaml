@@ -1115,10 +1115,13 @@
       attribute: temperature
   condition:
     # Must be a >=1°F drop AND not already in an active setback
+    # Also validates temps are reasonable and actually different (prevents spurious triggers)
     - condition: template
       value_template: >
-        {{ (trigger.from_state.attributes.temperature | float(0) -
-            trigger.to_state.attributes.temperature | float(0)) >= 1 }}
+        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set drop = from_temp - to_temp %}
+        {{ from_temp > 50 and to_temp > 50 and from_temp != to_temp and drop >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_1f_setback_active
       state: "off"
@@ -1156,10 +1159,13 @@
       attribute: temperature
   condition:
     # Must be a >=1°F drop AND not already in an active setback
+    # Also validates temps are reasonable and actually different (prevents spurious triggers)
     - condition: template
       value_template: >
-        {{ (trigger.from_state.attributes.temperature | float(0) -
-            trigger.to_state.attributes.temperature | float(0)) >= 1 }}
+        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set drop = from_temp - to_temp %}
+        {{ from_temp > 50 and to_temp > 50 and from_temp != to_temp and drop >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_2f_setback_active
       state: "off"

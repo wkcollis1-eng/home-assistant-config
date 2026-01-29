@@ -1000,3 +1000,41 @@ value: "{{ [recovery_rate | float | round(1), 60] | min }}"
 
 ### Files Modified
 - `automations.yaml` - Lines 898, 1077 (`hvac_1f_recovery_end`, `hvac_2f_recovery_end`)
+
+---
+
+## Setback Start Validation Fix - 2026-01-28
+
+### Issue
+Setback tracking captured incorrect values (both `hold_setpoint` and `setback_setpoint` = 67) when a spurious thermostat attribute change occurred. This caused the setback latch to activate with invalid data, blocking the real 9pm setback from being captured.
+
+### Root Cause
+The original condition only checked `(from_temp - to_temp) >= 1` but didn't validate that:
+1. Both temperature values were actually valid/present
+2. The values were actually different (edge case where both could be identical)
+
+### Fix Applied
+Added robust validation to both `hvac_1f_setback_start` and `hvac_2f_setback_start` automations:
+
+```yaml
+# Old condition:
+{{ (trigger.from_state.attributes.temperature | float(0) -
+    trigger.to_state.attributes.temperature | float(0)) >= 1 }}
+
+# New condition:
+{% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
+{% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+{% set drop = from_temp - to_temp %}
+{{ from_temp > 50 and to_temp > 50 and from_temp != to_temp and drop >= 1 }}
+```
+
+### Validation Checks
+| Check | Purpose |
+|-------|---------|
+| `from_temp > 50` | Rejects null/invalid from_state (defaults to -999) |
+| `to_temp > 50` | Rejects null/invalid to_state (defaults to -999) |
+| `from_temp != to_temp` | Rejects spurious triggers where both values identical |
+| `drop >= 1` | Requires minimum 1°F setback depth |
+
+### Files Modified
+- `automations.yaml` - `hvac_1f_setback_start`, `hvac_2f_setback_start` conditions
