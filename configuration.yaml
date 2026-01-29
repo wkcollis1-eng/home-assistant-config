@@ -1426,15 +1426,18 @@ template:
 
       - name: "HVAC Outdoor Weather Source"
         unique_id: hvac_outdoor_weather_source
+        # Reports actual source being used, or "No valid source" when all fail
         state: >
           {% set live_state = states('sensor.outdoor_temp_live') %}
           {% set live = live_state | float(-999) %}
           {% set pw = state_attr('weather.pirateweather', 'temperature') %}
           {% set nws = state_attr('weather.local_weather_2','temperature') %}
+          {% set om = state_attr('weather.home','temperature') %}
           {% if live_state not in ['unknown', 'unavailable'] and live > -50 %}Live API (10min)
           {% elif pw is number and pw > -50 %}Pirate Weather
           {% elif nws is number and nws > -50 %}NWS/NOAA
-          {% else %}Open-Meteo{% endif %}
+          {% elif om is number and om > -50 %}Open-Meteo
+          {% else %}No valid source{% endif %}
 
       - name: "HVAC HDD65 Today"
         unique_id: hvac_hdd65_today
@@ -2431,6 +2434,18 @@ template:
         unit_of_measurement: "min/°F"
         state_class: measurement
         icon: mdi:chart-line-variant
+        # Unavailable when no valid samples (prevents 0 being recorded as real data)
+        availability: >
+          {% set rates = [
+            states('input_number.hvac_1f_recovery_rate_1') | float(0),
+            states('input_number.hvac_1f_recovery_rate_2') | float(0),
+            states('input_number.hvac_1f_recovery_rate_3') | float(0),
+            states('input_number.hvac_1f_recovery_rate_4') | float(0),
+            states('input_number.hvac_1f_recovery_rate_5') | float(0),
+            states('input_number.hvac_1f_recovery_rate_6') | float(0),
+            states('input_number.hvac_1f_recovery_rate_7') | float(0)
+          ] %}
+          {{ rates | select('gt', 0) | list | count > 0 }}
         state: >
           {% set rates = [
             states('input_number.hvac_1f_recovery_rate_1') | float(0),
@@ -2442,7 +2457,7 @@ template:
             states('input_number.hvac_1f_recovery_rate_7') | float(0)
           ] %}
           {% set valid = rates | select('gt', 0) | list %}
-          {{ (valid | sum / valid | count) | round(1) if valid | count > 0 else 0 }}
+          {{ (valid | sum / valid | count) | round(1) }}
 
       - name: "HVAC 1F Recovery Rate Last"
         unique_id: hvac_1f_recovery_rate_last
@@ -2526,6 +2541,18 @@ template:
         unit_of_measurement: "min/°F"
         state_class: measurement
         icon: mdi:chart-line-variant
+        # Unavailable when no valid samples (prevents 0 being recorded as real data)
+        availability: >
+          {% set rates = [
+            states('input_number.hvac_2f_recovery_rate_1') | float(0),
+            states('input_number.hvac_2f_recovery_rate_2') | float(0),
+            states('input_number.hvac_2f_recovery_rate_3') | float(0),
+            states('input_number.hvac_2f_recovery_rate_4') | float(0),
+            states('input_number.hvac_2f_recovery_rate_5') | float(0),
+            states('input_number.hvac_2f_recovery_rate_6') | float(0),
+            states('input_number.hvac_2f_recovery_rate_7') | float(0)
+          ] %}
+          {{ rates | select('gt', 0) | list | count > 0 }}
         state: >
           {% set rates = [
             states('input_number.hvac_2f_recovery_rate_1') | float(0),
@@ -2537,7 +2564,7 @@ template:
             states('input_number.hvac_2f_recovery_rate_7') | float(0)
           ] %}
           {% set valid = rates | select('gt', 0) | list %}
-          {{ (valid | sum / valid | count) | round(1) if valid | count > 0 else 0 }}
+          {{ (valid | sum / valid | count) | round(1) }}
 
       - name: "HVAC 2F Recovery Rate Last"
         unique_id: hvac_2f_recovery_rate_last

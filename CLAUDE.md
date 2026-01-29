@@ -1283,3 +1283,71 @@ Added staleness detection for recovery rates and climate norms, plus validation 
 | Runtime/HDD Capture | 25 hours | 2 hours | 27h |
 | Recovery Rate | 14 days | 24 hours | 14d + 24h |
 | Climate Norms | Immediate | 2 hours | 2h |
+
+---
+
+## Robustness Audit Followup Fixes - 2026-01-29
+
+### Overview
+External audit identified residual issues after Phase 1-3 fixes. Key finding: `notify_weather_sources_down` automation was still checking for the old 35°F fallback pattern, which no longer occurs.
+
+### 1. Weather Sources Down Alert Fixed
+
+**Problem:** Automation triggered on "weather source = Open-Meteo for 6h" then checked if proxy == 35. Since proxy now fails fast (becomes unavailable), the == 35 condition would never match.
+
+**Fix:** Rewritten to trigger directly on proxy unavailable:
+```yaml
+trigger:
+  - platform: state
+    entity_id: sensor.hvac_outdoor_temp_hartford_proxy
+    to: "unavailable"
+    for:
+      minutes: 30
+```
+
+Now alerts within 30 minutes of all weather sources failing.
+
+### 2. Weather Source Indicator Fixed
+
+**Problem:** `sensor.hvac_outdoor_weather_source` always showed "Open-Meteo" in the else case, even when Open-Meteo was also down.
+
+**Fix:** Added explicit Open-Meteo validation and "No valid source" fallback:
+```yaml
+{% elif om is number and om > -50 %}Open-Meteo
+{% else %}No valid source{% endif %}
+```
+
+### 3. Recovery Rate Avg Sensors - Availability Added
+
+**Problem:** Recovery rate averages returned 0 when no valid samples existed. This 0 would be recorded in long-term statistics as "real data."
+
+**Fix:** Added `availability:` template requiring at least one valid sample:
+```yaml
+availability: >
+  {% set rates = [...] %}
+  {{ rates | select('gt', 0) | list | count > 0 }}
+```
+
+Now sensors become `unavailable` when no data, preventing false zeros in history.
+
+### 4. Persisted Weather Inputs (Already Robust)
+
+**Analysis:** Recovery start automations already have conditions requiring proxy availability before any writes occur. The `| float(0)` defaults are defensive fallbacks that shouldn't be reached.
+
+### Files Modified
+- `automations.yaml`:
+  - Rewrote `notify_weather_sources_down` to trigger on proxy unavailable
+- `configuration.yaml`:
+  - Updated `sensor.hvac_outdoor_weather_source` with "No valid source" fallback
+  - Added `availability:` to `sensor.hvac_1f_recovery_rate_avg`
+  - Added `availability:` to `sensor.hvac_2f_recovery_rate_avg`
+
+### Robustness Design Principles (Summary)
+
+| Principle | Implementation |
+|-----------|----------------|
+| **Fail-fast at boundary** | Outdoor temp proxy returns unavailable, not 35°F |
+| **Availability chaining** | HDD/CDD unavailable when proxy unavailable |
+| **Never default persisted values** | Conditions validate before writes; sentinels detect corruption |
+| **Watchdogs alarm on "unavailable"** | All alerts now key off availability, not magic numbers |
+| **KPIs unavailable when no data** | Recovery rate avg returns unavailable, not 0 |

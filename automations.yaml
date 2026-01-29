@@ -1598,36 +1598,34 @@
           python3 /config/scripts/climate_norms_today.py
 
 # WEATHER SOURCE FAILOVER MONITOR
-# Alert if all weather sources are down
+# Alert if outdoor temp proxy becomes unavailable (all sources failed)
 - id: notify_weather_sources_down
   alias: "Notify All Weather Sources Down"
-  description: "Alert if all weather data sources are unavailable"
+  description: "Alert if outdoor temp proxy is unavailable (all weather sources failed)"
   trigger:
     - platform: state
-      entity_id: sensor.hvac_outdoor_weather_source
-      to: "Open-Meteo"
+      entity_id: sensor.hvac_outdoor_temp_hartford_proxy
+      to: "unavailable"
       for:
-        hours: 6
+        minutes: 30
   action:
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: >
-                {{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(-999) == 35 }}
-          sequence:
-            - service: persistent_notification.create
-              data:
-                title: "⚠️ Weather Data Warning"
-                message: >
-                  All primary weather sources may be down.
-                  Current source: {{ states('sensor.hvac_outdoor_weather_source') }}
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Weather Data Unavailable"
+        message: >
+          All weather sources have failed - outdoor temp proxy is unavailable.
+          HDD/CDD calculations will be skipped until data returns.
 
-                  Using fallback value of 35°F which may affect HDD calculations.
+          Source status:
+          - Live API: {{ states('sensor.outdoor_temp_live') }}
+          - Pirate Weather: {{ state_attr('weather.pirateweather', 'temperature') }}
+          - NWS: {{ state_attr('weather.local_weather_2', 'temperature') }}
+          - Open-Meteo: {{ state_attr('weather.home', 'temperature') }}
 
-                  Check integrations:
-                  - weather.pirateweather
-                  - weather.local_weather_2
-                  - sensor.outdoor_temp_live (Open-Meteo REST)
+          Check integrations:
+          - weather.pirateweather
+          - weather.local_weather_2
+          - sensor.outdoor_temp_live (Open-Meteo REST)
 
 # SETBACK ACTIVE TIMEOUT
 # Clear stale setback latch after 18 hours (prevents stuck state)
