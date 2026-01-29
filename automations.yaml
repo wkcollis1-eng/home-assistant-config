@@ -895,7 +895,7 @@
               target:
                 entity_id: input_number.hvac_1f_recovery_rate_1
               data:
-                value: "{{ [recovery_rate | float | round(1), 99] | min }}"
+                value: "{{ [recovery_rate | float | round(1), 60] | min }}"
     # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
@@ -1074,7 +1074,7 @@
               target:
                 entity_id: input_number.hvac_2f_recovery_rate_1
               data:
-                value: "{{ [recovery_rate | float | round(1), 99] | min }}"
+                value: "{{ [recovery_rate | float | round(1), 60] | min }}"
     # Store last setback results for dashboard display (must be before CSV log)
     - service: input_number.set_value
       target:
