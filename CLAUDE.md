@@ -1088,3 +1088,118 @@ Changed to **hybrid logic** requiring both conditions:
 - Recovery events will now trigger reliably each morning
 - Recovery rate rolling averages will update with fresh data
 - Setback optimization calculations will have valid measurements
+
+---
+
+## Stale/Default Data Robustness Fixes - 2026-01-29
+
+### Overview
+Comprehensive audit identified multiple places where stale or default data could silently corrupt calculations. The main pattern was "silent failure via defaults" where `| float(35)` or similar would mask sensor failures.
+
+### Critical Fixes Applied
+
+#### 1. Outdoor Temp Proxy - Fail-Fast (CRITICAL)
+**File:** `configuration.yaml` lines 1357-1387
+
+**Problem:** When all weather sources failed, sensor returned 35°F silently, corrupting all HDD calculations.
+
+**Fix:** Removed the `{{ 35 }}` fallback. Sensor now becomes `unavailable` when no valid source exists. Availability template matches state logic exactly.
+
+```yaml
+# OLD: Silent fallback
+{% else %}
+  {{ 35 }}
+{% endif %}
+
+# NEW: Fail-fast (no else clause, becomes unavailable)
+{% elif om is number and om > -50 %}
+  {{ om | round(1) }}
+{% endif %}
+```
+
+#### 2. HDD/CDD Sensors - Availability Check
+**File:** `configuration.yaml` lines 1401-1431
+
+**Problem:** HDD/CDD sensors used `| float(35)` default for outdoor temp proxy.
+
+**Fix:** Added explicit `availability` templates requiring outdoor temp proxy to be available. State logic uses `| float(none)` to detect failures.
+
+#### 3. HDD Capture - Upstream + Delta Validation
+**File:** `automations.yaml` lines 117-145
+
+**Problem:** Capture proceeded even when outdoor temp proxy was unavailable (using masked 35°F default). No validation that cumulative values stayed within bounds.
+
+**Fix:** Added three-layer validation:
+```yaml
+{# Upstream validation: outdoor temp proxy must be available #}
+{% set upstream_ok = proxy not in ['unknown', 'unavailable'] %}
+{# Value validation: HDD/CDD must be valid numbers in range #}
+{% set values_ok = is_number(hdd) and is_number(cdd) and 0 <= hdd_val <= 65 %}
+{# Delta validation: new cumulative shouldn't exceed reasonable bounds #}
+{% set delta_ok = (cum_month + hdd_val) <= 2500 and (cum_year + hdd_val) <= 8000 %}
+```
+
+#### 4. Runtime/HDD Capture - Upstream Validation
+**File:** `automations.yaml` lines 224-248
+
+**Problem:** Capture didn't validate that furnace runtime and HDD sensors were available.
+
+**Fix:** Added upstream validation:
+```yaml
+{% set upstream_ok = furnace_runtime not in ['unknown', 'unavailable'] and
+                     hdd_today not in ['unknown', 'unavailable'] %}
+```
+
+#### 5. Recovery Start - Conditional Validation
+**File:** `automations.yaml` lines 777-810, 972-1005
+
+**Problem:** Recovery start captured outdoor temp with `| float(35)` default. No validation of hold_setpoint.
+
+**Fix:** Added condition requiring:
+- Outdoor temp proxy available
+- hold_setpoint > 50 (validates stored value)
+- Thermostat current_temperature is a number
+
+#### 6. Recovery End - Smart Defaults
+**File:** `automations.yaml` lines 868-888, 1063-1083
+
+**Problem:** Multiple `| float(35)` defaults for overnight_low, setback calculations, baseline_min_per_hdd.
+
+**Fix:**
+- overnight_low: Detects initialization value (150) and only then falls back to 35
+- setback_depth: Validates hold/setback > 50 before calculating
+- setback_hours: Returns 0 (not 8) when unavailable
+- baseline_min_per_hdd: Checks for unavailable state, returns 0
+- Calculations chain: Return 0 when dependencies are invalid
+
+#### 7. Watchdog Thresholds Tightened
+**File:** `configuration.yaml` lines 1340, 1352
+
+**Problem:** 93600 second (26 hour) threshold + 2 hour alert delay = 28 hours before notification.
+
+**Fix:** Changed to 90000 seconds (25 hours). Total delay now ~27 hours, catching failures 1 hour sooner.
+
+### Validation Philosophy
+
+| Layer | Purpose | Example |
+|-------|---------|---------|
+| **Upstream** | Ensure dependencies are available | `proxy not in ['unknown', 'unavailable']` |
+| **Value** | Ensure values are in valid range | `0 <= hdd_val <= 65` |
+| **Delta** | Ensure changes are reasonable | `cum_month + hdd_val <= 2500` |
+| **Initialization** | Detect unset sentinel values | `val < 140` (vs initial 150) |
+
+### Logging Improvements
+Added detailed logging when captures fail:
+- HDD capture: Logs proxy state, HDD, CDD, and cumulative values
+- Runtime/HDD capture: Logs furnace runtime, HDD, and calculated value
+
+### Files Modified
+- `configuration.yaml` - Outdoor temp proxy, HDD/CDD sensors, watchdog thresholds
+- `automations.yaml` - HDD capture, runtime/HDD capture, recovery start/end automations
+
+### Impact
+- Weather source failures now cascade properly (sensor becomes unavailable)
+- HDD/CDD won't capture corrupt values from masked defaults
+- Recovery tracking won't use stale/invalid hold_setpoint values
+- Faster alerting when daily captures fail
+- Clear logging when validation prevents capture

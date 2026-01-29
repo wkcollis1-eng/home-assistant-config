@@ -1337,7 +1337,7 @@ template:
             true
           {% else %}
             {% set dt = last_ok | as_datetime | as_local %}
-            {{ (now() - dt).total_seconds() > 93600 }}
+            {{ (now() - dt).total_seconds() > 90000 }}
           {% endif %}
 
       - name: "Runtime per HDD Capture Stale"
@@ -1349,21 +1349,27 @@ template:
             true
           {% else %}
             {% set dt = last_ok | as_datetime | as_local %}
-            {{ (now() - dt).total_seconds() > 93600 }}
+            {{ (now() - dt).total_seconds() > 90000 }}
           {% endif %}
 
   - sensor:
       # Uses live feed first (10 min updates), then Pirate Weather, then NWS/Open-Meteo
+      # FAIL-FAST: Returns unavailable if ALL sources fail (no silent 35°F default)
       - name: "HVAC Outdoor Temp Hartford Proxy"
         unique_id: hvac_outdoor_temp_hartford_proxy
         unit_of_measurement: "°F"
         device_class: temperature
         state_class: measurement
         availability: >
-          {{ states('sensor.outdoor_temp_live') not in ['unknown', 'unavailable'] or
-             state_attr('weather.pirateweather', 'temperature') is number or
-             state_attr('weather.local_weather_2', 'temperature') is number or
-             state_attr('weather.home', 'temperature') is number }}
+          {% set live_state = states('sensor.outdoor_temp_live') %}
+          {% set live = live_state | float(-999) %}
+          {% set pw = state_attr('weather.pirateweather', 'temperature') %}
+          {% set nws = state_attr('weather.local_weather_2','temperature') %}
+          {% set om = state_attr('weather.home','temperature') %}
+          {{ (live_state not in ['unknown', 'unavailable'] and live > -50) or
+             (pw is number and pw > -50) or
+             (nws is number and nws > -50) or
+             (om is number and om > -50) }}
         state: >
           {% set live_state = states('sensor.outdoor_temp_live') %}
           {% set live = live_state | float(-999) %}
@@ -1378,8 +1384,6 @@ template:
             {{ nws | round(1) }}
           {% elif om is number and om > -50 %}
             {{ om | round(1) }}
-          {% else %}
-            {{ 35 }}
           {% endif %}
 
       - name: "HVAC Outdoor Weather Source"
@@ -1399,24 +1403,36 @@ template:
         unit_of_measurement: "HDD"
         state_class: measurement
         icon: mdi:snowflake
+        # Unavailable if outdoor temp proxy is unavailable (fail-fast)
+        availability: >
+          {{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
         state: >
           {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
           {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
-          {% set cur_t = states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) %}
+          {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
+          {% set cur_t = proxy | float(none) if proxy not in ['unknown', 'unavailable'] else none %}
           {% set t = mean_t if mean_t is not none else cur_t %}
-          {{ [65 - t, 0] | max | round(1) }}
+          {% if t is not none %}
+            {{ [65 - t, 0] | max | round(1) }}
+          {% endif %}
 
       - name: "HVAC CDD65 Today"
         unique_id: hvac_cdd65_today
         unit_of_measurement: "CDD"
         state_class: measurement
         icon: mdi:sun-thermometer
+        # Unavailable if outdoor temp proxy is unavailable (fail-fast)
+        availability: >
+          {{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
         state: >
           {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
           {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
-          {% set cur_t = states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) %}
+          {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
+          {% set cur_t = proxy | float(none) if proxy not in ['unknown', 'unavailable'] else none %}
           {% set t = mean_t if mean_t is not none else cur_t %}
-          {{ [t - 65, 0] | max | round(1) }}
+          {% if t is not none %}
+            {{ [t - 65, 0] | max | round(1) }}
+          {% endif %}
 
       - name: "HDD Rolling 7-Day Auto"
         unique_id: hdd_rolling_7_day_auto

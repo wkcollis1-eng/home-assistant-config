@@ -126,10 +126,21 @@
         - conditions:
             - condition: template
               value_template: >
-                {{ is_number(states('sensor.hvac_hdd65_today')) and
-                   is_number(states('sensor.hvac_cdd65_today')) and
-                   0 <= (states('sensor.hvac_hdd65_today')|float) <= 65 and
-                   0 <= (states('sensor.hvac_cdd65_today')|float) <= 50 }}
+                {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
+                {% set hdd = states('sensor.hvac_hdd65_today') %}
+                {% set cdd = states('sensor.hvac_cdd65_today') %}
+                {% set hdd_val = hdd | float(-1) %}
+                {% set cdd_val = cdd | float(-1) %}
+                {% set cum_month = states('input_number.hdd_cumulative_month_auto') | float(0) %}
+                {% set cum_year = states('input_number.hdd_cumulative_year_auto') | float(0) %}
+                {# Upstream validation: outdoor temp proxy must be available #}
+                {% set upstream_ok = proxy not in ['unknown', 'unavailable'] %}
+                {# Value validation: HDD/CDD must be valid numbers in range #}
+                {% set values_ok = is_number(hdd) and is_number(cdd) and
+                   0 <= hdd_val <= 65 and 0 <= cdd_val <= 50 %}
+                {# Delta validation: new cumulative shouldn't exceed reasonable bounds #}
+                {% set delta_ok = (cum_month + hdd_val) <= 2500 and (cum_year + hdd_val) <= 8000 %}
+                {{ upstream_ok and values_ok and delta_ok }}
           sequence:
             - variables:
                 todays_hdd: "{{ states('sensor.hvac_hdd65_today')|float }}"
@@ -205,9 +216,11 @@
           data:
             level: warning
             message: >
-              HDD/CDD capture skipped (invalid values):
+              HDD/CDD capture skipped - Outdoor proxy={{ states('sensor.hvac_outdoor_temp_hartford_proxy') }},
               HDD={{ states('sensor.hvac_hdd65_today') }},
-              CDD={{ states('sensor.hvac_cdd65_today') }}
+              CDD={{ states('sensor.hvac_cdd65_today') }},
+              Cum_Month={{ states('input_number.hdd_cumulative_month_auto') }},
+              Cum_Year={{ states('input_number.hdd_cumulative_year_auto') }}
 
 # ===============================================================
 # RUNTIME PER HDD TRACKING - Daily capture at 11:56 PM (HARDENED)
@@ -224,8 +237,16 @@
         - conditions:
             - condition: template
               value_template: >
-                {{ is_number(states('sensor.hvac_total_runtime_per_hdd_today')) and
-                   0 <= (states('sensor.hvac_total_runtime_per_hdd_today')|float) <= 120 }}
+                {% set runtime_hdd = states('sensor.hvac_total_runtime_per_hdd_today') %}
+                {% set furnace_runtime = states('sensor.hvac_furnace_runtime_today') %}
+                {% set hdd_today = states('sensor.hvac_hdd65_today') %}
+                {% set val = runtime_hdd | float(-1) %}
+                {# Upstream validation: dependencies must be available #}
+                {% set upstream_ok = furnace_runtime not in ['unknown', 'unavailable'] and
+                                     hdd_today not in ['unknown', 'unavailable'] %}
+                {# Value validation: runtime/HDD must be valid number in range #}
+                {% set values_ok = is_number(runtime_hdd) and 0 <= val <= 120 %}
+                {{ upstream_ok and values_ok }}
           sequence:
             - variables:
                 todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')|float }}"
@@ -281,6 +302,13 @@
             entity_id: input_datetime.runtime_per_hdd_capture_last_ok
           data:
             datetime: "1970-01-01 00:00:00"
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Runtime/HDD capture skipped - Furnace_runtime={{ states('sensor.hvac_furnace_runtime_today') }},
+              HDD_today={{ states('sensor.hvac_hdd65_today') }},
+              Runtime_per_HDD={{ states('sensor.hvac_total_runtime_per_hdd_today') }}
 
 # ===============================================================
 # MONTHLY REPORT TRACKING - Daily capture at 11:56 PM
@@ -752,6 +780,14 @@
     - platform: state
       entity_id: binary_sensor.hvac_1f_recovering
       to: "on"
+  # Validate upstream data before capturing
+  condition:
+    - condition: template
+      value_template: >
+        {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
+        {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') %}
+        {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
   action:
     - service: input_datetime.set_datetime
       target:
@@ -773,7 +809,7 @@
       target:
         entity_id: input_number.hvac_1f_recovery_outdoor_temp
       data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}"
 
 - id: hvac_1f_recovery_end
   alias: "1F Recovery End"
@@ -829,25 +865,33 @@
           {% else %}
             0
           {% endif %}
-        overnight_low: "{{ states('input_number.outdoor_temp_daily_low') | float(35) }}"
+        # Validate overnight_low is not at initialization value (150 = no data)
+        overnight_low: >
+          {% set val = states('input_number.outdoor_temp_daily_low') | float(150) %}
+          {{ val if val < 140 else 35 }}
         setback_depth: >
-          {{ (states('input_number.hvac_1f_hold_setpoint') | float(67) -
-              states('input_number.hvac_1f_setback_setpoint') | float(62)) | round(1) }}
+          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set setback = states('input_number.hvac_1f_setback_setpoint') | float(0) %}
+          {{ ((hold - setback) | round(1)) if hold > 50 and setback > 50 else 0 }}
         # Net Runtime Benefit calculation
         setback_hours: >
           {% set start = states('input_datetime.hvac_1f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
             {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
           {% else %}
-            8
+            0
           {% endif %}
         hdd_setback: >
-          {% set hours = setback_hours | float(8) %}
+          {% set hours = setback_hours | float(0) %}
           {% set outdoor = overnight_low | float(35) %}
-          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) }}
-        baseline_min_per_hdd: "{{ states('sensor.hvac_runtime_per_hdd_7day') | float(10) }}"
+          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
+        baseline_min_per_hdd: >
+          {% set val = states('sensor.hvac_runtime_per_hdd_7day') %}
+          {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
-          {{ (hdd_setback | float(0) * baseline_min_per_hdd | float(10)) | round(0) }}
+          {% set hdd = hdd_setback | float(0) %}
+          {% set rate = baseline_min_per_hdd | float(0) %}
+          {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
         net_runtime: >
           {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
     - service: input_number.set_value
@@ -931,6 +975,14 @@
     - platform: state
       entity_id: binary_sensor.hvac_2f_recovering
       to: "on"
+  # Validate upstream data before capturing
+  condition:
+    - condition: template
+      value_template: >
+        {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
+        {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') %}
+        {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
   action:
     - service: input_datetime.set_datetime
       target:
@@ -952,7 +1004,7 @@
       target:
         entity_id: input_number.hvac_2f_recovery_outdoor_temp
       data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(35) }}"
+        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}"
 
 - id: hvac_2f_recovery_end
   alias: "2F Recovery End"
@@ -1008,25 +1060,33 @@
           {% else %}
             0
           {% endif %}
-        overnight_low: "{{ states('input_number.outdoor_temp_daily_low') | float(35) }}"
+        # Validate overnight_low is not at initialization value (150 = no data)
+        overnight_low: >
+          {% set val = states('input_number.outdoor_temp_daily_low') | float(150) %}
+          {{ val if val < 140 else 35 }}
         setback_depth: >
-          {{ (states('input_number.hvac_2f_hold_setpoint') | float(67) -
-              states('input_number.hvac_2f_setback_setpoint') | float(62)) | round(1) }}
+          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set setback = states('input_number.hvac_2f_setback_setpoint') | float(0) %}
+          {{ ((hold - setback) | round(1)) if hold > 50 and setback > 50 else 0 }}
         # Net Runtime Benefit calculation
         setback_hours: >
           {% set start = states('input_datetime.hvac_2f_setback_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
             {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
           {% else %}
-            8
+            0
           {% endif %}
         hdd_setback: >
-          {% set hours = setback_hours | float(8) %}
+          {% set hours = setback_hours | float(0) %}
           {% set outdoor = overnight_low | float(35) %}
-          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) }}
-        baseline_min_per_hdd: "{{ states('sensor.hvac_runtime_per_hdd_7day') | float(10) }}"
+          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
+        baseline_min_per_hdd: >
+          {% set val = states('sensor.hvac_runtime_per_hdd_7day') %}
+          {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
-          {{ (hdd_setback | float(0) * baseline_min_per_hdd | float(10)) | round(0) }}
+          {% set hdd = hdd_setback | float(0) %}
+          {% set rate = baseline_min_per_hdd | float(0) %}
+          {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
         net_runtime: >
           {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
     - service: input_number.set_value
