@@ -1688,6 +1688,42 @@ The 7-day `history_stats` sensors remain as-is since 14-day retention fully cove
 - `sensor.hvac_1f_heat_runtime_week` / `_2f_`
 - `sensor.hvac_1f_heat_cycles_week` / `_2f_`
 
+### Seeding Script
+**Script:** `script.seed_monthly_accumulators`
+
+One-time script to initialize accumulators with current MTD values. Calculates `(month_total - today)` to avoid double-counting since template sensors add today's value automatically.
+
+**Procedure:**
+1. Reload scripts: Developer Tools → YAML → Reload Scripts
+2. Run script: Developer Tools → Services → `script.seed_monthly_accumulators`
+3. Restart HA to load the new template sensors
+
+**Note:** Script must be run while old history_stats sensors still have data. If sensors are already removed/unavailable, manually seed based on available data.
+
+### January 2026 CSV Recovery
+CSV data (`reports/hvac_daily_2026.csv`) only goes back to Jan 23 due to recorder purge. Calculated totals from Jan 23-29 (excluding Jan 30 which gets added by template sensor):
+
+| Accumulator | Value | Source |
+|-------------|-------|--------|
+| `furnace_runtime_month_acc` | 55.5 h | Sum of furnace_runtime_min / 60 |
+| `furnace_cycles_month_acc` | 427 | Sum of furnace_cycles |
+| `zone_1f_runtime_month_acc` | 30.7 h | Sum of runtime_1f_min / 60 |
+| `zone_2f_runtime_month_acc` | 34.7 h | Sum of runtime_2f_min / 60 |
+| `zone_1f_cycles_month_acc` | N/A | Not in CSV (zone_calls_total only) |
+| `zone_2f_cycles_month_acc` | N/A | Not in CSV (zone_calls_total only) |
+
+**Manual seeding** (after HA restart):
+```yaml
+action: input_number.set_value
+target:
+  entity_id: input_number.furnace_runtime_month_acc
+data:
+  value: 55.5
+```
+
+January totals will be incomplete (missing Jan 1-22). February onwards will be accurate.
+
 ### Files Modified
 - `configuration.yaml` - Added input_numbers, replaced history_stats with template sensors
 - `automations.yaml` - Updated `capture_daily_monthly_tracking` and `reset_monthly_hdd`
+- `scripts.yaml` - Added `seed_monthly_accumulators` script
