@@ -331,3 +331,83 @@ seed_2025_gas_archive:
       data:
         title: "✅ 2025 Gas Archive Loaded"
         message: "All 12 months of 2025 gas data loaded"
+
+# ===============================================================
+# MONTHLY ACCUMULATOR SEEDING SCRIPT
+# Run ONCE before restarting HA to seed accumulators with MTD values
+# The template sensors add today's value, so we store (month - today)
+# ===============================================================
+seed_monthly_accumulators:
+  alias: "Seed Monthly Accumulators with MTD Data"
+  description: "Initialize monthly accumulators from current history_stats (run before HA restart)"
+  sequence:
+    # Furnace Runtime: month total minus today
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_runtime_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_furnace_runtime_month') | float(0) %}
+          {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {{ [month - today, 0] | max | round(2) }}
+
+    # Furnace Cycles: month total minus today's cycles
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_cycles_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_furnace_cycles_month') | float(0) %}
+          {% set today = states('sensor.hvac_furnace_cycles_today') | float(0) %}
+          {{ [month - today, 0] | max | round(0) }}
+
+    # Zone 1F Runtime: month total minus today
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_runtime_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_zone_1f_runtime_month') | float(0) %}
+          {% set today = states('sensor.hvac_zone_1f_runtime_today') | float(0) %}
+          {{ [month - today, 0] | max | round(2) }}
+
+    # Zone 2F Runtime: month total minus today
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_runtime_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_zone_2f_runtime_month') | float(0) %}
+          {% set today = states('sensor.hvac_zone_2f_runtime_today') | float(0) %}
+          {{ [month - today, 0] | max | round(2) }}
+
+    # Zone 1F Cycles: month total minus today's cycles
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cycles_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_zone_1f_cycles_month') | float(0) %}
+          {% set today = states('sensor.hvac_zone_1f_cycles_today') | float(0) %}
+          {{ [month - today, 0] | max | round(0) }}
+
+    # Zone 2F Cycles: month total minus today's cycles
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cycles_month_acc
+      data:
+        value: >
+          {% set month = states('sensor.hvac_zone_2f_cycles_month') | float(0) %}
+          {% set today = states('sensor.hvac_zone_2f_cycles_today') | float(0) %}
+          {{ [month - today, 0] | max | round(0) }}
+
+    - service: persistent_notification.create
+      data:
+        title: "✅ Monthly Accumulators Seeded"
+        message: >
+          Furnace: {{ states('input_number.furnace_runtime_month_acc') }}h /
+          {{ states('input_number.furnace_cycles_month_acc') }} cycles |
+          1F: {{ states('input_number.zone_1f_runtime_month_acc') }}h /
+          {{ states('input_number.zone_1f_cycles_month_acc') }} cycles |
+          2F: {{ states('input_number.zone_2f_runtime_month_acc') }}h /
+          {{ states('input_number.zone_2f_cycles_month_acc') }} cycles
