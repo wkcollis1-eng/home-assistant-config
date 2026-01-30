@@ -550,6 +550,64 @@ input_number:
     icon: mdi:timer-outline
 
   # ===============================================================
+  # MONTHLY ACCUMULATORS (immune to recorder purge_keep_days)
+  # Daily values added at 23:57, reset on 1st of month
+  # ===============================================================
+  furnace_runtime_month_acc:
+    name: "Furnace Runtime Month Accumulated"
+    min: 0
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:fire
+
+  furnace_cycles_month_acc:
+    name: "Furnace Cycles Month Accumulated"
+    min: 0
+    max: 5000
+    step: 1
+    unit_of_measurement: "cycles"
+    mode: box
+    icon: mdi:counter
+
+  zone_1f_runtime_month_acc:
+    name: "1F Runtime Month Accumulated"
+    min: 0
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:home-floor-1
+
+  zone_2f_runtime_month_acc:
+    name: "2F Runtime Month Accumulated"
+    min: 0
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:home-floor-2
+
+  zone_1f_cycles_month_acc:
+    name: "1F Cycles Month Accumulated"
+    min: 0
+    max: 5000
+    step: 1
+    unit_of_measurement: "cycles"
+    mode: box
+    icon: mdi:home-floor-1
+
+  zone_2f_cycles_month_acc:
+    name: "2F Cycles Month Accumulated"
+    min: 0
+    max: 5000
+    step: 1
+    unit_of_measurement: "cycles"
+    mode: box
+    icon: mdi:home-floor-2
+
+  # ===============================================================
   # 12-MONTH ARCHIVE - ELECTRIC
   # ===============================================================
   electric_archive_jan_amount:
@@ -1948,6 +2006,71 @@ template:
           {% set current = states('input_number.hvac_filter_runtime_hours') | float(0) %}
           {{ (1000 - current) | round(1) if current < 1000 else 0 }}
 
+      # ================================================================
+      # MONTHLY ACCUMULATED SENSORS (immune to recorder purge_keep_days)
+      # Values accumulated daily at 23:56:30, reset on 1st of month
+      # Replaces history_stats month sensors which fail after day 14
+      # ================================================================
+      - name: "HVAC Furnace Runtime Month"
+        unique_id: hvac_furnace_runtime_month
+        unit_of_measurement: "h"
+        state_class: measurement
+        icon: mdi:fire
+        state: >
+          {% set acc = states('input_number.furnace_runtime_month_acc') | float(0) %}
+          {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {{ (acc + today) | round(2) }}
+
+      - name: "HVAC Furnace Cycles Month"
+        unique_id: hvac_furnace_cycles_month
+        unit_of_measurement: "cycles"
+        state_class: measurement
+        icon: mdi:counter
+        state: >
+          {% set acc = states('input_number.furnace_cycles_month_acc') | int(0) %}
+          {% set today = states('sensor.hvac_furnace_cycles_today') | int(0) %}
+          {{ acc + today }}
+
+      - name: "HVAC 1F Heat Runtime Month"
+        unique_id: hvac_1f_heat_runtime_month
+        unit_of_measurement: "h"
+        state_class: measurement
+        icon: mdi:home-floor-1
+        state: >
+          {% set acc = states('input_number.zone_1f_runtime_month_acc') | float(0) %}
+          {% set today = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}
+          {{ (acc + today) | round(2) }}
+
+      - name: "HVAC 2F Heat Runtime Month"
+        unique_id: hvac_2f_heat_runtime_month
+        unit_of_measurement: "h"
+        state_class: measurement
+        icon: mdi:home-floor-2
+        state: >
+          {% set acc = states('input_number.zone_2f_runtime_month_acc') | float(0) %}
+          {% set today = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
+          {{ (acc + today) | round(2) }}
+
+      - name: "HVAC 1F Heat Cycles Month"
+        unique_id: hvac_1f_heat_cycles_month
+        unit_of_measurement: "cycles"
+        state_class: measurement
+        icon: mdi:home-floor-1
+        state: >
+          {% set acc = states('input_number.zone_1f_cycles_month_acc') | int(0) %}
+          {% set today = states('sensor.hvac_1f_heat_cycles_today') | int(0) %}
+          {{ acc + today }}
+
+      - name: "HVAC 2F Heat Cycles Month"
+        unique_id: hvac_2f_heat_cycles_month
+        unit_of_measurement: "cycles"
+        state_class: measurement
+        icon: mdi:home-floor-2
+        state: >
+          {% set acc = states('input_number.zone_2f_cycles_month_acc') | int(0) %}
+          {% set today = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}
+          {{ acc + today }}
+
       - name: "HVAC Total Heat Runtime Month"
         unique_id: hvac_total_heat_runtime_month
         unit_of_measurement: "h"
@@ -3195,41 +3318,8 @@ sensor:
     start: "{{ now() - timedelta(days=7) }}"
     end: "{{ now() }}"
 
-  - platform: history_stats
-    name: "HVAC 2F Heat Runtime Month"
-    unique_id: hvac_2f_heat_runtime_month
-    entity_id: binary_sensor.hvac_2f_call_for_heat
-    state: "on"
-    type: time
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
-
-  - platform: history_stats
-    name: "HVAC 1F Heat Runtime Month"
-    unique_id: hvac_1f_heat_runtime_month
-    entity_id: binary_sensor.hvac_1f_call_for_heat
-    state: "on"
-    type: time
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
-
-  - platform: history_stats
-    name: "HVAC 1F Heat Cycles Month"
-    unique_id: hvac_1f_heat_cycles_month
-    entity_id: binary_sensor.hvac_1f_call_for_heat
-    state: "on"
-    type: count
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
-
-  - platform: history_stats
-    name: "HVAC 2F Heat Cycles Month"
-    unique_id: hvac_2f_heat_cycles_month
-    entity_id: binary_sensor.hvac_2f_call_for_heat
-    state: "on"
-    type: count
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
+  # NOTE: Month zone runtime/cycles sensors removed - now use accumulated template sensors
+  # (immune to recorder purge_keep_days=14, see template sensor section)
 
   # === ACTUAL FURNACE CYCLES (captures overlapping thermostat calls) ===
   - platform: history_stats
@@ -3260,15 +3350,6 @@ sensor:
     end: "{{ now() }}"
 
   - platform: history_stats
-    name: "HVAC Furnace Runtime Month"
-    unique_id: hvac_furnace_runtime_month
-    entity_id: binary_sensor.hvac_furnace_running
-    state: "on"
-    type: time
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
-
-  - platform: history_stats
     name: "HVAC Furnace Cycles Week"
     unique_id: hvac_furnace_cycles_week
     entity_id: binary_sensor.hvac_furnace_running
@@ -3277,14 +3358,8 @@ sensor:
     start: "{{ now() - timedelta(days=7) }}"
     end: "{{ now() }}"
 
-  - platform: history_stats
-    name: "HVAC Furnace Cycles Month"
-    unique_id: hvac_furnace_cycles_month
-    entity_id: binary_sensor.hvac_furnace_running
-    state: "on"
-    type: count
-    start: "{{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) }}"
-    end: "{{ now() }}"
+  # NOTE: Month furnace runtime/cycles sensors removed - now use accumulated template sensors
+  # (immune to recorder purge_keep_days=14, see template sensor section)
 
 # ===============================================================
 # CLIMATE NORMS - Daily lookup from historical climate data

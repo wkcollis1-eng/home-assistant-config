@@ -1631,3 +1631,63 @@ Add the card to any dashboard to monitor automation health:
 - Automations that silently don't trigger (use staleness sensors for this)
 - Warnings (only ERROR level)
 - Sensor calculation errors (unless they cause automation to fail)
+
+---
+
+## Monthly Accumulators Fix - 2026-01-30
+
+### Issue
+Month-to-date `history_stats` sensors were undercounting after day 14 due to `recorder.purge_keep_days: 14`. When the recorder purges old data, the history_stats sensors lose visibility into early-month data.
+
+### Affected Sensors (Before Fix)
+| Sensor | Problem |
+|--------|---------|
+| `sensor.hvac_furnace_runtime_month` | Undercount after day 14 |
+| `sensor.hvac_furnace_cycles_month` | Undercount after day 14 |
+| `sensor.hvac_1f_heat_runtime_month` | Undercount after day 14 |
+| `sensor.hvac_2f_heat_runtime_month` | Undercount after day 14 |
+| `sensor.hvac_1f_heat_cycles_month` | Undercount after day 14 |
+| `sensor.hvac_2f_heat_cycles_month` | Undercount after day 14 |
+
+### Solution
+Replaced history_stats month sensors with **accumulated input_numbers** (same pattern as HDD tracking):
+
+1. **Daily capture at 23:56:30**: Add today's values to accumulators
+2. **Monthly reset on day 1**: Reset accumulators to 0
+3. **Template sensors**: Read `accumulator + today` for real-time values
+
+### New Input Numbers
+| Entity | Purpose |
+|--------|---------|
+| `input_number.furnace_runtime_month_acc` | Accumulated furnace runtime (h) |
+| `input_number.furnace_cycles_month_acc` | Accumulated furnace cycles |
+| `input_number.zone_1f_runtime_month_acc` | Accumulated 1F runtime (h) |
+| `input_number.zone_2f_runtime_month_acc` | Accumulated 2F runtime (h) |
+| `input_number.zone_1f_cycles_month_acc` | Accumulated 1F cycles |
+| `input_number.zone_2f_cycles_month_acc` | Accumulated 2F cycles |
+
+### Template Sensor Formula
+Each month sensor now computes: `accumulator + today's value`
+```yaml
+state: >
+  {% set acc = states('input_number.furnace_runtime_month_acc') | float(0) %}
+  {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+  {{ (acc + today) | round(2) }}
+```
+
+### Benefits
+- **Immune to recorder purge**: Accumulators persist regardless of purge_keep_days
+- **Keep purge_keep_days=14**: DB performance maintained
+- **Same sensor names**: All existing references continue to work
+- **Matches HDD pattern**: Consistent architecture
+
+### Week Sensors Unchanged
+The 7-day `history_stats` sensors remain as-is since 14-day retention fully covers them:
+- `sensor.hvac_furnace_runtime_week`
+- `sensor.hvac_furnace_cycles_week`
+- `sensor.hvac_1f_heat_runtime_week` / `_2f_`
+- `sensor.hvac_1f_heat_cycles_week` / `_2f_`
+
+### Files Modified
+- `configuration.yaml` - Added input_numbers, replaced history_stats with template sensors
+- `automations.yaml` - Updated `capture_daily_monthly_tracking` and `reset_monthly_hdd`

@@ -315,7 +315,7 @@
 # ===============================================================
 - id: capture_daily_monthly_tracking
   alias: "Capture Daily Monthly Tracking"
-  description: "Accumulates outdoor temp and expected runtime for monthly report"
+  description: "Accumulates outdoor temp, expected runtime, and furnace/zone metrics for monthly report"
   mode: single
   trigger:
     - platform: time
@@ -330,6 +330,20 @@
         current_temp_sum: "{{ states('input_number.outdoor_temp_sum_month') | float(0) }}"
         current_days: "{{ states('input_number.outdoor_temp_days_month') | int(0) }}"
         current_expected_sum: "{{ states('input_number.expected_runtime_sum_month') | float(0) }}"
+        # Furnace/zone daily values (from history_stats "today" sensors)
+        furnace_runtime_today: "{{ states('sensor.hvac_furnace_runtime_today') | float(0) }}"
+        furnace_cycles_today: "{{ states('sensor.hvac_furnace_cycles_today') | int(0) }}"
+        zone_1f_runtime_today: "{{ states('sensor.hvac_1f_heat_runtime_today') | float(0) }}"
+        zone_2f_runtime_today: "{{ states('sensor.hvac_2f_heat_runtime_today') | float(0) }}"
+        zone_1f_cycles_today: "{{ states('sensor.hvac_1f_heat_cycles_today') | int(0) }}"
+        zone_2f_cycles_today: "{{ states('sensor.hvac_2f_heat_cycles_today') | int(0) }}"
+        # Current accumulators
+        furnace_runtime_acc: "{{ states('input_number.furnace_runtime_month_acc') | float(0) }}"
+        furnace_cycles_acc: "{{ states('input_number.furnace_cycles_month_acc') | int(0) }}"
+        zone_1f_runtime_acc: "{{ states('input_number.zone_1f_runtime_month_acc') | float(0) }}"
+        zone_2f_runtime_acc: "{{ states('input_number.zone_2f_runtime_month_acc') | float(0) }}"
+        zone_1f_cycles_acc: "{{ states('input_number.zone_1f_cycles_month_acc') | int(0) }}"
+        zone_2f_cycles_acc: "{{ states('input_number.zone_2f_cycles_month_acc') | int(0) }}"
     - condition: template
       value_template: "{{ todays_high > -49 and todays_low < 149 }}"
     - service: input_number.set_value
@@ -342,6 +356,37 @@
         entity_id: input_number.outdoor_temp_days_month
       data:
         value: "{{ current_days + 1 }}"
+    # Accumulate furnace/zone metrics (immune to recorder purge_keep_days)
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_runtime_month_acc
+      data:
+        value: "{{ (furnace_runtime_acc + furnace_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_cycles_month_acc
+      data:
+        value: "{{ furnace_cycles_acc + furnace_cycles_today }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_runtime_month_acc
+      data:
+        value: "{{ (zone_1f_runtime_acc + zone_1f_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_runtime_month_acc
+      data:
+        value: "{{ (zone_2f_runtime_acc + zone_2f_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cycles_month_acc
+      data:
+        value: "{{ zone_1f_cycles_acc + zone_1f_cycles_today }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cycles_month_acc
+      data:
+        value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.expected_runtime_sum_month
@@ -412,9 +457,40 @@
         entity_id: input_number.expected_runtime_sum_month
       data:
         value: 0
+    # Reset furnace/zone monthly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cycles_month_acc
+      data:
+        value: 0
     - service: system_log.write
       data:
-        message: "Monthly HDD/CDD reset completed (trigger: {{ trigger.id }})"
+        message: "Monthly HDD/CDD and furnace accumulators reset completed (trigger: {{ trigger.id }})"
         level: info
 
 - id: reset_yearly_hdd
