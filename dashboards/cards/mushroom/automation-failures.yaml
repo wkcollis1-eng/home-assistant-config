@@ -1,0 +1,39 @@
+# Automation Failures - Mushroom Template Card
+# Shows count of automation failures in last 24 hours
+# Green = no failures, Red = failures detected
+# Dashboard: Energy Performance - Operations or System Health
+type: custom:mushroom-template-card
+primary: >
+  {% set count = states('counter.automation_failures_24h') | int(0) %}
+  {% if count == 0 %}
+    No Failures
+  {% elif count == 1 %}
+    1 Failure
+  {% else %}
+    {{ count }} Failures
+  {% endif %}
+secondary: >
+  {% set count = states('counter.automation_failures_24h') | int(0) %}
+  {% if count > 0 %}
+    {{ states('input_text.last_automation_failure') | truncate(60) }}
+  {% else %}
+    Automations healthy (24h)
+  {% endif %}
+icon: mdi:alert-circle
+icon_color: >
+  {% set count = states('counter.automation_failures_24h') | int(0) %}
+  {% if count == 0 %}green
+  {% elif count <= 2 %}orange
+  {% else %}red{% endif %}
+tap_action:
+  action: more-info
+entity: counter.automation_failures_24h
+badge_icon: >
+  {% if states('counter.automation_failures_24h') | int(0) > 0 %}
+    mdi:exclamation-thick
+  {% endif %}
+badge_color: red
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+vertical: true

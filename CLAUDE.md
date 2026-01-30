@@ -1579,3 +1579,55 @@ value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
 
 ### Files Modified
 - `automations.yaml` - `hvac_1f_recovery_end`, `hvac_2f_recovery_end`
+
+---
+
+## Automation Failure Tracking - 2026-01-30
+
+### Overview
+Added a system to monitor and display automation failures on the dashboard. Captures errors from Home Assistant's system log and provides visibility into automation health.
+
+### How It Works
+1. `track_automation_failures` automation listens for `system_log_event` with level ERROR
+2. Filters for events containing "automation" in source or message
+3. Increments failure counter and stores last failure details
+4. Creates persistent notification for each failure
+5. Counter resets at midnight
+
+### New Entities
+
+| Entity | Type | Purpose |
+|--------|------|---------|
+| `counter.automation_failures_24h` | counter | Count of failures in last 24h |
+| `input_text.last_automation_failure` | input_text | Description of most recent failure |
+| `binary_sensor.automation_failures_active` | binary_sensor | ON when failures > 0 (device_class: problem) |
+
+### New Automations
+
+| Automation | Trigger | Action |
+|------------|---------|--------|
+| `track_automation_failures` | `system_log_event` (ERROR) | Increment counter, store details, notify |
+| `reset_automation_failure_counter` | Midnight (00:00) | Reset counter and clear last failure text |
+
+### Dashboard Card
+New mushroom card: `dashboards/cards/mushroom/automation-failures.yaml`
+- Shows failure count with color coding (green/orange/red)
+- Displays truncated last failure message
+- Badge icon appears when failures exist
+
+### Usage
+Add the card to any dashboard to monitor automation health:
+```yaml
+# Copy from dashboards/cards/mushroom/automation-failures.yaml
+```
+
+### What Gets Captured
+- Automation execution errors (like the net_runtime range issue)
+- Template errors in automations
+- Service call failures within automations
+- Any ERROR level log entry mentioning "automation"
+
+### What Does NOT Get Captured
+- Automations that silently don't trigger (use staleness sensors for this)
+- Warnings (only ERROR level)
+- Sensor calculation errors (unless they cause automation to fail)

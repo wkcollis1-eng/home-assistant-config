@@ -83,6 +83,22 @@ input_button:
     icon: mdi:air-filter
 
 # ===============================================================
+# AUTOMATION FAILURE TRACKING
+# ===============================================================
+counter:
+  automation_failures_24h:
+    name: "Automation Failures (24h)"
+    initial: 0
+    step: 1
+    icon: mdi:alert-circle
+
+input_text:
+  last_automation_failure:
+    name: "Last Automation Failure"
+    max: 255
+    icon: mdi:alert-circle-outline
+
+# ===============================================================
 # INPUT BOOLEAN HELPERS
 # ===============================================================
 input_boolean:
@@ -3082,6 +3098,13 @@ template:
           {% set inputs_valid = is_state('binary_sensor.hvac_2f_recovery_inputs_valid', 'on') %}
           {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
           {{ not_stale and data_count >= 3 and inputs_valid and proxy_available }}
+
+      # --- Automation Failure Tracking ---
+      - name: "Automation Failures Active"
+        unique_id: automation_failures_active
+        device_class: problem
+        icon: mdi:alert-circle
+        state: "{{ states('counter.automation_failures_24h') | int(0) > 0 }}"
 
 # ===============================================================
 # PLATFORM SENSORS

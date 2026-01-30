@@ -1772,3 +1772,57 @@
         message: >
           Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int }} minutes old.
           Check API key and integration status.
+
+# ===============================================================
+# AUTOMATION FAILURE TRACKING
+# ===============================================================
+- id: track_automation_failures
+  alias: "Track Automation Failures"
+  description: "Captures automation errors from system log for monitoring"
+  mode: queued
+  max: 10
+  trigger:
+    - platform: event
+      event_type: system_log_event
+      event_data:
+        level: ERROR
+  condition:
+    - condition: template
+      value_template: >
+        {% set source = trigger.event.data.source | default('') | lower %}
+        {% set message = trigger.event.data.message | default('') | lower %}
+        {{ 'automation' in source or 'automation' in message }}
+  action:
+    - service: counter.increment
+      entity_id: counter.automation_failures_24h
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.last_automation_failure
+      data:
+        value: >
+          {{ now().strftime('%H:%M') }} - {{ trigger.event.data.source | default('Unknown') | truncate(50) }}: {{ trigger.event.data.message | default('') | truncate(150) }}
+    - service: persistent_notification.create
+      data:
+        title: "🔴 Automation Failed"
+        message: >
+          **Source:** {{ trigger.event.data.source | default('Unknown') }}
+
+          **Error:** {{ trigger.event.data.message | default('No message') }}
+
+          **Time:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+        notification_id: "automation_failure_{{ now().timestamp() | int }}"
+
+- id: reset_automation_failure_counter
+  alias: "Reset Automation Failure Counter"
+  description: "Resets failure counter at midnight"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: counter.reset
+      entity_id: counter.automation_failures_24h
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.last_automation_failure
+      data:
+        value: ""
