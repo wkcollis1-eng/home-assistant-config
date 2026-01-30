@@ -104,13 +104,25 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 ### Furnace Cycle Tracking (Actual Cycles)
 - `binary_sensor.hvac_furnace_running` - ON when either zone is calling for heat
 - `sensor.hvac_furnace_cycles_today` - Actual furnace cycles (overlapping calls = 1 cycle)
+- `sensor.hvac_furnace_cycles_week` - Rolling 7-day furnace cycle count
+- `sensor.hvac_furnace_cycles_month` - Month-to-date furnace cycle count
 - `sensor.hvac_furnace_runtime_today` - Actual furnace runtime (hours)
 - `sensor.hvac_furnace_runtime_week` - Rolling 7-day furnace runtime (hours)
 - `sensor.hvac_furnace_runtime_month` - Month-to-date furnace runtime (hours)
-- `sensor.hvac_furnace_min_per_cycle` - Minutes per actual furnace cycle
-- `sensor.hvac_chaining_index` - Zone calls / furnace cycles (1.0=no overlap, 2.0=full overlap)
-- `sensor.hvac_zone_overlap_today` - Minutes both zones called simultaneously
-- `sensor.hvac_zone_overlap_percent` - Overlap as % of furnace runtime
+- `sensor.hvac_furnace_min_per_cycle` - Minutes per actual furnace cycle (today)
+- `sensor.hvac_furnace_min_per_cycle_week` - Minutes per actual furnace cycle (7-day)
+- `sensor.hvac_furnace_min_per_cycle_month` - Minutes per actual furnace cycle (MTD)
+- `sensor.hvac_furnace_cycles_per_day_week` - Average cycles per day (7-day)
+- `sensor.hvac_furnace_cycles_per_day_month` - Average cycles per day (MTD)
+- `sensor.hvac_chaining_index` - Zone calls / furnace cycles today (1.0=no overlap, 2.0=full overlap)
+- `sensor.hvac_chaining_index_week` - Zone calls / furnace cycles (7-day)
+- `sensor.hvac_chaining_index_month` - Zone calls / furnace cycles (MTD)
+- `sensor.hvac_zone_overlap_today` - Minutes both zones called simultaneously (today)
+- `sensor.hvac_zone_overlap_week` - Minutes both zones called simultaneously (7-day)
+- `sensor.hvac_zone_overlap_month` - Minutes both zones called simultaneously (MTD)
+- `sensor.hvac_zone_overlap_percent` - Overlap as % of furnace runtime (today)
+- `sensor.hvac_total_cycles_week` - Total zone calls (1F + 2F) rolling 7-day
+- `sensor.hvac_total_cycles_month` - Total zone calls (1F + 2F) month-to-date
 
 ### Monthly Report Sensors
 - `sensor.outdoor_temp_mean_month` - Monthly average outdoor temperature
@@ -277,7 +289,7 @@ Located in `dashboards/cards/` with organized subfolders:
 | Folder | Contents | Card Count |
 |--------|----------|------------|
 | `apexcharts/` | Time series charts, control charts | 10 |
-| `mushroom/` | Template cards, entity cards | 19 |
+| `mushroom/` | Template cards, entity cards | 29 |
 | `climate/` | Thermostat control cards | 4 |
 | `gauges/` | Built-in gauge cards | 6 |
 | `conditional/` | Alert cards (show/hide based on state) | 8 |
@@ -296,6 +308,16 @@ Located in `dashboards/cards/` with organized subfolders:
 - `outdoor-temp-dynamic.yaml` - Color changes by temperature range
 - `avg-cycle-*-dynamic.yaml` - Short cycling risk colors
 - `efficiency-deviation-dynamic.yaml` - Baseline comparison with alerts
+- `furnace-runtime-week.yaml` - 7-day furnace runtime
+- `furnace-runtime-month.yaml` - Month-to-date furnace runtime
+- `furnace-cycles-week.yaml` - 7-day furnace cycle count with avg/day
+- `furnace-cycles-month.yaml` - Month-to-date furnace cycle count with avg/day
+- `zone-overlap-week.yaml` - 7-day zone overlap time
+- `zone-overlap-month.yaml` - Month-to-date zone overlap time
+- `chaining-index-week.yaml` - 7-day chaining index with status
+- `chaining-index-month.yaml` - Month-to-date chaining index with status
+- `min-per-cycle-week.yaml` - 7-day avg minutes per furnace cycle
+- `min-per-cycle-month.yaml` - Month-to-date avg minutes per furnace cycle
 
 **Conditional (Alert Cards)**
 - `filter-alert.yaml` - Shows only when filter change due
@@ -1485,3 +1507,75 @@ New cards in `dashboards/cards/mushroom/`:
 - `pipeline-health-recovery-1f.yaml` - 1F Recovery pipeline status chip
 - `pipeline-health-recovery-2f.yaml` - 2F Recovery pipeline status chip
 - `tier1-health-summary.yaml` - Combined Tier 1 health overview
+
+---
+
+## Week/Month Furnace Metrics - 2026-01-30
+
+### Overview
+Added comprehensive week and month-to-date sensors for furnace cycles, zone overlap, and chaining index to complement the existing daily metrics.
+
+### New History Stats Sensors
+| Sensor | Type | Period |
+|--------|------|--------|
+| `sensor.hvac_furnace_cycles_week` | count | 7-day rolling |
+| `sensor.hvac_furnace_cycles_month` | count | Month-to-date |
+| `sensor.hvac_1f_heat_cycles_week` | count | 7-day rolling |
+| `sensor.hvac_2f_heat_cycles_week` | count | 7-day rolling |
+| `sensor.hvac_1f_heat_cycles_month` | count | Month-to-date |
+| `sensor.hvac_2f_heat_cycles_month` | count | Month-to-date |
+
+### New Template Sensors
+| Sensor | Description |
+|--------|-------------|
+| `sensor.hvac_total_cycles_week` | 1F + 2F zone calls (7-day) |
+| `sensor.hvac_total_cycles_month` | 1F + 2F zone calls (MTD) |
+| `sensor.hvac_chaining_index_week` | Zone overlap ratio (7-day) |
+| `sensor.hvac_chaining_index_month` | Zone overlap ratio (MTD) |
+| `sensor.hvac_zone_overlap_week` | Overlap minutes (7-day) |
+| `sensor.hvac_zone_overlap_month` | Overlap minutes (MTD) |
+| `sensor.hvac_furnace_cycles_per_day_week` | Avg cycles/day (7-day) |
+| `sensor.hvac_furnace_cycles_per_day_month` | Avg cycles/day (MTD) |
+| `sensor.hvac_furnace_min_per_cycle_week` | Avg min/cycle (7-day) |
+| `sensor.hvac_furnace_min_per_cycle_month` | Avg min/cycle (MTD) |
+
+### New Mushroom Cards
+Located in `dashboards/cards/mushroom/`:
+- `furnace-runtime-week.yaml` / `furnace-runtime-month.yaml`
+- `furnace-cycles-week.yaml` / `furnace-cycles-month.yaml`
+- `zone-overlap-week.yaml` / `zone-overlap-month.yaml`
+- `chaining-index-week.yaml` / `chaining-index-month.yaml`
+- `min-per-cycle-week.yaml` / `min-per-cycle-month.yaml`
+
+---
+
+## Recovery End Net Runtime Fix - 2026-01-30
+
+### Issue
+The `hvac_*f_recovery_end` automations were aborting before completing all actions (including turning off the setback latch) when the calculated `net_runtime` exceeded the input_number's valid range (-200 to 200).
+
+### Root Cause
+When `baseline_min_per_hdd` (from `sensor.hvac_runtime_per_hdd_7day`) was 0 or unavailable:
+- `expected_hold_runtime = 0`
+- `net_runtime = 0 - total_runtime` = large negative value (e.g., -302)
+- `input_number.hvac_*f_last_net_runtime` rejected the value (outside -200 to 200)
+- Automation aborted → setback latch never cleared → CSV never written
+
+### Fix Applied
+Added value clamping before storing `net_runtime`:
+```yaml
+# Before (could abort automation):
+value: "{{ net_runtime }}"
+
+# After (clamped to valid range):
+value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
+```
+
+### Impact
+- Automation now completes reliably even with extreme net_runtime values
+- Setback latch properly cleared at end of recovery cycle
+- CSV logging executes as expected
+- Values outside -200 to 200 are clamped (data loss acceptable for outliers)
+
+### Files Modified
+- `automations.yaml` - `hvac_1f_recovery_end`, `hvac_2f_recovery_end`

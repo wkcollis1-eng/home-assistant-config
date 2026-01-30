@@ -1,0 +1,26 @@
+# Chaining Index Month - Mushroom Template Card
+# Measures zone call overlap month-to-date: Total Zone Calls / Furnace Cycles
+# 1.0 = no overlap (inefficient), 2.0 = full overlap (efficient)
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.hvac_chaining_index_month') | float(1) | round(2) }}"
+secondary: >
+  {% set idx = states('sensor.hvac_chaining_index_month') | float(1) %}
+  {% if idx >= 1.7 %}Excellent (MTD)
+  {% elif idx >= 1.4 %}Good (MTD)
+  {% elif idx >= 1.2 %}Fair (MTD)
+  {% else %}Low (MTD){% endif %}
+icon: mdi:link-variant
+icon_color: >
+  {% set idx = states('sensor.hvac_chaining_index_month') | float(1) %}
+  {% if idx >= 1.7 %}green
+  {% elif idx >= 1.4 %}light-green
+  {% elif idx >= 1.2 %}orange
+  {% else %}red{% endif %}
+tap_action:
+  action: more-info
+entity: sensor.hvac_chaining_index_month
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+vertical: true

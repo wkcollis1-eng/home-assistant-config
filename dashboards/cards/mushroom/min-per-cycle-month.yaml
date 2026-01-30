@@ -1,0 +1,26 @@
+# Min per Cycle Month - Mushroom Template Card
+# Shows average minutes per furnace cycle month-to-date
+# Longer cycles = more efficient operation
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.hvac_furnace_min_per_cycle_month') | float(0) | round(1) }}"
+secondary: >
+  {% set mpc = states('sensor.hvac_furnace_min_per_cycle_month') | float(0) %}
+  {% if mpc >= 15 %}Long cycles (MTD)
+  {% elif mpc >= 10 %}Normal cycles (MTD)
+  {% elif mpc >= 5 %}Short cycles (MTD)
+  {% else %}Very short (MTD){% endif %}
+icon: mdi:timer-cog
+icon_color: >
+  {% set mpc = states('sensor.hvac_furnace_min_per_cycle_month') | float(0) %}
+  {% if mpc >= 15 %}green
+  {% elif mpc >= 10 %}light-green
+  {% elif mpc >= 5 %}orange
+  {% else %}red{% endif %}
+tap_action:
+  action: more-info
+entity: sensor.hvac_furnace_min_per_cycle_month
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+vertical: true

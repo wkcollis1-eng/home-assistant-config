@@ -1,0 +1,15 @@
+# Furnace Runtime Week - Mushroom Template Card
+# Shows actual furnace running time over 7 days
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.hvac_furnace_runtime_week') | float(0) | round(1) }}h"
+secondary: Furnace Runtime (7d)
+icon: mdi:fire
+icon_color: orange
+tap_action:
+  action: more-info
+entity: sensor.hvac_furnace_runtime_week
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+vertical: true
