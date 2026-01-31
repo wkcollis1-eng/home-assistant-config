@@ -12,7 +12,9 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix mean temp selection breaking below 0°F in HDD/CDD sensors\n\nBug: mean_t > 0 check rejected valid sub-zero temperatures,\nfalling back to instantaneous temp incorrectly\n\nFix: Check if state is valid \\(not unknown/unavailable\\) instead\nof checking if value > 0\n\nAffects: sensor.hvac_hdd65_today, sensor.hvac_cdd65_today\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(Setback Y°F\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(Setback Y°F\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git rm:*)",
+      "Bash(python:*)"
     ]
   }
 }
