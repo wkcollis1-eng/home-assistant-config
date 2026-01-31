@@ -1727,3 +1727,29 @@ January totals will be incomplete (missing Jan 1-22). February onwards will be a
 - `configuration.yaml` - Added input_numbers, replaced history_stats with template sensors
 - `automations.yaml` - Updated `capture_daily_monthly_tracking` and `reset_monthly_hdd`
 - `scripts.yaml` - Added `seed_monthly_accumulators` script
+
+---
+
+## Entity Registry _2 Suffix - 2026-01-30
+
+### Background
+When replacing `history_stats` month sensors with template sensors (same entity names), Home Assistant's entity registry detected a conflict. The old entity IDs still existed in the registry from the removed history_stats sensors, so HA automatically appended `_2` to the new template sensors.
+
+### Affected Sensors
+| New Entity ID (with _2) | Friendly Name |
+|-------------------------|---------------|
+| `sensor.hvac_1f_heat_cycles_month_2` | HVAC 1F Heat Cycles Month |
+| `sensor.hvac_1f_heat_runtime_month_2` | HVAC 1F Heat Runtime Month |
+| `sensor.hvac_2f_heat_cycles_month_2` | HVAC 2F Heat Cycles Month |
+| `sensor.hvac_2f_heat_runtime_month_2` | HVAC 2F Heat Runtime Month |
+| `sensor.hvac_furnace_cycles_month_2` | HVAC Furnace Cycles Month |
+| `sensor.hvac_furnace_runtime_month_2` | HVAC Furnace Runtime Month |
+
+### Resolution
+Rather than cleaning up the entity registry and renaming, all references in `configuration.yaml` were updated to use the `_2` suffix. This includes:
+- Template sensor dependencies (chaining index, overlap, min/cycle, etc.)
+- Shell command `appendmonthlycsv`
+- Derived sensors (efficiency deviation, heating efficiency, etc.)
+
+### Note
+The `unique_id` values in the template sensor definitions remain without `_2` (e.g., `unique_id: hvac_furnace_runtime_month`). The `_2` suffix only applies to the entity_id in the entity registry. If the entity registry is ever cleaned up (removing orphaned entries), the sensors would revert to non-`_2` names and all references would need updating.
