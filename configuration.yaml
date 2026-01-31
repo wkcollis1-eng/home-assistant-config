@@ -920,7 +920,7 @@ input_number:
   hvac_1f_last_recovery_minutes:
     name: "1F Last Recovery Time"
     min: 0
-    max: 180
+    max: 300
     step: 1
     unit_of_measurement: "min"
     mode: box
@@ -929,7 +929,7 @@ input_number:
   hvac_2f_last_recovery_minutes:
     name: "2F Last Recovery Time"
     min: 0
-    max: 180
+    max: 300
     step: 1
     unit_of_measurement: "min"
     mode: box
@@ -1772,6 +1772,9 @@ template:
         unique_id: hvac_total_cycles_month
         unit_of_measurement: "cycles"
         state_class: measurement
+        availability: >
+          {{ states('sensor.hvac_1f_heat_cycles_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_2f_heat_cycles_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {{ states('sensor.hvac_1f_heat_cycles_month_2') | int(0) + states('sensor.hvac_2f_heat_cycles_month_2') | int(0) }}
 
@@ -1779,6 +1782,10 @@ template:
         unique_id: hvac_chaining_index_month
         state_class: measurement
         icon: mdi:link-variant
+        availability: >
+          {{ states('sensor.hvac_1f_heat_cycles_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_2f_heat_cycles_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_furnace_cycles_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set zone_calls = states('sensor.hvac_1f_heat_cycles_month_2') | int(0) + states('sensor.hvac_2f_heat_cycles_month_2') | int(0) %}
           {% set furnace_cycles = states('sensor.hvac_furnace_cycles_month_2') | int(0) %}
@@ -1806,6 +1813,8 @@ template:
         unit_of_measurement: "cycles/day"
         state_class: measurement
         icon: mdi:counter
+        availability: >
+          {{ states('sensor.hvac_furnace_cycles_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set cycles = states('sensor.hvac_furnace_cycles_month_2') | int(0) %}
           {% set days = now().day %}
@@ -1816,6 +1825,9 @@ template:
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:timer-cog
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_furnace_cycles_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set cycles = states('sensor.hvac_furnace_cycles_month_2') | int(0) %}
@@ -2075,6 +2087,9 @@ template:
         unique_id: hvac_total_heat_runtime_month
         unit_of_measurement: "h"
         state_class: measurement
+        availability: >
+          {{ states('sensor.hvac_1f_heat_runtime_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_2f_heat_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {{ (states('sensor.hvac_1f_heat_runtime_month_2') | float(0) + states('sensor.hvac_2f_heat_runtime_month_2') | float(0)) | round(2) }}
 
@@ -2083,6 +2098,8 @@ template:
         unique_id: hvac_runtime_per_hdd_month
         unit_of_measurement: "min/HDD"
         state_class: measurement
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
@@ -2092,6 +2109,9 @@ template:
         unique_id: hvac_zone_balance_month
         unit_of_measurement: "%"
         state_class: measurement
+        availability: >
+          {{ states('sensor.hvac_1f_heat_runtime_month_2') not in ['unknown', 'unavailable'] and
+             states('sensor.hvac_2f_heat_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set r1 = states('sensor.hvac_1f_heat_runtime_month_2') | float(0) %}
           {% set r2 = states('sensor.hvac_2f_heat_runtime_month_2') | float(0) %}
@@ -2104,6 +2124,8 @@ template:
         unit_of_measurement: "CCF/1k HDD"
         state_class: measurement
         icon: mdi:chart-bell-curve-cumulative
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
@@ -2118,6 +2140,8 @@ template:
         unique_id: hvac_building_load_ua_estimate
         unit_of_measurement: "BTU/hr-°F"
         state_class: measurement
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
@@ -3100,6 +3124,8 @@ template:
         unit_of_measurement: "%"
         state_class: measurement
         icon: mdi:gauge
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set actual = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set expected = states('input_number.expected_runtime_sum_month') | float(0) %}
@@ -3115,6 +3141,8 @@ template:
         unit_of_measurement: "min/HDD"
         state_class: measurement
         icon: mdi:chart-timeline-variant
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_month_2') not in ['unknown', 'unavailable'] }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('input_number.hdd_cumulative_month_auto') | float(0) %}

@@ -1753,3 +1753,41 @@ Rather than cleaning up the entity registry and renaming, all references in `con
 
 ### Note
 The `unique_id` values in the template sensor definitions remain without `_2` (e.g., `unique_id: hvac_furnace_runtime_month`). The `_2` suffix only applies to the entity_id in the entity registry. If the entity registry is ever cleaned up (removing orphaned entries), the sensors would revert to non-`_2` names and all references would need updating.
+
+---
+
+## Robustness Fixes - 2026-01-30
+
+### 1. Recovery Minutes Range Alignment
+
+**Issue:** Automation clamped recovery minutes to 300, but `input_number.hvac_*f_last_recovery_minutes` had `max: 180`. Values 181-300 would cause service call failures.
+
+**Fix:** Increased input_number max from 180 to 300 to match automation clamps.
+
+| Entity | Old Max | New Max |
+|--------|---------|---------|
+| `input_number.hvac_1f_last_recovery_minutes` | 180 | 300 |
+| `input_number.hvac_2f_last_recovery_minutes` | 180 | 300 |
+
+### 2. Availability Templates for _2 Entity Dependencies
+
+**Issue:** Sensors depending on `_2` suffix entities would silently default to 0 if those entities became unavailable (e.g., during entity registry cleanup).
+
+**Fix:** Added `availability:` templates to all sensors that reference `_2` entities. Sensors now become `unavailable` instead of returning misleading zeros.
+
+| Sensor | Dependencies |
+|--------|--------------|
+| `sensor.hvac_total_cycles_month` | `*_heat_cycles_month_2` |
+| `sensor.hvac_chaining_index_month` | `*_heat_cycles_month_2`, `furnace_cycles_month_2` |
+| `sensor.hvac_furnace_cycles_per_day_month` | `furnace_cycles_month_2` |
+| `sensor.hvac_furnace_min_per_cycle_month` | `furnace_runtime_month_2`, `furnace_cycles_month_2` |
+| `sensor.hvac_total_heat_runtime_month` | `*_heat_runtime_month_2` |
+| `sensor.hvac_runtime_per_hdd_month` | `furnace_runtime_month_2` |
+| `sensor.hvac_zone_balance_month` | `*_heat_runtime_month_2` |
+| `sensor.hvac_heating_efficiency_mtd` | `furnace_runtime_month_2` |
+| `sensor.hvac_building_load_ua_estimate` | `furnace_runtime_month_2` |
+| `sensor.efficiency_deviation_month` | `furnace_runtime_month_2` |
+| `sensor.runtime_per_hdd_month_calc` | `furnace_runtime_month_2` |
+
+### Files Modified
+- `configuration.yaml` - Input number ranges, availability templates
