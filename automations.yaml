@@ -396,6 +396,11 @@
       data:
         message: "Monthly tracking captured: mean={{ todays_mean }}°F, expected={{ todays_expected }}h"
         level: info
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.monthly_tracking_capture_last_ok
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
 # ===============================================================
 # MONTHLY/YEARLY RESETS - With startup catch-up
@@ -1527,6 +1532,27 @@
 
           Check:
           - sensor.hvac_total_runtime_per_hdd_today: {{ states('sensor.hvac_total_runtime_per_hdd_today') }}
+
+# WATCHDOG: Monthly Report Capture Health Monitor
+- id: notify_monthly_report_stale
+  alias: "Notify Monthly Report Stale"
+  description: "Alert on day 2+ if monthly report wasn't captured for previous month"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.monthly_report_stale
+      to: "on"
+      for:
+        hours: 6
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Monthly Report Missing"
+        message: >
+          Monthly HVAC report may not have been captured for the previous month.
+          Last monthly capture: {{ states('input_datetime.monthly_tracking_capture_last_ok') }}
+
+          Check reports/hvac_monthly.csv for the expected row.
+          If missing, data must be manually reconstructed from daily CSV.
 
 # WATCHDOG: Recovery Rate Staleness Monitor
 - id: notify_recovery_rate_stale

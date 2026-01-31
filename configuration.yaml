@@ -1243,6 +1243,12 @@ input_datetime:
     has_time: true
     icon: mdi:check-circle
 
+  monthly_tracking_capture_last_ok:
+    name: "Monthly Tracking Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:check-circle
+
 # ===============================================================
 # TEMPLATE SENSORS
 # ===============================================================
@@ -1462,6 +1468,22 @@ template:
           {% else %}
             {% set dt = last_ok | as_datetime | as_local %}
             {{ (now() - dt).total_seconds() > 90000 }}
+          {% endif %}
+
+      - name: "Monthly Report Stale"
+        unique_id: monthly_report_stale
+        device_class: problem
+        state: >
+          {# Alert if we're past day 1 of a new month and last capture was in a previous month #}
+          {% set last = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% if last in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+            false
+          {% else %}
+            {% set last_dt = last | as_datetime | as_local %}
+            {% set last_month = last_dt.month %}
+            {% set current_month = now().month %}
+            {# Stale if: past day 1 AND last capture was in a different month #}
+            {{ now().day > 1 and last_month != current_month }}
           {% endif %}
 
   - sensor:
@@ -2031,7 +2053,9 @@ template:
         state: >
           {% set acc = states('input_number.furnace_runtime_month_acc') | float(0) %}
           {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
-          {{ (acc + today) | round(2) }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (acc if captured_today else acc + today) | round(2) }}
 
       - name: "HVAC Furnace Cycles Month"
         unique_id: hvac_furnace_cycles_month
@@ -2041,7 +2065,9 @@ template:
         state: >
           {% set acc = states('input_number.furnace_cycles_month_acc') | int(0) %}
           {% set today = states('sensor.hvac_furnace_cycles_today') | int(0) %}
-          {{ acc + today }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ acc if captured_today else acc + today }}
 
       - name: "HVAC 1F Heat Runtime Month"
         unique_id: hvac_1f_heat_runtime_month
@@ -2051,7 +2077,9 @@ template:
         state: >
           {% set acc = states('input_number.zone_1f_runtime_month_acc') | float(0) %}
           {% set today = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}
-          {{ (acc + today) | round(2) }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (acc if captured_today else acc + today) | round(2) }}
 
       - name: "HVAC 2F Heat Runtime Month"
         unique_id: hvac_2f_heat_runtime_month
@@ -2061,7 +2089,9 @@ template:
         state: >
           {% set acc = states('input_number.zone_2f_runtime_month_acc') | float(0) %}
           {% set today = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
-          {{ (acc + today) | round(2) }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (acc if captured_today else acc + today) | round(2) }}
 
       - name: "HVAC 1F Heat Cycles Month"
         unique_id: hvac_1f_heat_cycles_month
@@ -2071,7 +2101,9 @@ template:
         state: >
           {% set acc = states('input_number.zone_1f_cycles_month_acc') | int(0) %}
           {% set today = states('sensor.hvac_1f_heat_cycles_today') | int(0) %}
-          {{ acc + today }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ acc if captured_today else acc + today }}
 
       - name: "HVAC 2F Heat Cycles Month"
         unique_id: hvac_2f_heat_cycles_month
@@ -2081,7 +2113,9 @@ template:
         state: >
           {% set acc = states('input_number.zone_2f_cycles_month_acc') | int(0) %}
           {% set today = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}
-          {{ acc + today }}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ acc if captured_today else acc + today }}
 
       - name: "HVAC Total Heat Runtime Month"
         unique_id: hvac_total_heat_runtime_month

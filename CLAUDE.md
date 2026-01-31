@@ -1791,3 +1791,63 @@ The `unique_id` values in the template sensor definitions remain without `_2` (e
 
 ### Files Modified
 - `configuration.yaml` - Input number ranges, availability templates
+
+---
+
+## Month Sensor Double-Count Gating Fix - 2026-01-31
+
+### Issue
+Month-to-date sensors using the `accumulator + today` pattern would double-count the last day of the month. Timeline on Jan 31:
+- 23:56:30: `capture_daily_monthly_tracking` adds today's values to accumulators
+- 23:58:30: `csv_monthly_report` reads template sensors that compute `acc + today`
+- Result: Today counted twice (once in accumulator, once via `+ today`)
+
+### Fix
+Added gating logic to all 6 month template sensors. After the daily capture runs, sensors return only the accumulator value (no `+ today` addition) to prevent double-counting.
+
+**New Entity:**
+- `input_datetime.monthly_tracking_capture_last_ok` - Timestamp when daily capture succeeded
+
+**Modified Sensors (6 total):**
+- `sensor.hvac_furnace_runtime_month_2`
+- `sensor.hvac_furnace_cycles_month_2`
+- `sensor.hvac_1f_heat_runtime_month_2`
+- `sensor.hvac_2f_heat_runtime_month_2`
+- `sensor.hvac_1f_heat_cycles_month_2`
+- `sensor.hvac_2f_heat_cycles_month_2`
+
+**Gating Logic:**
+```yaml
+{% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
+{% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+{{ (acc if captured_today else acc + today) | round(2) }}
+```
+
+**Behavior:**
+- Before 23:56:30: `captured_today = false` → sensor returns `acc + today`
+- After 23:56:30: `captured_today = true` → sensor returns just `acc` (today already included)
+- Next day: `captured_today = false` again → pattern repeats
+
+### Monthly Report Stale Sentinel
+Added detection for missing monthly reports.
+
+**New Entities:**
+- `binary_sensor.monthly_report_stale` - ON if past day 1 and last capture was previous month
+- `notify_monthly_report_stale` automation - Alerts after 6h of staleness
+
+**Alert Behavior:**
+- On Feb 2+ (or any day > 1), if last monthly capture was in January, the sensor triggers
+- Provides time to investigate and manually fix if CSV row is missing
+
+### Files Modified
+- `configuration.yaml`:
+  - Added `input_datetime.monthly_tracking_capture_last_ok`
+  - Added `binary_sensor.monthly_report_stale`
+  - Updated all 6 month accumulator sensors with gating logic
+- `automations.yaml`:
+  - Updated `capture_daily_monthly_tracking` to set timestamp
+  - Added `notify_monthly_report_stale` automation
+
+### Bill Archive Automation Status
+Reviewed and confirmed working. The `target.entity_id` template syntax is correct in modern Home Assistant. All archive input_numbers exist (`electric_archive_*_amount`, `gas_archive_*_amount`, etc.).
+
