@@ -13,6 +13,11 @@ This configuration provides:
 - **Furnace Cycle Analysis** - Zone overlap detection and chaining index
 - **Daily/Monthly Reporting** - CSV exports for long-term analysis
 
+## Related Repositories
+
+- [wkcollis1-eng/home-assistant-config](https://github.com/wkcollis1-eng/home-assistant-config) - This repository; Home Assistant configuration and HVAC monitoring automation referenced by the baseline analysis project.
+- [wkcollis1-eng/Residential-HVAC-Performance-Baseline-](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) - Analysis and documentation that consumes exports and metrics produced by this Home Assistant configuration to benchmark HVAC performance.
+
 ## Building Details
 
 | Attribute | Value |
