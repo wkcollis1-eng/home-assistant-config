@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Assistant HVAC Monitoring Configuration</title>
+    <meta name="description" content="Professional-grade HVAC performance tracking with statistical process control for residential heating systems">
+    <style>
+        :root {
+            --primary-color: #41bdf5;
+            --secondary-color: #0f4c75;
+            --background: #ffffff;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border: #e1e8ed;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--background);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 60px 0;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .badges {
+            margin: 25px 0 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+        
+        .hero {
+            background: var(--surface);
+            padding: 60px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        
+        .feature-card h3 {
+            color: var(--secondary-color);
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+        
+        .feature-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .feature-card li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .feature-card li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .metrics {
+            background: white;
+            padding: 60px 0;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            text-align: center;
+        }
+        
+        .metric {
+            padding: 20px;
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: block;
+        }
+        
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 5px;
+        }
+        
+        .cta-section {
+            background: var(--surface);
+            padding: 60px 0;
+            text-align: center;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 15px 35px;
+            margin: 10px;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: background 0.3s, transform 0.2s;
+        }
+        
+        .btn:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .gallery {
+            padding: 60px 0;
+        }
+        
+        .gallery h2 {
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 2rem;
+            color: var(--secondary-color);
+        }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .gallery-item {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .gallery-caption {
+            padding: 15px;
+            background: white;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        footer {
+            background: var(--secondary-color);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            header p {
+                font-size: 1rem;
+            }
+            
+            .feature-grid,
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🏠 Home Assistant HVAC Monitoring</h1>
+            <p>Professional-grade HVAC performance tracking with statistical process control for residential heating systems</p>
+            <div class="badges">
+                <span class="badge">Home Assistant</span>
+                <span class="badge">Statistical Process Control</span>
+                <span class="badge">Energy Efficiency</span>
+                <span class="badge">Real-time Monitoring</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 30px; color: var(--secondary-color);">Overview</h2>
+            <p style="text-align: center; max-width: 800px; margin: 0 auto; font-size: 1.1rem; line-height: 1.8;">
+                This Home Assistant configuration implements <strong>real-time monitoring</strong> of HVAC performance against rigorously-established baselines 
+                derived from four years of operational analysis (2022-2025). The system applies statistical process control methodology typically used in 
+                manufacturing to residential heating systems.
+            </p>
+        </div>
+    </section>
+
+    <section class="metrics">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 40px; color: var(--secondary-color);">System Performance</h2>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <span class="metric-value">2,440</span>
+                    <span class="metric-label">Square Feet</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-value">6,270</span>
+                    <span class="metric-label">Annual HDD</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-value">95.5</span>
+                    <span class="metric-label">CCF/1k HDD Target</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-value">378</span>
+                    <span class="metric-label">Building UA (BTU/hr-°F)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="container" style="padding: 60px 0;">
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>📊 Statistical Monitoring</h3>
+                <ul>
+                    <li>HDD/CDD tracking with 7-day rolling averages</li>
+                    <li>Auto-calculated ±2σ control limits</li>
+                    <li>Runtime per HDD efficiency monitoring</li>
+                    <li>Baseline-driven alert thresholds</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h3>🎯 Performance Analysis</h3>
+                <ul>
+                    <li>Recovery rate analysis with weather adjustment</li>
+                    <li>Zone balance and overlap detection</li>
+                    <li>Furnace cycle length analysis</li>
+                    <li>Filter tracking with runtime-based alerts</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h3>📈 Long-term Tracking</h3>
+                <ul>
+                    <li>18-year climate normals comparison</li>
+                    <li>Daily and monthly CSV exports</li>
+                    <li>Historical trend analysis</li>
+                    <li>Performance vs. baseline metrics</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="gallery">
+        <div class="container">
+            <h2>📸 Dashboard Gallery</h2>
+            <div class="gallery-grid">
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-runtime-today.png" alt="Today's Runtime Analysis">
+                    <div class="gallery-caption">
+                        <strong>Today's Runtime Analysis</strong><br>
+                        Zone balance and real-time efficiency metrics
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-efficiency-tracking.png" alt="7-Day Rolling Efficiency">
+                    <div class="gallery-caption">
+                        <strong>7-Day Rolling Efficiency</strong><br>
+                        Performance vs statistical control limits
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-cycle-analysis.png" alt="Cycle Length Analysis">
+                    <div class="gallery-caption">
+                        <strong>Cycle Length Analysis</strong><br>
+                        Average cycle times by zone
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2 style="margin-bottom: 20px; color: var(--secondary-color);">Get Started</h2>
+            <p style="margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                Access the complete configuration, documentation, and analysis methodology
+            </p>
+            <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="btn">View on GitHub</a>
+            <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/README.md" class="btn btn-secondary">Documentation</a>
+            <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" class="btn btn-secondary">Baseline Analysis</a>
+        </div>
+    </section>
+
+    <section class="container" style="padding: 60px 0;">
+        <h2 style="text-align: center; margin-bottom: 40px; color: var(--secondary-color);">Why This Configuration Stands Out</h2>
+        <div style="max-width: 900px; margin: 0 auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--surface);">
+                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">Feature</th>
+                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">This Configuration</th>
+                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">Typical Setup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Statistical Rigor</strong></td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">±2σ control limits, 7-day rolling</td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Manual thresholds</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Climate Context</strong></td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">18-year daily normals</td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Current weather only</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Zone Analysis</strong></td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Balance tracking, overlap detection</td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Basic on/off</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Long-term Data</strong></td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">CSV exports, monthly aggregation</td>
+                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Lost on restart</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 15px;"><strong>Documentation</strong></td>
+                        <td style="padding: 15px;">Engineering methodology documented</td>
+                        <td style="padding: 15px;">Config files only</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p style="margin-bottom: 10px;">
+                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> | 
+                <a href="https://substack.com/@billcollis">Technical Articles on Substack</a>
+            </p>
+            <p style="font-size: 0.9rem; opacity: 0.8;">
+                Applying professional engineering methodologies to residential energy optimization
+            </p>
+            <p style="margin-top: 20px; font-size: 0.85rem;">
+                Last Updated: February 2025
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
