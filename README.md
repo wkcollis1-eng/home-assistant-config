@@ -4,10 +4,15 @@
 
 ![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate/badge.svg)
 ![License](https://img.shields.io/badge/license-Personal-lightgrey)
+[![Baseline Analysis](https://img.shields.io/badge/Baseline-v1.4.0-blue)](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
+
+> **📊 Real-time implementation of:** [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) - Four-year statistical analysis establishing monitoring thresholds
 
 ## Overview
 
-This configuration provides industrial-grade monitoring and analysis for a 2-zone residential gas furnace in Connecticut, applying statistical process control methodology typically used in manufacturing to HVAC performance tracking.
+This Home Assistant configuration implements **real-time monitoring** of HVAC performance against rigorously-established baselines derived from four years of operational analysis (2022-2025). The system applies statistical process control methodology typically used in manufacturing to residential heating systems.
+
+All target values, statistical thresholds, and alert logic are derived from the companion [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository, which documents the comprehensive energy analysis that established these diagnostic thresholds.
 
 **Key Features:**
 
@@ -94,6 +99,46 @@ This configuration is designed for homeowners and DIY enthusiasts who want to:
 | **Balance Point** | 59.0°F |
 | **Site EUI** | 84.4 kBTU/ft²-yr (current estimate) |
 
+## Performance Baseline Reference
+
+This monitoring system implements the analysis from the companion [**Residential HVAC Performance Baseline**](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository.
+
+**Repository Relationship:**
+```
+┌────────────────────────────────────────────────────┐
+│  Residential-HVAC-Performance-Baseline (Analysis)  │
+│  • 4-year utility billing analysis (2022-2025)     │
+│  • Statistical baseline calculations               │
+│  • Target values & diagnostic thresholds           │
+│  • Methodology documentation                       │
+└──────────────────┬─────────────────────────────────┘
+                   │ Defines targets & thresholds
+                   ▼
+┌────────────────────────────────────────────────────┐
+│  home-assistant-config (Real-time Implementation)  │
+│  • Live HVAC runtime telemetry                     │
+│  • Statistical Process Control monitoring          │
+│  • Automated anomaly detection & alerts            │
+│  • Operational dashboards                          │
+└────────────────────────────────────────────────────┘
+```
+
+**What Each Repository Provides:**
+
+| Aspect | Baseline Repo | This Repo (HA Config) |
+|--------|--------------|----------------------|
+| **Purpose** | Establish diagnostic thresholds | Monitor against thresholds |
+| **Timeframe** | 4-year retrospective (2022-2025) | Real-time, continuous |
+| **Data Source** | Utility bills, weather data | HVAC telemetry, sensors |
+| **Output** | Target values (95.5 CCF/1k HDD, 378 BTU/hr-°F UA) | Performance vs targets |
+| **Methodology** | Billing-aligned statistical analysis | Statistical process control |
+
+**📊 See the baseline analysis for:**
+- Complete methodology and calculation procedures
+- Four years of validated utility data
+- Dashboard screenshots showing this implementation in action
+- Statistical validation of monitoring thresholds
+
 ## What This Tracks
 
 ### Current Performance Metrics
@@ -109,16 +154,23 @@ Based on live monitoring data:
 
 ### Performance Baselines
 
-These are the targets my system is measured against:
+These are the targets my system is measured against, derived from the [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) analysis:
 
-| Metric | Target | Calculated From |
-|--------|--------|-----------------|
-| **CCF/1k HDD** | 82.6 | 3 years of utility data |
-| **Building UA** | 449 BTU/hr-°F | Steady-state analysis |
-| **Site EUI** | 41.7 kBTU/ft²-yr | Annual consumption |
-| **Balance Point** | 59.0°F | Climate normals analysis |
+| Metric | Target | Alert Threshold | Source Document |
+|--------|--------|-----------------|-----------------|
+| **Heating Intensity** | 95.5 CCF/1k HDD | +10% | [BASELINE_REPORT.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/BASELINE_REPORT.md) |
+| **Building UA** | 378 BTU/hr-°F | Reference only | [METHODOLOGY.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/METHODOLOGY.md) |
+| **Site EUI** | 41.7 kBTU/ft²-yr | ±5% | [DATA_SUMMARY.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/DATA_SUMMARY.md) |
+| **Balance Point** | 59.0°F | Fixed | Baseline HDD optimization |
+| **Runtime/HDD Bounds** | 6-14 min/HDD | ±2σ | Statistical process control |
 
-*Your system will be different—these values are specific to my 2,440 ft² colonial in Connecticut.*
+**How Baselines Drive This Implementation:**
+- Template sensors use baseline-derived constants (UA, balance point, equipment capacity)
+- Alert automations trigger when metrics drift beyond baseline thresholds
+- Dashboard gauges display current performance against baseline targets
+- Statistical bounds (±2σ) auto-calculate from rolling windows using baseline methodology
+
+*Your system will be different—these values are specific to my 2,440 ft² colonial in Connecticut. See the [baseline methodology](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/METHODOLOGY.md) for how to establish your own thresholds.*
 
 ## Why This Configuration Stands Out
 
@@ -288,33 +340,13 @@ Check the [Actions tab](https://github.com/wkcollis1-eng/home-assistant-config/a
 6. **Install custom components** via HACS: Pirate Weather
 7. **Import dashboards** from `dashboards/cards/`
 
-## Related Projects
+## Related Documentation
 
-### 📊 [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
+### Baseline Analysis
+For the complete four-year energy analysis that established the targets used in this configuration, see:  
+📂 [**Residential-HVAC-Performance-Baseline**](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
 
-**How This Repo Relates to the Performance Baseline:**
-
-The Performance Baseline repository documents a comprehensive **4-year retrospective analysis** (2022-2025) that established the target performance metrics used in this Home Assistant configuration:
-
-| What It Does | Performance Baseline Repo | This Repo (HA Config) |
-|-------------|---------------------------|----------------------|
-| **Purpose** | Establishes diagnostic thresholds from utility data | Real-time monitoring against those thresholds |
-| **Timeframe** | 4-year retrospective analysis | Live, continuous monitoring |
-| **Data Source** | Utility bills, weather normals | HVAC runtime telemetry, sensors |
-| **Output** | Target values (82.6 CCF/1k HDD, 449 BTU/hr-°F UA) | Real-time performance vs targets |
-| **Methodology** | Billing-aligned statistical analysis | Statistical process control |
-
-**In Practice:**
-1. The Baseline repo **calculated** the 82.6 CCF/1k HDD target from 4 years of gas bills
-2. This HA config **monitors** actual runtime/HDD against that target in real-time
-3. When performance drifts >10% from baseline, alerts trigger investigation
-4. The Baseline repo's ±2σ bounds become the control limits in SPC dashboards
-
-**Use Both Together:**
-- **Baseline Repo**: Understand *where* the targets came from and *why* they matter
-- **This Repo**: Monitor *current* performance and detect deviations early
-
-The Baseline repository provides the scientific foundation; this Home Assistant configuration provides the operational implementation.
+This baseline repository provides the scientific foundation; this Home Assistant configuration provides the operational implementation.
 
 ## Documentation
 
