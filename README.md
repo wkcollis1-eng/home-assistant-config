@@ -2,7 +2,7 @@
 
 > Professional-grade HVAC performance tracking with statistical process control for residential heating systems
 
-![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate/badge.svg)
+![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate%20Home%20Assistant%20Config/badge.svg)
 ![License](https://img.shields.io/badge/license-Personal-lightgrey)
 [![Baseline Analysis](https://img.shields.io/badge/Baseline-v1.4.0-blue)](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
 
