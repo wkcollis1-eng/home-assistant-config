@@ -18,8 +18,8 @@ shell_command:
   appendmonthlycsv: 'bash -c "echo \"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month_2'') | float(0) | round(1) }},{{ states(''sensor.runtime_per_hdd_month_calc'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month_2'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\" >> /config/reports/hvac_monthly.csv"'
   rotatedailycsv: 'bash -c "head -1 /config/reports/hvac_daily_{{ now().year - 1 }}.csv > /config/reports/hvac_daily_{{ now().year }}.csv"'
   # Zone-specific setback log commands (shell_command doesn't support runtime variables)
-  appendsetbacklog_1f: 'bash -c "echo \"$(date +%Y-%m-%d),1F,{{ states(''input_number.hvac_1f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_1f_last_setback_depth'') | round(1) }},{{ (states(''input_number.hvac_1f_last_recovery_minutes'') | float(0) * states(''input_number.hvac_1f_recovery_setback_degrees'') | float(1)) | round(0) }},{{ ((states(''sensor.hvac_runtime_per_hdd_7day'') | float(10)) * ([(65 - states(''input_number.hvac_1f_last_overnight_low'') | float(35)), 0] | max) * 8 / 24) | round(0) }},{{ states(''input_number.hvac_1f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
-  appendsetbacklog_2f: 'bash -c "echo \"$(date +%Y-%m-%d),2F,{{ states(''input_number.hvac_2f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_2f_last_setback_depth'') | round(1) }},{{ (states(''input_number.hvac_2f_last_recovery_minutes'') | float(0) * states(''input_number.hvac_2f_recovery_setback_degrees'') | float(1)) | round(0) }},{{ ((states(''sensor.hvac_runtime_per_hdd_7day'') | float(10)) * ([(65 - states(''input_number.hvac_2f_last_overnight_low'') | float(35)), 0] | max) * 8 / 24) | round(0) }},{{ states(''input_number.hvac_2f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
+  appendsetbacklog_1f: 'bash -c "echo \"$(date +%Y-%m-%d),1F,{{ states(''input_number.hvac_1f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_1f_last_setback_depth'') | round(1) }},{{ states(''input_number.hvac_1f_last_recovery_minutes'') | round(1) }},{{ states(''input_number.hvac_1f_recovery_setback_degrees'') | round(1) }},{{ (states(''input_number.hvac_1f_last_recovery_minutes'') | float(0) / [states(''input_number.hvac_1f_recovery_setback_degrees'') | float(0), 0.1] | max) | round(1) }},{{ states(''input_number.hvac_1f_last_total_runtime'') | round(0) }},{{ states(''input_number.hvac_1f_last_expected_hold'') | round(0) }},{{ states(''input_number.hvac_1f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
+  appendsetbacklog_2f: 'bash -c "echo \"$(date +%Y-%m-%d),2F,{{ states(''input_number.hvac_2f_last_overnight_low'') | round(1) }},{{ states(''input_number.hvac_2f_last_setback_depth'') | round(1) }},{{ states(''input_number.hvac_2f_last_recovery_minutes'') | round(1) }},{{ states(''input_number.hvac_2f_recovery_setback_degrees'') | round(1) }},{{ (states(''input_number.hvac_2f_last_recovery_minutes'') | float(0) / [states(''input_number.hvac_2f_recovery_setback_degrees'') | float(0), 0.1] | max) | round(1) }},{{ states(''input_number.hvac_2f_last_total_runtime'') | round(0) }},{{ states(''input_number.hvac_2f_last_expected_hold'') | round(0) }},{{ states(''input_number.hvac_2f_last_net_runtime'') | round(0) }}\" >> /config/reports/hvac_setback_log.csv"'
   # Weekly backup of critical input_number values
   backup_input_numbers: 'bash -c "echo \"{{ now().strftime(''%Y-%m-%d %H:%M'') }},{{ states(''input_number.hdd_cumulative_year_auto'') }},{{ states(''input_number.hdd_cumulative_month_auto'') }},{{ states(''input_number.cdd_cumulative_year_auto'') }},{{ states(''input_number.cdd_cumulative_month_auto'') }},{{ states(''input_number.hvac_filter_runtime_hours'') }},{{ states(''input_number.outdoor_temp_sum_month'') }},{{ states(''input_number.outdoor_temp_days_month'') }},{{ states(''input_number.expected_runtime_sum_month'') }},{{ states(''input_number.hdd_day_1'') }},{{ states(''input_number.hdd_day_2'') }},{{ states(''input_number.hdd_day_3'') }},{{ states(''input_number.hdd_day_4'') }},{{ states(''input_number.hdd_day_5'') }},{{ states(''input_number.hdd_day_6'') }},{{ states(''input_number.hdd_day_7'') }}\" >> /config/reports/input_number_backup.csv"'
   # Monthly rotation for setback log (keeps current year only)
@@ -1075,9 +1075,9 @@ input_number:
   hvac_1f_setback_start_runtime:
     name: "1F Setback Start Runtime"
     min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
     mode: box
   hvac_1f_hold_setpoint:
     name: "1F Hold Setpoint"
@@ -1117,9 +1117,9 @@ input_number:
   hvac_2f_setback_start_runtime:
     name: "2F Setback Start Runtime"
     min: 0
-    max: 1440
-    step: 0.1
-    unit_of_measurement: "min"
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
     mode: box
   hvac_2f_hold_setpoint:
     name: "2F Hold Setpoint"
@@ -1153,6 +1153,34 @@ input_number:
     name: "2F Last Net Runtime"
     min: -200
     max: 200
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+  hvac_1f_last_total_runtime:
+    name: "1F Last Total Runtime"
+    min: 0
+    max: 1500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+  hvac_1f_last_expected_hold:
+    name: "1F Last Expected Hold Runtime"
+    min: 0
+    max: 1500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+  hvac_2f_last_total_runtime:
+    name: "2F Last Total Runtime"
+    min: 0
+    max: 1500
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+  hvac_2f_last_expected_hold:
+    name: "2F Last Expected Hold Runtime"
+    min: 0
+    max: 1500
     step: 1
     unit_of_measurement: "min"
     mode: box
@@ -1325,7 +1353,7 @@ template:
         device_class: problem
         state: >
           {% set eui_current = states('sensor.site_eui_estimate') | float(0) %}
-          {% set eui_baseline = states('input_number.site_eui_baseline') | float(41.7) %}
+          {% set eui_baseline = states('input_number.site_eui_baseline') | float(42.9) %}
           {{ eui_current > (eui_baseline * 1.05) and eui_current > 0 }}
 
       - name: "Dehumidifier Should Run"
@@ -1963,8 +1991,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-up-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7day_stddev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
           {{ (mean + (stddev * 2)) | round(1) }}
 
       - name: "HVAC Runtime per HDD Lower Bound"
@@ -1973,8 +2001,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-down-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7day_stddev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
           {% set lower = mean - (stddev * 2) %}
           {{ lower | round(1) if lower > 0 else 0 }}
 
@@ -2193,19 +2221,20 @@ template:
         device_class: temperature
         state: "{{ states('input_number.balance_point_baseline') | float(59) }}"
 
-      - name: "Site EUI Estimate"
+      - name: "Site EUI (Rolling 12M Bills)"
         unique_id: site_eui_estimate
         unit_of_measurement: "kBTU/ft²-yr"
         state_class: measurement
         state: >
-          {% set kwh = states('input_number.electricity_bill_kwh') | float(454) %}
-          {% set e_days = states('input_number.electricity_bill_days') | float(30) %}
-          {% set ccf = states('input_number.gas_bill_ccf') | float(110) %}
-          {% set g_days = states('input_number.gas_bill_days') | float(30) %}
-          {% if e_days > 0 and g_days > 0 %}
-            {% set ann_kwh = (kwh / e_days) * 365 %}
-            {% set ann_ccf = (ccf / g_days) * 365 %}
-            {{ ((ann_kwh * 3.412 + ann_ccf * 103.7) / 2440) | round(1) }}
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set ns = namespace(kwh=0, ccf=0) %}
+          {% for m in months %}
+            {% set ns.kwh = ns.kwh + states('input_number.electric_archive_' ~ m ~ '_kwh') | float(0) %}
+            {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+          {% endfor %}
+          {% if ns.kwh > 0 or ns.ccf > 0 %}
+            {{ ((ns.kwh * 3.412 + ns.ccf * 103.7) / 2440) | round(1) }}
           {% else %}{{ 41.7 }}{% endif %}
 
       - name: "HVAC Performance vs Baseline"
