@@ -255,11 +255,60 @@
             border-radius: 8px;
             overflow-x: auto;
             border-left: 4px solid var(--primary-color);
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
         }
         
         code {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.9rem;
+        }
+        
+        /* ASCII Art Diagrams - FIXED */
+        .ascii-diagram {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            overflow-x: auto;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .ascii-diagram pre {
+            background: transparent;
+            padding: 0;
+            border: none;
+            margin: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        
+        /* File Tree - FIXED */
+        .file-tree {
+            background: var(--code-bg);
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            margin: 20px 0;
+            overflow-x: auto;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .file-tree pre {
+            background: transparent;
+            padding: 0;
+            border: none;
+            margin: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            white-space: pre;
+            overflow-x: auto;
         }
         
         /* Gallery */
@@ -287,28 +336,6 @@
             padding: 15px;
             font-size: 0.9rem;
             color: var(--text-secondary);
-        }
-        
-        /* Architecture Diagram */
-        .architecture-box {
-            background: white;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            font-family: monospace;
-            font-size: 0.85rem;
-            overflow-x: auto;
-        }
-        
-        /* File Tree */
-        .file-tree {
-            background: var(--code-bg);
-            padding: 20px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 0.9rem;
-            line-height: 1.8;
         }
         
         /* Buttons */
@@ -390,6 +417,11 @@
             .metrics-grid,
             .gallery-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .ascii-diagram pre,
+            .file-tree pre {
+                font-size: 0.65rem;
             }
         }
         
@@ -637,8 +669,8 @@
             <h2>Documentation</h2>
             
             <h3>System Architecture</h3>
-            <div class="architecture-box">
-┌─────────────────────────────────────────────┐
+            <div class="ascii-diagram">
+                <pre>┌─────────────────────────────────────────────┐
 │         Home Assistant Server               │
 ├─────────────────────────────────────────────┤
 │  ┌─────────────┐      ┌─────────────┐      │
@@ -665,12 +697,12 @@
 │  ┌─────────────────────────────────┐       │
 │  │   CSV Reports (Long-term)       │       │
 │  └─────────────────────────────────┘       │
-└─────────────────────────────────────────────┘
+└─────────────────────────────────────────────┘</pre>
             </div>
             
             <h3>File Structure</h3>
             <div class="file-tree">
-├── configuration.yaml      # Main HA config with sensors
+                <pre>├── configuration.yaml      # Main HA config with sensors
 ├── automations.yaml        # HDD capture, alerts, etc.
 ├── scripts.yaml            # Bill archive seeding scripts
 ├── scenes.yaml             # Light scenes
@@ -687,7 +719,7 @@
 │   └── images/             # Dashboard screenshots
 └── custom_components/
     ├── hacs/
-    └── pirateweather/
+    └── pirateweather/</pre>
             </div>
             
             <h3>Performance Baselines</h3>
