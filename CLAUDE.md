@@ -25,6 +25,21 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.basement_dew_point` - Calculated dew point
 - `input_number.dehumidifier_dewpoint_threshold` - Auto-on threshold (default 52°F)
 - `binary_sensor.dehumidifier_should_run` - Conditions met indicator
+- `counter.dehumidifier_cycles_today` - Accurate daily cycle count (off→on transitions)
+- `input_number.dehumidifier_cycle_start_dp` - Dew point at cycle start (°F)
+- `input_number.dehumidifier_last_pull_down_rate` - Last cycle pull-down rate (°F/h)
+- `input_number.dehumidifier_last_cycle_minutes` - Last cycle duration (min)
+- `input_number.dehumidifier_last_hold_hours` - Hours between last two cycles (h)
+- `input_select.dehumidifier_last_stop_reason` - Why last cycle ended (conditions_cleared/max_runtime)
+- `input_datetime.dehumidifier_cycle_start_time` - Current cycle start timestamp
+- `input_datetime.dehumidifier_last_cycle_end_time` - Last cycle end timestamp
+- `sensor.dehumidifier_runtime_today` - Hours ON today (history_stats)
+- `sensor.dehumidifier_runtime_week` - Hours ON rolling 7 days (history_stats)
+- `sensor.dehumidifier_duty_cycle_24h` - Rolling 24h avg duty cycle (%)
+- `sensor.dehumidifier_avg_cycle_minutes` - Average minutes per cycle today
+- `sensor.dehumidifier_dew_point_margin` - Threshold minus current dew point (°F, positive = headroom)
+- `sensor.dehumidifier_pull_down_rate` - Last pull-down rate display sensor (°F/h)
+- `sensor.dehumidifier_hold_time` - Last hold time display sensor (h, only valid for conditions_cleared stops)
 
 ### Weather
 - `sensor.outdoor_temp_live` - Open-Meteo API (10-min updates)
@@ -213,7 +228,12 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 
 ### Dehumidifier Control
 - `dehumidifier_auto_on` - Turns on when temp > 60°F AND dew point > threshold, with 30-min cooldown
-- `dehumidifier_auto_off` - Turns off when conditions clear OR after 4 hours max runtime
+- `dehumidifier_auto_off` - Turns off when conditions clear OR after 4 hours max runtime; stores stop reason
+
+### Dehumidifier Performance Tracking
+- `dehumidifier_cycle_start_capture` - Captures dew point, timestamp, hold time on off→on transition
+- `dehumidifier_cycle_end_capture` - Calculates pull-down rate and cycle duration on on→off transition (10-min short cycle guard)
+- `dehumidifier_cycle_counter_reset` - Resets daily cycle counter at midnight
 
 ### Filter Tracking
 - `accumulate_filter_runtime` - Adds daily runtime to filter hours at 23:58
@@ -290,10 +310,10 @@ Located in `dashboards/cards/` with organized subfolders:
 
 | Folder | Contents | Card Count |
 |--------|----------|------------|
-| `apexcharts/` | Time series charts, control charts | 10 |
-| `mushroom/` | Template cards, entity cards | 29 |
+| `apexcharts/` | Time series charts, control charts | 11 |
+| `mushroom/` | Template cards, entity cards | 35 |
 | `climate/` | Thermostat control cards | 4 |
-| `gauges/` | Built-in gauge cards | 6 |
+| `gauges/` | Built-in gauge cards | 7 |
 | `conditional/` | Alert cards (show/hide based on state) | 8 |
 | `weather/` | Weather display cards | 2 |
 | `billing/` | Bill entry and cost tracking | 4 |
@@ -305,6 +325,7 @@ Located in `dashboards/cards/` with organized subfolders:
 - `runtime-per-hdd-control-chart.yaml` - Statistical process control (±2σ bounds)
 - `recovery-rate-trend.yaml` - Setback recovery with baselines
 - `temperature-heating-48h.yaml` - Indoor temps with heat call overlay
+- `basement-dehumidifier-48h.yaml` - Dew point, temp, threshold line, on/off overlay
 
 **Mushroom Template (Dynamic Display)**
 - `outdoor-temp-dynamic.yaml` - Color changes by temperature range
@@ -320,6 +341,12 @@ Located in `dashboards/cards/` with organized subfolders:
 - `chaining-index-month.yaml` - Month-to-date chaining index with status
 - `min-per-cycle-week.yaml` - 7-day avg minutes per furnace cycle
 - `min-per-cycle-month.yaml` - Month-to-date avg minutes per furnace cycle
+- `dehumidifier-runtime-today.yaml` - Daily dehumidifier runtime with color coding
+- `dehumidifier-duty-cycle.yaml` - Rolling 24h duty cycle percentage
+- `dehumidifier-pull-down-rate.yaml` - Last cycle dew point drop rate
+- `dehumidifier-dew-point-margin.yaml` - Headroom below threshold
+- `dehumidifier-cycles-today.yaml` - Daily cycle count from counter
+- `dehumidifier-hold-time.yaml` - Hold time between cycles (conditions_cleared only)
 
 **Conditional (Alert Cards)**
 - `filter-alert.yaml` - Shows only when filter change due
@@ -1922,4 +1949,93 @@ After restarting HA:
 1. Manually set both `hvac_*f_setback_start_runtime` to 0 via Developer Tools (old values are in minutes, new schema is hours)
 2. First setback cycle after deployment will establish correct MTD baseline
 3. Old `hvac_setback_log_pre_fix.csv` preserved for reference (data is not comparable to new schema)
+
+---
+
+## Dehumidifier Performance Tracking - 2026-02-05
+
+### Overview
+Added performance metrics to the dehumidifier control system to track effectiveness over time, detect degradation, and assess whether the dew point threshold is optimally set.
+
+### Key Metrics
+
+| Metric | Sensor | What It Reveals |
+|--------|--------|----------------|
+| Pull-down rate | `sensor.dehumidifier_pull_down_rate` | °F dew point drop per runtime hour. Declining = degradation |
+| Hold time | `sensor.dehumidifier_hold_time` | Hours dew point stays below threshold after cycle. Short = threshold too aggressive |
+| Duty cycle | `sensor.dehumidifier_duty_cycle_24h` | Rolling 24h avg % running. >60% = too aggressive or undersized |
+| Dew point margin | `sensor.dehumidifier_dew_point_margin` | Threshold minus current dew point. Large margin = threshold could be raised |
+| Avg cycle minutes | `sensor.dehumidifier_avg_cycle_minutes` | Getting longer over time = increasing moisture load |
+| Stop reason | `input_select.dehumidifier_last_stop_reason` | conditions_cleared vs max_runtime. Contextualizes hold time |
+
+### Threshold Optimality Assessment
+- **Too aggressive**: high duty cycle, short hold times, low pull-down rate, frequent max_runtime stops
+- **Too permissive**: low duty cycle, dew point frequently near cold surface temps (~55-60°F)
+- **Well-set**: duty cycle 20-50%, hold times >2h, pull-down rate >1°F/hr, mostly conditions_cleared stops
+- **Undersized unit**: high duty cycle AND low pull-down rate
+- Note: All conclusions only apply when basement temp > 60°F (the operational gate)
+
+### Design Decisions
+1. **Counter for cycles** (not `history_stats: count`): Avoids boundary-crossing quirks; incremented on explicit `off→on` transitions
+2. **Explicit `from/to` triggers**: Prevents restart artifacts (`unavailable→on` not counted as cycle start)
+3. **Short cycle guard**: Pull-down rate skipped for cycles <10 min (noise would produce extreme rates)
+4. **Negative pull-down preserved**: Colored grey on dashboard; reveals weird cycles rather than hiding them
+5. **Stop reason tracking**: `dehumidifier_auto_off` stores `trigger.id` so hold time is only valid for `conditions_cleared` stops (not forced 4h max runtime stops)
+6. **`state_class: measurement`** on all display sensors: Enables long-term statistics that survive 14-day recorder purge
+7. **Rolling 24h duty cycle**: Uses 7-day avg as proxy (`runtime_week / 7 / 24 * 100`) for smoother threshold tuning signal
+
+### New Entities
+
+| Entity | Type | Purpose |
+|--------|------|---------|
+| `input_number.dehumidifier_cycle_start_dp` | input_number | Dew point at cycle start (°F) |
+| `input_number.dehumidifier_last_pull_down_rate` | input_number | Last pull-down rate storage (°F/h) |
+| `input_number.dehumidifier_last_cycle_minutes` | input_number | Last cycle duration (min) |
+| `input_number.dehumidifier_last_hold_hours` | input_number | Last hold time storage (h) |
+| `input_select.dehumidifier_last_stop_reason` | input_select | conditions_cleared / max_runtime / unknown |
+| `input_datetime.dehumidifier_cycle_start_time` | input_datetime | Current cycle start timestamp |
+| `input_datetime.dehumidifier_last_cycle_end_time` | input_datetime | Last cycle end timestamp |
+| `counter.dehumidifier_cycles_today` | counter | Daily cycle count (reset at midnight) |
+| `sensor.dehumidifier_runtime_today` | history_stats | Hours ON today |
+| `sensor.dehumidifier_runtime_week` | history_stats | Hours ON rolling 7 days |
+| `sensor.dehumidifier_duty_cycle_24h` | template | Rolling 24h duty cycle (%) |
+| `sensor.dehumidifier_avg_cycle_minutes` | template | Average min per cycle today |
+| `sensor.dehumidifier_dew_point_margin` | template | Threshold minus dew point (°F) |
+| `sensor.dehumidifier_pull_down_rate` | template | Pull-down rate display (°F/h) |
+| `sensor.dehumidifier_hold_time` | template | Hold time display (h) |
+
+### New Automations
+
+| Automation | Trigger | Action |
+|------------|---------|--------|
+| `dehumidifier_cycle_start_capture` | `switch.dehumidifier` off→on | Increment counter, store dew point + timestamp, calculate hold time |
+| `dehumidifier_cycle_end_capture` | `switch.dehumidifier` on→off | Calculate cycle duration + pull-down rate (10-min guard), store end time |
+| `dehumidifier_cycle_counter_reset` | Midnight (00:00) | Reset daily cycle counter |
+
+### Modified Automations
+
+| Automation | Change |
+|------------|--------|
+| `dehumidifier_auto_off` | Added `input_select.set_value` to store stop reason from `trigger.id` before turning off switch |
+
+### New Dashboard Cards
+
+| Card | Location | Description |
+|------|----------|-------------|
+| `dehumidifier-runtime-today.yaml` | `mushroom/` | Daily runtime (green/yellow/orange) |
+| `dehumidifier-duty-cycle.yaml` | `mushroom/` | Rolling duty cycle % (green/amber/red) |
+| `dehumidifier-pull-down-rate.yaml` | `mushroom/` | Pull-down rate (green/amber/red/grey) |
+| `dehumidifier-dew-point-margin.yaml` | `mushroom/` | Margin below threshold (green/amber/red) |
+| `dehumidifier-cycles-today.yaml` | `mushroom/` | Daily cycle count from counter |
+| `dehumidifier-hold-time.yaml` | `mushroom/` | Hold time (N/A for max_runtime stops) |
+| `basement-dehumidifier-48h.yaml` | `apexcharts/` | 48h dew point + temp + threshold + on/off overlay |
+| `dehumidifier-duty-cycle-gauge.yaml` | `gauges/` | Duty cycle gauge (0-30-60-100%) |
+
+### Files Modified
+- `configuration.yaml` — Added input_numbers, input_select, input_datetimes, counter, history_stats, template sensors
+- `automations.yaml` — Modified `dehumidifier_auto_off`, added 3 new automations
+- `dashboards/cards/mushroom/` — 6 new card files
+- `dashboards/cards/apexcharts/` — 1 new card file
+- `dashboards/cards/gauges/` — 1 new card file
+- `claude.md` — Updated entity list, automations list, card library, added this section
 

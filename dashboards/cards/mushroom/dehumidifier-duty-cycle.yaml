@@ -1,0 +1,17 @@
+# Dehumidifier Duty Cycle (Rolling 24h avg) - Mushroom Template Card
+# Shows duty cycle percentage with color coding
+# Green: <30%, Yellow: 30-60%, Red: >60%
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.dehumidifier_duty_cycle_24h') | float(0) | round(0) }}%"
+secondary: Duty Cycle (24h)
+icon: mdi:percent-circle
+color: >-
+  {% set pct = states('sensor.dehumidifier_duty_cycle_24h') | float(0) %}
+  {% if pct < 30 %}green
+  {% elif pct < 60 %}amber
+  {% else %}red{% endif %}
+vertical: true
+grid_options:
+  columns: 3
+  rows: 2

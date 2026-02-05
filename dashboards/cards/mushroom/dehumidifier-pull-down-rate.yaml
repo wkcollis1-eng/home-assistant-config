@@ -1,0 +1,21 @@
+# Dehumidifier Pull-Down Rate - Mushroom Template Card
+# Shows last cycle dew point drop per runtime hour
+# Green: >2, Yellow: 1-2, Red: <1 °F/hr, Grey: negative/short cycle
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:mushroom-template-card
+primary: >-
+  {% set rate = states('sensor.dehumidifier_pull_down_rate') | float(0) %}
+  {% if rate < 0 %}{{ rate | round(1) }}°F/h ⚠
+  {% else %}{{ rate | round(1) }}°F/h{% endif %}
+secondary: Pull-Down Rate
+icon: mdi:arrow-down-bold
+color: >-
+  {% set rate = states('sensor.dehumidifier_pull_down_rate') | float(0) %}
+  {% if rate < 0 %}grey
+  {% elif rate < 1 %}red
+  {% elif rate < 2 %}amber
+  {% else %}green{% endif %}
+vertical: true
+grid_options:
+  columns: 3
+  rows: 2

@@ -1,0 +1,72 @@
+# Basement Dehumidifier Performance (48h) - ApexCharts Card
+# Shows dew point, temperature, threshold reference, and dehumidifier on/off overlay
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Basement Dehumidifier (48h)
+  show_states: true
+  colorize_states: true
+graph_span: 48h
+span:
+  end: hour
+yaxis:
+  - id: temp
+    min: "~40"
+    max: "~80"
+    apex_config:
+      tickAmount: 5
+      title:
+        text: "°F"
+  - id: binary
+    show: false
+    min: 0
+    max: 1
+apex_config:
+  chart:
+    height: 280
+  legend:
+    show: true
+    position: bottom
+  stroke:
+    curve: smooth
+  annotations:
+    yaxis:
+      - y: 52
+        yAxisIndex: 0
+        borderColor: "#FF5722"
+        borderWidth: 2
+        strokeDashArray: 5
+        label:
+          text: "Threshold"
+          position: left
+          style:
+            color: "#FF5722"
+            background: "transparent"
+            fontSize: "11px"
+series:
+  - entity: sensor.basement_dew_point
+    name: Dew Point
+    color: "#2196F3"
+    stroke_width: 3
+    yaxis_id: temp
+    show:
+      in_header: true
+  - entity: sensor.shelly_temperature_humidity_temperature
+    name: Basement Temp
+    color: "#FF9800"
+    stroke_width: 2
+    opacity: 0.7
+    yaxis_id: temp
+    show:
+      in_header: true
+  - entity: switch.dehumidifier
+    name: Dehumidifier On
+    color: "#4CAF50"
+    yaxis_id: binary
+    type: area
+    stroke_width: 0
+    opacity: 0.15
+    transform: "return x === 'on' ? 1 : 0;"
+    show:
+      in_header: false

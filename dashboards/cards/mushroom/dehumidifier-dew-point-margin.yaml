@@ -1,0 +1,17 @@
+# Dehumidifier Dew Point Margin - Mushroom Template Card
+# Shows headroom below threshold (positive = below threshold)
+# Green: >5, Yellow: 2-5, Red: <2 °F
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.dehumidifier_dew_point_margin') | float(0) | round(1) }}°F"
+secondary: DP Margin (threshold)
+icon: mdi:water-minus
+color: >-
+  {% set m = states('sensor.dehumidifier_dew_point_margin') | float(0) %}
+  {% if m < 2 %}red
+  {% elif m < 5 %}amber
+  {% else %}green{% endif %}
+vertical: true
+grid_options:
+  columns: 3
+  rows: 2
