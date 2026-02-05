@@ -410,7 +410,7 @@
                 <li><a href="index.html">Home</a></li>
                 <li><a href="installation.html" class="active">Installation</a></li>
                 <li><a href="gallery.html">Gallery</a></li>
-                <li><a href="index.html#documentation">Documentation</a></li>
+                <li><a href="documentation.html">Documentation</a></li>
             </ul>
             <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="github-link" target="_blank">
                 <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
@@ -507,6 +507,78 @@
             </div>
         </div>
     </section>
+    <section>
+        <div class="container">
+            <h2>⚡ Minimum Required Edits</h2>
+            
+            <div class="alert alert-warning">
+                <div class="alert-title">Quick Start Checklist</div>
+                <p>These are the <strong>minimum changes required</strong> for first boot success. Make these edits before deploying:</p>
+            </div>
+
+            <div class="checklist">
+                <div class="checklist-item">
+                    <div class="checklist-icon">1</div>
+                    <div class="checklist-content">
+                        <h4>Update secrets.yaml</h4>
+                        <p>Add your Pirate Weather API key and home coordinates:</p>
+                        <pre><code>pirate_weather_api_key: "YOUR_KEY_HERE"
+home_latitude: YOUR_LAT
+home_longitude: YOUR_LONG</code></pre>
+                    </div>
+                </div>
+                
+                <div class="checklist-item">
+                    <div class="checklist-icon">2</div>
+                    <div class="checklist-content">
+                        <h4>Replace thermostat entity IDs</h4>
+                        <p>Find and replace ALL occurrences in <code>configuration.yaml</code>:</p>
+                        <pre><code># Find: climate.1f_thermostat
+# Replace with: climate.YOUR_FIRST_FLOOR_ID
+
+# Find: climate.2f_thermostat  
+# Replace with: climate.YOUR_SECOND_FLOOR_ID</code></pre>
+                    </div>
+                </div>
+                
+                <div class="checklist-item">
+                    <div class="checklist-icon">3</div>
+                    <div class="checklist-content">
+                        <h4>Update home_square_footage</h4>
+                        <p>In <code>configuration.yaml</code>, change to your actual square footage:</p>
+                        <pre><code>home_square_footage: 2440  # Change to YOUR_SQ_FT</code></pre>
+                    </div>
+                </div>
+                
+                <div class="checklist-item">
+                    <div class="checklist-icon">4</div>
+                    <div class="checklist-content">
+                        <h4>Update furnace_capacity (optional but recommended)</h4>
+                        <p>Check your furnace nameplate for BTU/hr input rating:</p>
+                        <pre><code>furnace_capacity: 60556  # Change to YOUR_FURNACE_BTU</code></pre>
+                    </div>
+                </div>
+                
+                <div class="checklist-item">
+                    <div class="checklist-icon">5</div>
+                    <div class="checklist-content">
+                        <h4>Verify weather entity ID</h4>
+                        <p>After Pirate Weather installation, confirm the entity exists:</p>
+                        <pre><code># Developer Tools → States
+# Search for: sensor.pirateweather_temperature
+# Should show current outdoor temperature in °F</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-success">
+                <div class="alert-title">✅ That's It!</div>
+                <p>With these 5 edits, the system will boot and start collecting data. You can fine-tune baselines and thresholds later as you gather data.</p>
+            </div>
+        </div>
+    </section>
+
+
 
     <section>
         <div class="container">
@@ -878,7 +950,15 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                         <h4>Review Technical Documentation</h4>
                         <p>Read the <a href="index.html#documentation">full documentation</a> to understand sensor calculations and automation logic</p>
                     </div>
+                                
+                <div class="checklist-item">
+                    <div class="checklist-icon">☑</div>
+                    <div class="checklist-content">
+                        <h4>Dashboard Requirements</h4>
+                        <p>None! All dashboards use built-in Home Assistant cards only (gauge, entities, history graph). No custom frontend components needed.</p>
+                    </div>
                 </div>
+</div>
             </div>
         </div>
     </section>
