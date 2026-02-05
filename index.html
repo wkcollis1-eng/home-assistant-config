@@ -14,6 +14,7 @@
             --text: #2c3e50;
             --text-secondary: #7f8c8d;
             --border: #e1e8ed;
+            --code-bg: #f6f8fa;
         }
         
         * {
@@ -35,10 +36,65 @@
             padding: 0 20px;
         }
         
+        /* Navigation */
+        nav {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+        }
+        
+        nav .logo {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 25px;
+        }
+        
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: var(--primary-color);
+        }
+        
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--secondary-color);
+            color: white !important;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+        
+        .github-link:hover {
+            background: var(--primary-color);
+            color: white !important;
+        }
+        
+        /* Header */
         header {
             background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
             color: white;
-            padding: 60px 0;
+            padding: 80px 0 60px;
             text-align: center;
         }
         
@@ -52,7 +108,7 @@
             font-size: 1.2rem;
             opacity: 0.95;
             max-width: 700px;
-            margin: 0 auto;
+            margin: 0 auto 20px;
         }
         
         .badges {
@@ -71,12 +127,29 @@
             font-size: 0.9rem;
         }
         
-        .hero {
-            background: var(--surface);
+        /* Section Styling */
+        section {
             padding: 60px 0;
-            border-bottom: 1px solid var(--border);
         }
         
+        section:nth-child(even) {
+            background: var(--surface);
+        }
+        
+        section h2 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: var(--secondary-color);
+            text-align: center;
+        }
+        
+        section h3 {
+            font-size: 1.5rem;
+            margin: 30px 0 15px;
+            color: var(--secondary-color);
+        }
+        
+        /* Feature Grid */
         .feature-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -98,9 +171,7 @@
         }
         
         .feature-card h3 {
-            color: var(--secondary-color);
-            margin-bottom: 15px;
-            font-size: 1.4rem;
+            margin-top: 0;
         }
         
         .feature-card ul {
@@ -122,11 +193,7 @@
             font-weight: bold;
         }
         
-        .metrics {
-            background: white;
-            padding: 60px 0;
-        }
-        
+        /* Metrics Grid */
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -136,6 +203,9 @@
         
         .metric {
             padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .metric-value {
@@ -151,16 +221,101 @@
             margin-top: 5px;
         }
         
-        .cta-section {
-            background: var(--surface);
-            padding: 60px 0;
-            text-align: center;
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
         
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--surface);
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Code Blocks */
+        pre {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+        }
+        
+        /* Gallery */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        
+        .gallery-item {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .gallery-caption {
+            padding: 15px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Architecture Diagram */
+        .architecture-box {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+        }
+        
+        /* File Tree */
+        .file-tree {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+        
+        /* Buttons */
         .btn {
             display: inline-block;
-            padding: 15px 35px;
-            margin: 10px;
+            padding: 12px 30px;
+            margin: 10px 5px;
             background: var(--primary-color);
             color: white;
             text-decoration: none;
@@ -185,42 +340,26 @@
             color: white;
         }
         
-        .gallery {
-            padding: 60px 0;
+        /* Content blocks */
+        .content-block {
+            max-width: 900px;
+            margin: 30px auto;
+            line-height: 1.8;
         }
         
-        .gallery h2 {
-            text-align: center;
-            margin-bottom: 40px;
-            font-size: 2rem;
-            color: var(--secondary-color);
+        .content-block p {
+            margin-bottom: 15px;
         }
         
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+        .content-block ul, .content-block ol {
+            margin: 15px 0 15px 30px;
         }
         
-        .gallery-item {
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        .content-block li {
+            margin: 8px 0;
         }
         
-        .gallery-item img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        .gallery-caption {
-            padding: 15px;
-            background: white;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-        
+        /* Footer */
         footer {
             background: var(--secondary-color);
             color: white;
@@ -237,23 +376,50 @@
             text-decoration: underline;
         }
         
+        /* Responsive */
         @media (max-width: 768px) {
+            nav ul {
+                display: none;
+            }
+            
             header h1 {
                 font-size: 1.8rem;
             }
             
-            header p {
-                font-size: 1rem;
-            }
-            
             .feature-grid,
-            .metrics-grid {
+            .metrics-grid,
+            .gallery-grid {
                 grid-template-columns: 1fr;
             }
+        }
+        
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
         }
     </style>
 </head>
 <body>
+    <nav>
+        <div class="container">
+            <div class="logo">🏠 HA HVAC Monitor</div>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#metrics">Metrics</a></li>
+                <li><a href="#gallery">Gallery</a></li>
+                <li><a href="#documentation">Documentation</a></li>
+                <li><a href="#installation">Installation</a></li>
+            </ul>
+            <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="github-link" target="_blank">
+                <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
+        </div>
+    </nav>
+
     <header>
         <div class="container">
             <h1>🏠 Home Assistant HVAC Monitoring</h1>
@@ -267,20 +433,27 @@
         </div>
     </header>
 
-    <section class="hero">
+    <section id="overview">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 30px; color: var(--secondary-color);">Overview</h2>
-            <p style="text-align: center; max-width: 800px; margin: 0 auto; font-size: 1.1rem; line-height: 1.8;">
-                This Home Assistant configuration implements <strong>real-time monitoring</strong> of HVAC performance against rigorously-established baselines 
-                derived from four years of operational analysis (2022-2025). The system applies statistical process control methodology typically used in 
-                manufacturing to residential heating systems.
-            </p>
+            <h2>Overview</h2>
+            <div class="content-block">
+                <p>
+                    This Home Assistant configuration implements <strong>real-time monitoring</strong> of HVAC performance against 
+                    rigorously-established baselines derived from four years of operational analysis (2022-2025). The system applies 
+                    statistical process control methodology typically used in manufacturing to residential heating systems.
+                </p>
+                <p>
+                    All target values, statistical thresholds, and alert logic are derived from the companion 
+                    <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" target="_blank">Residential HVAC Performance Baseline</a> 
+                    repository, which documents the comprehensive energy analysis that established these diagnostic thresholds.
+                </p>
+            </div>
         </div>
     </section>
 
-    <section class="metrics">
+    <section id="metrics">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 40px; color: var(--secondary-color);">System Performance</h2>
+            <h2>System Performance Metrics</h2>
             <div class="metrics-grid">
                 <div class="metric">
                     <span class="metric-value">2,440</span>
@@ -288,7 +461,7 @@
                 </div>
                 <div class="metric">
                     <span class="metric-value">6,270</span>
-                    <span class="metric-label">Annual HDD</span>
+                    <span class="metric-label">Annual HDD (65°F)</span>
                 </div>
                 <div class="metric">
                     <span class="metric-value">95.5</span>
@@ -299,44 +472,117 @@
                     <span class="metric-label">Building UA (BTU/hr-°F)</span>
                 </div>
             </div>
+            
+            <h3 style="margin-top: 50px; text-align: center;">Building Details</h3>
+            <table style="max-width: 800px; margin: 20px auto;">
+                <tr>
+                    <th>Attribute</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td><strong>Square Footage</strong></td>
+                    <td>2,440 ft²</td>
+                </tr>
+                <tr>
+                    <td><strong>Location</strong></td>
+                    <td>Connecticut (41.28°N, -72.81°W)</td>
+                </tr>
+                <tr>
+                    <td><strong>Heating</strong></td>
+                    <td>Gas furnace, 60,556 BTU/hr input</td>
+                </tr>
+                <tr>
+                    <td><strong>Zones</strong></td>
+                    <td>1F and 2F (Honeywell Lyric T6 Pro)</td>
+                </tr>
+                <tr>
+                    <td><strong>Balance Point</strong></td>
+                    <td>59.0°F</td>
+                </tr>
+                <tr>
+                    <td><strong>Site EUI</strong></td>
+                    <td>84.4 kBTU/ft²-yr</td>
+                </tr>
+            </table>
         </div>
     </section>
 
-    <section class="container" style="padding: 60px 0;">
-        <div class="feature-grid">
-            <div class="feature-card">
-                <h3>📊 Statistical Monitoring</h3>
-                <ul>
-                    <li>HDD/CDD tracking with 7-day rolling averages</li>
-                    <li>Auto-calculated ±2σ control limits</li>
-                    <li>Runtime per HDD efficiency monitoring</li>
-                    <li>Baseline-driven alert thresholds</li>
-                </ul>
+    <section id="features">
+        <div class="container">
+            <h2>Key Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>📊 Statistical Monitoring</h3>
+                    <ul>
+                        <li>HDD/CDD tracking with 7-day rolling averages</li>
+                        <li>Auto-calculated ±2σ control limits</li>
+                        <li>Runtime per HDD efficiency monitoring</li>
+                        <li>Baseline-driven alert thresholds</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>🎯 Performance Analysis</h3>
+                    <ul>
+                        <li>Recovery rate analysis with weather adjustment</li>
+                        <li>Zone balance and overlap detection</li>
+                        <li>Furnace cycle length analysis</li>
+                        <li>Filter tracking with runtime-based alerts</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>📈 Long-term Tracking</h3>
+                    <ul>
+                        <li>18-year climate normals comparison</li>
+                        <li>Daily and monthly CSV exports</li>
+                        <li>Historical trend analysis</li>
+                        <li>Performance vs. baseline metrics</li>
+                    </ul>
+                </div>
             </div>
             
-            <div class="feature-card">
-                <h3>🎯 Performance Analysis</h3>
-                <ul>
-                    <li>Recovery rate analysis with weather adjustment</li>
-                    <li>Zone balance and overlap detection</li>
-                    <li>Furnace cycle length analysis</li>
-                    <li>Filter tracking with runtime-based alerts</li>
-                </ul>
-            </div>
-            
-            <div class="feature-card">
-                <h3>📈 Long-term Tracking</h3>
-                <ul>
-                    <li>18-year climate normals comparison</li>
-                    <li>Daily and monthly CSV exports</li>
-                    <li>Historical trend analysis</li>
-                    <li>Performance vs. baseline metrics</li>
-                </ul>
-            </div>
+            <h3 style="margin-top: 50px;">Why This Configuration Stands Out</h3>
+            <table style="max-width: 900px; margin: 20px auto;">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>This Configuration</th>
+                        <th>Typical Setup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Statistical Rigor</strong></td>
+                        <td>±2σ control limits, 7-day rolling</td>
+                        <td>Manual thresholds</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Climate Context</strong></td>
+                        <td>18-year daily normals</td>
+                        <td>Current weather only</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Zone Analysis</strong></td>
+                        <td>Balance tracking, overlap detection</td>
+                        <td>Basic on/off</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Long-term Data</strong></td>
+                        <td>CSV exports, monthly aggregation</td>
+                        <td>Lost on restart</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Documentation</strong></td>
+                        <td>Engineering methodology documented</td>
+                        <td>Config files only</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </section>
 
-    <section class="gallery">
+    <section id="gallery">
         <div class="container">
             <h2>📸 Dashboard Gallery</h2>
             <div class="gallery-grid">
@@ -344,78 +590,220 @@
                     <img src="docs/images/dashboard-runtime-today.png" alt="Today's Runtime Analysis">
                     <div class="gallery-caption">
                         <strong>Today's Runtime Analysis</strong><br>
-                        Zone balance and real-time efficiency metrics
+                        Zone balance: 55.6% | Runtime per HDD: 7.4 min
                     </div>
                 </div>
                 <div class="gallery-item">
                     <img src="docs/images/dashboard-efficiency-tracking.png" alt="7-Day Rolling Efficiency">
                     <div class="gallery-caption">
                         <strong>7-Day Rolling Efficiency</strong><br>
-                        Performance vs statistical control limits
+                        Current: 9.1 min/HDD vs control limits (6-14 min/HDD)
                     </div>
                 </div>
                 <div class="gallery-item">
                     <img src="docs/images/dashboard-cycle-analysis.png" alt="Cycle Length Analysis">
                     <div class="gallery-caption">
                         <strong>Cycle Length Analysis</strong><br>
-                        Average cycle times by zone
+                        Average cycle: 6.0 min (1F), 6.6 min (2F)
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-daily-runtime.png" alt="Daily Runtime per HDD">
+                    <div class="gallery-caption">
+                        <strong>Daily Runtime per HDD</strong><br>
+                        Today: 7.5 min/HDD | 7-Day Mean: 9.2 min/HDD
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-system-alerts.png" alt="System Health Dashboard">
+                    <div class="gallery-caption">
+                        <strong>System Health Dashboard</strong><br>
+                        Real-time alerts for efficiency degradation & data integrity
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="docs/images/dashboard-performance-gauges.png" alt="Performance Metrics">
+                    <div class="gallery-caption">
+                        <strong>Performance Metrics</strong><br>
+                        CCF/1k HDD: 92.0 | Building UA: 378 BTU/hr-°F
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="cta-section">
+    <section id="documentation">
         <div class="container">
-            <h2 style="margin-bottom: 20px; color: var(--secondary-color);">Get Started</h2>
-            <p style="margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
-                Access the complete configuration, documentation, and analysis methodology
-            </p>
-            <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="btn">View on GitHub</a>
-            <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/README.md" class="btn btn-secondary">Documentation</a>
-            <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" class="btn btn-secondary">Baseline Analysis</a>
-        </div>
-    </section>
-
-    <section class="container" style="padding: 60px 0;">
-        <h2 style="text-align: center; margin-bottom: 40px; color: var(--secondary-color);">Why This Configuration Stands Out</h2>
-        <div style="max-width: 900px; margin: 0 auto;">
-            <table style="width: 100%; border-collapse: collapse;">
+            <h2>Documentation</h2>
+            
+            <h3>System Architecture</h3>
+            <div class="architecture-box">
+┌─────────────────────────────────────────────┐
+│         Home Assistant Server               │
+├─────────────────────────────────────────────┤
+│  ┌─────────────┐      ┌─────────────┐      │
+│  │ Thermostat  │      │  Weather    │      │
+│  │ Integration │      │  Integration│      │
+│  │ (2 zones)   │      │ (Pirate)    │      │
+│  └──────┬──────┘      └──────┬──────┘      │
+│         │                    │              │
+│         ▼                    ▼              │
+│  ┌─────────────────────────────────┐       │
+│  │   Template Sensors              │       │
+│  │   • HDD/CDD calculation         │       │
+│  │   • Runtime tracking            │       │
+│  │   • Efficiency metrics          │       │
+│  │   • Statistical bounds          │       │
+│  └────────────┬────────────────────┘       │
+│               │                             │
+│               ▼                             │
+│  ┌─────────────────────────────────┐       │
+│  │   Dashboards + Alerts           │       │
+│  └─────────────────────────────────┘       │
+│               │                             │
+│               ▼                             │
+│  ┌─────────────────────────────────┐       │
+│  │   CSV Reports (Long-term)       │       │
+│  └─────────────────────────────────┘       │
+└─────────────────────────────────────────────┘
+            </div>
+            
+            <h3>File Structure</h3>
+            <div class="file-tree">
+├── configuration.yaml      # Main HA config with sensors
+├── automations.yaml        # HDD capture, alerts, etc.
+├── scripts.yaml            # Bill archive seeding scripts
+├── scenes.yaml             # Light scenes
+├── climate_daily_norms.csv # 18-year climate normals
+├── CLAUDE.md               # Detailed entity reference
+├── scripts/
+│   └── climate_norms_today.py
+├── dashboards/
+│   └── cards/              # Reusable dashboard cards
+├── reports/
+│   ├── hvac_daily_YYYY.csv
+│   └── hvac_monthly.csv
+├── docs/
+│   └── images/             # Dashboard screenshots
+└── custom_components/
+    ├── hacs/
+    └── pirateweather/
+            </div>
+            
+            <h3>Performance Baselines</h3>
+            <div class="content-block">
+                <p>These are the targets this system is measured against, derived from the 
+                <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" target="_blank">Residential HVAC Performance Baseline</a> analysis:</p>
+            </div>
+            
+            <table style="max-width: 900px; margin: 20px auto;">
                 <thead>
-                    <tr style="background: var(--surface);">
-                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">Feature</th>
-                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">This Configuration</th>
-                        <th style="padding: 15px; text-align: left; border-bottom: 2px solid var(--border);">Typical Setup</th>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Target</th>
+                        <th>Alert Threshold</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Statistical Rigor</strong></td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">±2σ control limits, 7-day rolling</td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Manual thresholds</td>
+                        <td><strong>Heating Intensity</strong></td>
+                        <td>95.5 CCF/1k HDD</td>
+                        <td>+10%</td>
                     </tr>
                     <tr>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Climate Context</strong></td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">18-year daily normals</td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Current weather only</td>
+                        <td><strong>Building UA</strong></td>
+                        <td>378 BTU/hr-°F</td>
+                        <td>Reference only</td>
                     </tr>
                     <tr>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Zone Analysis</strong></td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Balance tracking, overlap detection</td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Basic on/off</td>
+                        <td><strong>Site EUI</strong></td>
+                        <td>41.7 kBTU/ft²-yr</td>
+                        <td>±5%</td>
                     </tr>
                     <tr>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);"><strong>Long-term Data</strong></td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">CSV exports, monthly aggregation</td>
-                        <td style="padding: 15px; border-bottom: 1px solid var(--border);">Lost on restart</td>
+                        <td><strong>Balance Point</strong></td>
+                        <td>59.0°F</td>
+                        <td>Fixed</td>
                     </tr>
                     <tr>
-                        <td style="padding: 15px;"><strong>Documentation</strong></td>
-                        <td style="padding: 15px;">Engineering methodology documented</td>
-                        <td style="padding: 15px;">Config files only</td>
+                        <td><strong>Runtime/HDD Bounds</strong></td>
+                        <td>6-14 min/HDD</td>
+                        <td>±2σ</td>
                     </tr>
                 </tbody>
             </table>
+            
+            <h3>Sample Data Output</h3>
+            <p style="text-align: center; margin-bottom: 15px;">Daily HVAC Report (hvac_daily_2025.csv):</p>
+            <pre><code>Date,HDD,1F_Runtime,2F_Runtime,Total_Runtime,Runtime_per_HDD,1F_Cycles,2F_Cycles
+2025-01-21,29.8,116,145,261,8.8,19,22
+2025-01-22,32.1,128,159,287,8.9,21,24
+2025-01-23,28.5,110,138,248,8.7,18,20</code></pre>
+        </div>
+    </section>
+
+    <section id="installation">
+        <div class="container">
+            <h2>Getting Started</h2>
+            
+            <div class="content-block">
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>Home Assistant OS or Container installation</li>
+                    <li>Smart thermostats with Home Assistant integration</li>
+                    <li>Weather integration (Pirate Weather recommended)</li>
+                    <li>Basic understanding of YAML configuration</li>
+                </ul>
+                
+                <h3>Installation Steps</h3>
+                <ol>
+                    <li><strong>Clone the repository</strong>
+                        <pre><code>git clone https://github.com/wkcollis1-eng/home-assistant-config.git</code></pre>
+                    </li>
+                    <li><strong>Configure secrets</strong>
+                        <pre><code>cp secrets.yaml.example secrets.yaml
+# Edit secrets.yaml with your API keys</code></pre>
+                    </li>
+                    <li><strong>Adjust baseline values</strong> in <code>configuration.yaml</code> to match your system</li>
+                    <li><strong>Update thermostat entity IDs</strong> in <code>configuration.yaml</code></li>
+                    <li><strong>Install custom components</strong> via HACS: Pirate Weather</li>
+                    <li><strong>Restart Home Assistant</strong></li>
+                    <li><strong>Import dashboards</strong> from <code>dashboards/cards/</code></li>
+                </ol>
+                
+                <h3>Validation</h3>
+                <p>This repository uses GitHub Actions for automatic validation:</p>
+                <ul>
+                    <li><strong>yamllint</strong> - YAML syntax validation</li>
+                    <li><strong>HA Config Check</strong> - Home Assistant configuration validation</li>
+                </ul>
+                
+                <p>Local validation:</p>
+                <pre><code># YAML syntax check
+yamllint configuration.yaml automations.yaml
+
+# Home Assistant config check (requires Docker)
+docker run --rm -v "$(pwd)":/config homeassistant/home-assistant:stable \
+  python -m homeassistant --script check_config --config /config</code></pre>
+                
+                <h3>Use Cases</h3>
+                <ul>
+                    <li>✅ Track HVAC efficiency over time</li>
+                    <li>✅ Detect performance anomalies early</li>
+                    <li>✅ Compare against climate normals</li>
+                    <li>✅ Optimize thermostat setback schedules</li>
+                    <li>✅ Predict filter maintenance needs</li>
+                    <li>✅ Balance multi-zone heating</li>
+                    <li>✅ Validate HVAC contractor work</li>
+                    <li>✅ Support energy-related decisions</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px;">
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="btn">View on GitHub</a>
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/README.md" class="btn btn-secondary">Full README</a>
+                <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" class="btn btn-secondary">Baseline Analysis</a>
+            </div>
         </div>
     </section>
 
@@ -429,6 +817,11 @@
                 Applying professional engineering methodologies to residential energy optimization
             </p>
             <p style="margin-top: 20px; font-size: 0.85rem;">
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config/issues">Report Issues</a> • 
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/CHANGELOG.md">Changelog</a> • 
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/CLAUDE.md">Technical Docs</a>
+            </p>
+            <p style="margin-top: 15px; font-size: 0.85rem;">
                 Last Updated: February 2025
             </p>
         </div>
