@@ -1,0 +1,21 @@
+# Dehumidifier Duty Cycle - Gauge Card
+# Shows rolling 24h average duty cycle
+# Green: 0-30%, Yellow: 30-60%, Red: 60-100%
+# Dashboard: Energy Monitoring, HVAC Performance
+type: gauge
+entity: sensor.dehumidifier_duty_cycle_24h
+name: Duty Cycle (24h)
+min: 0
+max: 100
+needle: true
+unit: "%"
+segments:
+  - from: 0
+    color: "#43a047"
+  - from: 30
+    color: "#ffeb3b"
+  - from: 60
+    color: "#db4437"
+grid_options:
+  columns: 9
+  rows: 4

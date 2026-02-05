@@ -783,9 +783,132 @@
       entity_id: switch.dehumidifier
       state: "on"
   action:
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: "{{ trigger.id }}"
     - service: switch.turn_off
       target:
         entity_id: switch.dehumidifier
+
+# ===============================================================
+# DEHUMIDIFIER PERFORMANCE TRACKING
+# ===============================================================
+- id: dehumidifier_cycle_start_capture
+  alias: "Dehumidifier Cycle Start Capture"
+  description: "Capture dew point and timestamp when dehumidifier turns on"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: switch.dehumidifier
+      from: "off"
+      to: "on"
+  condition:
+    - condition: template
+      value_template: >
+        {% set dp = states('sensor.basement_dew_point') %}
+        {% set dp_val = dp | float(-999) %}
+        {{ dp not in ['unknown', 'unavailable'] and dp_val >= 20 and dp_val <= 90 }}
+  action:
+    - service: counter.increment
+      target:
+        entity_id: counter.dehumidifier_cycles_today
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_cycle_start_dp
+      data:
+        value: "{{ states('sensor.basement_dew_point') | float(0) | round(1) }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_cycle_start_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    # Calculate hold time from last cycle end (only if last stop was conditions_cleared)
+    - if:
+        - condition: template
+          value_template: >
+            {% set last_end = states('input_datetime.dehumidifier_last_cycle_end_time') %}
+            {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
+            {{ last_end not in ['unknown', 'unavailable'] and
+               last_end[:4] != '1970' and
+               reason == 'conditions_cleared' }}
+      then:
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.dehumidifier_last_hold_hours
+          data:
+            value: >
+              {% set last_end = states('input_datetime.dehumidifier_last_cycle_end_time') %}
+              {% set end_ts = as_timestamp(last_end, 0) %}
+              {% set hold_h = (as_timestamp(now()) - end_ts) / 3600 %}
+              {{ [[hold_h | round(1), 0] | max, 72] | min }}
+
+- id: dehumidifier_cycle_end_capture
+  alias: "Dehumidifier Cycle End Capture"
+  description: "Calculate pull-down rate and cycle duration when dehumidifier turns off"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: switch.dehumidifier
+      from: "on"
+      to: "off"
+  condition:
+    - condition: template
+      value_template: >
+        {% set dp = states('sensor.basement_dew_point') %}
+        {% set start_time = states('input_datetime.dehumidifier_cycle_start_time') %}
+        {{ dp not in ['unknown', 'unavailable'] and
+           start_time not in ['unknown', 'unavailable'] and
+           start_time[:4] != '1970' }}
+  action:
+    - variables:
+        cycle_minutes: >
+          {% set start_ts = as_timestamp(states('input_datetime.dehumidifier_cycle_start_time'), 0) %}
+          {{ ((as_timestamp(now()) - start_ts) / 60) | round(1) }}
+        start_dp: "{{ states('input_number.dehumidifier_cycle_start_dp') | float(0) }}"
+        current_dp: "{{ states('sensor.basement_dew_point') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_last_cycle_minutes
+      data:
+        value: "{{ [[cycle_minutes | float, 0] | max, 300] | min }}"
+    # Only calculate pull-down rate for cycles >= 10 minutes (short cycle guard)
+    - if:
+        - condition: template
+          value_template: "{{ cycle_minutes | float >= 10 }}"
+      then:
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.dehumidifier_last_pull_down_rate
+          data:
+            value: >
+              {% set delta_dp = start_dp | float - current_dp | float %}
+              {% set hours = cycle_minutes | float / 60 %}
+              {% set rate = delta_dp / hours if hours > 0 else 0 %}
+              {{ [[rate | round(1), -10] | max, 20] | min }}
+      else:
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.dehumidifier_last_pull_down_rate
+          data:
+            value: 0
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_last_cycle_end_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: dehumidifier_cycle_counter_reset
+  alias: "Dehumidifier Cycle Counter Reset"
+  description: "Reset daily cycle counter at midnight"
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: counter.reset
+      target:
+        entity_id: counter.dehumidifier_cycles_today
 
 # ===============================================================
 # FILTER TRACKING AUTOMATIONS (HARDENED)
@@ -869,6 +992,9 @@
         {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
         {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') %}
         {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
+    - condition: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      state: "on"
   action:
     - service: input_datetime.set_datetime
       target:
@@ -908,7 +1034,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_1f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ [((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 10, 0] | max | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -921,30 +1047,16 @@
             0
           {% endif %}
         # Calculate total runtime from setback start to recovery end
-        # Handles midnight boundary
+        # Uses MTD accumulator snapshots for accurate midnight-crossing measurement
         total_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_furnace_runtime_today') | float(0) * 60 %}
-          {% set setback_start_runtime = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
+          {% set current_mtd = states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set start_mtd = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
           {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
-          {% if setback_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = setback_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - setback_start_runtime) | round(0) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(0) }}
-              {% else %}
-                {{ today_runtime_min | round(0) }}
-              {% endif %}
-            {% endif %}
+          {% set same_month = setback_start[:7] == now().strftime('%Y-%m') if setback_start not in ['unknown', 'unavailable'] else false %}
+          {% if same_month and current_mtd >= start_mtd %}
+            {{ ((current_mtd - start_mtd) * 60) | round(0) }}
           {% else %}
-            0
+            {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(0) }}
           {% endif %}
         # Validate overnight_low is not at initialization value (150 = no data)
         overnight_low: >
@@ -1044,6 +1156,16 @@
       data:
         # Clamp to input_number range to prevent automation abort
         value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_total_runtime
+      data:
+        value: "{{ [[total_runtime | float, 0] | max, 1500] | min }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_expected_hold
+      data:
+        value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
     # Log to setback optimization CSV (after input_numbers are set)
     - service: shell_command.appendsetbacklog_1f
     # Reset hold_setpoint
@@ -1071,6 +1193,9 @@
         {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
         {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') %}
         {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
+    - condition: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      state: "on"
   action:
     - service: input_datetime.set_datetime
       target:
@@ -1110,7 +1235,7 @@
         recovery_minutes: >
           {% set start = states('input_datetime.hvac_2f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ [((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 10, 0] | max | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -1123,30 +1248,16 @@
             0
           {% endif %}
         # Calculate total runtime from setback start to recovery end
-        # Handles midnight boundary
+        # Uses MTD accumulator snapshots for accurate midnight-crossing measurement
         total_runtime: >
-          {% set today_runtime_min = states('sensor.hvac_furnace_runtime_today') | float(0) * 60 %}
-          {% set setback_start_runtime = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
+          {% set current_mtd = states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set start_mtd = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
           {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
-          {% if setback_start not in ['unknown', 'unavailable'] %}
-            {% set start_dt = setback_start | as_datetime | as_local %}
-            {% set start_date = start_dt.date() %}
-            {% set today_date = now().date() %}
-            {% if start_date == today_date %}
-              {{ (today_runtime_min - setback_start_runtime) | round(0) }}
-            {% else %}
-              {% set hours_before_midnight = (24 - start_dt.hour - start_dt.minute/60) %}
-              {% set hours_after_midnight = now().hour + now().minute/60 %}
-              {% if hours_after_midnight > 0.1 %}
-                {% set rate_per_hour = today_runtime_min / hours_after_midnight %}
-                {% set estimated_pre_midnight = rate_per_hour * hours_before_midnight %}
-                {{ (today_runtime_min + estimated_pre_midnight) | round(0) }}
-              {% else %}
-                {{ today_runtime_min | round(0) }}
-              {% endif %}
-            {% endif %}
+          {% set same_month = setback_start[:7] == now().strftime('%Y-%m') if setback_start not in ['unknown', 'unavailable'] else false %}
+          {% if same_month and current_mtd >= start_mtd %}
+            {{ ((current_mtd - start_mtd) * 60) | round(0) }}
           {% else %}
-            0
+            {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(0) }}
           {% endif %}
         # Validate overnight_low is not at initialization value (150 = no data)
         overnight_low: >
@@ -1246,6 +1357,16 @@
       data:
         # Clamp to input_number range to prevent automation abort
         value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_total_runtime
+      data:
+        value: "{{ [[total_runtime | float, 0] | max, 1500] | min }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_expected_hold
+      data:
+        value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
     # Log to setback optimization CSV (after input_numbers are set)
     - service: shell_command.appendsetbacklog_2f
     # Reset hold_setpoint
@@ -1294,7 +1415,7 @@
       target:
         entity_id: input_number.hvac_1f_setback_start_runtime
       data:
-        value: "{{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(1) }}"
+        value: "{{ (states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0)) | round(2) }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_hold_setpoint
@@ -1338,7 +1459,7 @@
       target:
         entity_id: input_number.hvac_2f_setback_start_runtime
       data:
-        value: "{{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(1) }}"
+        value: "{{ (states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0)) | round(2) }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_hold_setpoint

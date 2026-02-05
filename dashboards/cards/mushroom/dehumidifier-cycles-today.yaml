@@ -1,0 +1,16 @@
+# Dehumidifier Cycles Today - Mushroom Template Card
+# Shows daily cycle count from counter (accurate, no boundary quirks)
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:mushroom-template-card
+primary: "{{ states('counter.dehumidifier_cycles_today') | int(0) }}"
+secondary: Cycles Today
+icon: mdi:counter
+color: >-
+  {% set c = states('counter.dehumidifier_cycles_today') | int(0) %}
+  {% if c <= 6 %}green
+  {% elif c <= 12 %}amber
+  {% else %}orange{% endif %}
+vertical: true
+grid_options:
+  columns: 3
+  rows: 2

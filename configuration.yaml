@@ -92,6 +92,12 @@ counter:
     step: 1
     icon: mdi:alert-circle
 
+  dehumidifier_cycles_today:
+    name: "Dehumidifier Cycles Today"
+    initial: 0
+    step: 1
+    icon: mdi:counter
+
 input_text:
   last_automation_failure:
     name: "Last Automation Failure"
@@ -1198,6 +1204,56 @@ input_number:
     icon: mdi:water-thermometer
     initial: 52
 
+  # --- Dehumidifier Performance Tracking ---
+  dehumidifier_cycle_start_dp:
+    name: "Dehumidifier Cycle Start Dew Point"
+    min: 20
+    max: 90
+    step: 0.1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:water-thermometer
+
+  dehumidifier_last_pull_down_rate:
+    name: "Dehumidifier Last Pull-Down Rate"
+    min: -10
+    max: 20
+    step: 0.1
+    unit_of_measurement: "°F/h"
+    mode: box
+    icon: mdi:arrow-down-bold
+
+  dehumidifier_last_cycle_minutes:
+    name: "Dehumidifier Last Cycle Minutes"
+    min: 0
+    max: 300
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer
+
+  dehumidifier_last_hold_hours:
+    name: "Dehumidifier Last Hold Hours"
+    min: 0
+    max: 72
+    step: 0.1
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:timer-sand
+
+# ===============================================================
+# INPUT SELECT
+# ===============================================================
+input_select:
+  dehumidifier_last_stop_reason:
+    name: "Dehumidifier Last Stop Reason"
+    options:
+      - conditions_cleared
+      - max_runtime
+      - unknown
+    initial: unknown
+    icon: mdi:information-outline
+
 # ===============================================================
 # INPUT DATETIME
 # ===============================================================
@@ -1249,6 +1305,19 @@ input_datetime:
     has_date: true
     has_time: true
     icon: mdi:update
+
+  # --- Dehumidifier Performance Tracking ---
+  dehumidifier_cycle_start_time:
+    name: "Dehumidifier Cycle Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-start
+
+  dehumidifier_last_cycle_end_time:
+    name: "Dehumidifier Last Cycle End Time"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-end
 
   hvac_filter_last_changed:
     name: "Filter Last Changed"
@@ -2526,6 +2595,72 @@ template:
           {% endif %}
 
       # ===============================================================
+      # DEHUMIDIFIER PERFORMANCE TRACKING
+      # ===============================================================
+      - name: "Dehumidifier Dew Point Margin"
+        unique_id: dehumidifier_dew_point_margin
+        unit_of_measurement: "°F"
+        state_class: measurement
+        icon: mdi:water-minus
+        availability: >
+          {{ states('sensor.basement_dew_point') not in ['unknown', 'unavailable'] and
+             states('input_number.dehumidifier_dewpoint_threshold') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set dp = states('sensor.basement_dew_point') | float(0) %}
+          {% set threshold = states('input_number.dehumidifier_dewpoint_threshold') | float(52) %}
+          {{ (threshold - dp) | round(1) }}
+
+      - name: "Dehumidifier Duty Cycle 24h"
+        unique_id: dehumidifier_duty_cycle_24h
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:percent
+        availability: >
+          {{ states('sensor.dehumidifier_runtime_week') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set weekly = states('sensor.dehumidifier_runtime_week') | float(0) %}
+          {% set daily_avg = weekly / 7 %}
+          {{ ((daily_avg / 24) * 100) | round(1) }}
+
+      - name: "Dehumidifier Avg Cycle Minutes"
+        unique_id: dehumidifier_avg_cycle_minutes
+        unit_of_measurement: "min"
+        state_class: measurement
+        icon: mdi:timer-outline
+        availability: >
+          {% set runtime = states('sensor.dehumidifier_runtime_today') %}
+          {% set cycles = states('counter.dehumidifier_cycles_today') %}
+          {{ runtime not in ['unknown', 'unavailable'] and
+             cycles not in ['unknown', 'unavailable'] and
+             cycles | int(0) > 0 }}
+        state: >
+          {% set runtime_h = states('sensor.dehumidifier_runtime_today') | float(0) %}
+          {% set cycles = states('counter.dehumidifier_cycles_today') | int(1) %}
+          {{ ((runtime_h * 60) / cycles) | round(1) }}
+
+      - name: "Dehumidifier Pull-Down Rate"
+        unique_id: dehumidifier_pull_down_rate
+        unit_of_measurement: "°F/h"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        availability: >
+          {{ states('input_number.dehumidifier_last_pull_down_rate') not in ['unknown', 'unavailable'] }}
+        state: >
+          {{ states('input_number.dehumidifier_last_pull_down_rate') | float(0) | round(1) }}
+
+      - name: "Dehumidifier Hold Time"
+        unique_id: dehumidifier_hold_time
+        unit_of_measurement: "h"
+        state_class: measurement
+        icon: mdi:timer-sand
+        availability: >
+          {% set hold = states('input_number.dehumidifier_last_hold_hours') %}
+          {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
+          {{ hold not in ['unknown', 'unavailable'] and reason == 'conditions_cleared' }}
+        state: >
+          {{ states('input_number.dehumidifier_last_hold_hours') | float(0) | round(1) }}
+
+      # ===============================================================
       # PIRATE WEATHER SENSORS
       # ===============================================================
       - name: "Pirate Weather Temperature"
@@ -3451,6 +3586,25 @@ sensor:
 
   # NOTE: Month furnace runtime/cycles sensors removed - now use accumulated template sensors
   # (immune to recorder purge_keep_days=14, see template sensor section)
+
+  # === DEHUMIDIFIER RUNTIME ===
+  - platform: history_stats
+    name: "Dehumidifier Runtime Today"
+    unique_id: dehumidifier_runtime_today
+    entity_id: switch.dehumidifier
+    state: "on"
+    type: time
+    start: "{{ now().replace(hour=0, minute=0, second=0, microsecond=0) }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: "Dehumidifier Runtime Week"
+    unique_id: dehumidifier_runtime_week
+    entity_id: switch.dehumidifier
+    state: "on"
+    type: time
+    start: "{{ now() - timedelta(days=7) }}"
+    end: "{{ now() }}"
 
 # ===============================================================
 # CLIMATE NORMS - Daily lookup from historical climate data

@@ -1,0 +1,29 @@
+# Dehumidifier Hold Time - Mushroom Template Card
+# Shows hours dew point stayed below threshold after last cycle
+# Green: >4h, Yellow: 2-4h, Red: <2h
+# Only valid when last stop was conditions_cleared (not max_runtime)
+# Dashboard: Energy Monitoring, HVAC Performance
+type: custom:mushroom-template-card
+primary: >-
+  {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
+  {% if reason == 'max_runtime' %}N/A
+  {% elif states('sensor.dehumidifier_hold_time') in ['unknown', 'unavailable'] %}--
+  {% else %}{{ states('sensor.dehumidifier_hold_time') | float(0) | round(1) }}h{% endif %}
+secondary: >-
+  {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
+  {% if reason == 'max_runtime' %}Hold (max runtime stop)
+  {% else %}Hold Time{% endif %}
+icon: mdi:timer-sand
+color: >-
+  {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
+  {% if reason == 'max_runtime' %}grey
+  {% else %}
+    {% set h = states('sensor.dehumidifier_hold_time') | float(0) %}
+    {% if h < 2 %}red
+    {% elif h < 4 %}amber
+    {% else %}green{% endif %}
+  {% endif %}
+vertical: true
+grid_options:
+  columns: 3
+  rows: 2
