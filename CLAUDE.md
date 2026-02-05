@@ -82,7 +82,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.climate_adjusted_efficiency_alert` - Alert when >15% deviation on cold day
 
 ### Energy Metrics
-- `sensor.site_eui_estimate` - Site Energy Use Intensity (kBTU/ft²-yr)
+- `sensor.site_eui_estimate` - Site EUI from rolling 12-month archive bills (kBTU/ft²-yr)
 - `sensor.hvac_heating_efficiency_mtd` - CCF per 1000 HDD
 - `sensor.hvac_building_load_ua_estimate` - Building envelope UA value
 
@@ -167,9 +167,11 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 ### Setback Optimization (Simplified)
 - `input_boolean.hvac_1f_setback_active` / `hvac_2f_*` - Setback cycle latch (prevents re-firing)
 - `input_datetime.hvac_1f_setback_start` / `hvac_2f_setback_start` - Setback start timestamp
-- `input_number.hvac_1f_setback_start_runtime` / `hvac_2f_*` - Furnace runtime at setback start (min)
+- `input_number.hvac_1f_setback_start_runtime` / `hvac_2f_*` - MTD furnace runtime at setback start (h)
 - `input_number.hvac_1f_hold_setpoint` / `hvac_2f_*` - Comfort setpoint before setback
 - `input_number.hvac_1f_setback_setpoint` / `hvac_2f_*` - Setback setpoint
+- `input_number.hvac_1f_last_total_runtime` / `hvac_2f_*` - Last total furnace runtime during setback (min)
+- `input_number.hvac_1f_last_expected_hold` / `hvac_2f_*` - Last expected hold runtime (min)
 - `sensor.recommended_setback_depth` - Recommended setback depth based on forecast low
 
 ### Daily Cost Estimates
@@ -391,8 +393,11 @@ Captured at recovery_end for each zone. Used to empirically optimize setback tem
 | zone | 1F or 2F |
 | overnight_low | input_number.outdoor_temp_daily_low (actual observed) |
 | setback_depth | hold_setpoint - setback_setpoint (°F) |
-| total_runtime | Furnace runtime from setback start to recovery end (min) |
-| expected_hold | Expected runtime if comfort temp held all night (min) |
+| recovery_minutes | Time from recovery_start to recovery_end minus 10min stability wait (min) |
+| setback_degrees | Gap at recovery start: hold_setpoint - current_temp (°F) |
+| recovery_rate | recovery_minutes / setback_degrees (min/°F) |
+| total_runtime | Actual furnace runtime from setback start to recovery end via MTD accumulator (min) |
+| expected_hold | Expected runtime if comfort temp held all night: hdd_setback × baseline_min_per_hdd (min) |
 | net_runtime | expected_hold - total_runtime (positive = saved, negative = cost) |
 
 **Net Runtime Benefit Calculation:**
@@ -400,6 +405,7 @@ Captured at recovery_end for each zone. Used to empirically optimize setback tem
 setback_hours = (recovery_end - setback_start) in hours
 hdd_setback = max(65 - overnight_low, 0) × (setback_hours / 24)
 expected_hold = hdd_setback × baseline_min_per_hdd
+total_runtime = (current_MTD_hours - start_MTD_hours) × 60
 net_runtime = expected_hold - total_runtime
 ```
 
@@ -467,7 +473,7 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 ## Known Issues
 
 ### EUI Calculation
-- EUI calculation uses static bill input values (doesn't auto-update daily)
+- EUI now computed from rolling 12-month archive inputs (electric_archive_*_kwh + gas_archive_*_ccf), updated whenever archives change
 
 ### Entity Registry Note
 - `sensor.hdd_rolling_7_day_auto_2` is the correct entity ID (the `_2` suffix is from entity registry)
@@ -564,7 +570,7 @@ net_runtime = expected_hold_runtime - actual_runtime
 - Negative = recovery penalty exceeded savings (setback too deep)
 
 **CSV Log** (`reports/hvac_setback_log.csv`):
-| date | zone | overnight_low | setback_depth | total_runtime | expected_hold | net_runtime |
+| date | zone | overnight_low | setback_depth | recovery_minutes | setback_degrees | recovery_rate | total_runtime | expected_hold | net_runtime |
 
 **Recommendation Sensor** (`sensor.recommended_setback_depth`):
 Based on Pirate Weather forecast low temperature:
@@ -1850,4 +1856,70 @@ Added detection for missing monthly reports.
 
 ### Bill Archive Automation Status
 Reviewed and confirmed working. The `target.entity_id` template syntax is correct in modern Home Assistant. All archive input_numbers exist (`electric_archive_*_amount`, `gas_archive_*_amount`, etc.).
+
+---
+
+## Setback Recovery Metrics Fixes - 2026-02-05
+
+### Problems Fixed
+Five interrelated bugs in setback recovery tracking that produced incorrect CSV data:
+
+1. **CSV shell commands recomputed values inconsistently** — `total_runtime` column was `recovery_minutes × setback_degrees` (degree-minutes), not actual furnace runtime. `expected_hold` assumed fixed 8-hour window. But `net_runtime` came from the automation's different calculation, making columns internally inconsistent.
+2. **Midnight runtime extrapolation overstated runtime** — Recovery-period duty cycle (near 100%) was projected backwards to estimate pre-midnight runtime, systematically overstating actual furnace minutes and driving `net_runtime` to the -200 clamp.
+3. **Recovery start fired without active setback** — Normal heating cycles with >1°F gap and furnace running triggered false recovery events, creating spurious data and messy latch behavior.
+4. **Recovery minutes inflated by 10 minutes** — The `for: minutes: 10` stability trigger delay was included in the `recovery_minutes` calculation since `now()` was used as the endpoint.
+5. **total_runtime and expected_hold not persisted** — Variables computed in the recovery_end automation were local and lost; the shell command could not read them and recomputed different values.
+
+### Fix 1: CSV Shell Commands Read Input Numbers Only
+- Rewrote `appendsetbacklog_1f` and `appendsetbacklog_2f` to read exclusively from `input_number.*` states
+- Expanded CSV schema from 7 to 10 columns: added `recovery_minutes`, `setback_degrees`, `recovery_rate`
+- Only inline computation: `recovery_rate = recovery_minutes / max(setback_degrees, 0.1)`
+- Archived old corrupt CSV as `hvac_setback_log_pre_fix.csv`
+
+### Fix 2: MTD Accumulator Snapshots Replace Midnight Extrapolation
+- `setback_start` now stores `furnace_runtime_month_acc + furnace_runtime_today` (hours) instead of `furnace_runtime_today × 60` (minutes)
+- `recovery_end` computes `(current_mtd - start_mtd) × 60` for exact furnace minutes with no extrapolation
+- Changed `hvac_*f_setback_start_runtime` input_numbers: max 1440→1000, unit min→h, step 0.1→0.01
+- Month-boundary fallback: if `setback_start` month ≠ current month, uses conservative today-only runtime (~1 day/month edge case)
+
+### Fix 3: Gate Recovery Start on Setback Active
+- Added `input_boolean.hvac_*f_setback_active == "on"` condition to both `recovery_start` automations
+- Prevents false recovery events during normal heating cycles where gap > 1°F and furnace is running
+
+### Fix 4: Subtract Stability Wait from Recovery Minutes
+- Changed `recovery_minutes` to subtract 10 from elapsed time, with floor of 0
+- Corrects the systematic ~10 minute inflation caused by `for: minutes: 10` trigger delay
+
+### Fix 5: Store total_runtime and expected_hold Before CSV Log
+- Added 4 new input_numbers: `hvac_*f_last_total_runtime`, `hvac_*f_last_expected_hold` (0-1500, step 1, min)
+- Recovery_end stores both values before calling `shell_command.appendsetbacklog_*f`
+- Values clamped to [0, 1500] to prevent automation abort
+
+### New Entities
+- `input_number.hvac_1f_last_total_runtime` — 1F last total furnace runtime during setback (min)
+- `input_number.hvac_1f_last_expected_hold` — 1F last expected hold runtime (min)
+- `input_number.hvac_2f_last_total_runtime` — 2F last total furnace runtime during setback (min)
+- `input_number.hvac_2f_last_expected_hold` — 2F last expected hold runtime (min)
+
+### Modified Entities
+- `input_number.hvac_1f_setback_start_runtime` — max: 1000, unit: h, step: 0.01
+- `input_number.hvac_2f_setback_start_runtime` — max: 1000, unit: h, step: 0.01
+
+### Files Modified
+- `configuration.yaml`:
+  - Changed `hvac_1f_setback_start_runtime` and `hvac_2f_setback_start_runtime` (max, unit, step)
+  - Added 4 new input_numbers for last_total_runtime and last_expected_hold
+  - Rewrote `appendsetbacklog_1f` and `appendsetbacklog_2f` shell commands
+- `automations.yaml`:
+  - `hvac_1f_setback_start` / `hvac_2f_setback_start` — MTD accumulator snapshot
+  - `hvac_1f_recovery_start` / `hvac_2f_recovery_start` — Added setback_active gate
+  - `hvac_1f_recovery_end` / `hvac_2f_recovery_end` — New total_runtime calc, -10min recovery, store to input_numbers
+- `reports/hvac_setback_log.csv` — Archived old as `hvac_setback_log_pre_fix.csv`, new 10-column header
+- `claude.md` — Updated entity list, CSV schema, added changelog
+
+### Deployment Notes
+After restarting HA:
+1. Manually set both `hvac_*f_setback_start_runtime` to 0 via Developer Tools (old values are in minutes, new schema is hours)
+2. First setback cycle after deployment will establish correct MTD baseline
+3. Old `hvac_setback_log_pre_fix.csv` preserved for reference (data is not comparable to new schema)
 
