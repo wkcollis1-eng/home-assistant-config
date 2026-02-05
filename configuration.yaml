@@ -2644,7 +2644,11 @@ template:
         state_class: measurement
         icon: mdi:arrow-down-bold
         availability: >
-          {{ states('input_number.dehumidifier_last_pull_down_rate') not in ['unknown', 'unavailable'] }}
+          {% set rate = states('input_number.dehumidifier_last_pull_down_rate') %}
+          {% set end_time = states('input_datetime.dehumidifier_last_cycle_end_time') %}
+          {{ rate not in ['unknown', 'unavailable'] and
+             end_time not in ['unknown', 'unavailable'] and
+             end_time[:4] != '1970' }}
         state: >
           {{ states('input_number.dehumidifier_last_pull_down_rate') | float(0) | round(1) }}
 
