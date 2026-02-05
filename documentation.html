@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Documentation - Home Assistant HVAC Monitoring</title>
+    <meta name="description" content="Complete technical reference including glossary, formulas, entity reference, and troubleshooting">
+    <style>
+        :root {
+            --primary-color: #41bdf5;
+            --secondary-color: #0f4c75;
+            --background: #ffffff;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border: #e1e8ed;
+            --code-bg: #f6f8fa;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--background);
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Navigation */
+        nav {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+        }
+        
+        nav .logo {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            text-decoration: none;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 25px;
+        }
+        
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+        
+        nav a:hover,
+        nav a.active {
+            color: var(--primary-color);
+        }
+        
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--secondary-color);
+            color: white !important;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+        
+        .github-link:hover {
+            background: var(--primary-color);
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 60px 0 40px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        /* Table of Contents */
+        .toc {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 40px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .toc h2 {
+            color: var(--secondary-color);
+            margin-bottom: 20px;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .toc li:last-child {
+            border-bottom: none;
+        }
+        
+        .toc a {
+            color: var(--text);
+            text-decoration: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .toc a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Content Sections */
+        section {
+            padding: 60px 0;
+        }
+        
+        section:nth-child(even) {
+            background: var(--surface);
+        }
+        
+        h2 {
+            font-size: 2rem;
+            color: var(--secondary-color);
+            margin-bottom: 30px;
+        }
+        
+        h3 {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+            margin: 30px 0 15px;
+        }
+        
+        h4 {
+            font-size: 1.2rem;
+            color: var(--text);
+            margin: 20px 0 10px;
+        }
+        
+        /* Glossary Entry */
+        .glossary-entry {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .glossary-term {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+        
+        .glossary-definition {
+            color: var(--text);
+            line-height: 1.8;
+        }
+        
+        .glossary-formula {
+            background: var(--code-bg);
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--surface);
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Code Blocks */
+        pre {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border-left: 4px solid var(--primary-color);
+            margin: 15px 0;
+        }
+        
+        code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        /* Alert Boxes */
+        .alert {
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #0d47a1;
+        }
+        
+        .alert-warning {
+            background: #fff3e0;
+            border-color: #f39c12;
+            color: #e65100;
+        }
+        
+        .alert-success {
+            background: #e8f5e9;
+            border-color: #27ae60;
+            color: #1b5e20;
+        }
+        
+        /* Footer */
+        footer {
+            background: var(--secondary-color);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav ul {
+                display: none;
+            }
+            
+            header h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">🏠 HA HVAC Monitor</a>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="installation.html">Installation</a></li>
+                <li><a href="gallery.html">Gallery</a></li>
+                <li><a href="documentation.html" class="active">Documentation</a></li>
+            </ul>
+            <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="github-link" target="_blank">
+                <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
+        </div>
+    </nav>
+
+    <header>
+        <div class="container">
+            <h1>📚 Technical Documentation</h1>
+            <p>Complete reference guide for HVAC monitoring metrics, formulas, and troubleshooting</p>
+        </div>
+    </header>
+
+    <section>
+        <div class="container">
+            <div class="toc">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#glossary">Glossary of Terms <span>→</span></a></li>
+                    <li><a href="#formulas">Calculations & Formulas <span>→</span></a></li>
+                    <li><a href="#entities">Entity Reference <span>→</span></a></li>
+                    <li><a href="#alerts">Alert Interpretation <span>→</span></a></li>
+                    <li><a href="#dependencies">Dashboard Dependencies <span>→</span></a></li>
+                    <li><a href="#troubleshooting">Troubleshooting Guide <span>→</span></a></li>
+                    <li><a href="#validation">Data Validation <span>→</span></a></li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="glossary">
+        <div class="container">
+            <h2>Glossary of Terms</h2>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">HDD (Heating Degree Days)</div>
+                <div class="glossary-definition">
+                    <p>A measure of how cold the weather was compared to a baseline temperature. Used to normalize heating energy consumption for weather comparison.</p>
+                    <div class="glossary-formula">
+                        HDD = max(0, Balance Point - Average Outdoor Temperature)
+                    </div>
+                    <p><strong>Example:</strong> If balance point is 65°F and average temperature is 40°F, HDD = 25 for that day. Higher HDD = colder day = more heating needed.</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">CDD (Cooling Degree Days)</div>
+                <div class="glossary-definition">
+                    <p>Similar to HDD but measures cooling requirements. How hot the weather was compared to baseline.</p>
+                    <div class="glossary-formula">
+                        CDD = max(0, Average Outdoor Temperature - Balance Point)
+                    </div>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Balance Point</div>
+                <div class="glossary-definition">
+                    <p>The outdoor temperature at which a building needs neither heating nor cooling due to internal heat gains (people, appliances, solar). Typically 59-65°F for residential buildings.</p>
+                    <p><strong>This configuration uses:</strong> 59.0°F based on Connecticut climate analysis</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Runtime per HDD</div>
+                <div class="glossary-definition">
+                    <p>Key efficiency metric normalizing furnace runtime by weather conditions. Allows comparison across different weather patterns.</p>
+                    <div class="glossary-formula">
+                        Runtime per HDD (min/HDD) = Total Daily Runtime (min) / Daily HDD
+                    </div>
+                    <p><strong>Target range:</strong> 6-14 min/HDD (±2σ control limits)</p>
+                    <p><strong>Interpretation:</strong> Rising trend indicates efficiency degradation (filter, ductwork, equipment issues)</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">SPC (Statistical Process Control)</div>
+                <div class="glossary-definition">
+                    <p>Manufacturing quality control methodology applied to HVAC. Uses statistical bounds (±2σ or ±3σ) to detect when a process is operating outside normal variation.</p>
+                    <p><strong>Application:</strong> Automatically calculates control limits from historical data. Values outside these limits trigger alerts for investigation.</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">±2σ Control Limits</div>
+                <div class="glossary-definition">
+                    <p>Statistical boundaries representing approximately 95% of normal variation. "σ" (sigma) is standard deviation.</p>
+                    <div class="glossary-formula">
+                        Upper Control Limit (UCL) = Mean + 2 × Standard Deviation<br>
+                        Lower Control Limit (LCL) = Mean - 2 × Standard Deviation
+                    </div>
+                    <p><strong>For runtime/HDD:</strong> UCL ≈ 14 min/HDD, LCL ≈ 6 min/HDD</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Building UA</div>
+                <div class="glossary-definition">
+                    <p>Overall heat loss coefficient representing how quickly a building loses heat. Lower is better (more insulated).</p>
+                    <div class="glossary-formula">
+                        UA (BTU/hr-°F) = Heating Rate (BTU/hr) / Temperature Difference (°F)
+                    </div>
+                    <p><strong>Reference value:</strong> 378 BTU/hr-°F (derived from steady-state analysis)</p>
+                    <p><strong>Context:</strong> Typical range for 2,440 sq ft home: 300-500 BTU/hr-°F</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Site EUI (Energy Use Intensity)</div>
+                <div class="glossary-definition">
+                    <p>Total energy consumption per square foot per year. Allows comparison across different building sizes.</p>
+                    <div class="glossary-formula">
+                        Site EUI (kBTU/ft²-yr) = Annual Energy Use (kBTU) / Floor Area (ft²)
+                    </div>
+                    <p><strong>This system tracks two EUI values:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><strong>Total Site EUI:</strong> 84.4 kBTU/ft²-yr (heating + DHW + appliances + other)</li>
+                        <li><strong>Heating-Only EUI:</strong> 41.7 kBTU/ft²-yr (space heating baseline, 2022-2025 average)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Heating Intensity (CCF/1k HDD)</div>
+                <div class="glossary-definition">
+                    <p>Gas consumption normalized by weather. Shows heating efficiency independent of how cold the winter was.</p>
+                    <div class="glossary-formula">
+                        Heating Intensity = (Gas Use in CCF × 1000) / Annual HDD
+                    </div>
+                    <p><strong>Target:</strong> 95.5 CCF/1k HDD (baseline from 2022-2025 analysis)</p>
+                    <p><strong>Alert threshold:</strong> +10% (>105 CCF/1k HDD indicates efficiency degradation)</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Zone Balance</div>
+                <div class="glossary-definition">
+                    <p>Distribution of heating runtime between zones (floors). Indicates ductwork balance and thermostat placement effectiveness.</p>
+                    <div class="glossary-formula">
+                        Zone Balance (%) = Zone Runtime / Total Runtime × 100
+                    </div>
+                    <p><strong>Target:</strong> 45-55% per zone for balanced system</p>
+                    <p><strong>Interpretation:</strong> Persistent imbalance >60% suggests ductwork adjustments needed</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Zone Overlap</div>
+                <div class="glossary-definition">
+                    <p>Percentage of time when multiple zones run simultaneously. High overlap can indicate poor zone control or undersized equipment.</p>
+                    <div class="glossary-formula">
+                        Overlap (%) = (Simultaneous Runtime / Total Runtime) × 100
+                    </div>
+                    <p><strong>Expected range:</strong> 15-25% for properly zoned system</p>
+                </div>
+            </div>
+
+            <div class="glossary-entry">
+                <div class="glossary-term">Chaining Index</div>
+                <div class="glossary-definition">
+                    <p>Ratio measuring how often one zone triggers immediately after another finishes. Indicates thermal coupling between zones.</p>
+                    <div class="glossary-formula">
+                        Chaining Index = Sequential Starts / Total Cycles
+                    </div>
+                    <p><strong>Interpretation:</strong> High index (>2.0) suggests heat transfer between zones or poor thermostat placement</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="formulas">
+        <div class="container">
+            <h2>Calculations & Formulas</h2>
+
+            <h3>Core Temperature & Degree Day Calculations</h3>
+            
+            <div class="glossary-entry">
+                <h4>Daily HDD Calculation</h4>
+                <pre><code># Template sensor in Home Assistant
+sensor:
+  - platform: template
+    sensors:
+      hdd_today:
+        value_template: >
+          {% set balance_point = 65 %}
+          {% set avg_temp = states('sensor.pirateweather_temperature')|float %}
+          {{ [0, balance_point - avg_temp]|max|round(1) }}
+        unit_of_measurement: "HDD"</code></pre>
+            </div>
+
+            <h3>Runtime Efficiency Calculations</h3>
+            
+            <div class="glossary-entry">
+                <h4>Runtime per HDD (Daily)</h4>
+                <pre><code># Calculates efficiency metric
+sensor:
+  - platform: template
+    sensors:
+      runtime_per_hdd:
+        value_template: >
+          {% set runtime = states('sensor.total_runtime_today')|float %}
+          {% set hdd = states('sensor.hdd_today')|float %}
+          {% if hdd > 0 %}
+            {{ (runtime / hdd)|round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        unit_of_measurement: "min/HDD"</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>7-Day Rolling Average</h4>
+                <pre><code># Statistical smoothing for trend analysis
+sensor:
+  - platform: statistics
+    name: "Runtime per HDD 7-Day Mean"
+    entity_id: sensor.runtime_per_hdd
+    state_characteristic: mean
+    max_age:
+      days: 7
+    sampling_size: 1000</code></pre>
+            </div>
+
+            <h3>Statistical Process Control</h3>
+            
+            <div class="glossary-entry">
+                <h4>Control Limit Calculation</h4>
+                <pre><code># Upper and lower control limits (±2σ)
+UCL = Mean + (2 × Standard Deviation)
+LCL = Mean - (2 × Standard Deviation)
+
+# Example from 90 days of data:
+Mean = 10.0 min/HDD
+Std Dev = 2.0 min/HDD
+UCL = 10.0 + (2 × 2.0) = 14.0 min/HDD
+LCL = 10.0 - (2 × 2.0) = 6.0 min/HDD</code></pre>
+            </div>
+
+            <h3>Zone Performance Calculations</h3>
+            
+            <div class="glossary-entry">
+                <h4>Zone Balance Percentage</h4>
+                <pre><code># Calculate zone distribution
+sensor:
+  - platform: template
+    sensors:
+      zone_1f_balance:
+        value_template: >
+          {% set zone_1f = states('sensor.1f_runtime_today')|float %}
+          {% set total = states('sensor.total_runtime_today')|float %}
+          {% if total > 0 %}
+            {{ ((zone_1f / total) * 100)|round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        unit_of_measurement: "%"</code></pre>
+            </div>
+
+            <h3>Building Performance Metrics</h3>
+            
+            <div class="glossary-entry">
+                <h4>Heating Intensity (Gas Usage)</h4>
+                <pre><code># CCF per 1000 HDD calculation
+Heating Intensity = (Total Gas CCF × 1000) / Annual HDD
+
+# Example:
+Annual Gas: 598 CCF
+Annual HDD: 6,270
+Heating Intensity = (598 × 1000) / 6270 = 95.4 CCF/1k HDD</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <section id="entities">
+        <div class="container">
+            <h2>Entity Reference</h2>
+            
+            <h3>Core Temperature & Weather Sensors</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Entity ID</th>
+                        <th>Description</th>
+                        <th>Unit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>sensor.pirateweather_temperature</code></td>
+                        <td>Current outdoor temperature</td>
+                        <td>°F</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.hdd_today</code></td>
+                        <td>Today's heating degree days</td>
+                        <td>HDD</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.hdd_7day</code></td>
+                        <td>7-day rolling sum of HDD</td>
+                        <td>HDD</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.cdd_today</code></td>
+                        <td>Today's cooling degree days</td>
+                        <td>CDD</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Runtime Tracking Sensors</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Entity ID</th>
+                        <th>Description</th>
+                        <th>Unit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>sensor.1f_runtime_today</code></td>
+                        <td>1st floor runtime today</td>
+                        <td>minutes</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.2f_runtime_today</code></td>
+                        <td>2nd floor runtime today</td>
+                        <td>minutes</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.total_runtime_today</code></td>
+                        <td>Combined runtime both zones</td>
+                        <td>minutes</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.runtime_per_hdd</code></td>
+                        <td>Efficiency metric (runtime/HDD)</td>
+                        <td>min/HDD</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Efficiency & Performance Sensors</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Entity ID</th>
+                        <th>Description</th>
+                        <th>Target/Range</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>sensor.runtime_per_hdd_7day_mean</code></td>
+                        <td>7-day rolling average efficiency</td>
+                        <td>6-14 min/HDD</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.zone_balance_1f</code></td>
+                        <td>1st floor runtime percentage</td>
+                        <td>45-55%</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.zone_overlap_pct</code></td>
+                        <td>Simultaneous zone operation</td>
+                        <td>15-25%</td>
+                    </tr>
+                    <tr>
+                        <td><code>sensor.heating_intensity</code></td>
+                        <td>Gas usage normalized by HDD</td>
+                        <td>95.5 CCF/1k HDD</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Alert & Status Sensors</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Entity ID</th>
+                        <th>Description</th>
+                        <th>States</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>binary_sensor.efficiency_alert</code></td>
+                        <td>Efficiency outside control limits</td>
+                        <td>on/off</td>
+                    </tr>
+                    <tr>
+                        <td><code>binary_sensor.filter_maintenance</code></td>
+                        <td>Filter replacement due</td>
+                        <td>on/off</td>
+                    </tr>
+                    <tr>
+                        <td><code>binary_sensor.data_quality_alert</code></td>
+                        <td>Missing or invalid sensor data</td>
+                        <td>on/off</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-info">
+                <p><strong>📖 Complete Entity List:</strong> For a comprehensive list of all sensors, automations, and scripts, see the <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/CLAUDE.md" target="_blank">CLAUDE.md</a> file in the repository.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="alerts">
+        <div class="container">
+            <h2>Alert Interpretation Guide</h2>
+
+            <h3>Understanding Alert Types</h3>
+
+            <div class="glossary-entry">
+                <h4>⚠️ Efficiency Degradation Alert</h4>
+                <p><strong>Trigger:</strong> 7-day mean runtime/HDD exceeds upper control limit (>14 min/HDD)</p>
+                <p><strong>What it means:</strong> System is using more runtime than statistically normal for the weather conditions</p>
+                <p><strong>Actionable causes:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Dirty furnace filter (most common)</li>
+                    <li>Ductwork leak or disconnection</li>
+                    <li>Thermostat calibration drift</li>
+                    <li>Outdoor air infiltration (door seal, window)</li>
+                    <li>Recent insulation damage or removal</li>
+                </ul>
+                <p><strong>False positive conditions:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Seasonal regime shift (first cold snap of season)</li>
+                    <li>Recent thermostat setpoint change</li>
+                    <li>Initial 7-14 day warmup period after installation</li>
+                </ul>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>🔧 Filter Maintenance Alert</h4>
+                <p><strong>Trigger:</strong> Cumulative runtime exceeds filter life threshold (typically 400-500 hours)</p>
+                <p><strong>What it means:</strong> Filter replacement due based on actual use, not calendar time</p>
+                <p><strong>Action:</strong> Replace furnace filter, reset counter via automation or input_number</p>
+                <p><strong>Why runtime-based:</strong> A filter used for 400 hours over 3 months is more loaded than one used for 100 hours over 6 months</p>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>📊 Data Quality Alert</h4>
+                <p><strong>Trigger:</strong> Missing sensor readings, stale data, or impossible values</p>
+                <p><strong>Common causes:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Weather integration offline (API limits, service outage)</li>
+                    <li>Thermostat communication loss</li>
+                    <li>Home Assistant restart during data collection</li>
+                    <li>Template sensor configuration error</li>
+                </ul>
+                <p><strong>Action:</strong> Check Developer Tools → States for affected sensors, verify integrations are loaded</p>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>🌡️ Balance Point Drift</h4>
+                <p><strong>Trigger:</strong> Calculated balance point deviates significantly from baseline (>3°F)</p>
+                <p><strong>What it means:</strong> Building's heating requirements have changed relative to outdoor temperature</p>
+                <p><strong>Potential causes:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Insulation upgrade or degradation</li>
+                    <li>Air sealing improvements</li>
+                    <li>Changed occupancy patterns (more/less internal heat gain)</li>
+                    <li>Solar gain changes (window treatments, landscaping)</li>
+                </ul>
+                <p><strong>Action:</strong> Recalculate balance point using <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" target="_blank">baseline methodology</a></p>
+            </div>
+
+            <h3>Alert Prioritization</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Alert Type</th>
+                        <th>Priority</th>
+                        <th>Response Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Data Quality (all sensors offline)</td>
+                        <td>High</td>
+                        <td>Within 24 hours</td>
+                    </tr>
+                    <tr>
+                        <td>Efficiency Degradation (>+20% from baseline)</td>
+                        <td>High</td>
+                        <td>Within 1 week</td>
+                    </tr>
+                    <tr>
+                        <td>Filter Maintenance</td>
+                        <td>Medium</td>
+                        <td>Within 2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td>Efficiency Degradation (>+10% from baseline)</td>
+                        <td>Medium</td>
+                        <td>Monitor, investigate if persistent >2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td>Zone Balance (minor drift)</td>
+                        <td>Low</td>
+                        <td>Note for annual service, adjust dampers if >65%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-warning">
+                <p><strong>⏳ Warmup Period:</strong> Allow 7-14 days after installation for baselines to stabilize. Initial alerts during this period are normal as the system calculates rolling averages from limited data.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="dependencies">
+        <div class="container">
+            <h2>Dashboard Dependencies</h2>
+
+            <h3>Required Home Assistant Version</h3>
+            <p>Home Assistant 2023.1 or later recommended for template sensor syntax</p>
+
+            <h3>Custom Integrations (HACS)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Integration</th>
+                        <th>Required?</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Pirate Weather</strong></td>
+                        <td>Yes</td>
+                        <td>Outdoor temperature for HDD calculation</td>
+                    </tr>
+                    <tr>
+                        <td>Alternative weather service</td>
+                        <td>Optional</td>
+                        <td>Any integration providing <code>sensor.*_temperature</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Dashboard Custom Cards</h3>
+            <p><strong>Good news:</strong> The included dashboards use only <strong>built-in Home Assistant cards</strong>. No custom frontend cards required.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Card Type</th>
+                        <th>Usage</th>
+                        <th>Installation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Gauge Card</td>
+                        <td>Performance metrics, zone balance</td>
+                        <td>Built-in</td>
+                    </tr>
+                    <tr>
+                        <td>Entities Card</td>
+                        <td>Sensor values, status displays</td>
+                        <td>Built-in</td>
+                    </tr>
+                    <tr>
+                        <td>History Graph</td>
+                        <td>Runtime trends, efficiency tracking</td>
+                        <td>Built-in</td>
+                    </tr>
+                    <tr>
+                        <td>Statistics Graph</td>
+                        <td>Statistical bounds, rolling averages</td>
+                        <td>Built-in</td>
+                    </tr>
+                    <tr>
+                        <td>Markdown Card</td>
+                        <td>Explanatory text, instructions</td>
+                        <td>Built-in</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-success">
+                <p><strong>✅ Zero Frontend Dependencies:</strong> All dashboard cards use standard Home Assistant components. Install HACS only for Pirate Weather integration, not for UI cards.</p>
+            </div>
+
+            <h3>Optional Enhancements</h3>
+            <p>If you want more advanced visualizations, these custom cards work well with this configuration (but are not required):</p>
+            <ul style="margin-left: 20px;">
+                <li><strong>ApexCharts-card</strong> - Enhanced time-series graphs with statistical overlays</li>
+                <li><strong>mini-graph-card</strong> - Compact trend visualizations</li>
+                <li><strong>Mushroom Cards</strong> - Modern, minimalist UI elements</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="troubleshooting">
+        <div class="container">
+            <h2>Troubleshooting Guide</h2>
+
+            <h3>Sensor Issues</h3>
+
+            <div class="glossary-entry">
+                <h4>Problem: HDD sensors show "unknown" or zero</h4>
+                <p><strong>Diagnosis:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Check if <code>sensor.pirateweather_temperature</code> exists and has valid value</li>
+                    <li>Verify Pirate Weather integration is configured and API key is valid</li>
+                    <li>Check API usage hasn't exceeded free tier limits (500/day)</li>
+                </ul>
+                <p><strong>Solution:</strong></p>
+                <pre><code># Developer Tools → States
+# Search for: pirateweather
+# Should see: sensor.pirateweather_temperature with numeric value
+
+# If missing, reconfigure Pirate Weather:
+# Settings → Devices & Services → Pirate Weather → Configure</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>Problem: Runtime sensors not accumulating</h4>
+                <p><strong>Diagnosis:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Verify thermostat entity IDs match configuration</li>
+                    <li>Check thermostat state shows "heating" when active</li>
+                    <li>Confirm <code>history_stats</code> sensors are configured correctly</li>
+                </ul>
+                <p><strong>Solution:</strong></p>
+                <pre><code># 1. Find your actual thermostat entity IDs
+# Developer Tools → States → search: climate
+
+# 2. Update configuration.yaml
+# Replace all instances of:
+#   climate.1f_thermostat → climate.YOUR_ACTUAL_ID
+#   climate.2f_thermostat → climate.YOUR_ACTUAL_ID
+
+# 3. Reload template entities
+# Developer Tools → YAML → Template Entities</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>Problem: Rolling averages stuck or not calculating</h4>
+                <p><strong>Diagnosis:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Statistics sensors need time to accumulate data (minimum 7 days)</li>
+                    <li>Check source sensor has valid values</li>
+                    <li>Verify recorder is enabled and database not corrupted</li>
+                </ul>
+                <p><strong>Solution:</strong></p>
+                <pre><code># Check recorder status
+# Settings → System → Repairs
+# Look for database issues
+
+# Force statistics recalculation
+# Developer Tools → Services
+# Call: recorder.purge with keep_days: 7
+# Then wait for statistics to rebuild (may take hours)</code></pre>
+            </div>
+
+            <h3>Automation Issues</h3>
+
+            <div class="glossary-entry">
+                <h4>Problem: Daily data capture not triggering</h4>
+                <p><strong>Diagnosis:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>Check automation last_triggered timestamp</li>
+                    <li>Verify time trigger is set correctly (midnight)</li>
+                    <li>Ensure Home Assistant wasn't restarting at midnight</li>
+                </ul>
+                <p><strong>Solution:</strong></p>
+                <pre><code># Check automation status
+# Settings → Automations → "Daily HDD Capture"
+# Last triggered: should be today at 00:00
+
+# Manual trigger
+# Settings → Automations → "Daily HDD Capture"
+# Click: Run Actions
+
+# Or via Developer Tools → Services:
+service: automation.trigger
+data:
+  entity_id: automation.daily_hdd_capture</code></pre>
+            </div>
+
+            <h3>Configuration Validation</h3>
+
+            <div class="glossary-entry">
+                <h4>Running configuration check</h4>
+                <pre><code># Via UI
+# Developer Tools → YAML → Check Configuration
+
+# Via command line (SSH)
+ha core check
+
+# Via Docker
+docker exec homeassistant python -m homeassistant \
+  --script check_config --config /config</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>Common YAML errors</h4>
+                <ul style="margin-left: 20px;">
+                    <li><strong>Indentation:</strong> YAML uses spaces, not tabs. Each level = 2 spaces</li>
+                    <li><strong>Quotes:</strong> Use single quotes ' for strings with special characters</li>
+                    <li><strong>Entity IDs:</strong> Must match exactly (case-sensitive)</li>
+                    <li><strong>Templates:</strong> Must be valid Jinja2 syntax</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="validation">
+        <div class="container">
+            <h2>Data Validation</h2>
+
+            <h3>Verifying Correct Operation</h3>
+
+            <div class="glossary-entry">
+                <h4>✅ Initial Setup Checklist (First 24 Hours)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Check</th>
+                            <th>Expected Value</th>
+                            <th>Where to Look</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Outdoor temperature</td>
+                            <td>Valid °F value</td>
+                            <td><code>sensor.pirateweather_temperature</code></td>
+                        </tr>
+                        <tr>
+                            <td>HDD today</td>
+                            <td>>0 if temp < 65°F</td>
+                            <td><code>sensor.hdd_today</code></td>
+                        </tr>
+                        <tr>
+                            <td>Runtime accumulation</td>
+                            <td>Increments when heating</td>
+                            <td><code>sensor.1f_runtime_today</code></td>
+                        </tr>
+                        <tr>
+                            <td>Runtime per HDD</td>
+                            <td>Numeric value (not unknown)</td>
+                            <td><code>sensor.runtime_per_hdd</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>📊 Baseline Establishment (7-14 Days)</h4>
+                <p>During this period, expect:</p>
+                <ul style="margin-left: 20px;">
+                    <li>Rolling averages to stabilize</li>
+                    <li>Control limits to narrow as more data accumulates</li>
+                    <li>Some false alerts as statistical bounds are established</li>
+                    <li>Daily CSV files begin populating in <code>reports/</code></li>
+                </ul>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>🎯 Steady-State Operation (After 14 Days)</h4>
+                <p>System should show:</p>
+                <ul style="margin-left: 20px;">
+                    <li>Stable 7-day rolling averages</li>
+                    <li>Consistent runtime/HDD values (±20% day-to-day variation normal)</li>
+                    <li>Alert system functioning with minimal false positives</li>
+                    <li>Complete CSV export files for analysis</li>
+                </ul>
+            </div>
+
+            <h3>Manual Validation Procedures</h3>
+
+            <div class="glossary-entry">
+                <h4>Validate HDD Calculation</h4>
+                <pre><code># Manual verification
+Balance Point: 65°F
+Today's Average Temp: 42°F
+Expected HDD: 65 - 42 = 23 HDD
+
+# Check sensor value matches:
+# Developer Tools → States → sensor.hdd_today
+# Should show approximately 23 (±1 due to averaging)</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>Validate Runtime Tracking</h4>
+                <pre><code># When furnace is actively heating:
+1. Note current time
+2. Check sensor.1f_runtime_today value
+3. Wait 10 minutes while furnace runs
+4. Check sensor again - should increase by ~10 minutes
+5. If not incrementing, check thermostat state = "heating"</code></pre>
+            </div>
+
+            <div class="glossary-entry">
+                <h4>Validate Efficiency Calculation</h4>
+                <pre><code># Manual calculation example
+Total Runtime Today: 120 minutes
+HDD Today: 15
+Expected Runtime/HDD: 120 / 15 = 8.0 min/HDD
+
+# Verify sensor.runtime_per_hdd shows 8.0
+# If significantly different, check:
+# - Runtime sensors are accumulating correctly
+# - HDD calculation is valid
+# - Template sensor formula is correct</code></pre>
+            </div>
+
+            <h3>CI/CD Validation</h3>
+            <p>This repository includes GitHub Actions that automatically validate:</p>
+            <ul style="margin-left: 20px;">
+                <li><strong>YAML Syntax:</strong> yamllint checks for formatting errors</li>
+                <li><strong>HA Config:</strong> Home Assistant configuration validation</li>
+                <li><strong>Template Syntax:</strong> Jinja2 template parsing</li>
+            </ul>
+
+            <div class="alert alert-info">
+                <p><strong>💡 Tip:</strong> Watch the <a href="https://github.com/wkcollis1-eng/home-assistant-config/actions" target="_blank">Actions tab</a> on GitHub to see validation results after each commit.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p style="margin-bottom: 10px;">
+                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> | 
+                <a href="https://substack.com/@billcollis">Technical Articles on Substack</a>
+            </p>
+            <p style="font-size: 0.9rem; opacity: 0.8;">
+                Applying professional engineering methodologies to residential energy optimization
+            </p>
+            <p style="margin-top: 20px; font-size: 0.85rem;">
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config">GitHub Repository</a> • 
+                <a href="index.html">Home</a> • 
+                <a href="installation.html">Installation Guide</a> • 
+                <a href="gallery.html">Gallery</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
