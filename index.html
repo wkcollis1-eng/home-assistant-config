@@ -439,7 +439,7 @@
                 <li><a href="index.html">Home</a></li>
                 <li><a href="installation.html">Installation</a></li>
                 <li><a href="gallery.html">Gallery</a></li>
-                <li><a href="#documentation">Documentation</a></li>
+                <li><a href="documentation.html">Documentation</a></li>
             </ul>
             <a href="https://github.com/wkcollis1-eng/home-assistant-config" class="github-link" target="_blank">
                 <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
@@ -515,7 +515,7 @@
                 </tr>
                 <tr>
                     <td><strong>Location</strong></td>
-                    <td>Connecticut (41.28°N, -72.81°W)</td>
+                    <td>Central Connecticut</td>
                 </tr>
                 <tr>
                     <td><strong>Heating</strong></td>
@@ -530,9 +530,52 @@
                     <td>59.0°F</td>
                 </tr>
                 <tr>
-                    <td><strong>Site EUI</strong></td>
-                    <td>84.4 kBTU/ft²-yr</td>
+                    <td><strong>Total Site EUI</strong></td>
+                    <td>84.4 kBTU/ft²-yr (all energy: heating + DHW + appliances)</td>
                 </tr>
+            </table>
+        </div>
+    </section>
+
+    
+    <section>
+        <div class="container">
+            <h3 style="margin-top: 50px;">Why This Configuration Stands Out</h3>
+            <table style="max-width: 900px; margin: 20px auto;">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>This Configuration</th>
+                        <th>Typical Setup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Statistical Rigor</strong></td>
+                        <td>±2σ control limits, 7-day rolling</td>
+                        <td>Manual thresholds</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Climate Context</strong></td>
+                        <td>18-year daily normals</td>
+                        <td>Current weather only</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Zone Analysis</strong></td>
+                        <td>Balance tracking, overlap detection</td>
+                        <td>Basic on/off</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Long-term Data</strong></td>
+                        <td>CSV exports, monthly aggregation</td>
+                        <td>Lost on restart</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Documentation</strong></td>
+                        <td>Engineering methodology documented</td>
+                        <td>Config files only</td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </section>
@@ -572,43 +615,7 @@
                 </div>
             </div>
             
-            <h3 style="margin-top: 50px;">Why This Configuration Stands Out</h3>
-            <table style="max-width: 900px; margin: 20px auto;">
-                <thead>
-                    <tr>
-                        <th>Feature</th>
-                        <th>This Configuration</th>
-                        <th>Typical Setup</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Statistical Rigor</strong></td>
-                        <td>±2σ control limits, 7-day rolling</td>
-                        <td>Manual thresholds</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Climate Context</strong></td>
-                        <td>18-year daily normals</td>
-                        <td>Current weather only</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Zone Analysis</strong></td>
-                        <td>Balance tracking, overlap detection</td>
-                        <td>Basic on/off</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Long-term Data</strong></td>
-                        <td>CSV exports, monthly aggregation</td>
-                        <td>Lost on restart</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Documentation</strong></td>
-                        <td>Engineering methodology documented</td>
-                        <td>Config files only</td>
-                    </tr>
-                </tbody>
-            </table>
+            
         </div>
     </section>
 
@@ -746,8 +753,8 @@
                         <td>Reference only</td>
                     </tr>
                     <tr>
-                        <td><strong>Site EUI</strong></td>
-                        <td>41.7 kBTU/ft²-yr</td>
+                        <td><strong>Heating-Only EUI</strong></td>
+                        <td>41.7 kBTU/ft²-yr (baseline 2022-2025)</td>
                         <td>±5%</td>
                     </tr>
                     <tr>
@@ -849,11 +856,12 @@ docker run --rm -v "$(pwd)":/config homeassistant/home-assistant:stable \
             <p style="margin-top: 20px; font-size: 0.85rem;">
                 <a href="https://github.com/wkcollis1-eng/home-assistant-config/issues">Report Issues</a> • 
                 <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/CHANGELOG.md">Changelog</a> • 
-                <a href="https://github.com/wkcollis1-eng/home-assistant-config/blob/master/CLAUDE.md">Technical Docs</a>
+                <a href="documentation.html">Technical Docs</a>
             </p>
-            <p style="margin-top: 15px; font-size: 0.85rem;">
-                Last Updated: February 2025
+            <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                Repository Status: <a href="https://github.com/wkcollis1-eng/home-assistant-config">Active & Maintained</a>
             </p>
+
         </div>
     </footer>
 </body>
