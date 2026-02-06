@@ -403,14 +403,19 @@ For the complete methodology behind the baseline targets used in this configurat
 
 ## License
 
-Unless otherwise noted, this project is licensed under the **MIT License** (see `LICENSE`).
+Unless otherwise noted, this project is licensed under the **MIT License** (see [LICENSE](LICENSE)).
 
 This repository vendors third-party components under `custom_components/`, which remain under their respective upstream licenses:
 
-- `custom_components/hacs` — MIT (HACS)
-- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather) 
+- `custom_components/hacs` — MIT (HACS)  
+  - Upstream: https://github.com/hacs/integration  
+  - License: `custom_components/hacs/LICENSE`
+- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather)  
+  - Upstream: https://github.com/Pirate-Weather/pirate-weather-ha  
+  - License/Notice: `custom_components/pirateweather/LICENSE`, `custom_components/pirateweather/NOTICE`
 
-See `THIRD_PARTY_NOTICES.md` for details.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
+
 
 
 ## About
