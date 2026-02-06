@@ -400,7 +400,6 @@ Standard home energy monitors show you *what* you're using. This configuration t
 
 For the complete methodology behind the baseline targets used in this configuration, see the [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository, which documents the 4-year analysis that established these diagnostic thresholds.
 
-## License
 
 ## License
 
@@ -408,8 +407,8 @@ Unless otherwise noted, this project is licensed under the **MIT License** (see 
 
 This repository vendors third-party components under `custom_components/`, which remain under their respective upstream licenses:
 
-- `custom_components/hacs` — MIT (HACS) :contentReference[oaicite:8]{index=8}  
-- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather) :contentReference[oaicite:9]{index=9}  
+- `custom_components/hacs` — MIT (HACS)
+- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather) 
 
 See `THIRD_PARTY_NOTICES.md` for details.
 
