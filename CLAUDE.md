@@ -1952,6 +1952,97 @@ After restarting HA:
 
 ---
 
+## Recovery Metrics Bug Fixes - 2026-02-06
+
+### Issues Fixed
+
+1. **Inverted recovery rate formula** — Formula was `recovery_minutes / setback_degrees` giving min/°F instead of °F/hr. A 2°F recovery in 10 minutes showed as "5" (min/°F) instead of "12" (°F/hr).
+
+2. **Sensor entity ID mismatch** — Automations referenced `sensor.hvac_runtime_per_hdd_7day` but actual entity is `sensor.hvac_runtime_per_hdd_7_day` (with underscore). Caused `expected_hold` to always be 0.
+
+3. **CSV logging had same inverted formula** — Shell commands in `appendsetbacklog_1f` and `appendsetbacklog_2f` used the same wrong calculation.
+
+### Code Changes
+
+**automations.yaml (lines 1042-1048, 1243-1249):**
+```yaml
+# OLD (wrong - gives min/°F):
+recovery_rate: >
+  {% set deg = setback_degrees | float(0) %}
+  {% if deg > 0 %}
+    {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
+
+# NEW (correct - gives °F/hr):
+recovery_rate: >
+  {% set mins = recovery_minutes | float(0) %}
+  {% set deg = setback_degrees | float(0) %}
+  {% if mins > 0 and deg > 0 %}
+    {{ ((deg / mins) * 60) | round(1) }}
+```
+
+**automations.yaml (lines 1082, 1283):**
+```yaml
+# OLD: sensor.hvac_runtime_per_hdd_7day
+# NEW: sensor.hvac_runtime_per_hdd_7_day
+```
+
+**configuration.yaml (shell_command appendsetbacklog_1f/2f):**
+```yaml
+# OLD: (minutes / [degrees, 0.1] | max)
+# NEW: ((degrees / [minutes, 1] | max) * 60)
+```
+
+### Manual Reset Required
+
+After deploying, reset these values via Developer Tools → Services:
+
+1. **Start runtime values** — Set to current MTD (~38.26 on 2026-02-06):
+   ```yaml
+   service: input_number.set_value
+   target:
+     entity_id:
+       - input_number.hvac_1f_setback_start_runtime
+       - input_number.hvac_2f_setback_start_runtime
+   data:
+     value: 38.26
+   ```
+
+2. **Recovery rate slots** — Reset all 14 to 15 (old data was inverted):
+   ```yaml
+   service: input_number.set_value
+   target:
+     entity_id:
+       - input_number.hvac_1f_recovery_rate_1
+       - input_number.hvac_1f_recovery_rate_2
+       - input_number.hvac_1f_recovery_rate_3
+       - input_number.hvac_1f_recovery_rate_4
+       - input_number.hvac_1f_recovery_rate_5
+       - input_number.hvac_1f_recovery_rate_6
+       - input_number.hvac_1f_recovery_rate_7
+       - input_number.hvac_2f_recovery_rate_1
+       - input_number.hvac_2f_recovery_rate_2
+       - input_number.hvac_2f_recovery_rate_3
+       - input_number.hvac_2f_recovery_rate_4
+       - input_number.hvac_2f_recovery_rate_5
+       - input_number.hvac_2f_recovery_rate_6
+       - input_number.hvac_2f_recovery_rate_7
+   data:
+     value: 15
+   ```
+
+### Files Modified
+- `automations.yaml` — Fixed recovery_rate formula (2 locations), fixed sensor reference (2 locations)
+- `configuration.yaml` — Fixed recovery_rate in shell commands (2 locations)
+- `reports/hvac_setback_log.csv` — Archived as `hvac_setback_log_inverted_bug_2026-02-06.csv`, recreated with header only
+
+### Expected Values After Fix
+- **recovery_rate**: 5-40 °F/hr (varies by outdoor temp, system capacity)
+- **expected_hold**: 50-300 minutes (based on HDD and baseline efficiency)
+- **total_runtime**: 30-250 minutes (actual furnace runtime during setback period)
+- **net_runtime**: -50 to +150 minutes (negative = savings vs baseline)
+
+---
+
 ## Dehumidifier Performance Tracking - 2026-02-05
 
 ### Overview
