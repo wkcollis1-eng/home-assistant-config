@@ -1087,13 +1087,19 @@
           {% set rate = baseline_min_per_hdd | float(0) %}
           {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
         net_runtime: >
-          {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
+          {% set expected = expected_hold_runtime | float(0) %}
+          {% set actual = total_runtime | float(0) %}
+          {% if expected > 0 and actual > 0 and actual < 1400 %}
+            {{ (expected - actual) | round(0) }}
+          {% else %}
+            -999
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=300 min)
+        value: "{{ [recovery_minutes | float, 480] | min }}"
+    # Store recovery rate if valid (>=1°F setback, <=480 min)
     - choose:
         - conditions:
             - condition: template
@@ -1289,13 +1295,19 @@
           {% set rate = baseline_min_per_hdd | float(0) %}
           {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
         net_runtime: >
-          {{ (expected_hold_runtime | float(0) - total_runtime | float(0)) | round(0) }}
+          {% set expected = expected_hold_runtime | float(0) %}
+          {% set actual = total_runtime | float(0) %}
+          {% if expected > 0 and actual > 0 and actual < 1400 %}
+            {{ (expected - actual) | round(0) }}
+          {% else %}
+            -999
+          {% endif %}
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=300 min)
+        value: "{{ [recovery_minutes | float, 480] | min }}"
+    # Store recovery rate if valid (>=1°F setback, <=480 min)
     - choose:
         - conditions:
             - condition: template
@@ -1487,7 +1499,7 @@
       data:
         title: "HVAC Efficiency Warning"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7day') }} min/HDD,
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
           which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound') }} = mean + 2σ).
           Check for air leaks, filter condition, or thermostat issues.
 
@@ -1502,7 +1514,7 @@
       data:
         title: "HVAC Efficiency Notice"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7day') }} min/HDD,
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
           which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound') }} = mean - 2σ).
           System running more efficiently than expected.
 

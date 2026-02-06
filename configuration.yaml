@@ -1115,7 +1115,7 @@ input_number:
     mode: box
   hvac_1f_last_net_runtime:
     name: "1F Last Net Runtime"
-    min: -200
+    min: -999
     max: 200
     step: 1
     unit_of_measurement: "min"
@@ -1157,7 +1157,7 @@ input_number:
     mode: box
   hvac_2f_last_net_runtime:
     name: "2F Last Net Runtime"
-    min: -200
+    min: -999
     max: 200
     step: 1
     unit_of_measurement: "min"
