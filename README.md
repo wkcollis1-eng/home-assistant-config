@@ -10,7 +10,7 @@
 
 ## Overview
 
-This Home Assistant configuration implements **real-time monitoring** of HVAC performance against rigorously-established baselines derived from four years of operational analysis (2022-2025). The system applies statistical process control methodology typically used in manufacturing to residential heating systems.
+This Home Assistant configuration implements **real-time monitoring** of HVAC performance against rigorously-established baselines derived from four years of operational analysis (2022–present). The system applies statistical process control methodology typically used in manufacturing to residential heating systems.
 
 All target values, statistical thresholds, and alert logic are derived from the companion [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository, which documents the comprehensive energy analysis that established these diagnostic thresholds.
 
@@ -92,7 +92,7 @@ This configuration is designed for homeowners and DIY enthusiasts who want to:
 | Attribute | Value |
 | --- | --- |
 | **Square Footage** | 2,440 ft² |
-| **Location** | Connecticut (41.28°N, -72.81°W) |
+| **Location** | Central Connecticut |
 | **Heating** | Gas furnace, 60,556 BTU/hr input |
 | **Zones** | 1F and 2F (Honeywell Lyric T6 Pro) |
 | **Annual HDD** | 6,270 (65°F base) |
