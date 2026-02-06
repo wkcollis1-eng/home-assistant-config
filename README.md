@@ -3,14 +3,14 @@
 > Professional-grade HVAC performance tracking with statistical process control for residential heating systems
 
 ![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate%20Home%20Assistant%20Config/badge.svg)
-![License](https://img.shields.io/badge/license-Personal-lightgrey)
+![License](https://img.shields.io/github/license/wkcollis1-eng/home-assistant-config)
 [![Baseline Analysis](https://img.shields.io/badge/Baseline-v1.4.0-blue)](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
 
 > **📊 Real-time implementation of:** [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) - Four-year statistical analysis establishing monitoring thresholds
 
 ## Overview
 
-This Home Assistant configuration implements **real-time monitoring** of HVAC performance against rigorously-established baselines derived from four years of operational analysis (2022-2025). The system applies statistical process control methodology typically used in manufacturing to residential heating systems.
+This Home Assistant configuration implements **real-time monitoring** of HVAC performance against rigorously-established baselines derived from four years of operational analysis (2022–present). The system applies statistical process control methodology typically used in manufacturing to residential heating systems.
 
 All target values, statistical thresholds, and alert logic are derived from the companion [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository, which documents the comprehensive energy analysis that established these diagnostic thresholds.
 
@@ -92,7 +92,7 @@ This configuration is designed for homeowners and DIY enthusiasts who want to:
 | Attribute | Value |
 | --- | --- |
 | **Square Footage** | 2,440 ft² |
-| **Location** | Connecticut (41.28°N, -72.81°W) |
+| **Location** | Central Connecticut |
 | **Heating** | Gas furnace, 60,556 BTU/hr input |
 | **Zones** | 1F and 2F (Honeywell Lyric T6 Pro) |
 | **Annual HDD** | 6,270 (65°F base) |
@@ -400,9 +400,23 @@ Standard home energy monitors show you *what* you're using. This configuration t
 
 For the complete methodology behind the baseline targets used in this configuration, see the [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) repository, which documents the 4-year analysis that established these diagnostic thresholds.
 
+
 ## License
 
-Personal configuration - use at your own risk. Feel free to adapt for your own system.
+Unless otherwise noted, this project is licensed under the **MIT License** (see [LICENSE](LICENSE)).
+
+This repository vendors third-party components under `custom_components/`, which remain under their respective upstream licenses:
+
+- `custom_components/hacs` — MIT (HACS)  
+  - Upstream: https://github.com/hacs/integration  
+  - License: `custom_components/hacs/LICENSE`
+- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather)  
+  - Upstream: https://github.com/Pirate-Weather/pirate-weather-ha  
+  - License/Notice: `custom_components/pirateweather/LICENSE`, `custom_components/pirateweather/NOTICE`
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
+
+
 
 ## About
 
@@ -410,4 +424,4 @@ Developed and maintained by Bill Collis, a retired engineer applying professiona
 
 ---
 
-*Last Updated: February 2025*
+*Last Updated: February 2026*

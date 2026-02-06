@@ -1,0 +1,10 @@
+# Third-Party Notices
+
+This repository includes third-party components under `custom_components/`.
+Those components are distributed under their respective upstream licenses.
+
+## Included components
+
+### HACS (`custom_components/hacs`)
+- Upstream: https://github.com/hacs/integration
+- License: MIT
