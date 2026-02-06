@@ -1,1 +1,1 @@
-date,zone,overnight_low,setback_depth,total_runtime,expected_hold,net_runtime
+date,zone,overnight_low,setback_depth,recovery_minutes,setback_degrees,recovery_rate,total_runtime,expected_hold,net_runtime

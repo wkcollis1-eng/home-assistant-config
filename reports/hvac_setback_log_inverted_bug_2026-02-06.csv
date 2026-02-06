@@ -1,0 +1,5 @@
+date,zone,overnight_low,setback_depth,recovery_minutes,setback_degrees,recovery_rate,total_runtime,expected_hold,net_runtime
+2026-02-05,1F,29.6,2.0,300.0,2.0,150.0,1500,0,-200
+2026-02-05,2F,29.6,2.0,300.0,2.0,150.0,1500,0,-200
+2026-02-06,1F,17.1,2.0,6.9,2.0,3.5,1500,0,-200
+2026-02-06,2F,16.3,2.0,0.3,2.0,0.1,1500,0,-200

@@ -1040,9 +1040,10 @@
           {% endif %}
         setback_degrees: "{{ states('input_number.hvac_1f_recovery_setback_degrees') | float(0) }}"
         recovery_rate: >
+          {% set mins = recovery_minutes | float(0) %}
           {% set deg = setback_degrees | float(0) %}
-          {% if deg > 0 %}
-            {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
+          {% if mins > 0 and deg > 0 %}
+            {{ ((deg / mins) * 60) | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -1079,7 +1080,7 @@
           {% set outdoor = overnight_low | float(35) %}
           {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
         baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7day') %}
+          {% set val = states('sensor.hvac_runtime_per_hdd_7_day') %}
           {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
           {% set hdd = hdd_setback | float(0) %}
@@ -1241,9 +1242,10 @@
           {% endif %}
         setback_degrees: "{{ states('input_number.hvac_2f_recovery_setback_degrees') | float(0) }}"
         recovery_rate: >
+          {% set mins = recovery_minutes | float(0) %}
           {% set deg = setback_degrees | float(0) %}
-          {% if deg > 0 %}
-            {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
+          {% if mins > 0 and deg > 0 %}
+            {{ ((deg / mins) * 60) | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -1280,7 +1282,7 @@
           {% set outdoor = overnight_low | float(35) %}
           {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
         baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7day') %}
+          {% set val = states('sensor.hvac_runtime_per_hdd_7_day') %}
           {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
           {% set hdd = hdd_setback | float(0) %}
