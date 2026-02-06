@@ -3,7 +3,7 @@
 > Professional-grade HVAC performance tracking with statistical process control for residential heating systems
 
 ![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate%20Home%20Assistant%20Config/badge.svg)
-![License](https://img.shields.io/badge/license-Personal-lightgrey)
+![License](https://img.shields.io/github/license/wkcollis1-eng/home-assistant-config)
 [![Baseline Analysis](https://img.shields.io/badge/Baseline-v1.4.0-blue)](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
 
 > **📊 Real-time implementation of:** [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) - Four-year statistical analysis establishing monitoring thresholds
@@ -402,7 +402,17 @@ For the complete methodology behind the baseline targets used in this configurat
 
 ## License
 
-Personal configuration - use at your own risk. Feel free to adapt for your own system.
+## License
+
+Unless otherwise noted, this project is licensed under the **MIT License** (see `LICENSE`).
+
+This repository vendors third-party components under `custom_components/`, which remain under their respective upstream licenses:
+
+- `custom_components/hacs` — MIT (HACS) :contentReference[oaicite:8]{index=8}  
+- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather) :contentReference[oaicite:9]{index=9}  
+
+See `THIRD_PARTY_NOTICES.md` for details.
+
 
 ## About
 
