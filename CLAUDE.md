@@ -2031,15 +2031,23 @@ After deploying, reset these values via Developer Tools → Services:
    ```
 
 ### Files Modified
-- `automations.yaml` — Fixed recovery_rate formula (2 locations), fixed sensor reference (2 locations)
-- `configuration.yaml` — Fixed recovery_rate in shell commands (2 locations)
+- `automations.yaml` — Fixed recovery_rate formula (2 locations), fixed sensor reference (4 locations including alerts), raised recovery clamp 300→480, added net_runtime sanity check
+- `configuration.yaml` — Fixed recovery_rate in shell commands (2 locations), changed net_runtime min from -200 to -999
 - `reports/hvac_setback_log.csv` — Archived as `hvac_setback_log_inverted_bug_2026-02-06.csv`, recreated with header only
+
+### Additional Enhancements (same date)
+
+1. **Alert sensor names fixed** — Two additional references in efficiency alert notifications updated to use correct entity ID.
+
+2. **Recovery clamp raised to 480 minutes** — Was 300 (5 hours), now 480 (8 hours) to accommodate very cold nights where recovery takes longer.
+
+3. **Net runtime sanity check** — Returns `-999` sentinel value if expected_hold is 0, total_runtime is 0, or total_runtime >= 1400 minutes. Makes data quality issues obvious in CSV rather than silently showing 0.
 
 ### Expected Values After Fix
 - **recovery_rate**: 5-40 °F/hr (varies by outdoor temp, system capacity)
 - **expected_hold**: 50-300 minutes (based on HDD and baseline efficiency)
 - **total_runtime**: 30-250 minutes (actual furnace runtime during setback period)
-- **net_runtime**: -50 to +150 minutes (negative = savings vs baseline)
+- **net_runtime**: -50 to +150 minutes (negative = savings vs baseline), or -999 if data quality check failed
 
 ---
 
