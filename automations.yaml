@@ -1426,7 +1426,8 @@
       target:
         entity_id: input_datetime.hvac_1f_setback_start
       data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        # Use trigger.to_state.last_changed to get actual event time, not debounced execution time
+        datetime: "{{ (trigger.to_state.last_changed | as_local).strftime('%Y-%m-%d %H:%M:%S') }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_setback_start_runtime
@@ -1472,7 +1473,8 @@
       target:
         entity_id: input_datetime.hvac_2f_setback_start
       data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        # Use trigger.to_state.last_changed to get actual event time, not debounced execution time
+        datetime: "{{ (trigger.to_state.last_changed | as_local).strftime('%Y-%m-%d %H:%M:%S') }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_setback_start_runtime

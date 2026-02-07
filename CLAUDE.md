@@ -2187,6 +2187,22 @@ trigger:
 | Real setbacks | Persist indefinitely - no risk of missing legitimate setbacks |
 | Response time | Keeps detection responsive (30+ seconds would be overkill) |
 
+### Timestamp Correction for Debounce
+
+The 5-second debounce introduces a timing issue: `now()` in the action block executes 5 seconds after the actual setpoint change. This would corrupt setback duration calculations and CSV timestamps.
+
+**Fix:** Use `trigger.to_state.last_changed` to capture the actual event time:
+
+```yaml
+# Before (records automation execution time, 5 seconds late):
+datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+# After (records actual setpoint change time):
+datetime: "{{ (trigger.to_state.last_changed | as_local).strftime('%Y-%m-%d %H:%M:%S') }}"
+```
+
+This fix only applies to automations triggering on thermostat attribute changes with debounce. Recovery Start automations correctly use `now()` since they trigger on binary sensor state changes.
+
 ### Files Modified
-- `automations.yaml` — `hvac_1f_setback_start`, `hvac_2f_setback_start` triggers (lines ~1402-1406, ~1446-1450)
+- `automations.yaml` — `hvac_1f_setback_start`, `hvac_2f_setback_start` triggers and datetime actions
 
