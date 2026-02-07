@@ -1043,7 +1043,7 @@
           {% set mins = recovery_minutes | float(0) %}
           {% set deg = setback_degrees | float(0) %}
           {% if mins > 0 and deg > 0 %}
-            {{ ((deg / mins) * 60) | round(1) }}
+            {{ (mins / deg) | round(1) }}
           {% else %}
             0
           {% endif %}
@@ -1251,7 +1251,7 @@
           {% set mins = recovery_minutes | float(0) %}
           {% set deg = setback_degrees | float(0) %}
           {% if mins > 0 and deg > 0 %}
-            {{ ((deg / mins) * 60) | round(1) }}
+            {{ (mins / deg) | round(1) }}
           {% else %}
             0
           {% endif %}

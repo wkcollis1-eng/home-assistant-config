@@ -2206,3 +2206,39 @@ This fix only applies to automations triggering on thermostat attribute changes 
 ### Files Modified
 - `automations.yaml` — `hvac_1f_setback_start`, `hvac_2f_setback_start` triggers and datetime actions
 
+---
+
+## Recovery Rate Units Fix - 2026-02-07
+
+### Issue
+The recovery rate calculation formula computed °F/hr but the input_numbers and sensors were labeled as min/°F. This units mismatch caused confusion in dashboards and data interpretation.
+
+### Root Cause
+The formula `((deg / mins) * 60)` computes degrees per minute × 60 = **°F/hr** (heating speed).
+
+But `unit_of_measurement: "min/°F"` on all recovery rate entities indicates **min/°F** (time to heat one degree).
+
+### Fix Applied
+Changed the formula to compute min/°F directly:
+
+```yaml
+# Before (computed °F/hr):
+{{ ((deg / mins) * 60) | round(1) }}
+
+# After (computes min/°F):
+{{ (mins / deg) | round(1) }}
+```
+
+### Interpretation
+| Value | Meaning |
+|-------|---------|
+| 10 min/°F | Fast recovery - 10 minutes per degree |
+| 15 min/°F | Typical recovery |
+| 30+ min/°F | Slow recovery - check system |
+| 60 min/°F | Clamp limit (1 hour per degree) |
+
+Lower values = faster recovery = better performance.
+
+### Files Modified
+- `automations.yaml` — `hvac_1f_recovery_end`, `hvac_2f_recovery_end` recovery_rate variable (lines ~1046, ~1254)
+
