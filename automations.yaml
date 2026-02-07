@@ -1403,6 +1403,8 @@
     - platform: state
       entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
       attribute: temperature
+      for:
+        seconds: 5
   condition:
     # Must be a >=1°F drop AND not already in an active setback
     # Also validates temps are reasonable and actually different (prevents spurious triggers)
@@ -1447,6 +1449,8 @@
     - platform: state
       entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
       attribute: temperature
+      for:
+        seconds: 5
   condition:
     # Must be a >=1°F drop AND not already in an active setback
     # Also validates temps are reasonable and actually different (prevents spurious triggers)

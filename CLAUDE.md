@@ -2138,3 +2138,55 @@ Added performance metrics to the dehumidifier control system to track effectiven
 - `dashboards/cards/gauges/` — 1 new card file
 - `claude.md` — Updated entity list, automations list, card library, added this section
 
+---
+
+## Setback Start Debounce Fix - 2026-02-07
+
+### Issue
+Resideo/Honeywell thermostats exhibit a 1-second setpoint glitch at scheduled period change times. At exactly 5:30 AM (1F) and 6:00 AM (2F), the setpoint momentarily drops from 67°F back to 63°F, then immediately recovers to 67°F within 1 second.
+
+**Evidence from logs:**
+```
+1F: 10:30:00.831Z - setpoint: 67→63°F
+1F: 10:30:01.831Z - setpoint: 63→67°F
+
+2F: 11:00:01.067Z - setpoint: 67→63°F
+2F: 11:00:02.067Z - setpoint: 63→67°F
+```
+
+### Root Cause
+This is a known Resideo/Honeywell firmware bug with smart recovery. At scheduled period change times, the thermostat briefly reasserts the previous schedule setpoint before applying the new one. This 1-second glitch triggered the Setback Start automations because:
+1. It detected a setpoint drop ≥1°F
+2. The setback latch wasn't active (recovery had completed)
+3. The automation latched setback_active back ON incorrectly
+4. This caused the recovery sequence to restart spuriously
+
+### Fix Applied
+Added 5-second debounce to both Setback Start automations. The trigger now requires the setpoint to remain at the new value for 5 seconds before firing:
+
+```yaml
+# Before:
+trigger:
+  - platform: state
+    entity_id: climate.tstat_...
+    attribute: temperature
+
+# After:
+trigger:
+  - platform: state
+    entity_id: climate.tstat_...
+    attribute: temperature
+    for:
+      seconds: 5
+```
+
+### Why 5 Seconds
+| Factor | Reasoning |
+|--------|-----------|
+| Glitch duration | Only 1 second - 5 seconds provides 5x safety margin |
+| Real setbacks | Persist indefinitely - no risk of missing legitimate setbacks |
+| Response time | Keeps detection responsive (30+ seconds would be overkill) |
+
+### Files Modified
+- `automations.yaml` — `hvac_1f_setback_start`, `hvac_2f_setback_start` triggers (lines ~1402-1406, ~1446-1450)
+
