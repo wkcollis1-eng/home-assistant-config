@@ -2,7 +2,7 @@
 # Shows 7-day rolling runtime per HDD
 # Dashboard: Energy Performance - Operations
 type: gauge
-entity: sensor.hvac_runtime_per_hdd_7_day
+entity: sensor.hvac_runtime_per_hdd_7_day_2
 name: Runtime/HDD (7d)
 min: 0
 max: 25

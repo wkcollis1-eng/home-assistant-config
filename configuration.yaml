@@ -14,16 +14,96 @@ default_config:
 # Shell commands for CSV reports
 shell_command:
   testcmd: "echo hello"
-  appenddailycsv: 'bash -c "f=/config/reports/hvac_daily_{{ now().year }}.csv; d={{ now().strftime(''%Y-%m-%d'') }}; h=''date,outdoor_high,outdoor_low,outdoor_mean,hdd65,furnace_runtime_min,furnace_cycles,avg_min_per_cycle,zone_calls_total,chaining_index,runtime_1f_min,runtime_2f_min,basement_dew_point''; r=\"{{ now().strftime(''%Y-%m-%d'') }},{{ states(''input_number.outdoor_temp_daily_high'') | float(0) | round(1) }},{{ states(''input_number.outdoor_temp_daily_low'') | float(0) | round(1) }},{{ ((states(''input_number.outdoor_temp_daily_high'') | float(0) + states(''input_number.outdoor_temp_daily_low'') | float(0)) / 2) | round(1) }},{{ states(''sensor.hvac_hdd65_today'') | float(0) | round(1) }},{{ (states(''sensor.hvac_furnace_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.hvac_furnace_cycles_today'') | int(0) }},{{ states(''sensor.hvac_furnace_min_per_cycle'') | float(0) | round(1) }},{{ states(''sensor.hvac_total_cycles_today'') | int(0) }},{{ states(''sensor.hvac_chaining_index'') | float(1) | round(2) }},{{ (states(''sensor.hvac_1f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ (states(''sensor.hvac_2f_heat_runtime_today'') | float(0) * 60) | round(1) }},{{ states(''sensor.basement_dew_point'') | float(0) | round(1) }}\"; [ -f \"$f\" ] || echo \"$h\" > \"$f\"; grep -q \"^$d,\" \"$f\" || echo \"$r\" >> \"$f\""'
-  appendmonthlycsv: 'bash -c "f=/config/reports/hvac_monthly.csv; m={{ now().strftime(''%Y-%m'') }}; h=''month,days,mean_outdoor_temp,total_hdd65,furnace_runtime_hours,avg_runtime_per_hdd,heating_efficiency_ccf_per_1k_hdd,actual_runtime,expected_runtime,efficiency_deviation_pct,gas_usage_ccf,gas_cost,electric_kwh''; r=\"{{ now().strftime(''%Y-%m'') }},{{ states(''input_number.outdoor_temp_days_month'') | int(0) }},{{ states(''sensor.outdoor_temp_mean_month'') | float(0) | round(1) }},{{ states(''input_number.hdd_cumulative_month_auto'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month_2'') | float(0) | round(1) }},{{ states(''sensor.hvac_runtime_per_hdd_month'') | float(0) | round(1) }},{{ states(''sensor.hvac_heating_efficiency_mtd'') | float(0) | round(1) }},{{ states(''sensor.hvac_furnace_runtime_month_2'') | float(0) | round(1) }},{{ states(''sensor.expected_runtime_month'') | float(0) | round(1) }},{{ states(''sensor.efficiency_deviation_month'') | float(0) | round(1) }},{{ states(''input_number.gas_bill_ccf'') | float(0) | round(0) }},{{ states(''input_number.gas_bill_amount'') | float(0) | round(2) }},{{ states(''input_number.electricity_bill_kwh'') | float(0) | round(0) }}\"; [ -f \"$f\" ] || echo \"$h\" > \"$f\"; grep -q \"^$m,\" \"$f\" || echo \"$r\" >> \"$f\""'
-  rotatedailycsv: 'bash -c "prev=/config/reports/hvac_daily_{{ now().year - 1 }}.csv; cur=/config/reports/hvac_daily_{{ now().year }}.csv; h=''date,outdoor_high,outdoor_low,outdoor_mean,hdd65,furnace_runtime_min,furnace_cycles,avg_min_per_cycle,zone_calls_total,chaining_index,runtime_1f_min,runtime_2f_min,basement_dew_point''; if [ -f \"$prev\" ]; then head -1 \"$prev\" > \"$cur\"; else echo \"$h\" > \"$cur\"; fi"'
-  # Zone-specific setback log commands (shell_command doesn't support runtime variables)
-  appendsetbacklog_1f: 'bash -c "f=/config/reports/hvac_setback_log.csv; h=''date,zone,overnight_low,setback_depth,recovery_minutes,setback_degrees,recovery_rate,total_runtime,expected_hold,net_runtime''; r=\"$(date +%Y-%m-%d),1F,{{ states(''input_number.hvac_1f_last_overnight_low'') | float(0) | round(1) }},{{ states(''input_number.hvac_1f_last_setback_depth'') | float(0) | round(1) }},{{ states(''input_number.hvac_1f_last_recovery_minutes'') | float(0) | round(1) }},{{ states(''input_number.hvac_1f_last_setback_degrees'') | float(0) | round(1) }},{{ states(''input_number.hvac_1f_last_recovery_rate'') | float(0) | round(1) }},{{ states(''input_number.hvac_1f_last_total_runtime'') | float(0) | round(0) }},{{ states(''input_number.hvac_1f_last_expected_hold'') | float(0) | round(0) }},{{ states(''input_number.hvac_1f_last_net_runtime'') | float(0) | round(0) }}\"; [ -f \"$f\" ] || echo \"$h\" > \"$f\"; echo \"$r\" >> \"$f\""'
-  appendsetbacklog_2f: 'bash -c "f=/config/reports/hvac_setback_log.csv; h=''date,zone,overnight_low,setback_depth,recovery_minutes,setback_degrees,recovery_rate,total_runtime,expected_hold,net_runtime''; r=\"$(date +%Y-%m-%d),2F,{{ states(''input_number.hvac_2f_last_overnight_low'') | float(0) | round(1) }},{{ states(''input_number.hvac_2f_last_setback_depth'') | float(0) | round(1) }},{{ states(''input_number.hvac_2f_last_recovery_minutes'') | float(0) | round(1) }},{{ states(''input_number.hvac_2f_last_setback_degrees'') | float(0) | round(1) }},{{ states(''input_number.hvac_2f_last_recovery_rate'') | float(0) | round(1) }},{{ states(''input_number.hvac_2f_last_total_runtime'') | float(0) | round(0) }},{{ states(''input_number.hvac_2f_last_expected_hold'') | float(0) | round(0) }},{{ states(''input_number.hvac_2f_last_net_runtime'') | float(0) | round(0) }}\"; [ -f \"$f\" ] || echo \"$h\" > \"$f\"; echo \"$r\" >> \"$f\""'
+
+  # ===============================================================
+  # CSV MANAGEMENT - Python-based (maintainable, validated)
+  # ===============================================================
+  # Daily HVAC report - appends one row per day
+  appenddailycsv: >-
+    python3 /config/scripts/csv_manager.py append_daily --data '{
+      "date": "{{ now().strftime('%Y-%m-%d') }}",
+      "outdoor_high": {{ states('input_number.outdoor_temp_daily_high') | float(0) }},
+      "outdoor_low": {{ states('input_number.outdoor_temp_daily_low') | float(0) }},
+      "outdoor_mean": {{ ((states('input_number.outdoor_temp_daily_high') | float(0) + states('input_number.outdoor_temp_daily_low') | float(0)) / 2) | round(1) }},
+      "hdd65": {{ states('sensor.hvac_hdd65_today') | float(0) }},
+      "furnace_runtime_min": {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) }},
+      "furnace_cycles": {{ states('sensor.hvac_furnace_cycles_today') | int(0) }},
+      "avg_min_per_cycle": {{ states('sensor.hvac_furnace_min_per_cycle') | float(0) }},
+      "zone_calls_total": {{ states('sensor.hvac_total_cycles_today') | int(0) }},
+      "chaining_index": {{ states('sensor.hvac_chaining_index') | float(1) }},
+      "runtime_1f_min": {{ (states('sensor.hvac_1f_heat_runtime_today') | float(0) * 60) }},
+      "runtime_2f_min": {{ (states('sensor.hvac_2f_heat_runtime_today') | float(0) * 60) }},
+      "basement_dew_point": {{ states('sensor.basement_dew_point') | float(0) }}
+    }'
+
+  # Monthly HVAC report - appends one row per month
+  appendmonthlycsv: >-
+    python3 /config/scripts/csv_manager.py append_monthly --data '{
+      "month": "{{ now().strftime('%Y-%m') }}",
+      "days": {{ states('input_number.outdoor_temp_days_month') | int(0) }},
+      "mean_outdoor_temp": {{ states('sensor.outdoor_temp_mean_month') | float(0) }},
+      "total_hdd65": {{ states('input_number.hdd_cumulative_month_auto') | float(0) }},
+      "furnace_runtime_hours": {{ states('sensor.hvac_furnace_runtime_month_2') | float(0) }},
+      "avg_runtime_per_hdd": {{ states('sensor.hvac_runtime_per_hdd_month') | float(0) }},
+      "heating_efficiency_ccf_per_1k_hdd": {{ states('sensor.hvac_heating_efficiency_mtd') | float(0) }},
+      "actual_runtime": {{ states('sensor.hvac_furnace_runtime_month_2') | float(0) }},
+      "expected_runtime": {{ states('sensor.expected_runtime_month') | float(0) }},
+      "efficiency_deviation_pct": {{ states('sensor.efficiency_deviation_month') | float(0) }},
+      "gas_usage_ccf": {{ states('input_number.gas_bill_ccf') | float(0) }},
+      "gas_cost": {{ states('input_number.gas_bill_amount') | float(0) }},
+      "electric_kwh": {{ states('input_number.electricity_bill_kwh') | float(0) }}
+    }'
+
+  # Rotate daily CSV at year boundary
+  rotatedailycsv: "python3 /config/scripts/csv_manager.py rotate_daily"
+
+  # Zone-specific setback log commands
+  appendsetbacklog_1f: >-
+    python3 /config/scripts/csv_manager.py append_setback --zone 1F --data '{
+      "overnight_low": {{ states('input_number.hvac_1f_last_overnight_low') | float(0) }},
+      "setback_depth": {{ states('input_number.hvac_1f_last_setback_depth') | float(0) }},
+      "recovery_minutes": {{ states('input_number.hvac_1f_last_recovery_minutes') | float(0) }},
+      "setback_degrees": {{ states('input_number.hvac_1f_last_setback_degrees') | float(0) }},
+      "recovery_rate": {{ states('input_number.hvac_1f_last_recovery_rate') | float(0) }},
+      "total_runtime": {{ states('input_number.hvac_1f_last_total_runtime') | float(0) }},
+      "expected_hold": {{ states('input_number.hvac_1f_last_expected_hold') | float(0) }},
+      "net_runtime": {{ states('input_number.hvac_1f_last_net_runtime') | float(0) }}
+    }'
+
+  appendsetbacklog_2f: >-
+    python3 /config/scripts/csv_manager.py append_setback --zone 2F --data '{
+      "overnight_low": {{ states('input_number.hvac_2f_last_overnight_low') | float(0) }},
+      "setback_depth": {{ states('input_number.hvac_2f_last_setback_depth') | float(0) }},
+      "recovery_minutes": {{ states('input_number.hvac_2f_last_recovery_minutes') | float(0) }},
+      "setback_degrees": {{ states('input_number.hvac_2f_last_setback_degrees') | float(0) }},
+      "recovery_rate": {{ states('input_number.hvac_2f_last_recovery_rate') | float(0) }},
+      "total_runtime": {{ states('input_number.hvac_2f_last_total_runtime') | float(0) }},
+      "expected_hold": {{ states('input_number.hvac_2f_last_expected_hold') | float(0) }},
+      "net_runtime": {{ states('input_number.hvac_2f_last_net_runtime') | float(0) }}
+    }'
+
   # Weekly backup of critical input_number values
-  backup_input_numbers: 'bash -c "f=/config/reports/input_number_backup.csv; h=''timestamp,hdd_year,hdd_month,cdd_year,cdd_month,filter_hrs,temp_sum,temp_days,expected_runtime,hdd_d1,hdd_d2,hdd_d3,hdd_d4,hdd_d5,hdd_d6,hdd_d7''; r=\"{{ now().strftime(''%Y-%m-%d %H:%M'') }},{{ states(''input_number.hdd_cumulative_year_auto'') }},{{ states(''input_number.hdd_cumulative_month_auto'') }},{{ states(''input_number.cdd_cumulative_year_auto'') }},{{ states(''input_number.cdd_cumulative_month_auto'') }},{{ states(''input_number.hvac_filter_runtime_hours'') }},{{ states(''input_number.outdoor_temp_sum_month'') }},{{ states(''input_number.outdoor_temp_days_month'') }},{{ states(''input_number.expected_runtime_sum_month'') }},{{ states(''input_number.hdd_day_1'') }},{{ states(''input_number.hdd_day_2'') }},{{ states(''input_number.hdd_day_3'') }},{{ states(''input_number.hdd_day_4'') }},{{ states(''input_number.hdd_day_5'') }},{{ states(''input_number.hdd_day_6'') }},{{ states(''input_number.hdd_day_7'') }}\"; [ -f \"$f\" ] || echo \"$h\" > \"$f\"; echo \"$r\" >> \"$f\""'
-  # Monthly rotation for setback log (keeps current year only)
-  rotate_setback_log: 'bash -c "src=/config/reports/hvac_setback_log.csv; out=/config/reports/hvac_setback_log_{{ now().year - 1 }}.csv; y={{ now().year - 1 }}; if [ -f \"$src\" ]; then hdr=$(head -1 \"$src\"); echo \"$hdr\" > \"$out\"; grep \"^$y-\" \"$src\" >> \"$out\" || true; echo \"$hdr\" > \"$src\"; fi"'
+  backup_input_numbers: >-
+    python3 /config/scripts/csv_manager.py backup --data '{
+      "hdd_year": {{ states('input_number.hdd_cumulative_year_auto') | float(0) }},
+      "hdd_month": {{ states('input_number.hdd_cumulative_month_auto') | float(0) }},
+      "cdd_year": {{ states('input_number.cdd_cumulative_year_auto') | float(0) }},
+      "cdd_month": {{ states('input_number.cdd_cumulative_month_auto') | float(0) }},
+      "filter_hrs": {{ states('input_number.hvac_filter_runtime_hours') | float(0) }},
+      "temp_sum": {{ states('input_number.outdoor_temp_sum_month') | float(0) }},
+      "temp_days": {{ states('input_number.outdoor_temp_days_month') | int(0) }},
+      "expected_runtime": {{ states('input_number.expected_runtime_sum_month') | float(0) }},
+      "hdd_d1": {{ states('input_number.hdd_day_1') | float(0) }},
+      "hdd_d2": {{ states('input_number.hdd_day_2') | float(0) }},
+      "hdd_d3": {{ states('input_number.hdd_day_3') | float(0) }},
+      "hdd_d4": {{ states('input_number.hdd_day_4') | float(0) }},
+      "hdd_d5": {{ states('input_number.hdd_day_5') | float(0) }},
+      "hdd_d6": {{ states('input_number.hdd_day_6') | float(0) }},
+      "hdd_d7": {{ states('input_number.hdd_day_7') | float(0) }}
+    }'
+
+  # Monthly rotation for setback log (archives previous year)
+  rotate_setback_log: "python3 /config/scripts/csv_manager.py rotate_setback"
 
 frontend:
   themes: !include_dir_merge_named themes
@@ -1471,7 +1551,7 @@ template:
         unique_id: hvac_runtime_per_hdd_high_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set current = states('sensor.hvac_runtime_per_hdd_7_day_2') | float(0) %}
           {% set upper = states('sensor.hvac_runtime_per_hdd_upper_bound_1s') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current > upper and upper > 0 and count >= 4 }}
@@ -1480,7 +1560,7 @@ template:
         unique_id: hvac_runtime_per_hdd_low_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day') | float(0) %}
+          {% set current = states('sensor.hvac_runtime_per_hdd_7_day_2') | float(0) %}
           {% set lower = states('sensor.hvac_runtime_per_hdd_lower_bound_1s') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current < lower and current > 0 and count >= 4 }}
@@ -2088,8 +2168,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-up-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') | float(2) %}
           {{ (mean + (stddev * 2)) | round(1) }}
 
       - name: "HVAC Runtime per HDD Lower Bound"
@@ -2098,8 +2178,8 @@ template:
         state_class: measurement
         icon: mdi:arrow-down-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') | float(2) %}
+          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') | float(10) %}
+          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') | float(2) %}
           {% set lower = mean - (stddev * 2) %}
           {{ lower | round(1) if lower > 0 else 0 }}
 
@@ -3144,7 +3224,7 @@ template:
         icon: mdi:timer-outline
         state: >
           {% set expected_hdd = states('sensor.expected_hdd_today') | float(0) %}
-          {% set runtime_per_hdd = states('sensor.hvac_runtime_per_hdd_7_day') | float(10.6) %}
+          {% set runtime_per_hdd = states('sensor.hvac_runtime_per_hdd_7_day_2') | float(10.6) %}
           {% if expected_hdd > 0 %}
             {{ (expected_hdd * runtime_per_hdd / 60) | round(2) }}
           {% else %}

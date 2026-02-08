@@ -52,7 +52,7 @@ series:
     group_by:
       func: last
       duration: 1d
-  - entity: sensor.hvac_runtime_per_hdd_7_day
+  - entity: sensor.hvac_runtime_per_hdd_7_day_2
     name: Runtime/HDD
     color: "#3498db"
     stroke_width: 3
@@ -63,7 +63,7 @@ series:
     group_by:
       func: last
       duration: 1d
-  - entity: sensor.hvac_runtime_per_hdd_7_day_mean
+  - entity: sensor.hvac_runtime_per_hdd_7_day_mean_2
     name: 7-Day Mean
     color: "#f39c12"
     stroke_width: 2
