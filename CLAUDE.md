@@ -2276,3 +2276,42 @@ The old templates used `state_attr('weather.pirateweather', 'forecast')`, which 
 - `sensor.pirate_weather_daily_forecast_count` = `8`
 - `sensor.pirate_weather_daily_forecast_count` attribute `response_keys` = `weather.pirateweather`
 - `sensor.pirate_weather_today_high` = `13.0`
+
+---
+
+## CSV/Setback Report Hardening - 2026-02-08
+
+### Issue Summary
+Report rows were being written with inconsistent values and occasional corrupt records:
+- `hvac_setback_log.csv` could log invalid payloads (0 setback degrees with non-zero recovery minutes).
+- `hvac_daily_YYYY.csv` could include invalid startup sentinel temperatures and duplicate same-day entries.
+- `rotate_setback_log` used `head -1 "$src" > "$src"`, which truncates the source file before reading.
+
+### Fixes Applied
+- Added explicit last-value helpers used by setback CSV writer:
+  - `input_number.hvac_1f_last_setback_degrees`
+  - `input_number.hvac_1f_last_recovery_rate`
+  - `input_number.hvac_2f_last_setback_degrees`
+  - `input_number.hvac_2f_last_recovery_rate`
+- Updated recovery-end automations to populate those helpers before CSV append.
+- Added guard conditions so setback rows are only appended when payload is valid.
+- Increased `hvac_*_last_net_runtime` max clamp from `200` to `1500` to reduce clipping.
+- Hardened daily/monthly CSV automations with data-validity checks and warning logs on skip.
+- Fixed yearly setback rotation command to avoid self-truncation.
+
+### Files Modified
+- `configuration.yaml`
+  - `shell_command.appendsetbacklog_1f`
+  - `shell_command.appendsetbacklog_2f`
+  - `shell_command.rotate_setback_log`
+  - new `input_number.hvac_*_last_setback_degrees`
+  - new `input_number.hvac_*_last_recovery_rate`
+  - `input_number.hvac_*_last_net_runtime` max updated to `1500`
+- `automations.yaml`
+  - `hvac_1f_recovery_end`
+  - `hvac_2f_recovery_end`
+  - `csv_daily_report`
+  - `csv_monthly_report`
+
+### Note
+Historical rows already written before this hardening may still contain inaccurate values. New rows written after this change use the corrected pipeline and guards.

@@ -1159,10 +1159,20 @@
         value: "{{ setback_depth }}"
     - service: input_number.set_value
       target:
+        entity_id: input_number.hvac_1f_last_setback_degrees
+      data:
+        value: "{{ setback_degrees | float(0) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_recovery_rate
+      data:
+        value: "{{ [recovery_rate | float(0), 300] | min | round(1) }}"
+    - service: input_number.set_value
+      target:
         entity_id: input_number.hvac_1f_last_net_runtime
       data:
         # Clamp to input_number range (-999 sentinel preserved for data quality failures)
-        value: "{{ [[net_runtime | float, -999] | max, 200] | min }}"
+        value: "{{ [[net_runtime | float, -999] | max, 1500] | min }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_total_runtime
@@ -1173,8 +1183,24 @@
         entity_id: input_number.hvac_1f_last_expected_hold
       data:
         value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
-    # Log to setback optimization CSV (after input_numbers are set)
-    - service: shell_command.appendsetbacklog_1f
+    # Log to setback optimization CSV only when recovery payload is valid
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ setback_depth | float(0) >= 1 and
+                   setback_degrees | float(0) >= 1 and
+                   recovery_minutes | float(0) > 0 }}
+          sequence:
+            - service: shell_command.appendsetbacklog_1f
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Skipped 1F setback CSV append - invalid recovery payload:
+              depth={{ setback_depth }}, degrees={{ setback_degrees }},
+              recovery_minutes={{ recovery_minutes }}, total_runtime={{ total_runtime }}
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -1367,10 +1393,20 @@
         value: "{{ setback_depth }}"
     - service: input_number.set_value
       target:
+        entity_id: input_number.hvac_2f_last_setback_degrees
+      data:
+        value: "{{ setback_degrees | float(0) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_recovery_rate
+      data:
+        value: "{{ [recovery_rate | float(0), 300] | min | round(1) }}"
+    - service: input_number.set_value
+      target:
         entity_id: input_number.hvac_2f_last_net_runtime
       data:
         # Clamp to input_number range (-999 sentinel preserved for data quality failures)
-        value: "{{ [[net_runtime | float, -999] | max, 200] | min }}"
+        value: "{{ [[net_runtime | float, -999] | max, 1500] | min }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_total_runtime
@@ -1381,8 +1417,24 @@
         entity_id: input_number.hvac_2f_last_expected_hold
       data:
         value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
-    # Log to setback optimization CSV (after input_numbers are set)
-    - service: shell_command.appendsetbacklog_2f
+    # Log to setback optimization CSV only when recovery payload is valid
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ setback_depth | float(0) >= 1 and
+                   setback_degrees | float(0) >= 1 and
+                   recovery_minutes | float(0) > 0 }}
+          sequence:
+            - service: shell_command.appendsetbacklog_2f
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Skipped 2F setback CSV append - invalid recovery payload:
+              depth={{ setback_depth }}, degrees={{ setback_degrees }},
+              recovery_minutes={{ recovery_minutes }}, total_runtime={{ total_runtime }}
     # Reset hold_setpoint
     - service: input_number.set_value
       target:
@@ -1587,11 +1639,33 @@
     - platform: time
       at: "23:57:00"
   action:
-    - service: shell_command.appenddailycsv
-    - service: system_log.write
-      data:
-        message: "Daily CSV report appended"
-        level: info
+    - variables:
+        outdoor_high: "{{ states('input_number.outdoor_temp_daily_high') | float(-50) }}"
+        outdoor_low: "{{ states('input_number.outdoor_temp_daily_low') | float(150) }}"
+        hdd_today: "{{ states('sensor.hvac_hdd65_today') | float(-1) }}"
+        runtime_today_min: "{{ (states('sensor.hvac_furnace_runtime_today') | float(-1)) * 60 }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ outdoor_high > -49 and outdoor_low < 149 and
+                   outdoor_high >= outdoor_low and
+                   hdd_today >= 0 and hdd_today <= 65 and
+                   runtime_today_min >= 0 and runtime_today_min <= 1440 }}
+          sequence:
+            - service: shell_command.appenddailycsv
+            - service: system_log.write
+              data:
+                message: "Daily CSV report appended"
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Daily CSV append skipped due to invalid data:
+              high={{ outdoor_high }}, low={{ outdoor_low }},
+              hdd={{ hdd_today }}, runtime_min={{ runtime_today_min | round(1) }}
 
 - id: csv_monthly_report
   alias: "CSV Monthly Report"
@@ -1603,11 +1677,40 @@
     - condition: template
       value_template: "{{ (now() + timedelta(days=1)).day == 1 }}"
   action:
-    - service: shell_command.appendmonthlycsv
-    - service: system_log.write
-      data:
-        message: "Monthly CSV report appended"
-        level: info
+    - variables:
+        days_count: "{{ states('input_number.outdoor_temp_days_month') | int(0) }}"
+        total_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(-1) }}"
+        runtime_hours: "{{ states('sensor.hvac_furnace_runtime_month_2') | float(-1) }}"
+        runtime_per_hdd: "{{ states('sensor.hvac_runtime_per_hdd_month') | float(-1) }}"
+        last_tracking_ok: "{{ states('input_datetime.monthly_tracking_capture_last_ok') }}"
+        captured_today: >
+          {% set dt = states('input_datetime.monthly_tracking_capture_last_ok') %}
+          {{ dt not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] and
+             dt[:10] == now().strftime('%Y-%m-%d') }}
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ captured_today and
+                   days_count >= 20 and
+                   total_hdd >= 0 and total_hdd <= 2500 and
+                   runtime_hours >= 0 and runtime_hours <= 2000 and
+                   runtime_per_hdd >= 0 and runtime_per_hdd <= 120 }}
+          sequence:
+            - service: shell_command.appendmonthlycsv
+            - service: system_log.write
+              data:
+                message: "Monthly CSV report appended"
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Monthly CSV append skipped due to invalid/incomplete data:
+              captured_today={{ captured_today }}, days={{ days_count }},
+              hdd={{ total_hdd }}, runtime_hours={{ runtime_hours }},
+              runtime_per_hdd={{ runtime_per_hdd }}
 
 - id: csv_yearly_rotation
   alias: "CSV Yearly Rotation"
