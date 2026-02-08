@@ -2,16 +2,16 @@
 # Shows actual furnace cycle count month-to-date
 # Dashboard: Energy Performance - Operations
 type: custom:mushroom-template-card
-primary: "{{ states('sensor.hvac_furnace_cycles_month') | int(0) }}"
+primary: "{{ states('sensor.hvac_furnace_cycles_month_2') | int(0) }}"
 secondary: >
-  {% set cycles = states('sensor.hvac_furnace_cycles_month') | int(0) %}
+  {% set cycles = states('sensor.hvac_furnace_cycles_month_2') | int(0) %}
   {% set days = now().day %}
   {{ (cycles / days) | round(1) if days > 0 else 0 }} cycles/day avg
 icon: mdi:counter
 icon_color: indigo
 tap_action:
   action: more-info
-entity: sensor.hvac_furnace_cycles_month
+entity: sensor.hvac_furnace_cycles_month_2
 layout_options:
   grid_columns: 2
   grid_rows: 2
