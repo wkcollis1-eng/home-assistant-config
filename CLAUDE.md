@@ -2253,34 +2253,26 @@ Changed the freshness sensor to use `last_updated`:
 
 ## Known Issues
 
-### Pirate Weather Forecast Sensors Broken (as of 2026-02-08)
+### Pirate Weather Forecast Sensors Broken (resolved 2026-02-08)
 
-**Status:** Deferred
-
-**Affected sensors (12 total):**
-- `sensor.pirate_weather_today_high` — returns 0
-- `sensor.pirate_weather_today_low` — returns 0
-- `sensor.pirate_weather_today_condition` — returns unknown
-- `sensor.pirate_weather_tomorrow_high` — returns 0
-- `sensor.pirate_weather_tomorrow_low` — returns 0
-- `sensor.pirate_weather_tomorrow_condition` — returns unknown
-- `sensor.pirate_weather_today_precip_probability` — returns 0
-- `sensor.pirate_weather_tomorrow_precip_probability` — returns 0
-- `sensor.pirate_weather_hdd_forecast_today` — returns 0
-- `sensor.pirate_weather_hdd_forecast_tomorrow` — returns 0
-- `sensor.pirate_weather_hdd_forecast_7_day` — returns 0
-- `sensor.pirate_weather_cdd_forecast_today` — returns 0
+**Status:** Resolved
 
 **Root cause:**
-These template sensors use `state_attr('weather.pirateweather', 'forecast')` which was deprecated in HA 2024.3. The `forecast` attribute is now empty, so all sensors fall back to 0/unknown.
+The old templates used `state_attr('weather.pirateweather', 'forecast')`, which no longer provides forecast data after HA 2024.3.
 
-**Impact:**
-- Setback recommendations using `sensor.pirate_weather_today_low` will be incorrect
-- HDD forecast totals will be wrong
-- Any automations relying on forecast data will malfunction
+**Fix applied (2026-02-08):**
+- Removed the 12 deprecated forecast templates that read from the old weather attribute.
+- Added a trigger-based template block that calls `weather.get_forecasts` with `response_variable`.
+- Added robust guards for empty or missing forecast lists before reading index 0/1.
+- Added startup + periodic refresh triggers and a template reload trigger.
+- Added temporary debug sensor: `sensor.pirate_weather_daily_forecast_count`.
 
-**Fix required:**
-Migrate to trigger-based template sensors using `weather.get_forecasts` service. See: https://www.home-assistant.io/blog/2024/02/07/release-20242/#weather-forecast-service
+**New implementation location:**
+- `configuration.yaml` trigger-based weather forecast template block at lines ~3322-3554
+- `weather.get_forecasts` call at ~3330
+- `response_variable: pirate_weather_daily` at ~3335
 
-**Location:** `configuration.yaml` lines 2782-2915 (12 sensors)
-
+**Verification (2026-02-08):**
+- `sensor.pirate_weather_daily_forecast_count` = `8`
+- `sensor.pirate_weather_daily_forecast_count` attribute `response_keys` = `weather.pirateweather`
+- `sensor.pirate_weather_today_high` = `13.0`
