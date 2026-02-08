@@ -2222,3 +2222,30 @@ Lower values = faster recovery = better performance.
 ### Files Modified
 - `automations.yaml` — `hvac_1f_recovery_end`, `hvac_2f_recovery_end` recovery_rate variable (lines ~1046, ~1254)
 
+---
+
+## Weather Freshness Detection Fix - 2026-02-08
+
+### Issue
+The `sensor.pirate_weather_data_age` sensor used `last_changed` to track weather data freshness. This caused false stale-data alerts when the weather conditions remained constant (e.g., stable temperature), because `last_changed` only updates when the *value* changes.
+
+### Root Cause
+- `last_changed` — Updates only when entity state value changes
+- `last_updated` — Updates whenever HA refreshes the entity (regardless of value change)
+
+The stale weather alert automation (`automations.yaml:2008`) triggers when age > 120 min, which could fire even when the integration was updating successfully but conditions stayed the same.
+
+### Fix Applied
+Changed the freshness sensor to use `last_updated`:
+
+```yaml
+# Before (tracked value changes only):
+{% set last_changed = states.weather.pirateweather.last_changed %}
+
+# After (tracks data refresh time):
+{% set last_updated = states.weather.pirateweather.last_updated %}
+```
+
+### Files Modified
+- `configuration.yaml` — `sensor.pirate_weather_data_age` template (line ~2923)
+
