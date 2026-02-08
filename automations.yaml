@@ -1080,7 +1080,7 @@
           {% set outdoor = overnight_low | float(35) %}
           {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
         baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% set val = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
           {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
           {% set hdd = hdd_setback | float(0) %}
@@ -1314,7 +1314,7 @@
           {% set outdoor = overnight_low | float(35) %}
           {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
         baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% set val = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
           {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
         expected_hold_runtime: >
           {% set hdd = hdd_setback | float(0) %}
@@ -1557,7 +1557,7 @@
       data:
         title: "HVAC Efficiency Warning"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
           which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound_1s') }} = mean + 2σ).
           Check for air leaks, filter condition, or thermostat issues.
 
@@ -1572,7 +1572,7 @@
       data:
         title: "HVAC Efficiency Notice"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
           which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
           System running more efficiently than expected.
 

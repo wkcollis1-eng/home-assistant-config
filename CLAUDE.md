@@ -109,7 +109,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_filter_change_alert` - Alert when >= 1000 hours
 
 ### Efficiency Monitoring
-- `sensor.hvac_runtime_per_hdd_7_day` - 7-day rolling runtime per HDD (min/HDD)
+- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day rolling runtime per HDD (min/HDD)
 - `sensor.hvac_total_runtime_per_hdd_today` - Today's runtime per HDD (min/HDD)
 - `sensor.hvac_1f_runtime_per_hdd_today` - 1F today's runtime per HDD
 - `sensor.hvac_2f_runtime_per_hdd_today` - 2F today's runtime per HDD
@@ -146,8 +146,8 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.hvac_runtime_per_hdd_month` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
-- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation
+- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day standard deviation
 - `sensor.hvac_runtime_per_hdd_upper_bound_1s` - Mean + 2σ boundary
 - `sensor.hvac_runtime_per_hdd_lower_bound_1s` - Mean - 2σ boundary
 - `sensor.hvac_runtime_per_hdd_data_count` - Number of valid samples (alerts suppressed if <4)
@@ -441,6 +441,33 @@ net_runtime = expected_hold - total_runtime
 - `net_runtime ≈ 0`: Marginal benefit
 - `net_runtime < 0`: Recovery penalty exceeded overnight savings (setback too deep for conditions)
 
+### CSV Management Script (`scripts/csv_manager.py`)
+Python-based CSV operations replacing complex shell one-liners. Provides:
+- **Data validation** before writes (rejects invalid setback entries like 0.0/0.0/0.0)
+- **Schema enforcement** with consistent column ordering
+- **Duplicate prevention** for daily/monthly reports
+- **Proper logging** for debugging
+
+**Commands:**
+| Command | Description | Shell Command |
+|---------|-------------|---------------|
+| `append_daily --data '{...}'` | Append daily HVAC report | `shell_command.appenddailycsv` |
+| `append_monthly --data '{...}'` | Append monthly HVAC report | `shell_command.appendmonthlycsv` |
+| `append_setback --zone 1F/2F --data '{...}'` | Append setback log | `shell_command.appendsetbacklog_1f/2f` |
+| `backup --data '{...}'` | Backup input_numbers | `shell_command.backup_input_numbers` |
+| `rotate_daily` | Year rotation for daily CSV | `shell_command.rotatedailycsv` |
+| `rotate_setback` | Year rotation for setback log | `shell_command.rotate_setback_log` |
+
+**Setback Validation (prevents invalid entries):**
+- `setback_depth >= 1` (°F)
+- `setback_degrees >= 1` (°F)
+- `recovery_minutes > 0`
+
+**Daily Validation (prevents corrupt data):**
+- `outdoor_high > -49` (not uninitialized)
+- `outdoor_low < 149` (not uninitialized)
+- `hdd65 >= 0`
+
 **Finding your breakpoint:** Plot overnight_low vs net_runtime. The temperature where net_runtime crosses zero is your optimal setback threshold.
 
 ### Related Automations
@@ -503,8 +530,14 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 - EUI now computed from rolling 12-month archive inputs (electric_archive_*_kwh + gas_archive_*_ccf), updated whenever archives change
 
 ### Entity Registry Note
-- `sensor.hdd_rolling_7_day_auto_2` is the correct entity ID (the `_2` suffix is from entity registry)
-- Do NOT delete it - it contains the valid 7-day HDD rolling data
+Several sensors have `_2` suffix from entity registry conflicts. Use these entity IDs:
+- `sensor.hdd_rolling_7_day_auto_2` - 7-day rolling HDD
+- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day runtime per HDD (min/HDD)
+- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day standard deviation
+- `sensor.hvac_furnace_runtime_month_2` - Monthly furnace runtime
+
+Do NOT delete these entities - they contain the valid historical data.
 
 ---
 
@@ -1486,7 +1519,7 @@ Each Tier 1 KPI shows a status badge:
 
 **Existing Entities:**
 - `binary_sensor.runtime_per_hdd_capture_stale` - 25h threshold
-- `sensor.hvac_runtime_per_hdd_7_day_mean` - With slot validation
+- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - With slot validation
 - `sensor.hvac_runtime_per_hdd_data_count` - Valid sample count
 
 **New Entities:**
@@ -1588,7 +1621,7 @@ Located in `dashboards/cards/mushroom/`:
 The `hvac_*f_recovery_end` automations were aborting before completing all actions (including turning off the setback latch) when the calculated `net_runtime` exceeded the input_number's valid range (-200 to 200).
 
 ### Root Cause
-When `baseline_min_per_hdd` (from `sensor.hvac_runtime_per_hdd_7_day`) was 0 or unavailable:
+When `baseline_min_per_hdd` (from `sensor.hvac_runtime_per_hdd_7_day_2`) was 0 or unavailable:
 - `expected_hold_runtime = 0`
 - `net_runtime = 0 - total_runtime` = large negative value (e.g., -302)
 - `input_number.hvac_*f_last_net_runtime` rejected the value (outside -200 to 200)
@@ -1956,7 +1989,7 @@ After restarting HA:
 
 ### Issues Fixed
 
-1. **Sensor entity ID mismatch** — Automations referenced `sensor.hvac_runtime_per_hdd_7day` but actual entity is `sensor.hvac_runtime_per_hdd_7_day` (with underscore). Caused `expected_hold` to always be 0.
+1. **Sensor entity ID mismatch** — Automations referenced `sensor.hvac_runtime_per_hdd_7day` but actual entity is `sensor.hvac_runtime_per_hdd_7_day_2` (with underscore). Caused `expected_hold` to always be 0.
 
 2. **CSV formula synchronized** — Shell commands in `appendsetbacklog_1f` and `appendsetbacklog_2f` now use same min/°F formula as automations.
 
