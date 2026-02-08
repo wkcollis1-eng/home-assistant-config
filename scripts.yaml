@@ -347,7 +347,7 @@ seed_monthly_accumulators:
         entity_id: input_number.furnace_runtime_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_furnace_runtime_month') | float(0) %}
+          {% set month = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {{ [month - today, 0] | max | round(2) }}
 
@@ -357,7 +357,7 @@ seed_monthly_accumulators:
         entity_id: input_number.furnace_cycles_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_furnace_cycles_month') | float(0) %}
+          {% set month = states('sensor.hvac_furnace_cycles_month_2') | float(0) %}
           {% set today = states('sensor.hvac_furnace_cycles_today') | float(0) %}
           {{ [month - today, 0] | max | round(0) }}
 
@@ -367,8 +367,8 @@ seed_monthly_accumulators:
         entity_id: input_number.zone_1f_runtime_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_zone_1f_runtime_month') | float(0) %}
-          {% set today = states('sensor.hvac_zone_1f_runtime_today') | float(0) %}
+          {% set month = states('sensor.hvac_1f_heat_runtime_month_2') | float(0) %}
+          {% set today = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}
           {{ [month - today, 0] | max | round(2) }}
 
     # Zone 2F Runtime: month total minus today
@@ -377,8 +377,8 @@ seed_monthly_accumulators:
         entity_id: input_number.zone_2f_runtime_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_zone_2f_runtime_month') | float(0) %}
-          {% set today = states('sensor.hvac_zone_2f_runtime_today') | float(0) %}
+          {% set month = states('sensor.hvac_2f_heat_runtime_month_2') | float(0) %}
+          {% set today = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
           {{ [month - today, 0] | max | round(2) }}
 
     # Zone 1F Cycles: month total minus today's cycles
@@ -387,8 +387,8 @@ seed_monthly_accumulators:
         entity_id: input_number.zone_1f_cycles_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_zone_1f_cycles_month') | float(0) %}
-          {% set today = states('sensor.hvac_zone_1f_cycles_today') | float(0) %}
+          {% set month = states('sensor.hvac_1f_heat_cycles_month_2') | float(0) %}
+          {% set today = states('sensor.hvac_1f_heat_cycles_today') | float(0) %}
           {{ [month - today, 0] | max | round(0) }}
 
     # Zone 2F Cycles: month total minus today's cycles
@@ -397,8 +397,8 @@ seed_monthly_accumulators:
         entity_id: input_number.zone_2f_cycles_month_acc
       data:
         value: >
-          {% set month = states('sensor.hvac_zone_2f_cycles_month') | float(0) %}
-          {% set today = states('sensor.hvac_zone_2f_cycles_today') | float(0) %}
+          {% set month = states('sensor.hvac_2f_heat_cycles_month_2') | float(0) %}
+          {% set today = states('sensor.hvac_2f_heat_cycles_today') | float(0) %}
           {{ [month - today, 0] | max | round(0) }}
 
     - service: persistent_notification.create

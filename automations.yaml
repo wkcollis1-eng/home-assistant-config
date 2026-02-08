@@ -1098,8 +1098,8 @@
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 480] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=480 min)
+        value: "{{ [recovery_minutes | float, 300] | min }}"
+    # Store recovery rate if valid (>=1°F setback, <=300 min)
     - choose:
         - conditions:
             - condition: template
@@ -1161,8 +1161,8 @@
       target:
         entity_id: input_number.hvac_1f_last_net_runtime
       data:
-        # Clamp to input_number range to prevent automation abort
-        value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
+        # Clamp to input_number range (-999 sentinel preserved for data quality failures)
+        value: "{{ [[net_runtime | float, -999] | max, 200] | min }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_last_total_runtime
@@ -1306,8 +1306,8 @@
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 480] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=480 min)
+        value: "{{ [recovery_minutes | float, 300] | min }}"
+    # Store recovery rate if valid (>=1°F setback, <=300 min)
     - choose:
         - conditions:
             - condition: template
@@ -1369,8 +1369,8 @@
       target:
         entity_id: input_number.hvac_2f_last_net_runtime
       data:
-        # Clamp to input_number range to prevent automation abort
-        value: "{{ [[net_runtime | float, -200] | max, 200] | min }}"
+        # Clamp to input_number range (-999 sentinel preserved for data quality failures)
+        value: "{{ [[net_runtime | float, -999] | max, 200] | min }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_last_total_runtime
