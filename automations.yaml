@@ -980,6 +980,7 @@
 # ===============================================================
 - id: hvac_1f_recovery_start
   alias: "1F Recovery Start"
+  mode: single
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_1f_recovering
@@ -995,6 +996,15 @@
     - condition: state
       entity_id: input_boolean.hvac_1f_setback_active
       state: "on"
+    - condition: template
+      value_template: >
+        {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
+        {% if setback_start in ['unknown', 'unavailable', 'none'] %}
+          false
+        {% else %}
+          {% set age_h = (now() - (setback_start | as_datetime | as_local)).total_seconds() / 3600 %}
+          {{ age_h >= 0 and age_h <= 16 }}
+        {% endif %}
   action:
     - service: input_datetime.set_datetime
       target:
@@ -1020,6 +1030,7 @@
 
 - id: hvac_1f_recovery_end
   alias: "1F Recovery End"
+  mode: single
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_1f_recovering
@@ -1027,8 +1038,25 @@
       for:
         minutes: 10
   condition:
+    - condition: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      state: "on"
     - condition: template
-      value_template: "{{ states('input_datetime.hvac_1f_recovery_start') not in ['unknown', 'unavailable'] }}"
+      value_template: >
+        {% set recovery_start = states('input_datetime.hvac_1f_recovery_start') %}
+        {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
+        {% if recovery_start in ['unknown', 'unavailable', 'none'] or setback_start in ['unknown', 'unavailable', 'none'] %}
+          false
+        {% else %}
+          {% set recovery_dt = recovery_start | as_datetime | as_local %}
+          {% set setback_dt = setback_start | as_datetime | as_local %}
+          {% set recovery_age_h = (now() - recovery_dt).total_seconds() / 3600 %}
+          {% set setback_age_h = (now() - setback_dt).total_seconds() / 3600 %}
+          {% set setback_start_min = setback_dt.hour * 60 + setback_dt.minute %}
+          {{ recovery_age_h >= 0 and recovery_age_h <= 12 and
+             setback_age_h >= 0 and setback_age_h <= 16 and
+             setback_start_min >= 1080 }}
+        {% endif %}
   action:
     - variables:
         recovery_minutes: >
@@ -1190,7 +1218,9 @@
               value_template: >
                 {{ setback_depth | float(0) >= 1 and
                    setback_degrees | float(0) >= 1 and
-                   recovery_minutes | float(0) > 0 }}
+                   recovery_minutes | float(0) > 0 and
+                   setback_hours | float(0) >= 1 and
+                   setback_hours | float(0) <= 16 }}
           sequence:
             - service: shell_command.appendsetbacklog_1f
       default:
@@ -1214,6 +1244,7 @@
 
 - id: hvac_2f_recovery_start
   alias: "2F Recovery Start"
+  mode: single
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_2f_recovering
@@ -1229,6 +1260,15 @@
     - condition: state
       entity_id: input_boolean.hvac_2f_setback_active
       state: "on"
+    - condition: template
+      value_template: >
+        {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
+        {% if setback_start in ['unknown', 'unavailable', 'none'] %}
+          false
+        {% else %}
+          {% set age_h = (now() - (setback_start | as_datetime | as_local)).total_seconds() / 3600 %}
+          {{ age_h >= 0 and age_h <= 16 }}
+        {% endif %}
   action:
     - service: input_datetime.set_datetime
       target:
@@ -1254,6 +1294,7 @@
 
 - id: hvac_2f_recovery_end
   alias: "2F Recovery End"
+  mode: single
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_2f_recovering
@@ -1261,8 +1302,25 @@
       for:
         minutes: 10
   condition:
+    - condition: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      state: "on"
     - condition: template
-      value_template: "{{ states('input_datetime.hvac_2f_recovery_start') not in ['unknown', 'unavailable'] }}"
+      value_template: >
+        {% set recovery_start = states('input_datetime.hvac_2f_recovery_start') %}
+        {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
+        {% if recovery_start in ['unknown', 'unavailable', 'none'] or setback_start in ['unknown', 'unavailable', 'none'] %}
+          false
+        {% else %}
+          {% set recovery_dt = recovery_start | as_datetime | as_local %}
+          {% set setback_dt = setback_start | as_datetime | as_local %}
+          {% set recovery_age_h = (now() - recovery_dt).total_seconds() / 3600 %}
+          {% set setback_age_h = (now() - setback_dt).total_seconds() / 3600 %}
+          {% set setback_start_min = setback_dt.hour * 60 + setback_dt.minute %}
+          {{ recovery_age_h >= 0 and recovery_age_h <= 12 and
+             setback_age_h >= 0 and setback_age_h <= 16 and
+             setback_start_min >= 1080 }}
+        {% endif %}
   action:
     - variables:
         recovery_minutes: >
@@ -1424,7 +1482,9 @@
               value_template: >
                 {{ setback_depth | float(0) >= 1 and
                    setback_degrees | float(0) >= 1 and
-                   recovery_minutes | float(0) > 0 }}
+                   recovery_minutes | float(0) > 0 and
+                   setback_hours | float(0) >= 1 and
+                   setback_hours | float(0) <= 16 }}
           sequence:
             - service: shell_command.appendsetbacklog_2f
       default:
@@ -1451,6 +1511,7 @@
 # ===============================================================
 - id: hvac_1f_setback_start
   alias: "1F Setback Start"
+  mode: single
   trigger:
     - platform: state
       entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
@@ -1469,6 +1530,10 @@
     - condition: state
       entity_id: input_boolean.hvac_1f_setback_active
       state: "off"
+    - condition: template
+      value_template: >
+        {% set mins = now().hour * 60 + now().minute %}
+        {{ mins >= 1080 }}
   action:
     # Latch setback active first to prevent re-firing
     - service: input_boolean.turn_on
@@ -1498,6 +1563,7 @@
 
 - id: hvac_2f_setback_start
   alias: "2F Setback Start"
+  mode: single
   trigger:
     - platform: state
       entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
@@ -1516,6 +1582,10 @@
     - condition: state
       entity_id: input_boolean.hvac_2f_setback_active
       state: "off"
+    - condition: template
+      value_template: >
+        {% set mins = now().hour * 60 + now().minute %}
+        {{ mins >= 1080 }}
   action:
     # Latch setback active first to prevent re-firing
     - service: input_boolean.turn_on
