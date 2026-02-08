@@ -143,7 +143,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.outdoor_temp_mean_month` - Monthly average outdoor temperature
 - `sensor.expected_runtime_month` - Monthly expected runtime total (hours)
 - `sensor.efficiency_deviation_month` - Monthly efficiency deviation (%)
-- `sensor.runtime_per_hdd_month_calc` - Monthly runtime per HDD (min/HDD)
+- `sensor.runtime_per_hdd_month` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
 - `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean
@@ -391,7 +391,7 @@ Captured at 23:58 on last day of each month.
 | mean_outdoor_temp | sensor.outdoor_temp_mean_month (accumulated daily averages) |
 | total_hdd65 | input_number.hdd_cumulative_month_auto |
 | furnace_runtime_hours | sensor.hvac_furnace_runtime_month |
-| avg_runtime_per_hdd | sensor.runtime_per_hdd_month_calc (monthly calculation) |
+| avg_runtime_per_hdd | sensor.runtime_per_hdd_month (monthly calculation) |
 | heating_efficiency_ccf_per_1k_hdd | sensor.hvac_heating_efficiency_mtd |
 | actual_runtime | sensor.hvac_furnace_runtime_month |
 | expected_runtime | sensor.expected_runtime_month (accumulated daily expected) |
@@ -409,7 +409,7 @@ Captured at 23:58 on last day of each month.
 - `sensor.outdoor_temp_mean_month` - Monthly average outdoor temp (sum/days)
 - `sensor.expected_runtime_month` - Monthly expected runtime total
 - `sensor.efficiency_deviation_month` - Monthly efficiency deviation %
-- `sensor.runtime_per_hdd_month_calc` - Monthly runtime per HDD (min/HDD)
+- `sensor.runtime_per_hdd_month` - Monthly runtime per HDD (min/HDD)
 
 ### Setback Optimization Log (`reports/hvac_setback_log.csv`)
 Captured at recovery_end for each zone. Used to empirically optimize setback temps by outdoor low.
@@ -1820,7 +1820,7 @@ The `unique_id` values in the template sensor definitions remain without `_2` (e
 | `sensor.hvac_heating_efficiency_mtd` | `furnace_runtime_month_2` |
 | `sensor.hvac_building_load_ua_estimate` | `furnace_runtime_month_2` |
 | `sensor.efficiency_deviation_month` | `furnace_runtime_month_2` |
-| `sensor.runtime_per_hdd_month_calc` | `furnace_runtime_month_2` |
+| `sensor.runtime_per_hdd_month` | `furnace_runtime_month_2` |
 
 ### Files Modified
 - `configuration.yaml` - Input number ranges, availability templates
