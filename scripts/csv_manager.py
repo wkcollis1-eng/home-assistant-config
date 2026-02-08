@@ -14,7 +14,9 @@ import argparse
 import csv
 import json
 import logging
+import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -54,6 +56,23 @@ SCHEMAS = {
     ]
 }
 
+ONE_DECIMAL_COLUMNS = {
+    "outdoor_high", "outdoor_low", "outdoor_mean", "hdd65",
+    "avg_min_per_cycle", "chaining_index", "overnight_low",
+    "setback_depth", "setback_degrees", "recovery_rate",
+    "furnace_runtime_hours", "avg_runtime_per_hdd",
+    "heating_efficiency_ccf_per_1k_hdd", "mean_outdoor_temp",
+    "total_hdd65", "efficiency_deviation_pct",
+    "furnace_runtime_min", "runtime_1f_min", "runtime_2f_min",
+    "recovery_minutes", "basement_dew_point"
+}
+
+INTEGER_COLUMNS = {
+    "total_runtime", "expected_hold", "net_runtime",
+    "furnace_cycles", "zone_calls_total", "gas_usage_ccf",
+    "electric_kwh", "days"
+}
+
 
 def ensure_csv_exists(filepath: Path, schema_name: str) -> None:
     """Create CSV with header if it doesn't exist."""
@@ -76,6 +95,30 @@ def row_exists(filepath: Path, key_column: str, key_value: str) -> bool:
             if row.get(key_column) == key_value:
                 return True
     return False
+
+
+def atomic_write_dict_rows(filepath: Path, fieldnames: list, rows: list) -> None:
+    """Write CSV rows via temp file + atomic rename to avoid truncation-loss on failures."""
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{filepath.name}.",
+        suffix=".tmp",
+        dir=str(filepath.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, filepath)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def validate_data(data: dict, schema_name: str, required_fields: list = None) -> bool:
@@ -121,24 +164,17 @@ def append_row(filepath: Path, data: dict, schema_name: str) -> bool:
     row = []
     for col in schema:
         value = data.get(col, "")
-        # Round numeric values appropriately
-        if isinstance(value, float):
-            if col in ["outdoor_high", "outdoor_low", "outdoor_mean", "hdd65",
-                       "avg_min_per_cycle", "chaining_index", "overnight_low",
-                       "setback_depth", "setback_degrees", "recovery_rate",
-                       "furnace_runtime_hours", "avg_runtime_per_hdd",
-                       "heating_efficiency_ccf_per_1k_hdd", "mean_outdoor_temp",
-                       "total_hdd65", "efficiency_deviation_pct"]:
-                value = round(value, 1)
-            elif col in ["furnace_runtime_min", "runtime_1f_min", "runtime_2f_min",
-                         "recovery_minutes", "basement_dew_point"]:
-                value = round(value, 1)
-            elif col in ["total_runtime", "expected_hold", "net_runtime",
-                         "furnace_cycles", "zone_calls_total", "gas_usage_ccf",
-                         "electric_kwh", "days"]:
-                value = int(round(value))
+        # Round numeric values; pass through strings/dates/zones unchanged.
+        if value is None:
+            value = ""
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            number = float(value)
+            if col in ONE_DECIMAL_COLUMNS:
+                value = round(number, 1)
+            elif col in INTEGER_COLUMNS:
+                value = int(round(number))
             else:
-                value = round(value, 2)
+                value = round(number, 2)
         row.append(value)
 
     with open(filepath, 'a', newline='') as f:
@@ -257,17 +293,11 @@ def cmd_rotate_setback(args):
 
     # Write archive
     if prev_year_rows:
-        with open(archive_file, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=SCHEMAS["setback"], quoting=csv.QUOTE_ALL)
-            writer.writeheader()
-            writer.writerows(prev_year_rows)
+        atomic_write_dict_rows(archive_file, SCHEMAS["setback"], prev_year_rows)
         logger.info(f"Archived {len(prev_year_rows)} rows to {archive_file}")
 
     # Rewrite current file with only current year data
-    with open(src_file, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=SCHEMAS["setback"], quoting=csv.QUOTE_ALL)
-        writer.writeheader()
-        writer.writerows(curr_year_rows)
+    atomic_write_dict_rows(src_file, SCHEMAS["setback"], curr_year_rows)
 
     logger.info(f"Kept {len(curr_year_rows)} rows in {src_file}")
     return True
