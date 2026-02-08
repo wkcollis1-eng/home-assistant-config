@@ -2920,9 +2920,9 @@ template:
         unit_of_measurement: "min"
         icon: mdi:clock-outline
         state: >
-          {% set last_changed = states.weather.pirateweather.last_changed %}
-          {% if last_changed %}
-            {{ ((now() - last_changed).total_seconds() / 60) | round(0) }}
+          {% set last_updated = states.weather.pirateweather.last_updated %}
+          {% if last_updated %}
+            {{ ((now() - last_updated).total_seconds() / 60) | round(0) }}
           {% else %}unknown{% endif %}
 
       # ===============================================================
