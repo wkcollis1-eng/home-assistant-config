@@ -109,7 +109,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_filter_change_alert` - Alert when >= 1000 hours
 
 ### Efficiency Monitoring
-- `sensor.hvac_runtime_per_hdd_7day` - 7-day rolling runtime per HDD (min/HDD)
+- `sensor.hvac_runtime_per_hdd_7_day` - 7-day rolling runtime per HDD (min/HDD)
 - `sensor.hvac_total_runtime_per_hdd_today` - Today's runtime per HDD (min/HDD)
 - `sensor.hvac_1f_runtime_per_hdd_today` - 1F today's runtime per HDD
 - `sensor.hvac_2f_runtime_per_hdd_today` - 2F today's runtime per HDD
@@ -146,8 +146,8 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.runtime_per_hdd_month_calc` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
-- `sensor.hvac_runtime_per_hdd_7day_mean` - Rolling 7-day mean
-- `sensor.hvac_runtime_per_hdd_7day_stddev` - Rolling 7-day standard deviation
+- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation
 - `sensor.hvac_runtime_per_hdd_upper_bound_1s` - Mean + 2σ boundary
 - `sensor.hvac_runtime_per_hdd_lower_bound_1s` - Mean - 2σ boundary
 - `sensor.hvac_runtime_per_hdd_data_count` - Number of valid samples (alerts suppressed if <4)
@@ -1486,7 +1486,7 @@ Each Tier 1 KPI shows a status badge:
 
 **Existing Entities:**
 - `binary_sensor.runtime_per_hdd_capture_stale` - 25h threshold
-- `sensor.hvac_runtime_per_hdd_7day_mean` - With slot validation
+- `sensor.hvac_runtime_per_hdd_7_day_mean` - With slot validation
 - `sensor.hvac_runtime_per_hdd_data_count` - Valid sample count
 
 **New Entities:**
@@ -1588,7 +1588,7 @@ Located in `dashboards/cards/mushroom/`:
 The `hvac_*f_recovery_end` automations were aborting before completing all actions (including turning off the setback latch) when the calculated `net_runtime` exceeded the input_number's valid range (-200 to 200).
 
 ### Root Cause
-When `baseline_min_per_hdd` (from `sensor.hvac_runtime_per_hdd_7day`) was 0 or unavailable:
+When `baseline_min_per_hdd` (from `sensor.hvac_runtime_per_hdd_7_day`) was 0 or unavailable:
 - `expected_hold_runtime = 0`
 - `net_runtime = 0 - total_runtime` = large negative value (e.g., -302)
 - `input_number.hvac_*f_last_net_runtime` rejected the value (outside -200 to 200)
@@ -1956,29 +1956,11 @@ After restarting HA:
 
 ### Issues Fixed
 
-1. **Inverted recovery rate formula** — Formula was `recovery_minutes / setback_degrees` giving min/°F instead of °F/hr. A 2°F recovery in 10 minutes showed as "5" (min/°F) instead of "12" (°F/hr).
+1. **Sensor entity ID mismatch** — Automations referenced `sensor.hvac_runtime_per_hdd_7day` but actual entity is `sensor.hvac_runtime_per_hdd_7_day` (with underscore). Caused `expected_hold` to always be 0.
 
-2. **Sensor entity ID mismatch** — Automations referenced `sensor.hvac_runtime_per_hdd_7day` but actual entity is `sensor.hvac_runtime_per_hdd_7_day` (with underscore). Caused `expected_hold` to always be 0.
-
-3. **CSV logging had same inverted formula** — Shell commands in `appendsetbacklog_1f` and `appendsetbacklog_2f` used the same wrong calculation.
+2. **CSV formula synchronized** — Shell commands in `appendsetbacklog_1f` and `appendsetbacklog_2f` now use same min/°F formula as automations.
 
 ### Code Changes
-
-**automations.yaml (lines 1042-1048, 1243-1249):**
-```yaml
-# OLD (wrong - gives min/°F):
-recovery_rate: >
-  {% set deg = setback_degrees | float(0) %}
-  {% if deg > 0 %}
-    {{ ((recovery_minutes | float(0)) / deg) | round(1) }}
-
-# NEW (correct - gives °F/hr):
-recovery_rate: >
-  {% set mins = recovery_minutes | float(0) %}
-  {% set deg = setback_degrees | float(0) %}
-  {% if mins > 0 and deg > 0 %}
-    {{ ((deg / mins) * 60) | round(1) }}
-```
 
 **automations.yaml (lines 1082, 1283):**
 ```yaml
@@ -1986,11 +1968,9 @@ recovery_rate: >
 # NEW: sensor.hvac_runtime_per_hdd_7_day
 ```
 
-**configuration.yaml (shell_command appendsetbacklog_1f/2f):**
-```yaml
-# OLD: (minutes / [degrees, 0.1] | max)
-# NEW: ((degrees / [minutes, 1] | max) * 60)
-```
+**Recovery rate unit: min/°F**
+Both automations and CSV shell commands now use `minutes / max(degrees, 0.1)` to give min/°F.
+This measures how many minutes of recovery time are needed per degree of setback.
 
 ### Manual Reset Required
 
