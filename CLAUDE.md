@@ -2348,3 +2348,57 @@ Report rows were being written with inconsistent values and occasional corrupt r
 
 ### Note
 Historical rows already written before this hardening may still contain inaccurate values. New rows written after this change use the corrected pipeline and guards.
+
+---
+
+## Overnight Setback Cycle Hardening - 2026-02-08
+
+### Scope
+Focused hardening for scheduled overnight setbacks only, with explicit protection around setback start and recovery end cycle boundaries.
+
+### Issues Addressed
+1. Recovery-end automations could complete from non-setback heating behavior if a stale recovery timestamp existed.
+2. Recovering binary sensors could start from daytime gap/furnace states without an active setback cycle.
+3. Setback-start automations could capture any qualifying setpoint drop, not only overnight schedule drops.
+4. Setback CSV append guard did not bound setback duration to overnight-like windows.
+
+### Fixes Applied
+- Added `mode: single` to these automations for deterministic overlap behavior:
+  - `hvac_1f_setback_start`
+  - `hvac_2f_setback_start`
+  - `hvac_1f_recovery_start`
+  - `hvac_2f_recovery_start`
+  - `hvac_1f_recovery_end`
+  - `hvac_2f_recovery_end`
+- Setback-start gating (both zones):
+  - Requires local time >= 18:00 before latching setback start.
+- Recovery-start gating (both zones):
+  - Requires active setback latch.
+  - Requires setback start timestamp to be present and recent (<= 16h old).
+- Recovery-end gating (both zones):
+  - Requires active setback latch.
+  - Requires both recovery and setback timestamps.
+  - Rejects stale/future timestamps with explicit age windows.
+  - Requires setback start time to be in evening window (>= 18:00).
+- Setback CSV append guard (both zones):
+  - Existing payload checks retained (`setback_depth`, `setback_degrees`, `recovery_minutes`).
+  - Added duration bound: `setback_hours` must be between 1 and 16.
+- Recovering binary sensor hardening:
+  - `binary_sensor.hvac_1f_recovering` and `binary_sensor.hvac_2f_recovering` now fail closed unless corresponding `input_boolean.hvac_*_setback_active` is `on`.
+
+### Files Modified
+- `automations.yaml`
+  - `hvac_1f_setback_start`
+  - `hvac_2f_setback_start`
+  - `hvac_1f_recovery_start`
+  - `hvac_2f_recovery_start`
+  - `hvac_1f_recovery_end`
+  - `hvac_2f_recovery_end`
+- `configuration.yaml`
+  - `binary_sensor.hvac_1f_recovering`
+  - `binary_sensor.hvac_2f_recovering`
+
+### Validation Notes
+- Local shell in this session could not run HA config validation:
+  - `py -3 -m homeassistant --script check_config -c H:\` -> `No module named homeassistant`
+- Recommend running config check inside the Home Assistant runtime environment before restart/reload.
