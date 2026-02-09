@@ -2402,3 +2402,31 @@ Focused hardening for scheduled overnight setbacks only, with explicit protectio
 - Local shell in this session could not run HA config validation:
   - `py -3 -m homeassistant --script check_config -c H:\` -> `No module named homeassistant`
 - Recommend running config check inside the Home Assistant runtime environment before restart/reload.
+
+---
+
+## Expected Runtime Sensor Unavailable Fix - 2026-02-09
+
+### Issue
+`sensor.expected_runtime_today` became `unavailable` after recent template/entity updates.
+
+### Root Cause
+The template availability/state logic referenced only:
+- `sensor.hvac_runtime_per_hdd_7_day_2`
+
+After registry/unique-id normalization, the active canonical sensor name was:
+- `sensor.hvac_runtime_per_hdd_7_day`
+
+When the `_2` entity was unavailable/missing, the strict availability gate forced `sensor.expected_runtime_today` to `unavailable`.
+
+### Fix Applied
+- Updated `sensor.expected_runtime_today` in `configuration.yaml` to:
+  - Prefer `sensor.hvac_runtime_per_hdd_7_day`
+  - Fall back to `sensor.hvac_runtime_per_hdd_7_day_2` for compatibility
+  - Keep strict numeric availability checks
+- Added diagnostic attribute:
+  - `runtime_per_hdd_source` (shows which upstream entity is currently used)
+
+### Files Modified
+- `configuration.yaml`
+  - `sensor.expected_runtime_today` template (`availability`, `state`, and new `runtime_per_hdd_source` attribute)

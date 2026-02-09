@@ -3241,16 +3241,31 @@ template:
         state_class: measurement
         icon: mdi:timer-outline
         availability: >
-          {{ is_number(states('sensor.expected_hdd_today')) and
-             is_number(states('sensor.hvac_runtime_per_hdd_7_day_2')) }}
+          {% set expected = states('sensor.expected_hdd_today') %}
+          {% set runtime_primary = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% set runtime_legacy = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
+          {{ is_number(expected) and (is_number(runtime_primary) or is_number(runtime_legacy)) }}
         state: >
           {% set expected_hdd = states('sensor.expected_hdd_today') | float %}
-          {% set runtime_per_hdd = states('sensor.hvac_runtime_per_hdd_7_day_2') | float %}
+          {% set runtime_state = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% if not is_number(runtime_state) %}
+            {% set runtime_state = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
+          {% endif %}
+          {% set runtime_per_hdd = runtime_state | float %}
           {% if expected_hdd > 0 %}
             {{ (expected_hdd * runtime_per_hdd / 60) | round(2) }}
           {% else %}
             0
           {% endif %}
+        attributes:
+          runtime_per_hdd_source: >
+            {% if is_number(states('sensor.hvac_runtime_per_hdd_7_day')) %}
+              sensor.hvac_runtime_per_hdd_7_day
+            {% elif is_number(states('sensor.hvac_runtime_per_hdd_7_day_2')) %}
+              sensor.hvac_runtime_per_hdd_7_day_2
+            {% else %}
+              unavailable
+            {% endif %}
 
       # Uses furnace runtime (not sum of zone calls) for consistency with expected
       - name: "Efficiency Deviation Index"
