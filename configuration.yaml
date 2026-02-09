@@ -1583,16 +1583,17 @@ template:
           {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
           {% set setback_active = is_state('input_boolean.hvac_1f_setback_active', 'on') %}
           {% set was_recovering = this.state == 'on' %}
-          {% if not setback_active %}
+          {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
+          {% set comfort_resumed = hold_setpoint > 50 and live_setpoint >= (hold_setpoint - 0.1) %}
+          {% if not setback_active or hold_setpoint <= 50 %}
             false
           {% elif was_recovering %}
             {# END: temp must reach within 1.0°F of stored comfort setpoint #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
             {{ current < (target - 1.0) }}
           {% else %}
-            {# START: hybrid - gap > 1°F AND furnace running #}
-            {% set gap = live_setpoint - current %}
-            {{ gap > 1 and furnace_on }}
+            {# START: comfort setpoint restored, still below target, and furnace running #}
+            {{ comfort_resumed and (target - current) > 1 and furnace_on }}
           {% endif %}
 
       - name: "HVAC 2F Recovering"
@@ -1604,16 +1605,17 @@ template:
           {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
           {% set setback_active = is_state('input_boolean.hvac_2f_setback_active', 'on') %}
           {% set was_recovering = this.state == 'on' %}
-          {% if not setback_active %}
+          {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
+          {% set comfort_resumed = hold_setpoint > 50 and live_setpoint >= (hold_setpoint - 0.1) %}
+          {% if not setback_active or hold_setpoint <= 50 %}
             false
           {% elif was_recovering %}
             {# END: temp must reach within 1.25°F of stored comfort setpoint (cathedral ceiling) #}
             {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
             {{ current < (target - 1.25) }}
           {% else %}
-            {# START: hybrid - gap > 1°F AND furnace running #}
-            {% set gap = live_setpoint - current %}
-            {{ gap > 1 and furnace_on }}
+            {# START: comfort setpoint restored, still below target, and furnace running #}
+            {{ comfort_resumed and (target - current) > 1 and furnace_on }}
           {% endif %}
 
       - name: "HVAC 1F Recovery Rate Alert"

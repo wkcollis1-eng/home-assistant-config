@@ -2430,3 +2430,29 @@ When the `_2` entity was unavailable/missing, the strict availability gate force
 ### Files Modified
 - `configuration.yaml`
   - `sensor.expected_runtime_today` template (`availability`, `state`, and new `runtime_per_hdd_source` attribute)
+
+---
+
+## Setback Recovery Start Guard Fix - 2026-02-09
+
+### Issue
+Recovery tracking could start during the overnight setback itself because the recovering binary sensors
+only required `gap > 1` and furnace running while the setback latch was active. This caused
+`recovery_start` to be set hours early and `recovery_end` to be rejected by the 12-hour guard, leaving
+the setback latch stuck and skipping setback optimization logging. Utility-driven extra setbacks
+(e.g., 65 -> 63 at 5:00 AM) were also not captured because the stored setback setpoint only recorded
+the initial 9:00 PM drop.
+
+### Fixes Applied
+- Recovery start now requires the comfort setpoint to be restored (live setpoint at/above hold setpoint)
+  before declaring "recovering". This prevents early starts during the overnight setback.
+- Added automations to update the stored setback setpoint when the setpoint drops further while a
+  setback is active (captures utility-driven mid-cycle drops).
+
+### Files Modified
+- `configuration.yaml`
+  - `binary_sensor.hvac_1f_recovering`
+  - `binary_sensor.hvac_2f_recovering`
+- `automations.yaml`
+  - `hvac_1f_setback_lowered`
+  - `hvac_2f_setback_lowered`

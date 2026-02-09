@@ -1613,6 +1613,58 @@
       data:
         value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
 
+- id: hvac_1f_setback_lowered
+  alias: "1F Setback Lowered"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      attribute: temperature
+      for:
+        seconds: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      state: "on"
+    - condition: template
+      value_template: >
+        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set stored = states('input_number.hvac_1f_setback_setpoint') | float(999) %}
+        {{ to_temp > 50 and from_temp > 50 and to_temp < from_temp and to_temp < stored }}
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_setback_setpoint
+      data:
+        value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
+
+- id: hvac_2f_setback_lowered
+  alias: "2F Setback Lowered"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      attribute: temperature
+      for:
+        seconds: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      state: "on"
+    - condition: template
+      value_template: >
+        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set stored = states('input_number.hvac_2f_setback_setpoint') | float(999) %}
+        {{ to_temp > 50 and from_temp > 50 and to_temp < from_temp and to_temp < stored }}
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_setback_setpoint
+      data:
+        value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
+
 # ===============================================================
 # EFFICIENCY ALERTS
 # ===============================================================
