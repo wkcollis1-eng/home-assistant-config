@@ -1804,44 +1804,6 @@
           - weather.local_weather_2
           - sensor.outdoor_temp_live (Open-Meteo REST)
 
-# SETBACK ACTIVE TIMEOUT
-# Clear stale setback latch after 18 hours (prevents stuck state)
-- id: clear_stale_setback_latch_1f
-  alias: "Clear Stale 1F Setback Latch"
-  description: "Reset setback active if stuck for >18 hours"
-  trigger:
-    - platform: state
-      entity_id: input_boolean.hvac_1f_setback_active
-      to: "on"
-      for:
-        hours: 18
-  action:
-    - service: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.hvac_1f_setback_active
-    - service: system_log.write
-      data:
-        message: "Cleared stale 1F setback latch after 18-hour timeout"
-        level: warning
-
-- id: clear_stale_setback_latch_2f
-  alias: "Clear Stale 2F Setback Latch"
-  description: "Reset setback active if stuck for >18 hours"
-  trigger:
-    - platform: state
-      entity_id: input_boolean.hvac_2f_setback_active
-      to: "on"
-      for:
-        hours: 18
-  action:
-    - service: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.hvac_2f_setback_active
-    - service: system_log.write
-      data:
-        message: "Cleared stale 2F setback latch after 18-hour timeout"
-        level: warning
-
 # DATABASE SIZE MONITOR
 # Warn if database grows too large (indicates recording issue)
 # THERMOSTAT OFFLINE DETECTION
