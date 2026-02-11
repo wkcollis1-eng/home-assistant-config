@@ -2456,3 +2456,76 @@ the initial 9:00 PM drop.
 - `automations.yaml`
   - `hvac_1f_setback_lowered`
   - `hvac_2f_setback_lowered`
+
+---
+
+## Setback Recovery System Simplification - 2026-02-10
+
+### Overview
+Major refactor to simplify the setback recovery tracking system. Replaced ~60 entities (rolling window
+slots, transient helpers, complex binary sensors) with a simple state machine using explicit
+input_boolean latches. Recovery data is now logged directly to per-zone CSV files via a Python script.
+
+### Architecture Change
+- **Old**: Complex hysteresis binary_sensors, 7-slot rolling window per zone, multiple template sensors
+  for statistics (avg, stddev, upper_bound, etc.), transient helpers for multi-step calculations
+- **New**: Simple state machine: IDLE → SETBACK_ACTIVE → RECOVERING → IDLE
+  - `input_boolean.hvac_*f_setback_active` — Latches on setback start (6 PM+, ≥1°F drop)
+  - `input_boolean.hvac_*f_recovering` — Latches on recovery start (setpoint restored, furnace running)
+  - Automations clear latches on recovery end or via safety timeouts
+
+### Entities Deleted
+- 14 `input_number.hvac_*f_recovery_rate_*` (rolling window slots)
+- 4 `input_number.hvac_*f_recovery_transient_*` (intermediate calculation helpers)
+- 2 `input_number.hvac_*f_setback_start_runtime` (now computed inline)
+- 12 `input_number.hvac_*f_last_*` (net_runtime, overnight_low, setback_depth, total_runtime, expected_hold)
+- 2 `input_datetime.hvac_*f_recovery_rate_last_updated`
+- 4 `binary_sensor.hvac_*f_recovering` (replaced by input_boolean)
+- 2 `binary_sensor.hvac_*f_recovery_rate_alert`
+- 2 `binary_sensor.hvac_*f_recovery_rate_stale`
+- 2 `binary_sensor.hvac_*f_recovery_rate_health`
+- 8 `sensor.hvac_*f_recovery_rate_*` (avg, last, weather_adjusted, stddev, upper_bound, count, age)
+
+### Entities Added
+- `input_boolean.hvac_1f_recovering` — 1F recovery state latch
+- `input_boolean.hvac_2f_recovering` — 2F recovery state latch
+- `input_number.hvac_1f_recovery_start_temp` — 1F temp when recovery started
+- `input_number.hvac_2f_recovery_start_temp` — 2F temp when recovery started
+
+### New Automations
+- `hvac_1f_setback_start` / `hvac_2f_setback_start` — Latches setback, stores hold/setback setpoints
+- `hvac_1f_setback_lowered` / `hvac_2f_setback_lowered` — Updates stored setback if further lowered
+- `hvac_1f_recovery_start` / `hvac_2f_recovery_start` — Latches recovering, stores start temp/time
+- `hvac_1f_recovery_end` / `hvac_2f_recovery_end` — Logs to CSV, clears all latches
+- `hvac_1f_setback_stuck_clear` / `hvac_2f_setback_stuck_clear` — 14h safety timeout
+- `hvac_1f_recovery_stuck_clear` / `hvac_2f_recovery_stuck_clear` — 4h safety timeout
+- `hvac_setback_midnight_audit` — Clears any stuck latches at 1 AM
+
+### New Script
+- `scripts/setback_csv.py` — Python script for validated CSV logging
+  - Positional arguments: `<zone> <hold> <setback> <start_temp> <recovery_min> <outdoor>`
+  - Validates all inputs before writing
+  - Writes to `/config/reports/hvac_setback_<zone>.csv`
+  - Calculates derived values: setback_degrees, degrees_to_recover, min_per_degree
+
+### Shell Commands Updated
+- `appendsetbacklog_1f` / `appendsetbacklog_2f` — Now call Python script with positional args
+
+### Dashboard Cards Updated
+- `recovery-status-1f.yaml` / `recovery-status-2f.yaml` — Changed to input_boolean
+- `pipeline-health-recovery-1f.yaml` / `pipeline-health-recovery-2f.yaml` — Simplified to show state
+- `setback-results-1f.yaml` / `setback-results-2f.yaml` — Shows last_recovery_minutes only
+- `tier1-health-summary.yaml` — Removed recovery pipeline checks (now 2/2 instead of 4/4)
+- Deleted `recovery-rate-trend.yaml` (referenced deleted rolling rate sensors)
+
+### Deleted Automations
+- `notify_recovery_rate_stale` — No longer tracking staleness
+- `notify_1f_recovery_rate_high` / `notify_2f_recovery_rate_high` — No longer tracking rate alerts
+
+### Benefits
+1. ~60 fewer entities to maintain
+2. State machine is explicit and debuggable (just check the input_booleans)
+3. Self-correcting timeouts prevent stuck states
+4. Template triggers re-evaluate on restart (no lost transitions)
+5. CSV logging is validated and atomic
+6. No more complex rolling window statistics prone to drift

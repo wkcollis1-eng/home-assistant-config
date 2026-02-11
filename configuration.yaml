@@ -57,30 +57,22 @@ shell_command:
   # Rotate daily CSV at year boundary
   rotatedailycsv: "python3 /config/scripts/csv_manager.py rotate_daily"
 
-  # Zone-specific setback log commands
+  # Zone-specific setback log — positional args, no JSON quoting issues
   appendsetbacklog_1f: >-
-    python3 /config/scripts/csv_manager.py append_setback --zone 1F --data '{
-      "overnight_low": {{ states('input_number.hvac_1f_last_overnight_low') | float(0) }},
-      "setback_depth": {{ states('input_number.hvac_1f_last_setback_depth') | float(0) }},
-      "recovery_minutes": {{ states('input_number.hvac_1f_last_recovery_minutes') | float(0) }},
-      "setback_degrees": {{ states('input_number.hvac_1f_last_setback_degrees') | float(0) }},
-      "recovery_rate": {{ states('input_number.hvac_1f_last_recovery_rate') | float(0) }},
-      "total_runtime": {{ states('input_number.hvac_1f_last_total_runtime') | float(0) }},
-      "expected_hold": {{ states('input_number.hvac_1f_last_expected_hold') | float(0) }},
-      "net_runtime": {{ states('input_number.hvac_1f_last_net_runtime') | float(0) }}
-    }'
+    python3 /config/scripts/setback_csv.py 1F
+    {{ states('input_number.hvac_1f_hold_setpoint') | float(0) }}
+    {{ states('input_number.hvac_1f_setback_setpoint') | float(0) }}
+    {{ states('input_number.hvac_1f_recovery_start_temp') | float(0) }}
+    {{ states('input_number.hvac_1f_last_recovery_minutes') | float(0) }}
+    {{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}
 
   appendsetbacklog_2f: >-
-    python3 /config/scripts/csv_manager.py append_setback --zone 2F --data '{
-      "overnight_low": {{ states('input_number.hvac_2f_last_overnight_low') | float(0) }},
-      "setback_depth": {{ states('input_number.hvac_2f_last_setback_depth') | float(0) }},
-      "recovery_minutes": {{ states('input_number.hvac_2f_last_recovery_minutes') | float(0) }},
-      "setback_degrees": {{ states('input_number.hvac_2f_last_setback_degrees') | float(0) }},
-      "recovery_rate": {{ states('input_number.hvac_2f_last_recovery_rate') | float(0) }},
-      "total_runtime": {{ states('input_number.hvac_2f_last_total_runtime') | float(0) }},
-      "expected_hold": {{ states('input_number.hvac_2f_last_expected_hold') | float(0) }},
-      "net_runtime": {{ states('input_number.hvac_2f_last_net_runtime') | float(0) }}
-    }'
+    python3 /config/scripts/setback_csv.py 2F
+    {{ states('input_number.hvac_2f_hold_setpoint') | float(0) }}
+    {{ states('input_number.hvac_2f_setback_setpoint') | float(0) }}
+    {{ states('input_number.hvac_2f_recovery_start_temp') | float(0) }}
+    {{ states('input_number.hvac_2f_last_recovery_minutes') | float(0) }}
+    {{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}
 
   # Weekly backup of critical input_number values
   backup_input_numbers: >-
@@ -195,6 +187,14 @@ input_boolean:
   hvac_2f_setback_active:
     name: "HVAC 2F Setback Active"
     icon: mdi:thermometer-minus
+
+  hvac_1f_recovering:
+    name: "HVAC 1F Recovering"
+    icon: mdi:thermometer-plus
+
+  hvac_2f_recovering:
+    name: "HVAC 2F Recovering"
+    icon: mdi:thermometer-plus
 
 # ===============================================================
 # INPUT NUMBER HELPERS
@@ -1021,136 +1021,17 @@ input_number:
     mode: box
     icon: mdi:clock-end
 
-  # ===============================================================
-  # RECOVERY RATE TRACKING - 1F (Rolling 7 recoveries)
-  # ===============================================================
-  hvac_1f_recovery_rate_1:
-    name: "1F Recovery Rate Slot 1"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_2:
-    name: "1F Recovery Rate Slot 2"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_3:
-    name: "1F Recovery Rate Slot 3"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_4:
-    name: "1F Recovery Rate Slot 4"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_5:
-    name: "1F Recovery Rate Slot 5"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_6:
-    name: "1F Recovery Rate Slot 6"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_rate_7:
-    name: "1F Recovery Rate Slot 7"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_recovery_setback_degrees:
-    name: "1F Recovery Setback Degrees"
-    min: 0
-    max: 15
+  hvac_1f_recovery_start_temp:
+    name: "1F Recovery Start Temp"
+    min: 40
+    max: 90
     step: 0.1
     unit_of_measurement: "°F"
     mode: box
-  hvac_1f_recovery_outdoor_temp:
-    name: "1F Recovery Outdoor Temp"
-    min: -20
-    max: 100
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-
-  # ===============================================================
-  # RECOVERY RATE TRACKING - 2F (Rolling 7 recoveries)
-  # ===============================================================
-  hvac_2f_recovery_rate_1:
-    name: "2F Recovery Rate Slot 1"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_2:
-    name: "2F Recovery Rate Slot 2"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_3:
-    name: "2F Recovery Rate Slot 3"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_4:
-    name: "2F Recovery Rate Slot 4"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_5:
-    name: "2F Recovery Rate Slot 5"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_6:
-    name: "2F Recovery Rate Slot 6"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_rate_7:
-    name: "2F Recovery Rate Slot 7"
-    min: 0
-    max: 60
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_recovery_setback_degrees:
-    name: "2F Recovery Setback Degrees"
-    min: 0
-    max: 15
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_recovery_outdoor_temp:
-    name: "2F Recovery Outdoor Temp"
-    min: -20
-    max: 100
+  hvac_2f_recovery_start_temp:
+    name: "2F Recovery Start Temp"
+    min: 40
+    max: 90
     step: 0.1
     unit_of_measurement: "°F"
     mode: box
@@ -1158,13 +1039,6 @@ input_number:
   # ===============================================================
   # SETBACK TRACKING - Simplified for empirical data collection
   # ===============================================================
-  hvac_1f_setback_start_runtime:
-    name: "1F Setback Start Runtime"
-    min: 0
-    max: 1000
-    step: 0.01
-    unit_of_measurement: "h"
-    mode: box
   hvac_1f_hold_setpoint:
     name: "1F Hold Setpoint"
     min: 50
@@ -1179,48 +1053,6 @@ input_number:
     step: 0.5
     unit_of_measurement: "°F"
     mode: box
-  hvac_1f_last_overnight_low:
-    name: "1F Last Overnight Low"
-    min: -20
-    max: 80
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_1f_last_setback_depth:
-    name: "1F Last Setback Depth"
-    min: 0
-    max: 15
-    step: 0.5
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_1f_last_setback_degrees:
-    name: "1F Last Setback Degrees"
-    min: 0
-    max: 15
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_1f_last_recovery_rate:
-    name: "1F Last Recovery Rate"
-    min: 0
-    max: 300
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_1f_last_net_runtime:
-    name: "1F Last Net Runtime"
-    min: -999
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_2f_setback_start_runtime:
-    name: "2F Setback Start Runtime"
-    min: 0
-    max: 1000
-    step: 0.01
-    unit_of_measurement: "h"
-    mode: box
   hvac_2f_hold_setpoint:
     name: "2F Hold Setpoint"
     min: 50
@@ -1234,69 +1066,6 @@ input_number:
     max: 80
     step: 0.5
     unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_last_overnight_low:
-    name: "2F Last Overnight Low"
-    min: -20
-    max: 80
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_last_setback_depth:
-    name: "2F Last Setback Depth"
-    min: 0
-    max: 15
-    step: 0.5
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_last_setback_degrees:
-    name: "2F Last Setback Degrees"
-    min: 0
-    max: 15
-    step: 0.1
-    unit_of_measurement: "°F"
-    mode: box
-  hvac_2f_last_recovery_rate:
-    name: "2F Last Recovery Rate"
-    min: 0
-    max: 300
-    step: 0.1
-    unit_of_measurement: "min/°F"
-    mode: box
-  hvac_2f_last_net_runtime:
-    name: "2F Last Net Runtime"
-    min: -999
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_1f_last_total_runtime:
-    name: "1F Last Total Runtime"
-    min: 0
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_1f_last_expected_hold:
-    name: "1F Last Expected Hold Runtime"
-    min: 0
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_2f_last_total_runtime:
-    name: "2F Last Total Runtime"
-    min: 0
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
-    mode: box
-  hvac_2f_last_expected_hold:
-    name: "2F Last Expected Hold Runtime"
-    min: 0
-    max: 1500
-    step: 1
-    unit_of_measurement: "min"
     mode: box
 
   # ===============================================================
@@ -1400,19 +1169,6 @@ input_datetime:
     has_date: true
     has_time: true
     icon: mdi:clock-start
-
-  # Recovery rate staleness tracking - timestamps when rates were last updated
-  hvac_1f_recovery_rate_last_updated:
-    name: "1F Recovery Rate Last Updated"
-    has_date: true
-    has_time: true
-    icon: mdi:update
-
-  hvac_2f_recovery_rate_last_updated:
-    name: "2F Recovery Rate Last Updated"
-    has_date: true
-    has_time: true
-    icon: mdi:update
 
   # --- Dehumidifier Performance Tracking ---
   dehumidifier_cycle_start_time:
@@ -1569,97 +1325,6 @@ template:
           {% set lower = states('sensor.hvac_runtime_per_hdd_lower_bound_1s') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current < lower and current > 0 and count >= 4 }}
-
-      # Recovery sensors measure actual thermal recovery, not control-loop gap decay
-      # START: Hybrid logic - gap > 1°F AND furnace running (prevents false positives)
-      # END: Uses fixed hold_setpoint (comfort temp) - considers recovered when within threshold
-      # The 10-minute stability requirement is enforced in the recovery_end automation trigger
-      - name: "HVAC 1F Recovering"
-        unique_id: hvac_1f_recovering
-        state: >
-          {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set live_setpoint = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set hold_setpoint = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-          {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
-          {% set setback_active = is_state('input_boolean.hvac_1f_setback_active', 'on') %}
-          {% set was_recovering = this.state == 'on' %}
-          {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-          {% set comfort_resumed = hold_setpoint > 50 and live_setpoint >= (hold_setpoint - 0.1) %}
-          {% if not setback_active or hold_setpoint <= 50 %}
-            false
-          {% elif was_recovering %}
-            {# END: temp must reach within 1.0°F of stored comfort setpoint #}
-            {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-            {{ current < (target - 1.0) }}
-          {% else %}
-            {# START: comfort setpoint restored, still below target, and furnace running #}
-            {{ comfort_resumed and (target - current) > 1 and furnace_on }}
-          {% endif %}
-
-      - name: "HVAC 2F Recovering"
-        unique_id: hvac_2f_recovering
-        state: >
-          {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set live_setpoint = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set hold_setpoint = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-          {% set furnace_on = is_state('binary_sensor.hvac_furnace_running', 'on') %}
-          {% set setback_active = is_state('input_boolean.hvac_2f_setback_active', 'on') %}
-          {% set was_recovering = this.state == 'on' %}
-          {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-          {% set comfort_resumed = hold_setpoint > 50 and live_setpoint >= (hold_setpoint - 0.1) %}
-          {% if not setback_active or hold_setpoint <= 50 %}
-            false
-          {% elif was_recovering %}
-            {# END: temp must reach within 1.25°F of stored comfort setpoint (cathedral ceiling) #}
-            {% set target = hold_setpoint if hold_setpoint > 50 else live_setpoint %}
-            {{ current < (target - 1.25) }}
-          {% else %}
-            {# START: comfort setpoint restored, still below target, and furnace running #}
-            {{ comfort_resumed and (target - current) > 1 and furnace_on }}
-          {% endif %}
-
-      - name: "HVAC 1F Recovery Rate Alert"
-        unique_id: hvac_1f_recovery_rate_alert
-        device_class: problem
-        state: >
-          {% set current = states('sensor.hvac_1f_recovery_rate_avg') | float(0) %}
-          {% set upper = states('sensor.hvac_1f_recovery_rate_upper_bound') | float(0) %}
-          {% set count = states('sensor.hvac_1f_recovery_rate_data_count') | int(0) %}
-          {{ current > upper and upper > 0 and count >= 4 }}
-
-      - name: "HVAC 2F Recovery Rate Alert"
-        unique_id: hvac_2f_recovery_rate_alert
-        device_class: problem
-        state: >
-          {% set current = states('sensor.hvac_2f_recovery_rate_avg') | float(0) %}
-          {% set upper = states('sensor.hvac_2f_recovery_rate_upper_bound') | float(0) %}
-          {% set count = states('sensor.hvac_2f_recovery_rate_data_count') | int(0) %}
-          {{ current > upper and upper > 0 and count >= 4 }}
-
-      # Recovery rate staleness detection (>14 days since last valid update)
-      - name: "HVAC 1F Recovery Rate Stale"
-        unique_id: hvac_1f_recovery_rate_stale
-        device_class: problem
-        state: >
-          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
-          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
-            true
-          {% else %}
-            {% set dt = last | as_datetime | as_local %}
-            {{ (now() - dt).total_seconds() > 1209600 }}
-          {% endif %}
-
-      - name: "HVAC 2F Recovery Rate Stale"
-        unique_id: hvac_2f_recovery_rate_stale
-        device_class: problem
-        state: >
-          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
-          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
-            true
-          {% else %}
-            {% set dt = last | as_datetime | as_local %}
-            {{ (now() - dt).total_seconds() > 1209600 }}
-          {% endif %}
 
       # ===============================================================
       # CAPTURE HEALTH MONITORING
@@ -2904,256 +2569,6 @@ template:
             {{ ((now() - last_updated).total_seconds() / 60) | round(0) }}
           {% else %}unknown{% endif %}
 
-      # ===============================================================
-      # RECOVERY RATE SENSORS - 1F
-      # ===============================================================
-      - name: "HVAC 1F Recovery Rate Avg"
-        unique_id: hvac_1f_recovery_rate_avg
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:chart-line-variant
-        # Unavailable when no valid samples (prevents 0 being recorded as real data)
-        availability: >
-          {% set rates = [
-            states('input_number.hvac_1f_recovery_rate_1') | float(0),
-            states('input_number.hvac_1f_recovery_rate_2') | float(0),
-            states('input_number.hvac_1f_recovery_rate_3') | float(0),
-            states('input_number.hvac_1f_recovery_rate_4') | float(0),
-            states('input_number.hvac_1f_recovery_rate_5') | float(0),
-            states('input_number.hvac_1f_recovery_rate_6') | float(0),
-            states('input_number.hvac_1f_recovery_rate_7') | float(0)
-          ] %}
-          {{ rates | select('gt', 0) | list | count > 0 }}
-        state: >
-          {% set rates = [
-            states('input_number.hvac_1f_recovery_rate_1') | float(0),
-            states('input_number.hvac_1f_recovery_rate_2') | float(0),
-            states('input_number.hvac_1f_recovery_rate_3') | float(0),
-            states('input_number.hvac_1f_recovery_rate_4') | float(0),
-            states('input_number.hvac_1f_recovery_rate_5') | float(0),
-            states('input_number.hvac_1f_recovery_rate_6') | float(0),
-            states('input_number.hvac_1f_recovery_rate_7') | float(0)
-          ] %}
-          {% set valid = rates | select('gt', 0) | list %}
-          {{ (valid | sum / valid | count) | round(1) }}
-
-      - name: "HVAC 1F Recovery Rate Last"
-        unique_id: hvac_1f_recovery_rate_last
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:clock-fast
-        state: "{{ states('input_number.hvac_1f_recovery_rate_1') | float(0) }}"
-
-      - name: "HVAC 1F Recovery Rate Weather Adjusted"
-        unique_id: hvac_1f_recovery_rate_weather_adjusted
-        unit_of_measurement: "min/°F/ΔT"
-        state_class: measurement
-        icon: mdi:thermometer-lines
-        state: >
-          {% set rate = states('input_number.hvac_1f_recovery_rate_1') | float(0) %}
-          {% set setback = states('input_number.hvac_1f_recovery_setback_degrees') | float(0) %}
-          {% set outdoor = states('input_number.hvac_1f_recovery_outdoor_temp') | float(0) %}
-          {% set target = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(68) %}
-          {% set delta_t = target - outdoor %}
-          {{ (rate / delta_t * 10) | round(2) if delta_t > 0 and rate > 0 else 0 }}
-
-      - name: "HVAC 1F Recovery Rate Std Dev"
-        unique_id: hvac_1f_recovery_rate_std_dev
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:sigma
-        state: >
-          {% set rates = [
-            states('input_number.hvac_1f_recovery_rate_1') | float(0),
-            states('input_number.hvac_1f_recovery_rate_2') | float(0),
-            states('input_number.hvac_1f_recovery_rate_3') | float(0),
-            states('input_number.hvac_1f_recovery_rate_4') | float(0),
-            states('input_number.hvac_1f_recovery_rate_5') | float(0),
-            states('input_number.hvac_1f_recovery_rate_6') | float(0),
-            states('input_number.hvac_1f_recovery_rate_7') | float(0)
-          ] %}
-          {% set valid = rates | select('gt', 0) | list %}
-          {% if valid | count > 1 %}
-            {% set mean = valid | sum / valid | count %}
-            {% set variance = namespace(sum=0) %}
-            {% for v in valid %}
-              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
-            {% endfor %}
-            {{ ((variance.sum / (valid | count - 1)) ** 0.5) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-
-      - name: "HVAC 1F Recovery Rate Upper Bound"
-        unique_id: hvac_1f_recovery_rate_upper_bound
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:arrow-up-bold
-        state: >
-          {% set mean = states('sensor.hvac_1f_recovery_rate_avg') | float(0) %}
-          {% set stddev = states('sensor.hvac_1f_recovery_rate_std_dev') | float(0) %}
-          {{ (mean + (stddev * 2)) | round(1) if mean > 0 else 0 }}
-
-      - name: "HVAC 1F Recovery Rate Data Count"
-        unique_id: hvac_1f_recovery_rate_data_count
-        unit_of_measurement: "samples"
-        state_class: measurement
-        icon: mdi:counter
-        state: >
-          {% set rates = [
-            states('input_number.hvac_1f_recovery_rate_1') | float(0),
-            states('input_number.hvac_1f_recovery_rate_2') | float(0),
-            states('input_number.hvac_1f_recovery_rate_3') | float(0),
-            states('input_number.hvac_1f_recovery_rate_4') | float(0),
-            states('input_number.hvac_1f_recovery_rate_5') | float(0),
-            states('input_number.hvac_1f_recovery_rate_6') | float(0),
-            states('input_number.hvac_1f_recovery_rate_7') | float(0)
-          ] %}
-          {{ rates | select('gt', 0) | list | count }}
-
-      # --- Tier 1 Data Integrity: 1F Recovery Freshness ---
-      - name: "HVAC 1F Recovery Age Hours"
-        unique_id: hvac_1f_recovery_age_hours
-        unit_of_measurement: "hours"
-        state_class: measurement
-        icon: mdi:clock-alert-outline
-        state: >
-          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
-          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
-            999
-          {% else %}
-            {% set dt = last | as_datetime | as_local %}
-            {{ ((now() - dt).total_seconds() / 3600) | round(1) }}
-          {% endif %}
-        availability: >
-          {% set last = states('input_datetime.hvac_1f_recovery_rate_last_updated') %}
-          {{ last not in ['unknown', 'unavailable'] and last != '1970-01-01 00:00:00' }}
-
-      # ===============================================================
-      # RECOVERY RATE SENSORS - 2F
-      # ===============================================================
-      - name: "HVAC 2F Recovery Rate Avg"
-        unique_id: hvac_2f_recovery_rate_avg
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:chart-line-variant
-        # Unavailable when no valid samples (prevents 0 being recorded as real data)
-        availability: >
-          {% set rates = [
-            states('input_number.hvac_2f_recovery_rate_1') | float(0),
-            states('input_number.hvac_2f_recovery_rate_2') | float(0),
-            states('input_number.hvac_2f_recovery_rate_3') | float(0),
-            states('input_number.hvac_2f_recovery_rate_4') | float(0),
-            states('input_number.hvac_2f_recovery_rate_5') | float(0),
-            states('input_number.hvac_2f_recovery_rate_6') | float(0),
-            states('input_number.hvac_2f_recovery_rate_7') | float(0)
-          ] %}
-          {{ rates | select('gt', 0) | list | count > 0 }}
-        state: >
-          {% set rates = [
-            states('input_number.hvac_2f_recovery_rate_1') | float(0),
-            states('input_number.hvac_2f_recovery_rate_2') | float(0),
-            states('input_number.hvac_2f_recovery_rate_3') | float(0),
-            states('input_number.hvac_2f_recovery_rate_4') | float(0),
-            states('input_number.hvac_2f_recovery_rate_5') | float(0),
-            states('input_number.hvac_2f_recovery_rate_6') | float(0),
-            states('input_number.hvac_2f_recovery_rate_7') | float(0)
-          ] %}
-          {% set valid = rates | select('gt', 0) | list %}
-          {{ (valid | sum / valid | count) | round(1) }}
-
-      - name: "HVAC 2F Recovery Rate Last"
-        unique_id: hvac_2f_recovery_rate_last
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:clock-fast
-        state: "{{ states('input_number.hvac_2f_recovery_rate_1') | float(0) }}"
-
-      - name: "HVAC 2F Recovery Rate Weather Adjusted"
-        unique_id: hvac_2f_recovery_rate_weather_adjusted
-        unit_of_measurement: "min/°F/ΔT"
-        state_class: measurement
-        icon: mdi:thermometer-lines
-        state: >
-          {% set rate = states('input_number.hvac_2f_recovery_rate_1') | float(0) %}
-          {% set setback = states('input_number.hvac_2f_recovery_setback_degrees') | float(0) %}
-          {% set outdoor = states('input_number.hvac_2f_recovery_outdoor_temp') | float(0) %}
-          {% set target = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(68) %}
-          {% set delta_t = target - outdoor %}
-          {{ (rate / delta_t * 10) | round(2) if delta_t > 0 and rate > 0 else 0 }}
-
-      - name: "HVAC 2F Recovery Rate Std Dev"
-        unique_id: hvac_2f_recovery_rate_std_dev
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:sigma
-        state: >
-          {% set rates = [
-            states('input_number.hvac_2f_recovery_rate_1') | float(0),
-            states('input_number.hvac_2f_recovery_rate_2') | float(0),
-            states('input_number.hvac_2f_recovery_rate_3') | float(0),
-            states('input_number.hvac_2f_recovery_rate_4') | float(0),
-            states('input_number.hvac_2f_recovery_rate_5') | float(0),
-            states('input_number.hvac_2f_recovery_rate_6') | float(0),
-            states('input_number.hvac_2f_recovery_rate_7') | float(0)
-          ] %}
-          {% set valid = rates | select('gt', 0) | list %}
-          {% if valid | count > 1 %}
-            {% set mean = valid | sum / valid | count %}
-            {% set variance = namespace(sum=0) %}
-            {% for v in valid %}
-              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
-            {% endfor %}
-            {{ ((variance.sum / (valid | count - 1)) ** 0.5) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-
-      - name: "HVAC 2F Recovery Rate Upper Bound"
-        unique_id: hvac_2f_recovery_rate_upper_bound
-        unit_of_measurement: "min/°F"
-        state_class: measurement
-        icon: mdi:arrow-up-bold
-        state: >
-          {% set mean = states('sensor.hvac_2f_recovery_rate_avg') | float(0) %}
-          {% set stddev = states('sensor.hvac_2f_recovery_rate_std_dev') | float(0) %}
-          {{ (mean + (stddev * 2)) | round(1) if mean > 0 else 0 }}
-
-      - name: "HVAC 2F Recovery Rate Data Count"
-        unique_id: hvac_2f_recovery_rate_data_count
-        unit_of_measurement: "samples"
-        state_class: measurement
-        icon: mdi:counter
-        state: >
-          {% set rates = [
-            states('input_number.hvac_2f_recovery_rate_1') | float(0),
-            states('input_number.hvac_2f_recovery_rate_2') | float(0),
-            states('input_number.hvac_2f_recovery_rate_3') | float(0),
-            states('input_number.hvac_2f_recovery_rate_4') | float(0),
-            states('input_number.hvac_2f_recovery_rate_5') | float(0),
-            states('input_number.hvac_2f_recovery_rate_6') | float(0),
-            states('input_number.hvac_2f_recovery_rate_7') | float(0)
-          ] %}
-          {{ rates | select('gt', 0) | list | count }}
-
-      # --- Tier 1 Data Integrity: 2F Recovery Freshness ---
-      - name: "HVAC 2F Recovery Age Hours"
-        unique_id: hvac_2f_recovery_age_hours
-        unit_of_measurement: "hours"
-        state_class: measurement
-        icon: mdi:clock-alert-outline
-        state: >
-          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
-          {% if last in ['unknown', 'unavailable'] or last == '1970-01-01 00:00:00' %}
-            999
-          {% else %}
-            {% set dt = last | as_datetime | as_local %}
-            {{ ((now() - dt).total_seconds() / 3600) | round(1) }}
-          {% endif %}
-        availability: >
-          {% set last = states('input_datetime.hvac_2f_recovery_rate_last_updated') %}
-          {{ last not in ['unknown', 'unavailable'] and last != '1970-01-01 00:00:00' }}
-
       # === SETBACK RECOMMENDATION SENSOR ===
       # Recommends setback depth based on forecast overnight low
       # Thresholds adjustable as data is collected in hvac_setback_log.csv
@@ -3420,46 +2835,6 @@ template:
           {% set not_stale = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
           {% set data_count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ hdd_healthy and not_stale and data_count >= 4 }}
-
-      # --- Recovery Pipeline Health (1F) ---
-      - name: "HVAC 1F Recovery Inputs Valid"
-        unique_id: hvac_1f_recovery_inputs_valid
-        icon: mdi:check-decagram
-        state: >
-          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
-          {% set tstat_available = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') is not none %}
-          {{ hold > 50 and proxy_available and tstat_available }}
-
-      - name: "HVAC 1F Recovery Healthy"
-        unique_id: hvac_1f_recovery_healthy
-        icon: mdi:home-thermometer
-        state: >
-          {% set not_stale = is_state('binary_sensor.hvac_1f_recovery_rate_stale', 'off') %}
-          {% set data_count = states('sensor.hvac_1f_recovery_rate_data_count') | int(0) %}
-          {% set inputs_valid = is_state('binary_sensor.hvac_1f_recovery_inputs_valid', 'on') %}
-          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
-          {{ not_stale and data_count >= 3 and inputs_valid and proxy_available }}
-
-      # --- Recovery Pipeline Health (2F) ---
-      - name: "HVAC 2F Recovery Inputs Valid"
-        unique_id: hvac_2f_recovery_inputs_valid
-        icon: mdi:check-decagram
-        state: >
-          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
-          {% set tstat_available = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') is not none %}
-          {{ hold > 50 and proxy_available and tstat_available }}
-
-      - name: "HVAC 2F Recovery Healthy"
-        unique_id: hvac_2f_recovery_healthy
-        icon: mdi:home-thermometer
-        state: >
-          {% set not_stale = is_state('binary_sensor.hvac_2f_recovery_rate_stale', 'off') %}
-          {% set data_count = states('sensor.hvac_2f_recovery_rate_data_count') | int(0) %}
-          {% set inputs_valid = is_state('binary_sensor.hvac_2f_recovery_inputs_valid', 'on') %}
-          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
-          {{ not_stale and data_count >= 3 and inputs_valid and proxy_available }}
 
       # --- Automation Failure Tracking ---
       - name: "Automation Failures Active"

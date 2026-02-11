@@ -976,539 +976,12 @@
         message: "Filter has {{ states('input_number.hvac_filter_runtime_hours') | round(0) }} runtime hours. Time to replace!"
 
 # ===============================================================
-# RECOVERY TIME TRACKING
+# SETBACK & RECOVERY TRACKING
+# Simple state machine: IDLE → SETBACK_ACTIVE → RECOVERING → IDLE
+# Self-correcting: template triggers survive restarts, timeouts clear stuck state
 # ===============================================================
-- id: hvac_1f_recovery_start
-  alias: "1F Recovery Start"
-  mode: single
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_1f_recovering
-      to: "on"
-  # Validate upstream data before capturing
-  condition:
-    - condition: template
-      value_template: >
-        {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
-        {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') %}
-        {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
-    - condition: state
-      entity_id: input_boolean.hvac_1f_setback_active
-      state: "on"
-    - condition: template
-      value_template: >
-        {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
-        {% if setback_start in ['unknown', 'unavailable', 'none'] %}
-          false
-        {% else %}
-          {% set age_h = (now() - (setback_start | as_datetime | as_local)).total_seconds() / 3600 %}
-          {{ age_h >= 0 and age_h <= 16 }}
-        {% endif %}
-  action:
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.hvac_1f_recovery_start
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_recovery_setback_degrees
-      data:
-        value: >
-          {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-          {% set live = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set target = hold if hold > 50 else live %}
-          {{ (target - current) | round(1) if target > current else 0 }}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_recovery_outdoor_temp
-      data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}"
 
-- id: hvac_1f_recovery_end
-  alias: "1F Recovery End"
-  mode: single
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_1f_recovering
-      to: "off"
-      for:
-        minutes: 10
-  condition:
-    - condition: state
-      entity_id: input_boolean.hvac_1f_setback_active
-      state: "on"
-    - condition: template
-      value_template: >
-        {% set recovery_start = states('input_datetime.hvac_1f_recovery_start') %}
-        {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
-        {% if recovery_start in ['unknown', 'unavailable', 'none'] or setback_start in ['unknown', 'unavailable', 'none'] %}
-          false
-        {% else %}
-          {% set recovery_dt = recovery_start | as_datetime | as_local %}
-          {% set setback_dt = setback_start | as_datetime | as_local %}
-          {% set recovery_age_h = (now() - recovery_dt).total_seconds() / 3600 %}
-          {% set setback_age_h = (now() - setback_dt).total_seconds() / 3600 %}
-          {% set setback_start_min = setback_dt.hour * 60 + setback_dt.minute %}
-          {{ recovery_age_h >= 0 and recovery_age_h <= 12 and
-             setback_age_h >= 0 and setback_age_h <= 16 and
-             setback_start_min >= 1080 }}
-        {% endif %}
-  action:
-    - variables:
-        recovery_minutes: >
-          {% set start = states('input_datetime.hvac_1f_recovery_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ [((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 10, 0] | max | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-        setback_degrees: "{{ states('input_number.hvac_1f_recovery_setback_degrees') | float(0) }}"
-        recovery_rate: >
-          {% set mins = recovery_minutes | float(0) %}
-          {% set deg = setback_degrees | float(0) %}
-          {% if mins > 0 and deg > 0 %}
-            {{ (mins / deg) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-        # Calculate total runtime from setback start to recovery end
-        # Uses MTD accumulator snapshots for accurate midnight-crossing measurement
-        total_runtime: >
-          {% set current_mtd = states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0) %}
-          {% set start_mtd = states('input_number.hvac_1f_setback_start_runtime') | float(0) %}
-          {% set setback_start = states('input_datetime.hvac_1f_setback_start') %}
-          {% set same_month = setback_start[:7] == now().strftime('%Y-%m') if setback_start not in ['unknown', 'unavailable'] else false %}
-          {% if same_month and current_mtd >= start_mtd %}
-            {{ ((current_mtd - start_mtd) * 60) | round(0) }}
-          {% else %}
-            {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(0) }}
-          {% endif %}
-        # Validate overnight_low is not at initialization value (150 = no data)
-        overnight_low: >
-          {% set val = states('input_number.outdoor_temp_daily_low') | float(150) %}
-          {{ val if val < 140 else 35 }}
-        setback_depth: >
-          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-          {% set setback = states('input_number.hvac_1f_setback_setpoint') | float(0) %}
-          {{ ((hold - setback) | round(1)) if hold > 50 and setback > 50 else 0 }}
-        # Net Runtime Benefit calculation
-        setback_hours: >
-          {% set start = states('input_datetime.hvac_1f_setback_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
-          {% else %}
-            0
-          {% endif %}
-        hdd_setback: >
-          {% set hours = setback_hours | float(0) %}
-          {% set outdoor = overnight_low | float(35) %}
-          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
-        baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
-          {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
-        expected_hold_runtime: >
-          {% set hdd = hdd_setback | float(0) %}
-          {% set rate = baseline_min_per_hdd | float(0) %}
-          {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
-        net_runtime: >
-          {% set expected = expected_hold_runtime | float(0) %}
-          {% set actual = total_runtime | float(0) %}
-          {% if expected > 0 and actual > 0 and actual < 1400 %}
-            {{ (expected - actual) | round(0) }}
-          {% else %}
-            -999
-          {% endif %}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_recovery_minutes
-      data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=300 min)
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
-          sequence:
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_7
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_6') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_6
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_5') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_5
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_4') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_4
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_3') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_3
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_2') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_2
-              data:
-                value: "{{ states('input_number.hvac_1f_recovery_rate_1') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_1f_recovery_rate_1
-              data:
-                value: "{{ [recovery_rate | float | round(1), 60] | min }}"
-            # Track when recovery rate was last updated (for staleness detection)
-            - service: input_datetime.set_datetime
-              target:
-                entity_id: input_datetime.hvac_1f_recovery_rate_last_updated
-              data:
-                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # Store last setback results for dashboard display (must be before CSV log)
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_overnight_low
-      data:
-        value: "{{ overnight_low }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_setback_depth
-      data:
-        value: "{{ setback_depth }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_setback_degrees
-      data:
-        value: "{{ setback_degrees | float(0) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_recovery_rate
-      data:
-        value: "{{ [recovery_rate | float(0), 300] | min | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_net_runtime
-      data:
-        # Clamp to input_number range (-999 sentinel preserved for data quality failures)
-        value: "{{ [[net_runtime | float, -999] | max, 1500] | min }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_total_runtime
-      data:
-        value: "{{ [[total_runtime | float, 0] | max, 1500] | min }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_last_expected_hold
-      data:
-        value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
-    # Log to setback optimization CSV only when recovery payload is valid
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: >
-                {{ setback_depth | float(0) >= 1 and
-                   setback_degrees | float(0) >= 1 and
-                   recovery_minutes | float(0) > 0 and
-                   setback_hours | float(0) >= 1 and
-                   setback_hours | float(0) <= 16 }}
-          sequence:
-            - service: shell_command.appendsetbacklog_1f
-      default:
-        - service: system_log.write
-          data:
-            level: warning
-            message: >
-              Skipped 1F setback CSV append - invalid recovery payload:
-              depth={{ setback_depth }}, degrees={{ setback_degrees }},
-              recovery_minutes={{ recovery_minutes }}, total_runtime={{ total_runtime }}
-    # Reset hold_setpoint
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
-    # Clear setback latch - cycle complete
-    - service: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.hvac_1f_setback_active
-
-- id: hvac_2f_recovery_start
-  alias: "2F Recovery Start"
-  mode: single
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_2f_recovering
-      to: "on"
-  # Validate upstream data before capturing
-  condition:
-    - condition: template
-      value_template: >
-        {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
-        {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') %}
-        {{ proxy not in ['unknown', 'unavailable'] and hold > 50 and current is number }}
-    - condition: state
-      entity_id: input_boolean.hvac_2f_setback_active
-      state: "on"
-    - condition: template
-      value_template: >
-        {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
-        {% if setback_start in ['unknown', 'unavailable', 'none'] %}
-          false
-        {% else %}
-          {% set age_h = (now() - (setback_start | as_datetime | as_local)).total_seconds() / 3600 %}
-          {{ age_h >= 0 and age_h <= 16 }}
-        {% endif %}
-  action:
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.hvac_2f_recovery_start
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # Use hold_setpoint (stored comfort temp) for setback depth, not live setpoint
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_recovery_setback_degrees
-      data:
-        value: >
-          {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
-          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-          {% set live = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
-          {% set target = hold if hold > 50 else live %}
-          {{ (target - current) | round(1) if target > current else 0 }}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_recovery_outdoor_temp
-      data:
-        value: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(0) }}"
-
-- id: hvac_2f_recovery_end
-  alias: "2F Recovery End"
-  mode: single
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_2f_recovering
-      to: "off"
-      for:
-        minutes: 10
-  condition:
-    - condition: state
-      entity_id: input_boolean.hvac_2f_setback_active
-      state: "on"
-    - condition: template
-      value_template: >
-        {% set recovery_start = states('input_datetime.hvac_2f_recovery_start') %}
-        {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
-        {% if recovery_start in ['unknown', 'unavailable', 'none'] or setback_start in ['unknown', 'unavailable', 'none'] %}
-          false
-        {% else %}
-          {% set recovery_dt = recovery_start | as_datetime | as_local %}
-          {% set setback_dt = setback_start | as_datetime | as_local %}
-          {% set recovery_age_h = (now() - recovery_dt).total_seconds() / 3600 %}
-          {% set setback_age_h = (now() - setback_dt).total_seconds() / 3600 %}
-          {% set setback_start_min = setback_dt.hour * 60 + setback_dt.minute %}
-          {{ recovery_age_h >= 0 and recovery_age_h <= 12 and
-             setback_age_h >= 0 and setback_age_h <= 16 and
-             setback_start_min >= 1080 }}
-        {% endif %}
-  action:
-    - variables:
-        recovery_minutes: >
-          {% set start = states('input_datetime.hvac_2f_recovery_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ [((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 10, 0] | max | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-        setback_degrees: "{{ states('input_number.hvac_2f_recovery_setback_degrees') | float(0) }}"
-        recovery_rate: >
-          {% set mins = recovery_minutes | float(0) %}
-          {% set deg = setback_degrees | float(0) %}
-          {% if mins > 0 and deg > 0 %}
-            {{ (mins / deg) | round(1) }}
-          {% else %}
-            0
-          {% endif %}
-        # Calculate total runtime from setback start to recovery end
-        # Uses MTD accumulator snapshots for accurate midnight-crossing measurement
-        total_runtime: >
-          {% set current_mtd = states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0) %}
-          {% set start_mtd = states('input_number.hvac_2f_setback_start_runtime') | float(0) %}
-          {% set setback_start = states('input_datetime.hvac_2f_setback_start') %}
-          {% set same_month = setback_start[:7] == now().strftime('%Y-%m') if setback_start not in ['unknown', 'unavailable'] else false %}
-          {% if same_month and current_mtd >= start_mtd %}
-            {{ ((current_mtd - start_mtd) * 60) | round(0) }}
-          {% else %}
-            {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) | round(0) }}
-          {% endif %}
-        # Validate overnight_low is not at initialization value (150 = no data)
-        overnight_low: >
-          {% set val = states('input_number.outdoor_temp_daily_low') | float(150) %}
-          {{ val if val < 140 else 35 }}
-        setback_depth: >
-          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-          {% set setback = states('input_number.hvac_2f_setback_setpoint') | float(0) %}
-          {{ ((hold - setback) | round(1)) if hold > 50 and setback > 50 else 0 }}
-        # Net Runtime Benefit calculation
-        setback_hours: >
-          {% set start = states('input_datetime.hvac_2f_setback_start') %}
-          {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 3600) | round(2) }}
-          {% else %}
-            0
-          {% endif %}
-        hdd_setback: >
-          {% set hours = setback_hours | float(0) %}
-          {% set outdoor = overnight_low | float(35) %}
-          {{ ([(65 - outdoor), 0] | max * hours / 24) | round(2) if hours > 0 else 0 }}
-        baseline_min_per_hdd: >
-          {% set val = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
-          {{ val | float(0) if val not in ['unknown', 'unavailable'] else 0 }}
-        expected_hold_runtime: >
-          {% set hdd = hdd_setback | float(0) %}
-          {% set rate = baseline_min_per_hdd | float(0) %}
-          {{ (hdd * rate) | round(0) if hdd > 0 and rate > 0 else 0 }}
-        net_runtime: >
-          {% set expected = expected_hold_runtime | float(0) %}
-          {% set actual = total_runtime | float(0) %}
-          {% if expected > 0 and actual > 0 and actual < 1400 %}
-            {{ (expected - actual) | round(0) }}
-          {% else %}
-            -999
-          {% endif %}
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_recovery_minutes
-      data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
-    # Store recovery rate if valid (>=1°F setback, <=300 min)
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: "{{ recovery_minutes | float > 0 and recovery_minutes | float <= 300 and setback_degrees | float >= 1 }}"
-          sequence:
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_7
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_6') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_6
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_5') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_5
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_4') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_4
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_3') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_3
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_2') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_2
-              data:
-                value: "{{ states('input_number.hvac_2f_recovery_rate_1') | float(0) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hvac_2f_recovery_rate_1
-              data:
-                value: "{{ [recovery_rate | float | round(1), 60] | min }}"
-            # Track when recovery rate was last updated (for staleness detection)
-            - service: input_datetime.set_datetime
-              target:
-                entity_id: input_datetime.hvac_2f_recovery_rate_last_updated
-              data:
-                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # Store last setback results for dashboard display (must be before CSV log)
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_overnight_low
-      data:
-        value: "{{ overnight_low }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_setback_depth
-      data:
-        value: "{{ setback_depth }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_setback_degrees
-      data:
-        value: "{{ setback_degrees | float(0) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_recovery_rate
-      data:
-        value: "{{ [recovery_rate | float(0), 300] | min | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_net_runtime
-      data:
-        # Clamp to input_number range (-999 sentinel preserved for data quality failures)
-        value: "{{ [[net_runtime | float, -999] | max, 1500] | min }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_total_runtime
-      data:
-        value: "{{ [[total_runtime | float, 0] | max, 1500] | min }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_last_expected_hold
-      data:
-        value: "{{ [[expected_hold_runtime | float, 0] | max, 1500] | min }}"
-    # Log to setback optimization CSV only when recovery payload is valid
-    - choose:
-        - conditions:
-            - condition: template
-              value_template: >
-                {{ setback_depth | float(0) >= 1 and
-                   setback_degrees | float(0) >= 1 and
-                   recovery_minutes | float(0) > 0 and
-                   setback_hours | float(0) >= 1 and
-                   setback_hours | float(0) <= 16 }}
-          sequence:
-            - service: shell_command.appendsetbacklog_2f
-      default:
-        - service: system_log.write
-          data:
-            level: warning
-            message: >
-              Skipped 2F setback CSV append - invalid recovery payload:
-              depth={{ setback_depth }}, degrees={{ setback_degrees }},
-              recovery_minutes={{ recovery_minutes }}, total_runtime={{ total_runtime }}
-    # Reset hold_setpoint
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_hold_setpoint
-      data:
-        value: "{{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(67) }}"
-    # Clear setback latch - cycle complete
-    - service: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.hvac_2f_setback_active
-
-# ===============================================================
-# SETBACK TRACKING - Simplified for empirical data collection
-# ===============================================================
+# --- SETBACK START (1F) ---
 - id: hvac_1f_setback_start
   alias: "1F Setback Start"
   mode: single
@@ -1519,37 +992,28 @@
       for:
         seconds: 5
   condition:
-    # Must be a >=1°F drop AND not already in an active setback
-    # Also validates temps are reasonable and actually different (prevents spurious triggers)
     - condition: template
       value_template: >
-        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
-        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
-        {% set drop = from_temp - to_temp %}
-        {{ from_temp > 50 and to_temp > 50 and from_temp != to_temp and drop >= 1 }}
+        {% set from_t = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_t = trigger.to_state.attributes.temperature | float(-999) %}
+        {{ from_t > 50 and to_t > 50 and (from_t - to_t) >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_1f_setback_active
       state: "off"
     - condition: template
-      value_template: >
-        {% set mins = now().hour * 60 + now().minute %}
-        {{ mins >= 1080 }}
+      value_template: "{{ now().hour >= 18 }}"
   action:
-    # Latch setback active first to prevent re-firing
     - service: input_boolean.turn_on
       target:
         entity_id: input_boolean.hvac_1f_setback_active
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_recovering
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.hvac_1f_setback_start
       data:
-        # Use trigger.to_state.last_changed to get actual event time, not debounced execution time
-        datetime: "{{ (trigger.to_state.last_changed | as_local).strftime('%Y-%m-%d %H:%M:%S') }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_1f_setback_start_runtime
-      data:
-        value: "{{ (states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0)) | round(2) }}"
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_1f_hold_setpoint
@@ -1561,6 +1025,7 @@
       data:
         value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
 
+# --- SETBACK START (2F) ---
 - id: hvac_2f_setback_start
   alias: "2F Setback Start"
   mode: single
@@ -1571,37 +1036,28 @@
       for:
         seconds: 5
   condition:
-    # Must be a >=1°F drop AND not already in an active setback
-    # Also validates temps are reasonable and actually different (prevents spurious triggers)
     - condition: template
       value_template: >
-        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
-        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
-        {% set drop = from_temp - to_temp %}
-        {{ from_temp > 50 and to_temp > 50 and from_temp != to_temp and drop >= 1 }}
+        {% set from_t = trigger.from_state.attributes.temperature | float(-999) %}
+        {% set to_t = trigger.to_state.attributes.temperature | float(-999) %}
+        {{ from_t > 50 and to_t > 50 and (from_t - to_t) >= 1 }}
     - condition: state
       entity_id: input_boolean.hvac_2f_setback_active
       state: "off"
     - condition: template
-      value_template: >
-        {% set mins = now().hour * 60 + now().minute %}
-        {{ mins >= 1080 }}
+      value_template: "{{ now().hour >= 18 }}"
   action:
-    # Latch setback active first to prevent re-firing
     - service: input_boolean.turn_on
       target:
         entity_id: input_boolean.hvac_2f_setback_active
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_recovering
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.hvac_2f_setback_start
       data:
-        # Use trigger.to_state.last_changed to get actual event time, not debounced execution time
-        datetime: "{{ (trigger.to_state.last_changed | as_local).strftime('%Y-%m-%d %H:%M:%S') }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hvac_2f_setback_start_runtime
-      data:
-        value: "{{ (states('input_number.furnace_runtime_month_acc') | float(0) + states('sensor.hvac_furnace_runtime_today') | float(0)) | round(2) }}"
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_hold_setpoint
@@ -1613,6 +1069,7 @@
       data:
         value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
 
+# --- SETBACK LOWERED (captures mid-cycle drops, e.g. utility DR events) ---
 - id: hvac_1f_setback_lowered
   alias: "1F Setback Lowered"
   mode: single
@@ -1628,10 +1085,9 @@
       state: "on"
     - condition: template
       value_template: >
-        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
-        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set to_t = trigger.to_state.attributes.temperature | float(-999) %}
         {% set stored = states('input_number.hvac_1f_setback_setpoint') | float(999) %}
-        {{ to_temp > 50 and from_temp > 50 and to_temp < from_temp and to_temp < stored }}
+        {{ to_t > 50 and to_t < stored }}
   action:
     - service: input_number.set_value
       target:
@@ -1654,16 +1110,325 @@
       state: "on"
     - condition: template
       value_template: >
-        {% set from_temp = trigger.from_state.attributes.temperature | float(-999) %}
-        {% set to_temp = trigger.to_state.attributes.temperature | float(-999) %}
+        {% set to_t = trigger.to_state.attributes.temperature | float(-999) %}
         {% set stored = states('input_number.hvac_2f_setback_setpoint') | float(999) %}
-        {{ to_temp > 50 and from_temp > 50 and to_temp < from_temp and to_temp < stored }}
+        {{ to_t > 50 and to_t < stored }}
   action:
     - service: input_number.set_value
       target:
         entity_id: input_number.hvac_2f_setback_setpoint
       data:
         value: "{{ trigger.to_state.attributes.temperature | float(62) }}"
+
+# --- RECOVERY START (1F) ---
+# Template trigger: fires when setpoint returns to comfort AND house is still cold.
+# Re-evaluates at HA startup → self-healing after restarts.
+- id: hvac_1f_recovery_start
+  alias: "1F Recovery Start"
+  mode: single
+  trigger:
+    - platform: template
+      value_template: >
+        {% set active = is_state('input_boolean.hvac_1f_setback_active', 'on') %}
+        {% set not_rec = is_state('input_boolean.hvac_1f_recovering', 'off') %}
+        {% set live = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+        {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
+  action:
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.hvac_1f_recovering
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_1f_recovery_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_recovery_start_temp
+      data:
+        value: >
+          {{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat',
+             'current_temperature') | float(65) }}
+
+# --- RECOVERY START (2F) ---
+- id: hvac_2f_recovery_start
+  alias: "2F Recovery Start"
+  mode: single
+  trigger:
+    - platform: template
+      value_template: >
+        {% set active = is_state('input_boolean.hvac_2f_setback_active', 'on') %}
+        {% set not_rec = is_state('input_boolean.hvac_2f_recovering', 'off') %}
+        {% set live = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+        {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
+  action:
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.hvac_2f_recovering
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hvac_2f_recovery_start
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_recovery_start_temp
+      data:
+        value: >
+          {{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat',
+             'current_temperature') | float(65) }}
+
+# --- RECOVERY END (1F) ---
+# Template trigger with for: 5 min — current temp reaches comfort target.
+# Also re-evaluates at HA startup → self-healing.
+- id: hvac_1f_recovery_end
+  alias: "1F Recovery End"
+  mode: single
+  trigger:
+    - platform: template
+      value_template: >
+        {% set recovering = is_state('input_boolean.hvac_1f_recovering', 'on') %}
+        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set target = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+        {{ recovering and target > 50 and current >= (target - 1.0) }}
+      for:
+        minutes: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      state: "on"
+    - condition: state
+      entity_id: input_boolean.hvac_1f_recovering
+      state: "on"
+  action:
+    - variables:
+        recovery_minutes: >
+          {% set start = states('input_datetime.hvac_1f_recovery_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+          {% else %}0{% endif %}
+        degrees_to_recover: >
+          {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
+          {% set st = states('input_number.hvac_1f_recovery_start_temp') | float(0) %}
+          {{ [(hold - st), 0.1] | max | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_1f_last_recovery_minutes
+      data:
+        value: "{{ [recovery_minutes | float, 300] | min }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ recovery_minutes | float > 0 and
+                   recovery_minutes | float <= 300 and
+                   degrees_to_recover | float >= 0.5 }}
+          sequence:
+            - service: shell_command.appendsetbacklog_1f
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Skipped 1F setback CSV: recovery_min={{ recovery_minutes }},
+              deg_to_recover={{ degrees_to_recover }}
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_recovering
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
+
+# --- RECOVERY END (2F) ---
+# 1.25°F threshold (cathedral ceiling asymptote)
+- id: hvac_2f_recovery_end
+  alias: "2F Recovery End"
+  mode: single
+  trigger:
+    - platform: template
+      value_template: >
+        {% set recovering = is_state('input_boolean.hvac_2f_recovering', 'on') %}
+        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set target = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+        {{ recovering and target > 50 and current >= (target - 1.25) }}
+      for:
+        minutes: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      state: "on"
+    - condition: state
+      entity_id: input_boolean.hvac_2f_recovering
+      state: "on"
+  action:
+    - variables:
+        recovery_minutes: >
+          {% set start = states('input_datetime.hvac_2f_recovery_start') %}
+          {% if start not in ['unknown', 'unavailable'] %}
+            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+          {% else %}0{% endif %}
+        degrees_to_recover: >
+          {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
+          {% set st = states('input_number.hvac_2f_recovery_start_temp') | float(0) %}
+          {{ [(hold - st), 0.1] | max | round(1) }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hvac_2f_last_recovery_minutes
+      data:
+        value: "{{ [recovery_minutes | float, 300] | min }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ recovery_minutes | float > 0 and
+                   recovery_minutes | float <= 300 and
+                   degrees_to_recover | float >= 0.5 }}
+          sequence:
+            - service: shell_command.appendsetbacklog_2f
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Skipped 2F setback CSV: recovery_min={{ recovery_minutes }},
+              deg_to_recover={{ degrees_to_recover }}
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_recovering
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
+
+# ===============================================================
+# SELF-CORRECTION: Stuck-state safety valves
+# ===============================================================
+
+# Setback active >14h without recovery starting → force clear
+- id: hvac_1f_setback_stuck_clear
+  alias: "1F Setback Stuck Clear"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_1f_setback_active
+      to: "on"
+      for:
+        hours: 14
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_1f_recovering
+      state: "off"
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
+    - service: system_log.write
+      data:
+        level: warning
+        message: "1F setback latch stuck 14h without recovery — force cleared"
+
+- id: hvac_2f_setback_stuck_clear
+  alias: "2F Setback Stuck Clear"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_2f_setback_active
+      to: "on"
+      for:
+        hours: 14
+  condition:
+    - condition: state
+      entity_id: input_boolean.hvac_2f_recovering
+      state: "off"
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
+    - service: system_log.write
+      data:
+        level: warning
+        message: "2F setback latch stuck 14h without recovery — force cleared"
+
+# Recovery active >4h → recovery failed to complete, force clear
+- id: hvac_1f_recovery_stuck_clear
+  alias: "1F Recovery Stuck Clear"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_1f_recovering
+      to: "on"
+      for:
+        hours: 4
+  action:
+    - service: system_log.write
+      data:
+        level: warning
+        message: >
+          1F recovery stuck 4h — force cleared.
+          start_temp={{ states('input_number.hvac_1f_recovery_start_temp') }},
+          hold={{ states('input_number.hvac_1f_hold_setpoint') }},
+          current={{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') }}
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_recovering
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_1f_setback_active
+
+- id: hvac_2f_recovery_stuck_clear
+  alias: "2F Recovery Stuck Clear"
+  trigger:
+    - platform: state
+      entity_id: input_boolean.hvac_2f_recovering
+      to: "on"
+      for:
+        hours: 4
+  action:
+    - service: system_log.write
+      data:
+        level: warning
+        message: >
+          2F recovery stuck 4h — force cleared.
+          start_temp={{ states('input_number.hvac_2f_recovery_start_temp') }},
+          hold={{ states('input_number.hvac_2f_hold_setpoint') }},
+          current={{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') }}
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_recovering
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.hvac_2f_setback_active
+
+# Midnight audit: clear any stale recovering latches at 1 AM
+- id: hvac_setback_midnight_audit
+  alias: "Setback Midnight Audit"
+  trigger:
+    - platform: time
+      at: "01:00:00"
+  condition:
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: input_boolean.hvac_1f_recovering
+          state: "on"
+        - condition: state
+          entity_id: input_boolean.hvac_2f_recovering
+          state: "on"
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id:
+          - input_boolean.hvac_1f_recovering
+          - input_boolean.hvac_2f_recovering
+          - input_boolean.hvac_1f_setback_active
+          - input_boolean.hvac_2f_setback_active
+    - service: system_log.write
+      data:
+        level: warning
+        message: >
+          Midnight audit: cleared recovering latches still active at 1 AM.
+          1F_recovering={{ states('input_boolean.hvac_1f_recovering') }},
+          2F_recovering={{ states('input_boolean.hvac_2f_recovering') }}
 
 # ===============================================================
 # EFFICIENCY ALERTS
@@ -1697,36 +1462,6 @@
           Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
           which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
           System running more efficiently than expected.
-
-- id: notify_1f_recovery_rate_high
-  alias: "Notify 1F Recovery Rate High"
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_1f_recovery_rate_alert
-      to: "on"
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ 1F Recovery Rate Alert"
-        message: >
-          1F recovery rate avg is {{ states('sensor.hvac_1f_recovery_rate_avg') }} min/°F,
-          which exceeds upper bound ({{ states('sensor.hvac_1f_recovery_rate_upper_bound') }} = mean + 2σ).
-          Check filter, ductwork, or thermostat placement.
-
-- id: notify_2f_recovery_rate_high
-  alias: "Notify 2F Recovery Rate High"
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_2f_recovery_rate_alert
-      to: "on"
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ 2F Recovery Rate Alert"
-        message: >
-          2F recovery rate avg is {{ states('sensor.hvac_2f_recovery_rate_avg') }} min/°F,
-          which exceeds upper bound ({{ states('sensor.hvac_2f_recovery_rate_upper_bound') }} = mean + 2σ).
-          Check filter, ductwork, or cathedral ceiling heat loss.
 
 # ===============================================================
 # DATABASE MAINTENANCE
@@ -1919,34 +1654,6 @@
 
           Check reports/hvac_monthly.csv for the expected row.
           If missing, data must be manually reconstructed from daily CSV.
-
-# WATCHDOG: Recovery Rate Staleness Monitor
-- id: notify_recovery_rate_stale
-  alias: "Notify Recovery Rate Stale"
-  description: "Alert if recovery rates haven't been updated in 14+ days"
-  trigger:
-    - platform: state
-      entity_id:
-        - binary_sensor.hvac_1f_recovery_rate_stale
-        - binary_sensor.hvac_2f_recovery_rate_stale
-      to: "on"
-      for:
-        hours: 24
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ Recovery Rate Data Stale"
-        message: >
-          Recovery rate data hasn't been updated in over 14 days.
-          This may indicate setback recovery isn't being tracked.
-
-          1F last updated: {{ states('input_datetime.hvac_1f_recovery_rate_last_updated') }}
-          2F last updated: {{ states('input_datetime.hvac_2f_recovery_rate_last_updated') }}
-
-          Check:
-          - Setback schedule is active
-          - binary_sensor.hvac_*f_recovering is triggering
-          - Recovery end automation conditions
 
 # WATCHDOG: Climate Norms Staleness Monitor
 - id: notify_climate_norms_stale
