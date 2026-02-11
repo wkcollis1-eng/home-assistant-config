@@ -2529,3 +2529,42 @@ input_boolean latches. Recovery data is now logged directly to per-zone CSV file
 4. Template triggers re-evaluate on restart (no lost transitions)
 5. CSV logging is validated and atomic
 6. No more complex rolling window statistics prone to drift
+
+---
+
+## HDD Double-Counting Fix & Efficiency MTD Hardening - 2026-02-11
+
+### Issue
+`sensor.hvac_heating_efficiency_mtd` oscillated between two values daily, with the "low" value
+appearing after the 23:55 HDD capture and persisting until midnight. The gap was ~50% on day 2
+of each month, narrowing as the month progressed. The Jan 7 spike to 1,376 CCF/1k HDD was a
+separate divide-by-near-zero issue early in the month.
+
+### Root Cause
+`sensor.hvac_hdd65_cumulative_month` always computed `auto + today`, but after the 23:55 daily
+capture folded today's HDD into `hdd_cumulative_month_auto`, the sensor double-counted today:
+`(accumulated_thru_today) + (today_still_live)`. The runtime accumulated sensor already had a
+`captured_today` guard preventing this, but the HDD sensor did not.
+
+Mathematical proof (Feb 2): pre-capture 103.6, post-capture 51.8 = 103.6 × (1/2) exactly,
+confirming one day double-counted out of two total days.
+
+### Fixes Applied
+1. **`sensor.hvac_hdd65_cumulative_month`**: Added `captured_today` guard using
+   `input_datetime.hdd_capture_last_ok` — returns just `auto` after capture, `auto + today` before.
+2. **`sensor.hvac_hdd65_cumulative_year`**: Same `captured_today` guard applied.
+3. **`sensor.hvac_heating_efficiency_mtd`**: Changed `hdd > 0` to `hdd >= 5` to prevent
+   divide-by-near-zero spikes in the first hours of each month.
+
+### Files Modified
+- `configuration.yaml`
+  - `sensor.hvac_hdd65_cumulative_month` (added captured_today guard)
+  - `sensor.hvac_hdd65_cumulative_year` (added captured_today guard)
+  - `sensor.hvac_heating_efficiency_mtd` (minimum HDD guard: 0 → 5)
+
+### Downstream Impact
+Any sensor reading `sensor.hvac_hdd65_cumulative_month` or `_year` will also be corrected:
+- `sensor.hvac_heating_efficiency_mtd`
+- `sensor.hvac_building_load_ua_estimate`
+- `sensor.hvac_runtime_per_hdd_month`
+- Monthly report JSON export
