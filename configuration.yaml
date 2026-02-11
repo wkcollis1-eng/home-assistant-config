@@ -1312,8 +1312,13 @@ template:
         unique_id: hvac_runtime_per_hdd_high_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day_2') | float(0) %}
-          {% set upper = states('sensor.hvac_runtime_per_hdd_upper_bound_1s') | float(0) %}
+          {% set raw = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% set current = raw | float(-1) if raw not in ['unknown','unavailable'] else -1 %}
+          {% if current < 0 %}
+            {% set raw2 = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
+            {% set current = raw2 | float(0) if raw2 not in ['unknown','unavailable'] else 0 %}
+          {% endif %}
+          {% set upper = states('sensor.hvac_runtime_per_hdd_upper_bound') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current > upper and upper > 0 and count >= 4 }}
 
@@ -1321,8 +1326,13 @@ template:
         unique_id: hvac_runtime_per_hdd_low_alert
         device_class: problem
         state: >
-          {% set current = states('sensor.hvac_runtime_per_hdd_7_day_2') | float(0) %}
-          {% set lower = states('sensor.hvac_runtime_per_hdd_lower_bound_1s') | float(0) %}
+          {% set raw = states('sensor.hvac_runtime_per_hdd_7_day') %}
+          {% set current = raw | float(-1) if raw not in ['unknown','unavailable'] else -1 %}
+          {% if current < 0 %}
+            {% set raw2 = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
+            {% set current = raw2 | float(0) if raw2 not in ['unknown','unavailable'] else 0 %}
+          {% endif %}
+          {% set lower = states('sensor.hvac_runtime_per_hdd_lower_bound') | float(0) %}
           {% set count = states('sensor.hvac_runtime_per_hdd_data_count') | int(0) %}
           {{ current < lower and current > 0 and count >= 4 }}
 
@@ -1846,9 +1856,26 @@ template:
         state_class: measurement
         icon: mdi:arrow-up-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') | float(2) %}
+          {% set mean_raw = states('sensor.hvac_runtime_per_hdd_7_day_mean') %}
+          {% set mean = mean_raw | float(-1) if mean_raw not in ['unknown','unavailable'] else -1 %}
+          {% if mean < 0 %}
+            {% set mean_raw2 = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') %}
+            {% set mean = mean_raw2 | float(10) if mean_raw2 not in ['unknown','unavailable'] else 10 %}
+          {% endif %}
+          {% set sd_raw = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') %}
+          {% set stddev = sd_raw | float(-1) if sd_raw not in ['unknown','unavailable'] else -1 %}
+          {% if stddev < 0 %}
+            {% set sd_raw2 = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') %}
+            {% set stddev = sd_raw2 | float(2) if sd_raw2 not in ['unknown','unavailable'] else 2 %}
+          {% endif %}
           {{ (mean + (stddev * 2)) | round(1) }}
+        attributes:
+          mean_source: >
+            {% set v = states('sensor.hvac_runtime_per_hdd_7_day_mean') %}
+            {{ 'primary' if v not in ['unknown','unavailable'] and v | float(-1) >= 0 else 'fallback_2' }}
+          stddev_source: >
+            {% set v = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') %}
+            {{ 'primary' if v not in ['unknown','unavailable'] and v | float(-1) >= 0 else 'fallback_2' }}
 
       - name: "HVAC Runtime per HDD Lower Bound"
         unique_id: hvac_runtime_per_hdd_lower_bound
@@ -1856,10 +1883,27 @@ template:
         state_class: measurement
         icon: mdi:arrow-down-bold
         state: >
-          {% set mean = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') | float(10) %}
-          {% set stddev = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') | float(2) %}
+          {% set mean_raw = states('sensor.hvac_runtime_per_hdd_7_day_mean') %}
+          {% set mean = mean_raw | float(-1) if mean_raw not in ['unknown','unavailable'] else -1 %}
+          {% if mean < 0 %}
+            {% set mean_raw2 = states('sensor.hvac_runtime_per_hdd_7_day_mean_2') %}
+            {% set mean = mean_raw2 | float(10) if mean_raw2 not in ['unknown','unavailable'] else 10 %}
+          {% endif %}
+          {% set sd_raw = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') %}
+          {% set stddev = sd_raw | float(-1) if sd_raw not in ['unknown','unavailable'] else -1 %}
+          {% if stddev < 0 %}
+            {% set sd_raw2 = states('sensor.hvac_runtime_per_hdd_7_day_std_dev_2') %}
+            {% set stddev = sd_raw2 | float(2) if sd_raw2 not in ['unknown','unavailable'] else 2 %}
+          {% endif %}
           {% set lower = mean - (stddev * 2) %}
           {{ lower | round(1) if lower > 0 else 0 }}
+        attributes:
+          mean_source: >
+            {% set v = states('sensor.hvac_runtime_per_hdd_7_day_mean') %}
+            {{ 'primary' if v not in ['unknown','unavailable'] and v | float(-1) >= 0 else 'fallback_2' }}
+          stddev_source: >
+            {% set v = states('sensor.hvac_runtime_per_hdd_7_day_std_dev') %}
+            {{ 'primary' if v not in ['unknown','unavailable'] and v | float(-1) >= 0 else 'fallback_2' }}
 
       - name: "HVAC Runtime per HDD Data Count"
         unique_id: hvac_runtime_per_hdd_data_count

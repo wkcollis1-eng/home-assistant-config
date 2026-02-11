@@ -109,7 +109,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_filter_change_alert` - Alert when >= 1000 hours
 
 ### Efficiency Monitoring
-- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day rolling runtime per HDD (min/HDD)
+- `sensor.hvac_runtime_per_hdd_7_day` - 7-day rolling runtime per HDD (min/HDD) (note: `_2` suffix may exist as fallback)
 - `sensor.hvac_total_runtime_per_hdd_today` - Today's runtime per HDD (min/HDD)
 - `sensor.hvac_1f_runtime_per_hdd_today` - 1F today's runtime per HDD
 - `sensor.hvac_2f_runtime_per_hdd_today` - 2F today's runtime per HDD
@@ -146,10 +146,10 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.hvac_runtime_per_hdd_month` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
-- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day standard deviation
-- `sensor.hvac_runtime_per_hdd_upper_bound_1s` - Mean + 2σ boundary
-- `sensor.hvac_runtime_per_hdd_lower_bound_1s` - Mean - 2σ boundary
+- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean (note: `_2` suffix may exist as fallback)
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation (note: `_2` suffix may exist as fallback)
+- `sensor.hvac_runtime_per_hdd_upper_bound` - Mean + 2σ boundary
+- `sensor.hvac_runtime_per_hdd_lower_bound` - Mean - 2σ boundary
 - `sensor.hvac_runtime_per_hdd_data_count` - Number of valid samples (alerts suppressed if <4)
 - `input_number.runtime_per_hdd_day_1` through `_7` - Daily storage for std dev calc
 
@@ -530,14 +530,14 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 - EUI now computed from rolling 12-month archive inputs (electric_archive_*_kwh + gas_archive_*_ccf), updated whenever archives change
 
 ### Entity Registry Note
-Several sensors have `_2` suffix from entity registry conflicts. Use these entity IDs:
+Several sensors have `_2` suffix from entity registry conflicts. The canonical (preferred) entity IDs are:
 - `sensor.hdd_rolling_7_day_auto_2` - 7-day rolling HDD
-- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day runtime per HDD (min/HDD)
-- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day standard deviation
+- `sensor.hvac_runtime_per_hdd_7_day` - 7-day runtime per HDD (min/HDD) — `_2` suffix exists as fallback
+- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean — `_2` suffix exists as fallback
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation — `_2` suffix exists as fallback
 - `sensor.hvac_furnace_runtime_month_2` - Monthly furnace runtime
 
-Do NOT delete these entities - they contain the valid historical data.
+Do NOT delete `_2` entities - they are used as fallbacks in sensor templates.
 
 ---
 
@@ -556,7 +556,7 @@ Do NOT delete these entities - they contain the valid historical data.
 
 ### Statistical Bounds Implementation
 Replaced manual baseline sliders with auto-calculated statistical bounds (±2σ):
-- `sensor.hvac_runtime_per_hdd_upper_bound_1s` / `_lower_bound`
+- `sensor.hvac_runtime_per_hdd_upper_bound` / `sensor.hvac_runtime_per_hdd_lower_bound`
 - `sensor.hvac_1f_recovery_rate_upper_bound` / `sensor.hvac_2f_recovery_rate_upper_bound`
 - Alerts require minimum 4 data points before triggering
 
@@ -1519,7 +1519,7 @@ Each Tier 1 KPI shows a status badge:
 
 **Existing Entities:**
 - `binary_sensor.runtime_per_hdd_capture_stale` - 25h threshold
-- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - With slot validation
+- `sensor.hvac_runtime_per_hdd_7_day_mean` - With slot validation (note: `_2` suffix exists as fallback)
 - `sensor.hvac_runtime_per_hdd_data_count` - Valid sample count
 
 **New Entities:**
