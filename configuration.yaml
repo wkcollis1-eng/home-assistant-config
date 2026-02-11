@@ -95,7 +95,7 @@ shell_command:
     }'
 
   # Monthly rotation for setback log (archives previous year)
-  rotate_setback_log: "python3 /config/scripts/csv_manager.py rotate_setback"
+  rotate_setback_log: "cd /config/reports && for f in hvac_setback_1f.csv hvac_setback_2f.csv; do [ -f $f ] && mv $f ${f%.csv}_$(date -d 'yesterday' +%Y).csv; done"
 
 frontend:
   themes: !include_dir_merge_named themes
