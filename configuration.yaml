@@ -1510,7 +1510,9 @@ template:
         state: >
           {% set auto = states('input_number.hdd_cumulative_month_auto') | float(0) %}
           {% set today = states('sensor.hvac_hdd65_today') | float(0) %}
-          {{ (auto + today) | round(1) }}
+          {% set last_capture = states('input_datetime.hdd_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (auto if captured_today else auto + today) | round(1) }}
 
       - name: "HVAC HDD65 Cumulative Year"
         unique_id: hvac_hdd65_cumulative_year
@@ -1520,7 +1522,9 @@ template:
         state: >
           {% set auto = states('input_number.hdd_cumulative_year_auto') | float(0) %}
           {% set today = states('sensor.hvac_hdd65_today') | float(0) %}
-          {{ (auto + today) | round(1) }}
+          {% set last_capture = states('input_datetime.hdd_capture_last_ok') %}
+          {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (auto if captured_today else auto + today) | round(1) }}
 
       - name: "HVAC Total Heat Runtime Today"
         unique_id: hvac_total_heat_runtime_today
@@ -2091,7 +2095,7 @@ template:
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(60556) %}
-          {% if hdd > 0 and runtime > 0 %}
+          {% if hdd >= 5 and runtime > 0 %}
             {% set gas = (runtime * rate) / (103700 * 0.95) %}
             {{ ((gas / hdd) * 1000) | round(1) }}
           {% else %}{{ 0 }}{% endif %}
