@@ -1510,7 +1510,7 @@ template:
         state: >
           {% set auto = states('input_number.hdd_cumulative_month_auto') | float(0) %}
           {% set today = states('sensor.hvac_hdd65_today') | float(0) %}
-          {% set last_capture = states('input_datetime.hdd_capture_last_ok') %}
+          {% set last_capture = states('input_datetime.monthly_tracking_capture_last_ok') %}
           {% set captured_today = last_capture[:10] == now().strftime('%Y-%m-%d') if last_capture not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
           {{ (auto if captured_today else auto + today) | round(1) }}
 

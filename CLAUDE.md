@@ -410,6 +410,7 @@ Month-to-date sensors use accumulated `input_number` values plus today's live va
 - `input_number.furnace_runtime_month_acc` + `sensor.hvac_furnace_runtime_today`
 - `input_number.hdd_cumulative_month_auto` + `sensor.hvac_hdd65_today`
 - Uses `captured_today` guard to prevent double-counting after nightly capture
+- **Important:** Both HDD Month and Runtime Month sensors reference `monthly_tracking_capture_last_ok` (set at 23:56:30) to ensure synchronized timestamps for efficiency calculations
 
 ## Known Issues
 
