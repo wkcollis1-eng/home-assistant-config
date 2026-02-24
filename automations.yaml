@@ -186,26 +186,8 @@
                 entity_id: input_number.hdd_day_1
               data:
                 value: "{{ todays_hdd }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hdd_cumulative_month_auto
-              data:
-                value: "{{ (states('input_number.hdd_cumulative_month_auto')|float(0) + todays_hdd)|round(1) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.cdd_cumulative_month_auto
-              data:
-                value: "{{ (states('input_number.cdd_cumulative_month_auto')|float(0) + todays_cdd)|round(1) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.hdd_cumulative_year_auto
-              data:
-                value: "{{ (states('input_number.hdd_cumulative_year_auto')|float(0) + todays_hdd)|round(1) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.cdd_cumulative_year_auto
-              data:
-                value: "{{ (states('input_number.cdd_cumulative_year_auto')|float(0) + todays_cdd)|round(1) }}"
+            # HDD/CDD accumulators moved to capture_daily_monthly_tracking (23:56:30)
+            # to eliminate desync with furnace runtime accumulators
             - service: input_datetime.set_datetime
               target:
                 entity_id: input_datetime.hdd_capture_last_ok
@@ -311,17 +293,17 @@
               Runtime_per_HDD={{ states('sensor.hvac_total_runtime_per_hdd_today') }}
 
 # ===============================================================
-# MONTHLY REPORT TRACKING - Daily capture at 11:56 PM
+# MONTHLY REPORT TRACKING - Daily capture at 11:56:30 PM
 # ===============================================================
 - id: capture_daily_monthly_tracking
   alias: "Capture Daily Monthly Tracking"
-  description: "Accumulates outdoor temp, expected runtime, and furnace/zone metrics for monthly report"
+  description: "Accumulates HDD/CDD, outdoor temp, expected runtime, and furnace/zone metrics for monthly report"
   mode: single
   trigger:
     - platform: time
       at: "23:56:30"
   action:
-    # Use actual observed temps (matches daily CSV) instead of forecast
+    # Snapshot ALL daily values before any updates (atomic capture)
     - variables:
         todays_high: "{{ states('input_number.outdoor_temp_daily_high') | float(0) }}"
         todays_low: "{{ states('input_number.outdoor_temp_daily_low') | float(0) }}"
@@ -330,6 +312,13 @@
         current_temp_sum: "{{ states('input_number.outdoor_temp_sum_month') | float(0) }}"
         current_days: "{{ states('input_number.outdoor_temp_days_month') | int(0) }}"
         current_expected_sum: "{{ states('input_number.expected_runtime_sum_month') | float(0) }}"
+        # HDD/CDD daily values (moved from capture_daily_hdd to unify timing)
+        todays_hdd: "{{ states('sensor.hvac_hdd65_today') | float(0) }}"
+        todays_cdd: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+        hdd_month_acc: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) }}"
+        hdd_year_acc: "{{ states('input_number.hdd_cumulative_year_auto') | float(0) }}"
+        cdd_month_acc: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) }}"
+        cdd_year_acc: "{{ states('input_number.cdd_cumulative_year_auto') | float(0) }}"
         # Furnace/zone daily values (from history_stats "today" sensors)
         furnace_runtime_today: "{{ states('sensor.hvac_furnace_runtime_today') | float(0) }}"
         furnace_cycles_today: "{{ states('sensor.hvac_furnace_cycles_today') | int(0) }}"
@@ -345,7 +334,42 @@
         zone_1f_cycles_acc: "{{ states('input_number.zone_1f_cycles_month_acc') | int(0) }}"
         zone_2f_cycles_acc: "{{ states('input_number.zone_2f_cycles_month_acc') | int(0) }}"
     - condition: template
-      value_template: "{{ todays_high > -49 and todays_low < 149 }}"
+      value_template: >
+        {{ todays_high > -49 and todays_low < 149 and
+           is_number(todays_hdd) and is_number(todays_cdd) and
+           0 <= todays_hdd <= 65 and 0 <= todays_cdd <= 50 }}
+    # ── TIMESTAMP FIRST ──────────────────────────────────────────
+    # Set before ANY accumulator updates so captured_today flips
+    # atomically for all month sensors (HDD + runtime + cycles).
+    # Brief dip (accumulators missing today) affects numerator and
+    # denominator equally, keeping the efficiency ratio stable.
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.monthly_tracking_capture_last_ok
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    # ── HDD/CDD accumulators (moved from capture_daily_hdd) ─────
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hdd_cumulative_month_auto
+      data:
+        value: "{{ (hdd_month_acc + todays_hdd) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.cdd_cumulative_month_auto
+      data:
+        value: "{{ (cdd_month_acc + todays_cdd) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.hdd_cumulative_year_auto
+      data:
+        value: "{{ (hdd_year_acc + todays_hdd) | round(1) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.cdd_cumulative_year_auto
+      data:
+        value: "{{ (cdd_year_acc + todays_cdd) | round(1) }}"
+    # ── Outdoor temp tracking ────────────────────────────────────
     - service: input_number.set_value
       target:
         entity_id: input_number.outdoor_temp_sum_month
@@ -356,7 +380,7 @@
         entity_id: input_number.outdoor_temp_days_month
       data:
         value: "{{ current_days + 1 }}"
-    # Accumulate furnace/zone metrics (immune to recorder purge_keep_days)
+    # ── Furnace/zone accumulators (immune to recorder purge) ─────
     - service: input_number.set_value
       target:
         entity_id: input_number.furnace_runtime_month_acc
@@ -394,13 +418,11 @@
         value: "{{ current_expected_sum + todays_expected }}"
     - service: system_log.write
       data:
-        message: "Monthly tracking captured: mean={{ todays_mean }}°F, expected={{ todays_expected }}h"
+        message: >
+          Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
+          mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
+          expected={{ todays_expected }}h
         level: info
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.monthly_tracking_capture_last_ok
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
 # ===============================================================
 # MONTHLY/YEARLY RESETS - With startup catch-up

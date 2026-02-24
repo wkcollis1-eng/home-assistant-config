@@ -20,7 +20,7 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **Safety timeout automations** - 14h setback stuck, 4h recovery stuck, 1 AM midnight audit
 
 ### Fixed
-- **Heating efficiency MTD oscillation** - HDD Cumulative Month sensor now uses `monthly_tracking_capture_last_ok` timestamp to stay synchronized with furnace runtime month sensor
+- **Heating efficiency MTD nightly oscillation** - Eliminated 3-4 point drops at 23:55 by moving HDD/CDD accumulator updates from `capture_daily_hdd` (23:55) to `capture_daily_monthly_tracking` (23:56:30), setting timestamp FIRST before any accumulator updates, and unifying all month sensors to use `monthly_tracking_capture_last_ok`
 - **HDD double-counting** - Cumulative month/year sensors now use `captured_today` guard
 - **Setback start debounce** - 5-second delay filters Resideo firmware 1-second glitches
 - **Recovery rate units** - Changed from °F/hr to min/°F (time per degree, not speed)
