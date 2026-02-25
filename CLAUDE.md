@@ -98,10 +98,12 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 
 ### Energy Metrics
 - `sensor.site_eui_estimate` - Site EUI from rolling 12-month archive bills (kBTU/ft²-yr)
-- `sensor.hvac_heating_efficiency_12m` - CCF per 1000 HDD (rolling 12-month, primary)
-- `sensor.hvac_building_load_ua_12m` - Building envelope UA value (rolling 12-month, primary)
+- `sensor.hvac_heating_efficiency_12m` - CCF per 1000 HDD (rolling 12-month, primary, uses 76.1% heating ratio)
+- `sensor.hvac_building_load_ua_12m` - Building envelope UA value (rolling 12-month, primary, uses 76.1% heating ratio)
 - `sensor.hvac_heating_efficiency_mtd` - CCF per 1000 HDD (MTD, for monthly CSV only)
 - `sensor.hvac_building_load_ua_estimate` - Building envelope UA (MTD, for monthly CSV only)
+- `sensor.gas_heating_usage_month` - Heating portion of monthly gas (76.1% of total)
+- `sensor.gas_dhw_usage_month` - DHW portion of monthly gas (23.9% of total)
 
 ### Filter Tracking
 - `input_number.hvac_filter_runtime_hours` - Cumulative runtime hours (started at 800)
@@ -182,7 +184,9 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - **Runtime per HDD:** Auto-calculated (mean ± 2σ from 7-day rolling data)
 - **Annual HDD:** 6,270
 - **Annual Electricity:** 6,730 kWh
-- **Annual Gas:** 787 CCF
+- **Annual Gas:** 787 CCF total (599 CCF heating + 188 CCF DHW)
+- **DHW Ratio:** 23.9% of total gas (188/787 CCF) - used to isolate heating gas from total bills
+- **Heating Ratio:** 76.1% of total gas (599/787 CCF)
 - **Site EUI:** 41.7 kBTU/ft²-yr
 
 ### Statistical Bounds Approach (Runtime/HDD)

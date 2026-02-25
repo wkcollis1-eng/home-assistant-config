@@ -2227,7 +2227,7 @@ template:
           {% else %}{{ 41.7 }}{% endif %}
 
       # Rolling 12-month heating efficiency from archived monthly data
-      # DHW baseload from July (0 HDD = pure DHW), per baseline methodology
+      # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Heating Efficiency 12M"
         unique_id: hvac_heating_efficiency_12m
@@ -2242,9 +2242,8 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {# July has 0 HDD - pure DHW baseline (per METHODOLOGY.md regression approach) #}
-          {% set dhw_monthly = states('input_number.gas_archive_jul_ccf') | float(17) %}
-          {% set heating_ccf = ns.ccf - (dhw_monthly * 12) %}
+          {# Heating = 76.1% of total gas (100% - 23.9% DHW) #}
+          {% set heating_ccf = ns.ccf * 0.761 %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
@@ -2253,7 +2252,7 @@ template:
 
       # Rolling 12-month building UA from archived monthly data
       # UA = Total heat output / (Annual HDD × 24 hours)
-      # DHW baseload from July (0 HDD = pure DHW), per baseline methodology
+      # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Building Load UA 12M"
         unique_id: hvac_building_load_ua_12m
@@ -2268,9 +2267,8 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {# July has 0 HDD - pure DHW baseline (per METHODOLOGY.md regression approach) #}
-          {% set dhw_monthly = states('input_number.gas_archive_jul_ccf') | float(17) %}
-          {% set heating_ccf = ns.ccf - (dhw_monthly * 12) %}
+          {# Heating = 76.1% of total gas (100% - 23.9% DHW) #}
+          {% set heating_ccf = ns.ccf * 0.761 %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {# UA = (CCF × 103700 BTU/CCF × 0.95 efficiency) / (HDD × 24 hours) #}
             {{ ((heating_ccf * 103700 * 0.95) / (ns.hdd * 24)) | round(0) }}
@@ -2507,12 +2505,14 @@ template:
       - name: "Gas Heating Usage Month"
         unique_id: gas_heating_usage_month
         unit_of_measurement: "CCF"
-        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.719) | round(1) }}"
+        # Heating ratio: 76.1% (per baseline analysis: 599 CCF heating / 787 CCF total)
+        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.761) | round(1) }}"
 
       - name: "Gas DHW Usage Month"
         unique_id: gas_dhw_usage_month
         unit_of_measurement: "CCF"
-        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.281) | round(1) }}"
+        # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total annual)
+        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.239) | round(1) }}"
 
       - name: "Gas Cost This Month"
         unique_id: gas_cost_this_month
@@ -2522,7 +2522,8 @@ template:
       - name: "Gas Heating Cost Month"
         unique_id: gas_heating_cost_month
         unit_of_measurement: "$"
-        state: "{{ (states('input_number.gas_bill_amount') | float(0) * 0.719) | round(2) }}"
+        # Heating ratio: 76.1% (matches gas_heating_usage_month)
+        state: "{{ (states('input_number.gas_bill_amount') | float(0) * 0.761) | round(2) }}"
 
       - name: "Total Cost Month"
         unique_id: total_cost_month
