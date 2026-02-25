@@ -1,0 +1,20 @@
+# Building UA - Gauge Card
+# Shows rolling 12-month building envelope heat loss coefficient (BTU/hr-°F)
+# Green: 100-400, Yellow: 400-494, Red: 494+
+# Dashboard: Energy Performance - Engineering
+type: gauge
+entity: sensor.hvac_building_load_ua_12m
+name: Building UA (12M)
+min: 100
+max: 550
+needle: true
+segments:
+  - from: 100
+    color: "#43a047"
+  - from: 400
+    color: "#ffeb3b"
+  - from: 494
+    color: "#db4437"
+grid_options:
+  columns: 9
+  rows: 4

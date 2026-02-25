@@ -1,0 +1,100 @@
+# HDD Archive Seed Values
+# Run these service calls in Developer Tools > Services to initialize the archives
+# Calculated from daily HDD data provided + Hartford weather history for missing days
+#
+# Monthly HDD Totals (Feb 2025 - Jan 2026 = rolling 12 months)
+#
+# Jan 2025: 1125.5 (complete)
+# Feb 2025:  963.0 (complete)
+# Mar 2025:  676.0 (complete)
+# Apr 2025:  432.0 (complete)
+# May 2025:  172.0 (complete)
+# Jun 2025:   22.5 (complete)
+# Jul 2025:    0.0 (complete)
+# Aug 2025:   20.5 (complete)
+# Sep 2025:   42.0 (complete)
+# Oct 2025:  368.5 (complete)
+# Nov 2025:  707.0 (complete)
+# Dec 2025: 1139.5 (complete)
+# Jan 2026: 1196.8 (complete with Hartford fill-in for Jan 14-23, 31)
+#
+# Note: February 2026 will be auto-archived at month-end by archive_monthly_hdd automation
+#
+# Annual Total (Feb 2025 - Jan 2026): 5865.3 HDD
+# (Baseline annual: 6,270 HDD - this was a milder year)
+
+# Copy and paste each block into Developer Tools > Services
+
+# === SEED COMMANDS ===
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_jan
+# data:
+#   value: 1196.8
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_feb
+# data:
+#   value: 963.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_mar
+# data:
+#   value: 676.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_apr
+# data:
+#   value: 432.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_may
+# data:
+#   value: 172.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_jun
+# data:
+#   value: 22.5
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_jul
+# data:
+#   value: 0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_aug
+# data:
+#   value: 20.5
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_sep
+# data:
+#   value: 42.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_oct
+# data:
+#   value: 368.5
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_nov
+# data:
+#   value: 707.0
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.hdd_archive_dec
+# data:
+#   value: 1139.5

@@ -992,6 +992,82 @@ input_number:
     mode: box
 
   # ===============================================================
+  # 12-MONTH ARCHIVE - HDD (for rolling efficiency calculations)
+  # ===============================================================
+  hdd_archive_jan:
+    name: "Archive: Jan HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_feb:
+    name: "Archive: Feb HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_mar:
+    name: "Archive: Mar HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_apr:
+    name: "Archive: Apr HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_may:
+    name: "Archive: May HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_jun:
+    name: "Archive: Jun HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_jul:
+    name: "Archive: Jul HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_aug:
+    name: "Archive: Aug HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_sep:
+    name: "Archive: Sep HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_oct:
+    name: "Archive: Oct HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_nov:
+    name: "Archive: Nov HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+  hdd_archive_dec:
+    name: "Archive: Dec HDD"
+    min: 0
+    max: 2000
+    step: 0.1
+    mode: box
+
+  # ===============================================================
   # FILTER TRACKING
   # ===============================================================
   hvac_filter_runtime_hours:
@@ -1245,7 +1321,7 @@ template:
         unique_id: hvac_efficiency_alert
         device_class: problem
         state: >
-          {% set efficiency = states('sensor.hvac_heating_efficiency_mtd') | float(0) %}
+          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
           {% set baseline = states('input_number.heating_efficiency_baseline') | float(82.6) %}
           {{ efficiency > (baseline * 1.10) and efficiency > 0 }}
 
@@ -1253,7 +1329,7 @@ template:
         unique_id: hvac_ua_degradation_alert
         device_class: problem
         state: >
-          {% set ua = states('sensor.hvac_building_load_ua_estimate') | float(449) %}
+          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(449) %}
           {% set baseline = states('input_number.building_ua_baseline') | float(449) %}
           {{ ua > (baseline * 1.10) }}
 
@@ -2140,12 +2216,56 @@ template:
             {{ ((ns.kwh * 3.412 + ns.ccf * 103.7) / 2440) | round(1) }}
           {% else %}{{ 41.7 }}{% endif %}
 
+      # Rolling 12-month heating efficiency from archived monthly data
+      # Updates when archives change (monthly), immune to midnight oscillation
+      - name: "HVAC Heating Efficiency 12M"
+        unique_id: hvac_heating_efficiency_12m
+        unit_of_measurement: "CCF/1k HDD"
+        state_class: measurement
+        icon: mdi:chart-bell-curve-cumulative
+        state: >
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set ns = namespace(ccf=0, hdd=0) %}
+          {% for m in months %}
+            {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
+          {% endfor %}
+          {% if ns.hdd >= 100 and ns.ccf > 0 %}
+            {{ ((ns.ccf / ns.hdd) * 1000) | round(1) }}
+          {% else %}
+            {{ 82.6 }}
+          {% endif %}
+
+      # Rolling 12-month building UA from archived monthly data
+      # UA = Total heat output / (Annual HDD × 24 hours)
+      # Updates when archives change (monthly), immune to midnight oscillation
+      - name: "HVAC Building Load UA 12M"
+        unique_id: hvac_building_load_ua_12m
+        unit_of_measurement: "BTU/hr-°F"
+        state_class: measurement
+        icon: mdi:home-thermometer
+        state: >
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set ns = namespace(ccf=0, hdd=0) %}
+          {% for m in months %}
+            {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
+          {% endfor %}
+          {% if ns.hdd >= 100 and ns.ccf > 0 %}
+            {# UA = (CCF × 103700 BTU/CCF × 0.95 efficiency) / (HDD × 24 hours) #}
+            {{ ((ns.ccf * 103700 * 0.95) / (ns.hdd * 24)) | round(0) }}
+          {% else %}
+            {{ 449 }}
+          {% endif %}
+
       - name: "HVAC Performance vs Baseline"
         unique_id: hvac_performance_vs_baseline
         unit_of_measurement: "%"
         state_class: measurement
         state: >
-          {% set current = states('sensor.hvac_heating_efficiency_mtd') | float(0) %}
+          {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
           {% set baseline = 82.6 %}
           {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
 
@@ -2154,7 +2274,7 @@ template:
         unit_of_measurement: "%"
         state_class: measurement
         state: >
-          {% set current = states('sensor.hvac_building_load_ua_estimate') | float(449) %}
+          {% set current = states('sensor.hvac_building_load_ua_12m') | float(449) %}
           {{ ((current / 449 - 1) * 100) | round(1) }}
 
       - name: "EUI vs Baseline"

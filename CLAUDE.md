@@ -98,8 +98,10 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 
 ### Energy Metrics
 - `sensor.site_eui_estimate` - Site EUI from rolling 12-month archive bills (kBTU/ft²-yr)
-- `sensor.hvac_heating_efficiency_mtd` - CCF per 1000 HDD
-- `sensor.hvac_building_load_ua_estimate` - Building envelope UA value
+- `sensor.hvac_heating_efficiency_12m` - CCF per 1000 HDD (rolling 12-month, primary)
+- `sensor.hvac_building_load_ua_12m` - Building envelope UA value (rolling 12-month, primary)
+- `sensor.hvac_heating_efficiency_mtd` - CCF per 1000 HDD (MTD, for monthly CSV only)
+- `sensor.hvac_building_load_ua_estimate` - Building envelope UA (MTD, for monthly CSV only)
 
 ### Filter Tracking
 - `input_number.hvac_filter_runtime_hours` - Cumulative runtime hours (started at 800)
@@ -404,6 +406,13 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 - Need historical data for YoY analysis
 
 **Future optimization**: If adding Shelly Pro 3EM or similar, could migrate to `utility_meter` + HA Energy Dashboard.
+
+### Monthly HDD Archives (input_numbers)
+The 12 `hdd_archive_*` input_numbers store monthly HDD totals for rolling 12-month efficiency calculations:
+- Archived automatically at 23:58 on the last day of each month
+- Used by `sensor.hvac_heating_efficiency_12m` and `sensor.hvac_building_load_ua_12m`
+- Eliminates midnight oscillation issues that affected MTD sensors
+- Updates monthly (when archives change), not continuously
 
 ### Monthly Accumulators
 Month-to-date sensors use accumulated `input_number` values plus today's live value to survive the 14-day recorder purge:

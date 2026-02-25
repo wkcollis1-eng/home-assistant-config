@@ -568,6 +568,38 @@
         level: info
 
 # ===============================================================
+# MONTHLY HDD ARCHIVE (for rolling 12-month efficiency calculations)
+# ===============================================================
+- id: archive_monthly_hdd
+  alias: "Archive Monthly HDD"
+  description: "Archives month's total HDD to rolling 12-month archive on last day of month"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:58:00"
+  condition:
+    # Only run on last day of month
+    - condition: template
+      value_template: >
+        {% set tomorrow = now() + timedelta(days=1) %}
+        {{ tomorrow.day == 1 }}
+  action:
+    - variables:
+        month_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) + states('sensor.hvac_hdd65_today') | float(0) }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[now().month - 1] }}
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.hdd_archive_{{ month_name }}"
+      data:
+        value: "{{ month_hdd | round(1) }}"
+    - service: system_log.write
+      data:
+        message: "Monthly HDD archived: {{ month_name | upper }} = {{ month_hdd | round(1) }} HDD"
+        level: info
+
+# ===============================================================
 # BILL SAVE AUTOMATIONS
 # ===============================================================
 - id: save_electric_bill_button
@@ -717,7 +749,7 @@
     - service: persistent_notification.create
       data:
         title: "⚠️ Heating Efficiency Alert"
-        message: "Current: {{ states('sensor.hvac_heating_efficiency_mtd') }} CCF/1k HDD (Baseline: 82.6)"
+        message: "Current: {{ states('sensor.hvac_heating_efficiency_12m') }} CCF/1k HDD (Baseline: 82.6)"
 
 - id: notify_short_cycling_1f
   alias: "Notify Short Cycling 1F"
