@@ -2227,7 +2227,7 @@ template:
           {% else %}{{ 41.7 }}{% endif %}
 
       # Rolling 12-month heating efficiency from archived monthly data
-      # Subtracts baseload (water heater, cooking, dryer) to isolate heating gas
+      # Baseload auto-calculated from summer months (Jun+Jul+Aug average)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Heating Efficiency 12M"
         unique_id: hvac_heating_efficiency_12m
@@ -2242,8 +2242,11 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {% set baseload = states('input_number.gas_baseload_monthly') | float(17) * 12 %}
-          {% set heating_ccf = ns.ccf - baseload %}
+          {% set summer_ccf = states('input_number.gas_archive_jun_ccf') | float(0) +
+                              states('input_number.gas_archive_jul_ccf') | float(0) +
+                              states('input_number.gas_archive_aug_ccf') | float(0) %}
+          {% set baseload_monthly = summer_ccf / 3 %}
+          {% set heating_ccf = ns.ccf - (baseload_monthly * 12) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
@@ -2252,7 +2255,7 @@ template:
 
       # Rolling 12-month building UA from archived monthly data
       # UA = Total heat output / (Annual HDD × 24 hours)
-      # Subtracts baseload to isolate heating gas
+      # Baseload auto-calculated from summer months (Jun+Jul+Aug average)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Building Load UA 12M"
         unique_id: hvac_building_load_ua_12m
@@ -2267,8 +2270,11 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {% set baseload = states('input_number.gas_baseload_monthly') | float(17) * 12 %}
-          {% set heating_ccf = ns.ccf - baseload %}
+          {% set summer_ccf = states('input_number.gas_archive_jun_ccf') | float(0) +
+                              states('input_number.gas_archive_jul_ccf') | float(0) +
+                              states('input_number.gas_archive_aug_ccf') | float(0) %}
+          {% set baseload_monthly = summer_ccf / 3 %}
+          {% set heating_ccf = ns.ccf - (baseload_monthly * 12) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {# UA = (CCF × 103700 BTU/CCF × 0.95 efficiency) / (HDD × 24 hours) #}
             {{ ((heating_ccf * 103700 * 0.95) / (ns.hdd * 24)) | round(0) }}
