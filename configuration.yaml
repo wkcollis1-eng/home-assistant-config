@@ -219,7 +219,7 @@ input_number:
     unit_of_measurement: "BTU/hr-°F"
     mode: box
     icon: mdi:home-thermometer
-    initial: 449
+    initial: 480
 
   balance_point_baseline:
     name: Balance Point Baseline
@@ -239,7 +239,7 @@ input_number:
     unit_of_measurement: "CCF/1k HDD"
     mode: box
     icon: mdi:chart-bell-curve
-    initial: 82.6
+    initial: 89.1
 
   gas_baseload_monthly:
     name: Gas Baseload (CCF/month)
@@ -1332,15 +1332,15 @@ template:
         device_class: problem
         state: >
           {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(82.6) %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(89.1) %}
           {{ efficiency > (baseline * 1.10) and efficiency > 0 }}
 
       - name: "HVAC UA Degradation Alert"
         unique_id: hvac_ua_degradation_alert
         device_class: problem
         state: >
-          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(449) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(449) %}
+          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(480) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(480) %}
           {{ ua > (baseline * 1.10) }}
 
       - name: "HVAC Short Cycling Alert 1F"
@@ -2227,7 +2227,7 @@ template:
           {% else %}{{ 41.7 }}{% endif %}
 
       # Rolling 12-month heating efficiency from archived monthly data
-      # Baseload auto-calculated from summer months (Jun+Jul+Aug average)
+      # DHW baseload from July (0 HDD = pure DHW), per baseline methodology
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Heating Efficiency 12M"
         unique_id: hvac_heating_efficiency_12m
@@ -2242,20 +2242,18 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {% set summer_ccf = states('input_number.gas_archive_jun_ccf') | float(0) +
-                              states('input_number.gas_archive_jul_ccf') | float(0) +
-                              states('input_number.gas_archive_aug_ccf') | float(0) %}
-          {% set baseload_monthly = summer_ccf / 3 %}
-          {% set heating_ccf = ns.ccf - (baseload_monthly * 12) %}
+          {# July has 0 HDD - pure DHW baseline (per METHODOLOGY.md regression approach) #}
+          {% set dhw_monthly = states('input_number.gas_archive_jul_ccf') | float(17) %}
+          {% set heating_ccf = ns.ccf - (dhw_monthly * 12) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
-            {{ 82.6 }}
+            {{ 89.1 }}
           {% endif %}
 
       # Rolling 12-month building UA from archived monthly data
       # UA = Total heat output / (Annual HDD × 24 hours)
-      # Baseload auto-calculated from summer months (Jun+Jul+Aug average)
+      # DHW baseload from July (0 HDD = pure DHW), per baseline methodology
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Building Load UA 12M"
         unique_id: hvac_building_load_ua_12m
@@ -2270,16 +2268,14 @@ template:
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {% set summer_ccf = states('input_number.gas_archive_jun_ccf') | float(0) +
-                              states('input_number.gas_archive_jul_ccf') | float(0) +
-                              states('input_number.gas_archive_aug_ccf') | float(0) %}
-          {% set baseload_monthly = summer_ccf / 3 %}
-          {% set heating_ccf = ns.ccf - (baseload_monthly * 12) %}
+          {# July has 0 HDD - pure DHW baseline (per METHODOLOGY.md regression approach) #}
+          {% set dhw_monthly = states('input_number.gas_archive_jul_ccf') | float(17) %}
+          {% set heating_ccf = ns.ccf - (dhw_monthly * 12) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {# UA = (CCF × 103700 BTU/CCF × 0.95 efficiency) / (HDD × 24 hours) #}
             {{ ((heating_ccf * 103700 * 0.95) / (ns.hdd * 24)) | round(0) }}
           {% else %}
-            {{ 449 }}
+            {{ 480 }}
           {% endif %}
 
       - name: "HVAC Performance vs Baseline"
@@ -2288,7 +2284,7 @@ template:
         state_class: measurement
         state: >
           {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = 82.6 %}
+          {% set baseline = 89.1 %}
           {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
 
       - name: "UA Performance vs Baseline"
@@ -2296,8 +2292,8 @@ template:
         unit_of_measurement: "%"
         state_class: measurement
         state: >
-          {% set current = states('sensor.hvac_building_load_ua_12m') | float(449) %}
-          {{ ((current / 449 - 1) * 100) | round(1) }}
+          {% set current = states('sensor.hvac_building_load_ua_12m') | float(480) %}
+          {{ ((current / 480 - 1) * 100) | round(1) }}
 
       - name: "EUI vs Baseline"
         unique_id: eui_vs_baseline

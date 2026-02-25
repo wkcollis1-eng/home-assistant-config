@@ -176,9 +176,9 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - `sensor.hvac_daily_total_cost_estimate` - Combined daily HVAC cost
 
 ## Baseline Values
-- **Building UA:** 449 BTU/hr-°F (manual input_number)
+- **Building UA:** 480 BTU/hr-°F (manual input_number, from 4-year baseline analysis)
 - **Balance Point:** 59°F (manual input_number)
-- **Heating Efficiency:** 82.6 CCF/1k HDD (manual input_number)
+- **Heating Efficiency:** 89.1 CCF/1k HDD (manual input_number, 4-year mean from baseline analysis)
 - **Runtime per HDD:** Auto-calculated (mean ± 2σ from 7-day rolling data)
 - **Annual HDD:** 6,270
 - **Annual Electricity:** 6,730 kWh
