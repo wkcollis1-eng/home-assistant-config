@@ -23,6 +23,7 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **HDD archive automation** - `archive_monthly_hdd` captures month total at 23:58 on last day of month
 
 ### Fixed
+- **DHW ratio correction** - Updated from 28.1% to 23.9% per baseline analysis (188 CCF DHW / 787 CCF total annual). Affects `sensor.gas_dhw_usage_month`, `sensor.gas_heating_usage_month`, and 12-month efficiency/UA sensors.
 - **Midnight oscillation (final fix)** - Replaced continuously-evaluated MTD sensors with rolling 12-month sensors calculated from archived data. MTD sensors had race conditions at midnight when `now().day` and `captured_today` logic changed simultaneously. New 12-month sensors only update when archives change (monthly).
 - **Heating efficiency MTD nightly oscillation** - Eliminated 3-4 point drops at 23:55 by moving HDD/CDD accumulator updates from `capture_daily_hdd` (23:55) to `capture_daily_monthly_tracking` (23:56:30), setting timestamp FIRST before any accumulator updates, and unifying all month sensors to use `monthly_tracking_capture_last_ok`
 - **HDD double-counting** - Cumulative month/year sensors now use `captured_today` guard
