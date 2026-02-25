@@ -18,8 +18,12 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **Recovery start temp tracking** - `input_number.hvac_*f_recovery_start_temp`
 - **Setback lowered automations** - Capture utility-driven mid-cycle setpoint drops
 - **Safety timeout automations** - 14h setback stuck, 4h recovery stuck, 1 AM midnight audit
+- **Rolling 12-month efficiency sensors** - `sensor.hvac_heating_efficiency_12m` and `sensor.hvac_building_load_ua_12m` using archived monthly data, immune to midnight oscillation
+- **Monthly HDD archives** - 12 `input_number.hdd_archive_*` entities for rolling 12-month calculations
+- **HDD archive automation** - `archive_monthly_hdd` captures month total at 23:58 on last day of month
 
 ### Fixed
+- **Midnight oscillation (final fix)** - Replaced continuously-evaluated MTD sensors with rolling 12-month sensors calculated from archived data. MTD sensors had race conditions at midnight when `now().day` and `captured_today` logic changed simultaneously. New 12-month sensors only update when archives change (monthly).
 - **Heating efficiency MTD nightly oscillation** - Eliminated 3-4 point drops at 23:55 by moving HDD/CDD accumulator updates from `capture_daily_hdd` (23:55) to `capture_daily_monthly_tracking` (23:56:30), setting timestamp FIRST before any accumulator updates, and unifying all month sensors to use `monthly_tracking_capture_last_ok`
 - **HDD double-counting** - Cumulative month/year sensors now use `captured_today` guard
 - **Setback start debounce** - 5-second delay filters Resideo firmware 1-second glitches
@@ -36,6 +40,8 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - Setback start stores MTD accumulator snapshot (hours) instead of daily runtime (minutes)
 - Recovery minutes subtract 10-minute stability wait from elapsed time
 - Heating efficiency MTD minimum HDD guard: 0 → 5 (prevents divide-by-near-zero)
+- **Performance vs Baseline sensors** now use 12-month rolling sensors instead of MTD
+- **Efficiency/UA alerts** now use 12-month sensors for stability (7-day runtime/HDD remains for operational alerting)
 
 ### Removed
 - 14 `input_number.hvac_*f_recovery_rate_*` rolling window slots
