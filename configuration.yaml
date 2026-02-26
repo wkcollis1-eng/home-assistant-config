@@ -219,7 +219,7 @@ input_number:
     unit_of_measurement: "BTU/hr-°F"
     mode: box
     icon: mdi:home-thermometer
-    initial: 480
+    initial: 493
 
   balance_point_baseline:
     name: Balance Point Baseline
@@ -231,6 +231,25 @@ input_number:
     icon: mdi:thermometer-lines
     initial: 59
 
+  hdd_balance_point_ratio:
+    name: HDD Balance Point Ratio (HDD59/HDD65)
+    min: 0.5
+    max: 1.0
+    step: 0.001
+    mode: box
+    icon: mdi:math-compass
+    initial: 0.844
+
+  fireplace_annual_heat_mmbtu:
+    name: Fireplace Annual Heat Contribution (MMBTU)
+    min: 0
+    max: 10
+    step: 0.1
+    unit_of_measurement: "MMBTU"
+    mode: box
+    icon: mdi:fireplace
+    initial: 3.6
+
   heating_efficiency_baseline:
     name: Heating Efficiency Baseline (CCF/1k HDD)
     min: 50
@@ -239,7 +258,7 @@ input_number:
     unit_of_measurement: "CCF/1k HDD"
     mode: box
     icon: mdi:chart-bell-curve
-    initial: 89.1
+    initial: 90.3
 
   gas_baseload_monthly:
     name: Gas Baseload (CCF/month)
@@ -1332,15 +1351,15 @@ template:
         device_class: problem
         state: >
           {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(89.1) %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
           {{ efficiency > (baseline * 1.10) and efficiency > 0 }}
 
       - name: "HVAC UA Degradation Alert"
         unique_id: hvac_ua_degradation_alert
         device_class: problem
         state: >
-          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(480) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(480) %}
+          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(493) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
           {{ ua > (baseline * 1.10) }}
 
       - name: "HVAC Short Cycling Alert 1F"
@@ -1372,7 +1391,7 @@ template:
         device_class: problem
         state: >
           {% set eui_current = states('sensor.site_eui_estimate') | float(0) %}
-          {% set eui_baseline = states('input_number.site_eui_baseline') | float(42.9) %}
+          {% set eui_baseline = states('input_number.site_eui_baseline') | float(41.7) %}
           {{ eui_current > (eui_baseline * 1.05) and eui_current > 0 }}
 
       - name: "Dehumidifier Should Run"
@@ -2186,7 +2205,9 @@ template:
             {{ ((gas / hdd) * 1000) | round(1) }}
           {% else %}{{ 0 }}{% endif %}
 
-      # Uses furnace runtime (heat delivery matches actual furnace operation)
+      # MTD UA estimate from furnace runtime (real-time)
+      # Balance-point ratio aligns HDD65 → HDD59 equivalent per METHODOLOGY
+      # Note: Runtime method excludes fireplace; uses empirical 60,556 BTU/hr effective rate
       - name: "HVAC Building Load UA Estimate"
         unique_id: hvac_building_load_ua_estimate
         unit_of_measurement: "BTU/hr-°F"
@@ -2197,12 +2218,13 @@ template:
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(60556) %}
+          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.844) %}
           {% set days = now().day %}
           {% if hdd > 0 and runtime > 0 and days > 0 %}
-            {% set avg_dt = hdd / days %}
+            {% set avg_dt = (hdd * bp_ratio) / days %}
             {% set hours = days * 24 %}
             {{ ((runtime * rate) / (avg_dt * hours)) | round(0) }}
-          {% else %}{{ 449 }}{% endif %}
+          {% else %}{{ 493 }}{% endif %}
 
       - name: "Balance Point Temperature"
         unique_id: balance_point_temperature
@@ -2247,11 +2269,12 @@ template:
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
-            {{ 89.1 }}
+            {{ 90.3 }}
           {% endif %}
 
       # Rolling 12-month building UA from archived monthly data
-      # UA = Total heat output / (Annual HDD × 24 hours)
+      # UA = (Furnace heat + Fireplace heat) / (HDD59-equivalent × 24 hours)
+      # Matches METHODOLOGY.md: 0.95 AFUE (submittal-verified), balance-point-adjusted HDD, fireplace contribution
       # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Building Load UA 12M"
@@ -2269,11 +2292,15 @@ template:
           {% endfor %}
           {# Heating = 76.1% of total gas (100% - 23.9% DHW) #}
           {% set heating_ccf = ns.ccf * 0.761 %}
+          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.844) %}
+          {% set fp_heat = states('input_number.fireplace_annual_heat_mmbtu') | float(3.6) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
-            {# UA = (CCF × 103700 BTU/CCF × 0.95 efficiency) / (HDD × 24 hours) #}
-            {{ ((heating_ccf * 103700 * 0.95) / (ns.hdd * 24)) | round(0) }}
+            {# UA = (CCF × 103700 BTU/CCF × 0.95 AFUE + fireplace MMBTU) / (HDD65 × BP_ratio × 24) #}
+            {% set furnace_btu = heating_ccf * 103700 * 0.95 %}
+            {% set fp_btu = fp_heat * 1000000 %}
+            {{ ((furnace_btu + fp_btu) / (ns.hdd * bp_ratio * 24)) | round(0) }}
           {% else %}
-            {{ 480 }}
+            {{ 493 }}
           {% endif %}
 
       - name: "HVAC Performance vs Baseline"
@@ -2282,7 +2309,7 @@ template:
         state_class: measurement
         state: >
           {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = 89.1 %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
           {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
 
       - name: "UA Performance vs Baseline"
@@ -2290,8 +2317,9 @@ template:
         unit_of_measurement: "%"
         state_class: measurement
         state: >
-          {% set current = states('sensor.hvac_building_load_ua_12m') | float(480) %}
-          {{ ((current / 480 - 1) * 100) | round(1) }}
+          {% set current = states('sensor.hvac_building_load_ua_12m') | float(493) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
+          {{ ((current / baseline - 1) * 100) | round(1) }}
 
       - name: "EUI vs Baseline"
         unique_id: eui_vs_baseline
@@ -2307,7 +2335,7 @@ template:
         state_class: measurement
         icon: mdi:thermometer-alert
         state: >
-          {# Monthly normal HDD for CT (6,270 annual baseline) #}
+          {# Monthly normal HDD65 for CT (18-year climate avg ~5,270 annual) #}
           {% set monthly_normals = {
             1: 1085, 2: 925, 3: 750, 4: 420, 5: 155, 6: 20,
             7: 0, 8: 5, 9: 55, 10: 280, 11: 540, 12: 1035
@@ -2328,7 +2356,7 @@ template:
         state_class: measurement
         icon: mdi:progress-clock
         state: >
-          {# Monthly normal HDD for CT (6,270 annual baseline) #}
+          {# Monthly normal HDD65 for CT (18-year climate avg ~5,270 annual) #}
           {% set monthly_normals = {
             1: 1085, 2: 925, 3: 750, 4: 420, 5: 155, 6: 20,
             7: 0, 8: 5, 9: 55, 10: 280, 11: 540, 12: 1035

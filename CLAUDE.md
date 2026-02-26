@@ -178,11 +178,15 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - `sensor.hvac_daily_total_cost_estimate` - Combined daily HVAC cost
 
 ## Baseline Values
-- **Building UA:** 480 BTU/hr-°F (manual input_number, from 4-year baseline analysis)
+- **Building UA:** 493 BTU/hr-°F (manual input_number; derived using 103,700 BTU/CCF × 0.95 AFUE + 3.6 MMBTU fireplace ÷ HDD59-equivalent)
 - **Balance Point:** 59°F (manual input_number)
-- **Heating Efficiency:** 89.1 CCF/1k HDD (manual input_number, 4-year mean from baseline analysis)
+- **HDD Balance-Point Ratio:** 0.844 (HDD59/HDD65 = 5,294/6,270; converts HDD65 archives to HDD59 equivalent for UA calculation)
+- **Fireplace Annual Heat:** 3.6 MMBTU (52 CCF × 103,700 BTU/CCF × 0.675 avg efficiency; added to UA numerator separately)
+- **Heating Efficiency:** 90.3 CCF/1k HDD (Navien-corrected 2025 baseline; replaces billing-aligned 89.1 per operational data improvement)
+- **AFUE:** 0.95 (tested per manufacturer submittal S9X1C100U-SUB-1D-EN; series marketed as "up to 96%")
+- **BTU/CCF:** 103,700 (precise natural gas energy content; METHODOLOGY.md historical calcs used simplified 100,000)
 - **Runtime per HDD:** Auto-calculated (mean ± 2σ from 7-day rolling data)
-- **Annual HDD:** 6,270
+- **Annual HDD:** 6,270 (2025 actual HDD65); climate normal ~5,270 (18-year avg, used in weather severity sensors)
 - **Annual Electricity:** 6,730 kWh
 - **Annual Gas:** 787 CCF total (599 CCF heating + 188 CCF DHW)
 - **DHW Ratio:** 23.9% of total gas (188/787 CCF) - used to isolate heating gas from total bills
