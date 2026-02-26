@@ -61,7 +61,7 @@ All target values, statistical thresholds, and alert logic are derived from the 
   </tr>
   <tr>
     <td align="center"><b>System Health Dashboard</b><br/>Real-time alerts for efficiency degradation & data integrity</td>
-    <td align="center"><b>Performance Metrics</b><br/>CCF/1k HDD: 92.0 | Building UA: 378 BTU/hr-°F</td>
+    <td align="center"><b>Performance Metrics</b><br/>CCF/1k HDD: 90.3 | Building UA: 493 BTU/hr-°F</td>
   </tr>
 </table>
 
@@ -97,7 +97,7 @@ This configuration is designed for homeowners and DIY enthusiasts who want to:
 | **Zones** | 1F and 2F (Honeywell Lyric T6 Pro) |
 | **Annual HDD** | 6,270 (65°F base) |
 | **Balance Point** | 59.0°F |
-| **Site EUI** | 84.4 kBTU/ft²-yr (current estimate) |
+| **Site EUI** | 41.7 kBTU/ft²-yr |
 
 ## Performance Baseline Reference
 
@@ -130,7 +130,7 @@ This monitoring system implements the analysis from the companion [**Residential
 | **Purpose** | Establish diagnostic thresholds | Monitor against thresholds |
 | **Timeframe** | 4-year retrospective (2022-2025) | Real-time, continuous |
 | **Data Source** | Utility bills, weather data | HVAC telemetry, sensors |
-| **Output** | Target values (95.5 CCF/1k HDD, 378 BTU/hr-°F UA) | Performance vs targets |
+| **Output** | Target values (90.3 CCF/1k HDD, 493 BTU/hr-°F UA) | Performance vs targets |
 | **Methodology** | Billing-aligned statistical analysis | Statistical process control |
 
 **📊 See the baseline analysis for:**
@@ -159,7 +159,7 @@ These are the targets my system is measured against, derived from the [Residenti
 | Metric | Target | Alert Threshold | Source Document |
 |--------|--------|-----------------|-----------------|
 | **Heating Intensity** | 95.5 CCF/1k HDD | +10% | [BASELINE_REPORT.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/BASELINE_REPORT.md) |
-| **Building UA** | 378 BTU/hr-°F | Reference only | [METHODOLOGY.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/METHODOLOGY.md) |
+| **Building UA** | 493 BTU/hr-°F | Reference only | [METHODOLOGY.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/METHODOLOGY.md) |
 | **Site EUI** | 41.7 kBTU/ft²-yr | ±5% | [DATA_SUMMARY.md](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-/blob/main/DATA_SUMMARY.md) |
 | **Balance Point** | 59.0°F | Fixed | Baseline HDD optimization |
 | **Runtime/HDD Bounds** | 6-14 min/HDD | ±2σ | Statistical process control |
