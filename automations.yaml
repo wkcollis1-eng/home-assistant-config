@@ -737,7 +737,6 @@
 - id: notify_efficiency_degradation
   alias: "Notify Efficiency Degradation (DISABLED)"
   description: "Disabled Feb 2026 - use runtime/HDD ±2σ alerts instead"
-  enabled: false
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_efficiency_alert
@@ -745,10 +744,9 @@
       for:
         minutes: 30
   condition:
+    # DISABLED: Always false - this automation is superseded by runtime/HDD ±2σ alerts
     - condition: template
-      value_template: >
-        {% set last = state_attr('automation.notify_efficiency_degradation', 'last_triggered') %}
-        {{ last is none or (now() - last).total_seconds() > 86400 }}
+      value_template: "{{ false }}"
   action:
     - service: persistent_notification.create
       data:
