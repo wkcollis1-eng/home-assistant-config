@@ -43,6 +43,7 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - Heating efficiency MTD minimum HDD guard: 0 → 5 (prevents divide-by-near-zero)
 - **Performance vs Baseline sensors** now use 12-month rolling sensors instead of MTD
 - **Efficiency/UA alerts** now use 12-month sensors for stability (7-day runtime/HDD remains for operational alerting)
+- **Disabled `notify_efficiency_degradation`** - Fixed-threshold CCF/1kHDD alert produced false positives in extreme weather years (2025-26: 6,270 HDD vs 5,270 normal). Runtime/HDD ±2σ alerts are now the primary operational monitoring. UA and CCF/1kHDD demoted to dashboard-only annual reconciliation metrics.
 
 ### Removed
 - 14 `input_number.hvac_*f_recovery_rate_*` rolling window slots

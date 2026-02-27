@@ -198,6 +198,15 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - Minimum 4 data points required before alerts activate
 - Self-calibrating: bounds adjust automatically as system performance changes
 - Catches outliers (~5% false positive rate with 2σ)
+- **Primary operational alert** for efficiency monitoring (Feb 2026)
+
+### UA and CCF/1kHDD Metrics (Dashboard Only)
+- `sensor.hvac_building_load_ua_12m` and `sensor.hvac_heating_efficiency_12m` are **annual reconciliation metrics**
+- Fixed-threshold alerts disabled because they produce false positives in extreme weather years
+- In years with HDD significantly above normal, these metrics naturally drift due to:
+  - DHW ratio assumption error (23.9% assumes normal heating load)
+  - Infiltration/stack effect scaling nonlinearly with extreme ΔT
+- Runtime/HDD ±2σ catches the same operational issues earlier with weather-normalized, self-calibrating bounds
 
 ## Bill Entry Workflow
 1. Enter bill data in `input_number.electricity_bill_*` or `input_number.gas_bill_*`
@@ -237,9 +246,9 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - `hvac_setback_midnight_audit` - Clears any stuck latches at 1 AM
 
 ### Efficiency Alerts
-- `notify_runtime_per_hdd_high` - Runtime/HDD >5% above baseline
-- `notify_runtime_per_hdd_low` - Runtime/HDD >5% below baseline
-- `notify_efficiency_degradation` - Heating efficiency > 110% of baseline
+- `notify_runtime_per_hdd_high` - Runtime/HDD exceeds mean + 2σ (primary operational alert)
+- `notify_runtime_per_hdd_low` - Runtime/HDD below mean - 2σ (primary operational alert)
+- `notify_efficiency_degradation` - **DISABLED** Feb 2026 (fixed threshold replaced by ±2σ approach)
 - `notify_short_cycling_1f` / `notify_short_cycling_2f` - Cycles < 5 min average
 
 ### Bill Archiving

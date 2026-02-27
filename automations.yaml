@@ -731,8 +731,13 @@
 # ===============================================================
 # ALERT AUTOMATIONS
 # ===============================================================
+# DISABLED: Fixed-threshold CCF/1kHDD alert replaced by runtime/HDD ±2σ monitoring
+# UA and CCF/1kHDD are now dashboard-only metrics for annual review
+# Runtime per HDD alerts (notify_runtime_per_hdd_high/low) provide real-time operational monitoring
 - id: notify_efficiency_degradation
-  alias: "Notify Efficiency Degradation"
+  alias: "Notify Efficiency Degradation (DISABLED)"
+  description: "Disabled Feb 2026 - use runtime/HDD ±2σ alerts instead"
+  enabled: false
   trigger:
     - platform: state
       entity_id: binary_sensor.hvac_efficiency_alert
@@ -740,7 +745,6 @@
       for:
         minutes: 30
   condition:
-    # Rate limit: only once per 24 hours
     - condition: template
       value_template: >
         {% set last = state_attr('automation.notify_efficiency_degradation', 'last_triggered') %}
