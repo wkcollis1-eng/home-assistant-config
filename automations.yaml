@@ -753,29 +753,21 @@
         title: "⚠️ Heating Efficiency Alert"
         message: "Current: {{ states('sensor.hvac_heating_efficiency_12m') }} CCF/1k HDD (Baseline: 82.6)"
 
-- id: notify_short_cycling_1f
-  alias: "Notify Short Cycling 1F"
+# Furnace-level short cycling alert (replaces per-zone alerts)
+- id: notify_short_cycling_furnace
+  alias: "Notify Short Cycling Furnace"
   trigger:
     - platform: state
-      entity_id: binary_sensor.hvac_short_cycling_alert_1f
+      entity_id: binary_sensor.hvac_furnace_short_cycling_alert
       to: "on"
   action:
     - service: persistent_notification.create
       data:
-        title: "⚠️ Short Cycling - 1F"
-        message: "1F average cycle < 5 min. Check air filter."
-
-- id: notify_short_cycling_2f
-  alias: "Notify Short Cycling 2F"
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.hvac_short_cycling_alert_2f
-      to: "on"
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ Short Cycling - 2F"
-        message: "2F average cycle < 5 min. Check air filter."
+        title: "⚠️ Short Cycling Alert"
+        message: >
+          Furnace avg cycle: {{ states('sensor.hvac_furnace_min_per_cycle') | round(1) }} min
+          ({{ states('sensor.hvac_furnace_cycles_today') }} cycles today).
+          Check air filter or thermostat settings.
 
 # ===============================================================
 # REMINDER AUTOMATIONS

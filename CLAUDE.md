@@ -122,6 +122,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 
 ### Furnace Cycle Tracking (Actual Cycles)
 - `binary_sensor.hvac_furnace_running` - ON when either zone is calling for heat
+- `binary_sensor.hvac_furnace_short_cycling_alert` - Avg cycle < 5 min (suppressed during recovery)
 - `sensor.hvac_furnace_cycles_today` - Actual furnace cycles (overlapping calls = 1 cycle)
 - `sensor.hvac_furnace_cycles_week` - Rolling 7-day furnace cycle count
 - `sensor.hvac_furnace_cycles_month_2` - Month-to-date furnace cycle count
@@ -249,7 +250,7 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - `notify_runtime_per_hdd_high` - Runtime/HDD exceeds mean + 2σ (primary operational alert)
 - `notify_runtime_per_hdd_low` - Runtime/HDD below mean - 2σ (primary operational alert)
 - `notify_efficiency_degradation` - **DISABLED** Feb 2026 (fixed threshold replaced by ±2σ approach)
-- `notify_short_cycling_1f` / `notify_short_cycling_2f` - Cycles < 5 min average
+- `notify_short_cycling_furnace` - Furnace avg cycle < 5 min (suppressed during recovery)
 
 ### Bill Archiving
 - `save_electric_bill_button` - Archives electric bill to monthly storage

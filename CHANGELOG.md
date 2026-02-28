@@ -37,6 +37,7 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **CSV report hardening** - Data validity checks, duplicate prevention, rotation fixes
 
 ### Changed
+- **Short cycling alert: zone → furnace level** - Replaced `binary_sensor.hvac_short_cycling_alert_1f/_2f` with single `binary_sensor.hvac_furnace_short_cycling_alert`. Uses actual furnace cycles (overlapping zone calls = 1 cycle) instead of per-zone calls. Suppressed during setback recovery. Eliminates false positives during morning recovery when zone calls are short but furnace runs continuously.
 - Recovery tracking from 7-slot rolling windows to direct CSV logging
 - Setback start stores MTD accumulator snapshot (hours) instead of daily runtime (minutes)
 - Recovery minutes subtract 10-minute stability wait from elapsed time
@@ -46,6 +47,8 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **Disabled `notify_efficiency_degradation`** - Fixed-threshold CCF/1kHDD alert produced false positives in extreme weather years (2025-26: 6,270 HDD vs 5,270 normal). Runtime/HDD ±2σ alerts are now the primary operational monitoring. UA and CCF/1kHDD demoted to dashboard-only annual reconciliation metrics.
 
 ### Removed
+- `binary_sensor.hvac_short_cycling_alert_1f` / `_2f` - Replaced by furnace-level alert
+- `notify_short_cycling_1f` / `_2f` automations - Replaced by `notify_short_cycling_furnace`
 - 14 `input_number.hvac_*f_recovery_rate_*` rolling window slots
 - 4 `input_number.hvac_*f_recovery_transient_*` calculation helpers
 - 12 `input_number.hvac_*f_last_*` transient value holders
