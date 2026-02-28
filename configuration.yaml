@@ -1362,25 +1362,17 @@ template:
           {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
           {{ ua > (baseline * 1.10) }}
 
-      - name: "HVAC Short Cycling Alert 1F"
-        unique_id: hvac_short_cycling_alert_1f
+      # Furnace-level short cycling alert (replaces per-zone alerts)
+      # Uses actual furnace cycles - overlapping zone calls count as one cycle
+      - name: "HVAC Furnace Short Cycling Alert"
+        unique_id: hvac_furnace_short_cycling_alert
         device_class: problem
         state: >
-          {% set runtime = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}
-          {% set cycles = states('sensor.hvac_1f_heat_cycles_today') | int(0) %}
-          {% if cycles > 3 and runtime > 0 %}
-            {{ ((runtime * 60) / cycles) < 5 }}
-          {% else %}
-            false
-          {% endif %}
-
-      - name: "HVAC Short Cycling Alert 2F"
-        unique_id: hvac_short_cycling_alert_2f
-        device_class: problem
-        state: >
-          {% set runtime = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
-          {% set cycles = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}
-          {% if cycles > 3 and runtime > 0 %}
+          {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set cycles = states('sensor.hvac_furnace_cycles_today') | int(0) %}
+          {% set recovering_1f = is_state('input_boolean.hvac_1f_recovering', 'on') %}
+          {% set recovering_2f = is_state('input_boolean.hvac_2f_recovering', 'on') %}
+          {% if cycles > 4 and runtime > 0 and not recovering_1f and not recovering_2f %}
             {{ ((runtime * 60) / cycles) < 5 }}
           {% else %}
             false
