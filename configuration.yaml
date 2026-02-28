@@ -1349,14 +1349,6 @@ template:
           {{ is_state('binary_sensor.hvac_1f_call_for_heat', 'on') or
              is_state('binary_sensor.hvac_2f_call_for_heat', 'on') }}
 
-      - name: "HVAC Efficiency Alert"
-        unique_id: hvac_efficiency_alert
-        device_class: problem
-        state: >
-          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
-          {{ efficiency > (baseline * 1.10) and efficiency > 0 }}
-
       - name: "HVAC UA Degradation Alert"
         unique_id: hvac_ua_degradation_alert
         device_class: problem
