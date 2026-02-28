@@ -2092,8 +2092,8 @@ template:
             10.0
           {% endif %}
 
-      - name: "HVAC Furnace Cycle Std Dev 7d"
-        unique_id: hvac_furnace_cycle_stddev_7d
+      - name: "HVAC Furnace Cycle Sigma 7d"
+        unique_id: hvac_furnace_cycle_sigma_7d
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:sigma
@@ -2126,7 +2126,7 @@ template:
         icon: mdi:arrow-up-bold
         state: >
           {% set mean = states('sensor.hvac_furnace_cycle_mean_7d') | float(10) %}
-          {% set stddev = states('sensor.hvac_furnace_cycle_stddev_7d') | float(1.5) %}
+          {% set stddev = states('sensor.hvac_furnace_cycle_sigma_7d') | float(1.5) %}
           {{ (mean + (2 * stddev)) | round(1) }}
 
       - name: "HVAC Furnace Cycle Lower Bound"
@@ -2136,7 +2136,7 @@ template:
         icon: mdi:arrow-down-bold
         state: >
           {% set mean = states('sensor.hvac_furnace_cycle_mean_7d') | float(10) %}
-          {% set stddev = states('sensor.hvac_furnace_cycle_stddev_7d') | float(1.5) %}
+          {% set stddev = states('sensor.hvac_furnace_cycle_sigma_7d') | float(1.5) %}
           {% set lower = mean - (2 * stddev) %}
           {{ [lower, 0] | max | round(1) }}
 
