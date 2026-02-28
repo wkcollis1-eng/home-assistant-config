@@ -40,7 +40,7 @@ apex_config:
             background: "transparent"
 series:
   - entity: sensor.hvac_furnace_cycle_upper_bound
-    name: Upper (+2 sigma)
+    name: Upper (+2σ)
     color: "#95a5a6"
     stroke_width: 1
     opacity: 0.5
@@ -52,7 +52,7 @@ series:
       func: last
       duration: 1d
   - entity: sensor.hvac_furnace_cycle_lower_bound
-    name: Lower (-2 sigma)
+    name: Lower (-2σ)
     color: "#95a5a6"
     stroke_width: 1
     opacity: 0.5
@@ -71,18 +71,6 @@ series:
     extend_to: now
     show:
       in_header: true
-    group_by:
-      func: last
-      duration: 1d
-  - entity: sensor.hvac_furnace_cycle_mean_7d
-    name: 7-Day Mean
-    color: "#f39c12"
-    stroke_width: 2
-    opacity: 0.8
-    yaxis_id: primary
-    extend_to: now
-    show:
-      legend_value: false
     group_by:
       func: last
       duration: 1d
