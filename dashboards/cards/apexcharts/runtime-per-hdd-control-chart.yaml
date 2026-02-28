@@ -28,7 +28,7 @@ apex_config:
   tooltip:
     shared: true
 series:
-  - entity: sensor.hvac_runtime_per_hdd_upper_bound_1s
+  - entity: sensor.hvac_runtime_per_hdd_upper_bound
     name: Upper (+2σ)
     color: "#ff6b6b"
     stroke_width: 1
@@ -40,7 +40,7 @@ series:
     group_by:
       func: last
       duration: 1d
-  - entity: sensor.hvac_runtime_per_hdd_lower_bound_1s
+  - entity: sensor.hvac_runtime_per_hdd_lower_bound
     name: Lower (-2σ)
     color: "#4ecdc4"
     stroke_width: 1
