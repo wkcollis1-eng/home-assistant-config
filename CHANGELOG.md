@@ -24,6 +24,7 @@ Major refactor replacing ~60 entities (rolling window slots, transient helpers, 
 - **HDD archive automation** - `archive_monthly_hdd` captures month total at 23:58 on last day of month
 
 ### Fixed
+- **PirateWeather recorder exclusion** - Changed from blanket `sensor.pirate_weather_*` glob to selective exclusion. Now records temperature, feels_like, humidity, dew_point, and wind sensors for ApexCharts history. Excludes visibility, cloud_cover, uv_index, ozone, condition, pressure, data_age, and all forecast sensors.
 - **archive_monthly_hdd double-count** - Removed redundant `+ sensor.hvac_hdd65_today` from archive variable; `hdd_cumulative_month_auto` already includes today's HDD (added at 23:56:30)
 - **Efficiency alert _1s suffix** - Fixed references to `sensor.hvac_runtime_per_hdd_upper_bound_1s` / `_lower_bound_1s` (should be `_upper_bound` / `_lower_bound`)
 - **Furnace cycle capture watchdog** - Added `input_datetime.furnace_cycle_capture_last_ok`, `binary_sensor.furnace_cycle_capture_stale`, and `notify_furnace_cycle_capture_stale` automation for monitoring
