@@ -91,7 +91,20 @@ shell_command:
       "hdd_d4": {{ states('input_number.hdd_day_4') | float(0) }},
       "hdd_d5": {{ states('input_number.hdd_day_5') | float(0) }},
       "hdd_d6": {{ states('input_number.hdd_day_6') | float(0) }},
-      "hdd_d7": {{ states('input_number.hdd_day_7') | float(0) }}
+      "hdd_d7": {{ states('input_number.hdd_day_7') | float(0) }},
+      "furnace_rt_acc": {{ states('input_number.furnace_runtime_month_acc') | float(0) }},
+      "furnace_cy_acc": {{ states('input_number.furnace_cycles_month_acc') | int(0) }},
+      "z1f_rt_acc": {{ states('input_number.zone_1f_runtime_month_acc') | float(0) }},
+      "z2f_rt_acc": {{ states('input_number.zone_2f_runtime_month_acc') | float(0) }},
+      "z1f_cy_acc": {{ states('input_number.zone_1f_cycles_month_acc') | int(0) }},
+      "z2f_cy_acc": {{ states('input_number.zone_2f_cycles_month_acc') | int(0) }},
+      "fmpc_d1": {{ states('input_number.furnace_min_per_cycle_day_1') | float(0) }},
+      "fmpc_d2": {{ states('input_number.furnace_min_per_cycle_day_2') | float(0) }},
+      "fmpc_d3": {{ states('input_number.furnace_min_per_cycle_day_3') | float(0) }},
+      "fmpc_d4": {{ states('input_number.furnace_min_per_cycle_day_4') | float(0) }},
+      "fmpc_d5": {{ states('input_number.furnace_min_per_cycle_day_5') | float(0) }},
+      "fmpc_d6": {{ states('input_number.furnace_min_per_cycle_day_6') | float(0) }},
+      "fmpc_d7": {{ states('input_number.furnace_min_per_cycle_day_7') | float(0) }}
     }'
 
   # Monthly rotation for setback log (archives previous year)
@@ -1369,6 +1382,12 @@ input_datetime:
     has_time: true
     icon: mdi:check-circle
 
+  furnace_cycle_capture_last_ok:
+    name: "Furnace Cycle Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:check-circle
+
 # ===============================================================
 # TEMPLATE SENSORS
 # ===============================================================
@@ -1520,6 +1539,18 @@ template:
             {% set current_month = now().month %}
             {# Stale if: past day 1 AND last capture was in a different month #}
             {{ now().day > 1 and last_month != current_month }}
+          {% endif %}
+
+      - name: "Furnace Cycle Capture Stale"
+        unique_id: furnace_cycle_capture_stale
+        device_class: problem
+        state: >
+          {% set last_ok = states('input_datetime.furnace_cycle_capture_last_ok') %}
+          {% if last_ok in ['unknown', 'unavailable'] or last_ok == '1970-01-01 00:00:00' %}
+            true
+          {% else %}
+            {% set dt = last_ok | as_datetime | as_local %}
+            {{ (now() - dt).total_seconds() > 90000 }}
           {% endif %}
 
   - sensor:

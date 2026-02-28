@@ -360,7 +360,17 @@
                 entity_id: input_number.furnace_min_per_cycle_day_1
               data:
                 value: "{{ todays_min_per_cycle }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.furnace_cycle_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
       default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.furnace_cycle_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
         - service: system_log.write
           data:
             level: info
@@ -661,7 +671,8 @@
         {{ tomorrow.day == 1 }}
   action:
     - variables:
-        month_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) + states('sensor.hvac_hdd65_today') | float(0) }}"
+        # Note: hdd_cumulative_month_auto already includes today's HDD (added at 23:56:30)
+        month_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
           {{ months[now().month - 1] }}
@@ -1548,7 +1559,7 @@
         title: "HVAC Efficiency Warning"
         message: >
           Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
-          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound_1s') }} = mean + 2σ).
+          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound') }} = mean + 2σ).
           Check for air leaks, filter condition, or thermostat issues.
 
 - id: notify_runtime_per_hdd_low
@@ -1563,7 +1574,7 @@
         title: "HVAC Efficiency Notice"
         message: >
           Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
-          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
+          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound') }} = mean - 2σ).
           System running more efficiently than expected.
 
 # ===============================================================
@@ -1736,6 +1747,28 @@
 
           Check:
           - sensor.hvac_total_runtime_per_hdd_today: {{ states('sensor.hvac_total_runtime_per_hdd_today') }}
+
+# WATCHDOG: Furnace Cycle Capture Health Monitor
+- id: notify_furnace_cycle_capture_stale
+  alias: "Notify Furnace Cycle Capture Stale"
+  description: "Alert if furnace cycle capture hasn't succeeded recently"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.furnace_cycle_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Furnace Cycle Capture Alert"
+        message: >
+          Furnace min/cycle capture has not succeeded in over 26 hours.
+          Last successful: {{ states('input_datetime.furnace_cycle_capture_last_ok') }}
+
+          Check:
+          - sensor.hvac_furnace_min_per_cycle: {{ states('sensor.hvac_furnace_min_per_cycle') }}
+          - sensor.hvac_furnace_cycles_today: {{ states('sensor.hvac_furnace_cycles_today') }}
 
 # WATCHDOG: Monthly Report Capture Health Monitor
 - id: notify_monthly_report_stale
