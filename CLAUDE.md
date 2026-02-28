@@ -412,7 +412,7 @@ Captured at recovery_end for each zone via `scripts/setback_csv.py`.
 - **Retention:** 14 days (states/events), forever (long-term statistics)
 - **Commit interval:** 2 seconds (reduces lock contention)
 - **Maintenance:** Weekly purge with repack (Sunday 3 AM via automation)
-- **Excluded from recorder:** sensor.time, sensor.date, *_signal_level
+- **Excluded from recorder:** sensor.time, sensor.date, *_signal_level, weather.*, pirate_weather (selective: visibility, cloud_cover, uv_index, ozone, condition, pressure, data_age, forecasts). Temperature, feels_like, humidity, dew_point, wind sensors ARE recorded for charts.
 
 ## Architecture Decisions
 

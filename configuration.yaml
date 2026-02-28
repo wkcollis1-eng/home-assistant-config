@@ -126,7 +126,17 @@ recorder:
       - sensor.climate_norms_today  # Python script, changes daily
     entity_globs:
       - sensor.*_signal_level
-      - sensor.pirate_weather_*  # Frequent updates, no history needed
+      - sensor.pirate_weather_visibility
+      - sensor.pirate_weather_cloud_cover
+      - sensor.pirate_weather_uv_index
+      - sensor.pirate_weather_ozone
+      - sensor.pirate_weather_condition
+      - sensor.pirate_weather_pressure
+      - sensor.pirate_weather_data_age
+      - sensor.pirate_weather_today_*
+      - sensor.pirate_weather_tomorrow_*
+      - sensor.pirate_weather_*_forecast_*
+      # Kept for charts: temperature, feels_like, humidity, dew_point, wind_*
       - weather.*  # Weather integrations, no history needed
 
 automation: !include automations.yaml
