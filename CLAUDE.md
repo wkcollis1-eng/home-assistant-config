@@ -132,6 +132,12 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.hvac_furnace_min_per_cycle` - Minutes per actual furnace cycle (today)
 - `sensor.hvac_furnace_min_per_cycle_week` - Minutes per actual furnace cycle (7-day)
 - `sensor.hvac_furnace_min_per_cycle_month` - Minutes per actual furnace cycle (MTD)
+- `sensor.hvac_furnace_min_per_cycle_7_day_mean` - Rolling 7-day mean
+- `sensor.hvac_furnace_min_per_cycle_7_day_std_dev` - Rolling 7-day standard deviation
+- `sensor.hvac_furnace_min_per_cycle_upper_bound` - Mean + 2σ boundary
+- `sensor.hvac_furnace_min_per_cycle_lower_bound` - Mean - 2σ boundary
+- `sensor.hvac_furnace_min_per_cycle_data_count` - Number of valid samples
+- `input_number.furnace_min_per_cycle_day_1` through `_7` - Daily storage for std dev calc
 - `sensor.hvac_furnace_cycles_per_day_week` - Average cycles per day (7-day)
 - `sensor.hvac_furnace_cycles_per_day_month` - Average cycles per day (MTD)
 - `sensor.hvac_chaining_index` - Zone calls / furnace cycles today (1.0=no overlap, 2.0=full overlap)
@@ -220,6 +226,7 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 ### HDD Tracking
 - `capture_daily_hdd` - Runs at 23:55, captures daily HDD/CDD
 - `capture_daily_runtime_per_hdd` - Runs at 23:56, stores daily runtime/HDD for std dev
+- `capture_daily_furnace_min_per_cycle` - Runs at 23:56:15, stores daily min/cycle for std dev
 - `reset_monthly_hdd` - Resets month counters on 1st of month
 - `reset_yearly_hdd` - Resets year counters on Jan 1
 
@@ -323,12 +330,14 @@ Located in `dashboards/cards/` with organized subfolders:
 **ApexCharts (Complex Charts)**
 - `temperature-trend-48h.yaml` - Multi-source outdoor temp comparison
 - `runtime-per-hdd-control-chart.yaml` - Statistical process control (±2σ bounds)
+- `furnace-min-per-cycle-control-chart.yaml` - Furnace cycle length with ±2σ bounds
 - `temperature-heating-48h.yaml` - Indoor temps with heat call overlay
 - `basement-dehumidifier-48h.yaml` - Dew point, temp, threshold line, on/off overlay
 
 **Mushroom Template (Dynamic Display)**
 - `outdoor-temp-dynamic.yaml` - Color changes by temperature range
-- `avg-cycle-*-dynamic.yaml` - Short cycling risk colors
+- `avg-cycle-*-dynamic.yaml` - Short cycling risk colors (per-zone)
+- `furnace-min-per-cycle-7day.yaml` - Furnace avg cycle with risk colors
 - `efficiency-deviation-dynamic.yaml` - Baseline comparison with alerts
 - `furnace-runtime-week.yaml` / `furnace-runtime-month.yaml` - Runtime tracking
 - `furnace-cycles-week.yaml` / `furnace-cycles-month.yaml` - Cycle counts

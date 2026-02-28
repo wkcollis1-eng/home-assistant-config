@@ -1,0 +1,25 @@
+# Furnace Min/Cycle 7-Day Average - Dynamic Color
+# Color indicates short cycling risk (red < 5min, orange < 7min, green >= 10min)
+# Dashboard: Energy Performance - Operations
+type: custom:mushroom-template-card
+primary: >-
+  {{ states('sensor.hvac_furnace_min_per_cycle_week') | float(0) | round(1) }} min
+secondary: Furnace Avg Cycle (7d)
+icon: mdi:timer-cog
+icon_color: >-
+  {% set avg = states('sensor.hvac_furnace_min_per_cycle_week') | float(0) %}
+  {% if avg == 0 %}grey
+  {% elif avg < 5 %}red
+  {% elif avg < 7 %}orange
+  {% elif avg < 10 %}amber
+  {% else %}green{% endif %}
+badge_icon: >-
+  {% set count = states('sensor.hvac_furnace_min_per_cycle_data_count') | int(0) %}
+  {% if count < 4 %}mdi:alert-circle{% endif %}
+badge_color: >-
+  {% set count = states('sensor.hvac_furnace_min_per_cycle_data_count') | int(0) %}
+  {% if count < 4 %}orange{% endif %}
+tap_action:
+  action: more-info
+  entity: sensor.hvac_furnace_min_per_cycle_week
+layout: vertical

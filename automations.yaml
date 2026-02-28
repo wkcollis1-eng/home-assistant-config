@@ -293,6 +293,82 @@
               Runtime_per_HDD={{ states('sensor.hvac_total_runtime_per_hdd_today') }}
 
 # ===============================================================
+# FURNACE MIN/CYCLE TRACKING - Daily capture at 11:56:15 PM
+# ===============================================================
+- id: capture_daily_furnace_min_per_cycle
+  alias: "Capture Daily Furnace Min/Cycle"
+  description: "Records daily furnace min/cycle for 7-day std dev calculation"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:56:15"
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {% set min_per_cycle = states('sensor.hvac_furnace_min_per_cycle') %}
+                {% set furnace_cycles = states('sensor.hvac_furnace_cycles_today') %}
+                {% set furnace_runtime = states('sensor.hvac_furnace_runtime_today') %}
+                {% set val = min_per_cycle | float(-1) %}
+                {# Upstream validation: need at least 2 cycles for meaningful average #}
+                {% set cycles_ok = furnace_cycles | int(0) >= 2 %}
+                {# Value validation: min/cycle must be in valid range #}
+                {% set values_ok = is_number(min_per_cycle) and 0 < val <= 60 %}
+                {{ cycles_ok and values_ok }}
+          sequence:
+            - variables:
+                todays_min_per_cycle: "{{ states('sensor.hvac_furnace_min_per_cycle') | float }}"
+                d1: "{{ states('input_number.furnace_min_per_cycle_day_1') | float(0) }}"
+                d2: "{{ states('input_number.furnace_min_per_cycle_day_2') | float(0) }}"
+                d3: "{{ states('input_number.furnace_min_per_cycle_day_3') | float(0) }}"
+                d4: "{{ states('input_number.furnace_min_per_cycle_day_4') | float(0) }}"
+                d5: "{{ states('input_number.furnace_min_per_cycle_day_5') | float(0) }}"
+                d6: "{{ states('input_number.furnace_min_per_cycle_day_6') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_min_per_cycle_day_1
+              data:
+                value: "{{ todays_min_per_cycle }}"
+      default:
+        - service: system_log.write
+          data:
+            level: info
+            message: >
+              Furnace min/cycle capture skipped - Cycles={{ states('sensor.hvac_furnace_cycles_today') }},
+              Min_per_cycle={{ states('sensor.hvac_furnace_min_per_cycle') }}
+
+# ===============================================================
 # MONTHLY REPORT TRACKING - Daily capture at 11:56:30 PM
 # ===============================================================
 - id: capture_daily_monthly_tracking

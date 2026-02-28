@@ -12,6 +12,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (YYYY.MM.
 Major refactor replacing ~60 entities (rolling window slots, transient helpers, complex binary sensors) with a simple state machine using explicit input_boolean latches.
 
 ### Added
+- **Furnace min/cycle statistical tracking** - 7-day rolling mean, std dev, and ±2σ bounds for furnace cycle length monitoring. Includes daily capture automation, 7 input_number slots, and dashboard cards (mushroom + ApexCharts control chart).
 - **Dehumidifier Performance Tracking** - Pull-down rate, hold time, duty cycle, margin sensors
 - **Per-zone setback CSV files** - `hvac_setback_1f.csv` and `hvac_setback_2f.csv` via Python script
 - **State machine latches** - `input_boolean.hvac_*f_recovering` for explicit state tracking

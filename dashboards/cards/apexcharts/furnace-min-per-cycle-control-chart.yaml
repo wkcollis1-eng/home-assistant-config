@@ -1,0 +1,88 @@
+# Furnace Min/Cycle Control Chart - ApexCharts Card
+# Shows furnace min/cycle with statistical control bounds (mean +/- 2 sigma)
+# Dashboard: Energy Performance - Operations, Diagnostics
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Furnace Min/Cycle (7-Day Rolling)
+  show_states: true
+  colorize_states: true
+graph_span: 14d
+span:
+  end: day
+yaxis:
+  - id: primary
+    min: 0
+    apex_config:
+      tickAmount: 5
+      title:
+        text: min/cycle
+apex_config:
+  chart:
+    height: 280
+  legend:
+    show: true
+    position: bottom
+  stroke:
+    curve: smooth
+  tooltip:
+    shared: true
+  annotations:
+    yaxis:
+      - y: 5
+        borderColor: "#ff6b6b"
+        borderWidth: 2
+        strokeDashArray: 5
+        label:
+          text: "Short Cycle Threshold"
+          style:
+            color: "#ff6b6b"
+            background: "transparent"
+series:
+  - entity: sensor.hvac_furnace_min_per_cycle_upper_bound
+    name: Upper (+2 sigma)
+    color: "#95a5a6"
+    stroke_width: 1
+    opacity: 0.5
+    yaxis_id: primary
+    extend_to: now
+    show:
+      legend_value: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: sensor.hvac_furnace_min_per_cycle_lower_bound
+    name: Lower (-2 sigma)
+    color: "#95a5a6"
+    stroke_width: 1
+    opacity: 0.5
+    yaxis_id: primary
+    extend_to: now
+    show:
+      legend_value: false
+    group_by:
+      func: last
+      duration: 1d
+  - entity: sensor.hvac_furnace_min_per_cycle_week
+    name: Avg Min/Cycle
+    color: "#3498db"
+    stroke_width: 3
+    yaxis_id: primary
+    extend_to: now
+    show:
+      in_header: true
+    group_by:
+      func: last
+      duration: 1d
+  - entity: sensor.hvac_furnace_min_per_cycle_7_day_mean
+    name: 7-Day Mean
+    color: "#f39c12"
+    stroke_width: 2
+    opacity: 0.8
+    yaxis_id: primary
+    extend_to: now
+    show:
+      legend_value: false
+    group_by:
+      func: last
+      duration: 1d
