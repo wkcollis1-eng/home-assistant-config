@@ -132,11 +132,11 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.hvac_furnace_min_per_cycle` - Minutes per actual furnace cycle (today)
 - `sensor.hvac_furnace_min_per_cycle_week` - Minutes per actual furnace cycle (7-day)
 - `sensor.hvac_furnace_min_per_cycle_month` - Minutes per actual furnace cycle (MTD)
-- `sensor.hvac_furnace_min_per_cycle_7_day_mean` - Rolling 7-day mean
-- `sensor.hvac_furnace_min_per_cycle_7_day_std_dev` - Rolling 7-day standard deviation
-- `sensor.hvac_furnace_min_per_cycle_upper_bound` - Mean + 2σ boundary
-- `sensor.hvac_furnace_min_per_cycle_lower_bound` - Mean - 2σ boundary
-- `sensor.hvac_furnace_min_per_cycle_data_count` - Number of valid samples
+- `sensor.hvac_furnace_cycle_mean_7d` - Rolling 7-day mean
+- `sensor.hvac_furnace_cycle_stddev_7d` - Rolling 7-day standard deviation
+- `sensor.hvac_furnace_cycle_upper_bound` - Mean + 2σ boundary
+- `sensor.hvac_furnace_cycle_lower_bound` - Mean - 2σ boundary
+- `sensor.hvac_furnace_cycle_data_count` - Number of valid samples
 - `input_number.furnace_min_per_cycle_day_1` through `_7` - Daily storage for std dev calc
 - `sensor.hvac_furnace_cycles_per_day_week` - Average cycles per day (7-day)
 - `sensor.hvac_furnace_cycles_per_day_month` - Average cycles per day (MTD)

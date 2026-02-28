@@ -14,10 +14,10 @@ icon_color: >-
   {% elif avg < 10 %}amber
   {% else %}green{% endif %}
 badge_icon: >-
-  {% set count = states('sensor.hvac_furnace_min_per_cycle_data_count') | int(0) %}
+  {% set count = states('sensor.hvac_furnace_cycle_data_count') | int(0) %}
   {% if count < 4 %}mdi:alert-circle{% endif %}
 badge_color: >-
-  {% set count = states('sensor.hvac_furnace_min_per_cycle_data_count') | int(0) %}
+  {% set count = states('sensor.hvac_furnace_cycle_data_count') | int(0) %}
   {% if count < 4 %}orange{% endif %}
 tap_action:
   action: more-info
