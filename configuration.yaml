@@ -105,13 +105,16 @@ frontend:
 # ===============================================================
 recorder:
   purge_keep_days: 14
-  commit_interval: 2
+  commit_interval: 5  # Reduced from 2 for HA Green eMMC longevity
   exclude:
     entities:
       - sensor.time
       - sensor.date
+      - sensor.climate_norms_today  # Python script, changes daily
     entity_globs:
       - sensor.*_signal_level
+      - sensor.pirate_weather_*  # Frequent updates, no history needed
+      - weather.*  # Weather integrations, no history needed
 
 automation: !include automations.yaml
 script: !include scripts.yaml
