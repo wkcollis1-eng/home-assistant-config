@@ -39,7 +39,7 @@ apex_config:
             color: "#ff6b6b"
             background: "transparent"
 series:
-  - entity: sensor.hvac_furnace_min_per_cycle_upper_bound
+  - entity: sensor.hvac_furnace_cycle_upper_bound
     name: Upper (+2 sigma)
     color: "#95a5a6"
     stroke_width: 1
@@ -51,7 +51,7 @@ series:
     group_by:
       func: last
       duration: 1d
-  - entity: sensor.hvac_furnace_min_per_cycle_lower_bound
+  - entity: sensor.hvac_furnace_cycle_lower_bound
     name: Lower (-2 sigma)
     color: "#95a5a6"
     stroke_width: 1
@@ -74,7 +74,7 @@ series:
     group_by:
       func: last
       duration: 1d
-  - entity: sensor.hvac_furnace_min_per_cycle_7_day_mean
+  - entity: sensor.hvac_furnace_cycle_mean_7d
     name: 7-Day Mean
     color: "#f39c12"
     stroke_width: 2
