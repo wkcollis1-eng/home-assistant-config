@@ -2072,7 +2072,7 @@ template:
 
       # === FURNACE MIN/CYCLE STATISTICS (for control chart bounds) ===
       - name: "HVAC Furnace Min/Cycle 7-Day Mean"
-        unique_id: hvac_furnace_min_per_cycle_7day_mean
+        unique_id: hvac_furnace_min_per_cycle_7_day_mean
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:chart-bell-curve
@@ -2094,7 +2094,7 @@ template:
           {% endif %}
 
       - name: "HVAC Furnace Min/Cycle 7-Day Std Dev"
-        unique_id: hvac_furnace_min_per_cycle_7day_stddev
+        unique_id: hvac_furnace_min_per_cycle_7_day_std_dev
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:sigma
