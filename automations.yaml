@@ -816,6 +816,41 @@
         message: "{{ (month_name | trim) | upper }}: ${{ current_amount }}, {{ current_ccf }} CCF archived"
 
 # ===============================================================
+# DHW ARCHIVE (Navien - separate from gas bill)
+# ===============================================================
+# Enter DHW reading on 1st of month for previous month
+# Reduces billing period misalignment to ~2-3 weeks
+- id: save_dhw_button
+  alias: "Save DHW (Navien) - Button Press"
+  trigger:
+    - platform: state
+      entity_id: input_button.save_dhw
+  action:
+    - variables:
+        # Previous month (since entering on 1st for prior month)
+        prev_month: "{{ now().month - 1 if now().month > 1 else 12 }}"
+        # Convert Therms to CCF: 1 Thm = 100,000 BTU, 1 CCF = 103,700 BTU
+        input_thm: "{{ states('input_number.dhw_bill_thm') | float(0) }}"
+        current_dhw: "{{ (input_thm * 0.9643) | round(2) }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[(prev_month | int) - 1] }}
+        prev_dhw: "{{ states('input_number.dhw_archive_' ~ month_name) | float(0) }}"
+    - condition: template
+      value_template: "{{ input_thm > 0 }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.dhw_archive_{{ month_name | trim }}"
+      data:
+        value: "{{ current_dhw }}"
+    - service: persistent_notification.create
+      data:
+        title: "✅ DHW Archived"
+        message: >
+          {{ (month_name | trim) | upper }}: {{ input_thm }} Thm = {{ current_dhw }} CCF
+          {% if prev_dhw > 0 %}(was {{ prev_dhw }} CCF){% endif %}
+
+# ===============================================================
 # ALERT AUTOMATIONS
 # ===============================================================
 # DISABLED: Fixed-threshold CCF/1kHDD alert replaced by runtime/HDD ±2σ monitoring
