@@ -98,12 +98,18 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 
 ### Energy Metrics
 - `sensor.site_eui_estimate` - Site EUI from rolling 12-month archive bills (kBTU/ft²-yr)
-- `sensor.hvac_heating_efficiency_12m` - CCF per 1000 HDD (rolling 12-month, primary, uses 76.1% heating ratio)
-- `sensor.hvac_building_load_ua_12m` - Building envelope UA value (rolling 12-month, primary, uses 76.1% heating ratio)
+- `sensor.hvac_heating_efficiency_12m` - CCF per 1000 HDD (rolling 12-month, uses actual Navien DHW subtraction)
+- `sensor.hvac_building_load_ua_12m` - Building envelope UA value (rolling 12-month, uses actual Navien DHW subtraction)
+- `sensor.dhw_gas_12m` - Rolling 12-month DHW total from Navien archives (CCF)
 - `sensor.hvac_heating_efficiency_mtd` - CCF per 1000 HDD (MTD, for monthly CSV only)
 - `sensor.hvac_building_load_ua_estimate` - Building envelope UA (MTD, for monthly CSV only)
-- `sensor.gas_heating_usage_month` - Heating portion of monthly gas (76.1% of total)
-- `sensor.gas_dhw_usage_month` - DHW portion of monthly gas (23.9% of total)
+- `sensor.gas_heating_usage_month` - Heating portion of monthly gas (71.9% of total)
+- `sensor.gas_dhw_usage_month` - DHW portion of monthly gas (28.1% of total)
+
+### DHW (Navien) Archives
+- `input_number.dhw_archive_jan` through `dhw_archive_dec` - Monthly Navien-metered DHW (CCF)
+- `input_number.dhw_bill_thm` - Entry field for monthly Navien reading (Therms, auto-converts to CCF)
+- `input_button.save_dhw` - Archives DHW to previous month (enter on 1st for prior month)
 
 ### Filter Tracking
 - `input_number.hvac_filter_runtime_hours` - Cumulative runtime hours (started at 800)
@@ -195,10 +201,11 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - **Runtime per HDD:** Auto-calculated (mean ± 2σ from 7-day rolling data)
 - **Annual HDD:** 6,270 (2025 actual HDD65); climate normal ~5,270 (18-year avg, used in weather severity sensors)
 - **Annual Electricity:** 6,730 kWh
-- **Annual Gas:** 787 CCF total (599 CCF heating + 188 CCF DHW)
-- **DHW Ratio:** 23.9% of total gas (188/787 CCF) - used to isolate heating gas from total bills
-- **Heating Ratio:** 76.1% of total gas (599/787 CCF)
+- **Annual Gas:** 787 CCF total (566 CCF heating + 221 CCF DHW per Navien metering)
+- **DHW Ratio:** 28.1% of total gas (220.8/787 CCF) - Navien-metered actual; replaces 23.9% regression estimate
+- **Heating Ratio:** 71.9% of total gas (566/787 CCF) - derived from Navien DHW subtraction
 - **Site EUI:** 41.7 kBTU/ft²-yr
+- **Therms to CCF:** 0.9643 (1 Thm = 100,000 BTU; 1 CCF = 103,700 BTU)
 
 ### Statistical Bounds Approach (Runtime/HDD)
 - Alerts trigger when current value exceeds ±2σ from rolling mean
@@ -216,10 +223,20 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 - Runtime/HDD ±2σ catches the same operational issues earlier with weather-normalized, self-calibrating bounds
 
 ## Bill Entry Workflow
+
+### Gas/Electric Bills (~10th of month)
 1. Enter bill data in `input_number.electricity_bill_*` or `input_number.gas_bill_*`
 2. Set bill date in `input_datetime.electricity_bill_date` or `input_datetime.gas_bill_date`
 3. Press `input_button.save_electric_bill` or `input_button.save_gas_bill`
 4. Automation archives to monthly storage and rotates previous/last year values
+
+### DHW (Navien) Entry (~1st of month)
+1. Enter Navien reading in `input_number.dhw_bill_thm` (Therms)
+2. Press `input_button.save_dhw`
+3. Automation converts Thm → CCF (× 0.9643) and archives to **previous month**
+4. Example: Enter on Mar 1 → saves to February archive
+
+**Note:** DHW is entered separately from gas bill to reduce billing period misalignment (gas bills ~10th, Navien is calendar month).
 
 ## Automations
 
@@ -262,6 +279,7 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 ### Bill Archiving
 - `save_electric_bill_button` - Archives electric bill to monthly storage
 - `save_gas_bill_button` - Archives gas bill to monthly storage
+- `save_dhw_button` - Archives Navien DHW to previous month (Thm → CCF conversion)
 
 ## Dashboards
 - **Overview** (`/lovelace/home`) - Main dashboard with device controls
@@ -278,12 +296,13 @@ Uses explicit `input_boolean` latches for state management. Data logged to per-z
 ## File Structure
 - `configuration.yaml` - Main config with all sensors and input helpers
 - `automations.yaml` - All automations
-- `scripts.yaml` - Bill archive seeding script
+- `scripts.yaml` - Bill archive seeding scripts (gas, electric, DHW)
 - `scenes.yaml` - Light scenes
 - `secrets.yaml` - Sensitive data
 - `climate_daily_norms.csv` - 18-year climate normals by day-of-year (365 rows)
 - `scripts/climate_norms_today.py` - Python script for daily climate lookup
 - `scripts/setback_csv.py` - Python script for validated setback CSV logging
+- `scripts/seed_dhw_archives.yaml` - Manual service calls for DHW archive seeding
 - `dashboards/cards/` - Card snippet library (see Dashboard Card Library below)
 - `reports/hvac_daily_YYYY.csv` - Daily HVAC data (annual rotation)
 - `reports/hvac_monthly.csv` - Monthly HVAC summary data
@@ -323,7 +342,7 @@ Located in `dashboards/cards/` with organized subfolders:
 | `gauges/` | Built-in gauge cards | 8 |
 | `conditional/` | Alert cards (show/hide based on state) | 8 |
 | `weather/` | Weather display cards | 2 |
-| `billing/` | Bill entry and cost tracking | 4 |
+| `billing/` | Bill entry, DHW tracking, cost tracking | 6 |
 
 ### Key Card Snippets
 
@@ -433,6 +452,13 @@ The 48 monthly archive input_numbers (`electric_archive_*`, `gas_archive_*`) sto
 - Need historical data for YoY analysis
 
 **Future optimization**: If adding Shelly Pro 3EM or similar, could migrate to `utility_meter` + HA Energy Dashboard.
+
+### Monthly DHW Archives (input_numbers)
+The 12 `dhw_archive_*` input_numbers store Navien-metered DHW gas consumption (CCF) for accurate heating isolation:
+- Entered on 1st of month for previous month (reduces billing period misalignment to ~2-3 weeks)
+- Input accepts Therms, automation converts to CCF (× 0.9643)
+- Used by `sensor.hvac_heating_efficiency_12m` and `sensor.hvac_building_load_ua_12m` via actual subtraction
+- Replaces fixed 23.9% DHW ratio with actual Navien-metered values
 
 ### Monthly HDD Archives (input_numbers)
 The 12 `hdd_archive_*` input_numbers store monthly HDD totals for rolling 12-month efficiency calculations:

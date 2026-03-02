@@ -5,6 +5,33 @@ All notable changes to this Home Assistant HVAC monitoring configuration.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Calendar Versioning](https://calver.org/) (YYYY.MM.DD).
 
+## [2026.03] - March 2026
+
+### DHW Archive System
+
+Added Navien-metered DHW tracking for accurate heating gas isolation. Replaces fixed 23.9% DHW ratio with actual monthly readings.
+
+### Added
+- **DHW monthly archives** - 12 `input_number.dhw_archive_*` entities for Navien-metered DHW (CCF)
+- **DHW 12-month sensor** - `sensor.dhw_gas_12m` sums all monthly DHW archives
+- **DHW bill entry** - `input_number.dhw_bill_thm` accepts Therms, auto-converts to CCF (× 0.9643)
+- **DHW save button** - `input_button.save_dhw` archives to previous month (enter on 1st)
+- **DHW save automation** - `save_dhw_button` handles Thm→CCF conversion and archiving
+- **DHW seed script** - `script.seed_dhw_archives` loads historical Navien data
+- **Dashboard cards** - `dhw-bill-entry.yaml`, `dhw-12m-total.yaml`, `dhw-monthly-summary.yaml`
+
+### Changed
+- **Heating efficiency sensor** - Now uses actual DHW subtraction (Total Gas - DHW) instead of fixed 71.9% ratio
+- **Building UA sensor** - Now uses actual DHW subtraction instead of fixed ratio
+- **DHW ratio** - Corrected from 23.9% to 28.1% based on Navien metering (220.8 CCF / 787 CCF)
+- **Gas heating/DHW usage sensors** - Updated ratios (71.9% heating, 28.1% DHW)
+
+### Fixed
+- **Heating intensity accuracy** - Previous 106 CCF/1kHDD reduced to 103 CCF/1kHDD with actual DHW subtraction
+- **Billing period alignment** - Separate DHW entry (1st of month) reduces misalignment with gas bills (~10th)
+
+---
+
 ## [2026.02] - February 2026
 
 ### Setback Recovery System Simplification

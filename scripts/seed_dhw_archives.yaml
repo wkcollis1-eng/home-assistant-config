@@ -1,0 +1,99 @@
+# DHW Archive Seed Values (Navien-metered)
+# Run these service calls in Developer Tools > Services to initialize the archives
+# Data source: Navien NaviLink independent gas meter readings from baseline repo
+#
+# Monthly DHW Totals (Mar 2025 - Feb 2026 = rolling 12 months)
+#
+# Mar 2025: 22.47 CCF (Navien-metered)
+# Apr 2025: 20.66 CCF (Navien-metered)
+# May 2025: 19.21 CCF (Navien-metered)
+# Jun 2025: 16.72 CCF (Navien-metered)
+# Jul 2025: 15.59 CCF (Navien-metered)
+# Aug 2025: 11.24 CCF (Navien-metered)
+# Sep 2025: 15.59 CCF (Navien-metered)
+# Oct 2025: 17.40 CCF (Navien-metered)
+# Nov 2025: 19.21 CCF (Navien-metered)
+# Dec 2025: 21.75 CCF (Navien-metered)
+# Jan 2026: 17.76 CCF (Navien-metered, -22% YoY due to recirc optimization)
+# Feb 2026: 13.63 CCF (14.1352 Therms, Navien-metered, -24.8% YoY)
+#
+# Rolling 12-Month Total: 215.6 CCF
+# (vs 220.8 CCF for calendar 2025)
+#
+# Note: Update Feb 2026 value when actual Navien reading is available
+
+# Copy and paste each block into Developer Tools > Services
+
+# === SEED COMMANDS ===
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_jan
+# data:
+#   value: 17.76
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_feb
+# data:
+#   value: 13.63
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_mar
+# data:
+#   value: 22.47
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_apr
+# data:
+#   value: 20.66
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_may
+# data:
+#   value: 19.21
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_jun
+# data:
+#   value: 16.72
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_jul
+# data:
+#   value: 15.59
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_aug
+# data:
+#   value: 11.24
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_sep
+# data:
+#   value: 15.59
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_oct
+# data:
+#   value: 17.40
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_nov
+# data:
+#   value: 19.21
+
+# service: input_number.set_value
+# target:
+#   entity_id: input_number.dhw_archive_dec
+# data:
+#   value: 21.75

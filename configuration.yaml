@@ -176,6 +176,10 @@ input_button:
     name: "Save Gas Bill"
     icon: mdi:content-save-check
 
+  save_dhw:
+    name: "Save DHW (Navien)"
+    icon: mdi:water-boiler
+
   reset_filter_runtime:
     name: "Reset Filter Runtime"
     icon: mdi:air-filter
@@ -402,6 +406,15 @@ input_number:
     unit_of_measurement: "CCF"
     mode: box
     icon: mdi:fire
+
+  dhw_bill_thm:
+    name: "DHW Therms (Navien) - Previous Month"
+    min: 0
+    max: 50
+    step: 0.0001
+    unit_of_measurement: "Thm"
+    mode: box
+    icon: mdi:water-boiler
 
   gas_bill_days:
     name: "Gas Bill Days"
@@ -1095,6 +1108,82 @@ input_number:
     min: 0
     max: 500
     step: 1
+    mode: box
+
+  # ===============================================================
+  # 12-MONTH ARCHIVE - DHW (Navien-metered, for accurate heating isolation)
+  # ===============================================================
+  dhw_archive_jan:
+    name: "Archive: Jan DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_feb:
+    name: "Archive: Feb DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_mar:
+    name: "Archive: Mar DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_apr:
+    name: "Archive: Apr DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_may:
+    name: "Archive: May DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_jun:
+    name: "Archive: Jun DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_jul:
+    name: "Archive: Jul DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_aug:
+    name: "Archive: Aug DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_sep:
+    name: "Archive: Sep DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_oct:
+    name: "Archive: Oct DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_nov:
+    name: "Archive: Nov DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
+    mode: box
+  dhw_archive_dec:
+    name: "Archive: Dec DHW CCF"
+    min: 0
+    max: 50
+    step: 0.01
     mode: box
 
   # ===============================================================
@@ -2415,7 +2504,7 @@ template:
           {% else %}{{ 41.7 }}{% endif %}
 
       # Rolling 12-month heating efficiency from archived monthly data
-      # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total)
+      # Uses ACTUAL Navien-metered DHW subtraction (not fixed ratio)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Heating Efficiency 12M"
         unique_id: hvac_heating_efficiency_12m
@@ -2425,23 +2514,39 @@ template:
         state: >
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
-          {% set ns = namespace(ccf=0, hdd=0) %}
+          {% set ns = namespace(ccf=0, dhw=0, hdd=0) %}
           {% for m in months %}
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {# Heating = 76.1% of total gas (100% - 23.9% DHW) #}
-          {% set heating_ccf = ns.ccf * 0.761 %}
+          {# Heating = Total Gas - Actual DHW (Navien-metered) #}
+          {% set heating_ccf = ns.ccf - ns.dhw %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
             {{ 90.3 }}
           {% endif %}
 
+      # Rolling 12-month DHW total from Navien-metered archives
+      - name: "DHW Gas 12M"
+        unique_id: dhw_gas_12m
+        unit_of_measurement: "CCF"
+        state_class: measurement
+        icon: mdi:water-boiler
+        state: >
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set ns = namespace(dhw=0) %}
+          {% for m in months %}
+            {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
+          {% endfor %}
+          {{ ns.dhw | round(1) }}
+
       # Rolling 12-month building UA from archived monthly data
       # UA = (Furnace heat + Fireplace heat) / (HDD59-equivalent × 24 hours)
       # Matches METHODOLOGY.md: 0.95 AFUE (submittal-verified), balance-point-adjusted HDD, fireplace contribution
-      # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total)
+      # Uses ACTUAL Navien-metered DHW subtraction (not fixed ratio)
       # Updates when archives change (monthly), immune to midnight oscillation
       - name: "HVAC Building Load UA 12M"
         unique_id: hvac_building_load_ua_12m
@@ -2451,13 +2556,14 @@ template:
         state: >
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
-          {% set ns = namespace(ccf=0, hdd=0) %}
+          {% set ns = namespace(ccf=0, dhw=0, hdd=0) %}
           {% for m in months %}
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
             {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
           {% endfor %}
-          {# Heating = 76.1% of total gas (100% - 23.9% DHW) #}
-          {% set heating_ccf = ns.ccf * 0.761 %}
+          {# Heating = Total Gas - Actual DHW (Navien-metered) #}
+          {% set heating_ccf = ns.ccf - ns.dhw %}
           {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.844) %}
           {% set fp_heat = states('input_number.fireplace_annual_heat_mmbtu') | float(3.6) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
@@ -2699,14 +2805,14 @@ template:
       - name: "Gas Heating Usage Month"
         unique_id: gas_heating_usage_month
         unit_of_measurement: "CCF"
-        # Heating ratio: 76.1% (per baseline analysis: 599 CCF heating / 787 CCF total)
-        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.761) | round(1) }}"
+        # Heating ratio: 71.9% (Navien-metered: 566 CCF heating / 787 CCF total)
+        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.719) | round(1) }}"
 
       - name: "Gas DHW Usage Month"
         unique_id: gas_dhw_usage_month
         unit_of_measurement: "CCF"
-        # DHW ratio: 23.9% (per baseline analysis: 188 CCF DHW / 787 CCF total annual)
-        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.239) | round(1) }}"
+        # DHW ratio: 28.1% (Navien-metered: 220.8 CCF DHW / 787 CCF total annual)
+        state: "{{ (states('input_number.gas_bill_ccf') | float(0) * 0.281) | round(1) }}"
 
       - name: "Gas Cost This Month"
         unique_id: gas_cost_this_month
@@ -2716,8 +2822,8 @@ template:
       - name: "Gas Heating Cost Month"
         unique_id: gas_heating_cost_month
         unit_of_measurement: "$"
-        # Heating ratio: 76.1% (matches gas_heating_usage_month)
-        state: "{{ (states('input_number.gas_bill_amount') | float(0) * 0.761) | round(2) }}"
+        # Heating ratio: 71.9% (matches gas_heating_usage_month)
+        state: "{{ (states('input_number.gas_bill_amount') | float(0) * 0.719) | round(2) }}"
 
       - name: "Total Cost Month"
         unique_id: total_cost_month

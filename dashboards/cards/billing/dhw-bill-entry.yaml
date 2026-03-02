@@ -1,0 +1,40 @@
+# DHW (Navien) Bill Entry Section
+# Cards for entering monthly DHW gas consumption
+# Dashboard: Energy Performance - Billing & Cost
+# Note: Enter on 1st of month for previous month's reading
+# Converts Therms to CCF automatically (Thm x 0.9643)
+
+# Therms Input
+- type: custom:mushroom-entity-card
+  entity: input_number.dhw_bill_thm
+  name: DHW Therms (Navien)
+  icon: mdi:water-boiler
+  fill_container: true
+  layout_options:
+    grid_columns: 2
+    grid_rows: 2
+  layout: vertical
+
+# Save Button
+- type: custom:mushroom-entity-card
+  entity: input_button.save_dhw
+  name: SAVE DHW
+  icon: mdi:content-save
+  icon_color: cyan
+  fill_container: true
+  tap_action:
+    action: toggle
+  layout_options:
+    grid_columns: 2
+    grid_rows: 2
+  layout: vertical
+
+# Preview conversion (display only)
+- type: custom:mushroom-template-card
+  primary: "{{ (states('input_number.dhw_bill_thm') | float(0) * 0.9643) | round(2) }} CCF"
+  secondary: "Converts to"
+  icon: mdi:arrow-right-bold
+  layout_options:
+    grid_columns: 2
+    grid_rows: 1
+  color: cyan

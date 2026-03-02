@@ -1,0 +1,114 @@
+# DHW Monthly Summary Cards
+# Shows monthly DHW archives in a grid format
+# Dashboard: Energy Performance - Billing & Cost
+# Note: Use in a grid layout for best appearance
+
+# Row 1: Winter months (high DHW)
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_jan') | round(1) }}"
+  secondary: Jan
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_jan') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_feb') | round(1) }}"
+  secondary: Feb
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_feb') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_mar') | round(1) }}"
+  secondary: Mar
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_mar') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_apr') | round(1) }}"
+  secondary: Apr
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_apr') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_may') | round(1) }}"
+  secondary: May
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_may') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_jun') | round(1) }}"
+  secondary: Jun
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_jun') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+# Row 2: Summer/Fall months
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_jul') | round(1) }}"
+  secondary: Jul
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_jul') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_aug') | round(1) }}"
+  secondary: Aug
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_aug') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_sep') | round(1) }}"
+  secondary: Sep
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_sep') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_oct') | round(1) }}"
+  secondary: Oct
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_oct') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_nov') | round(1) }}"
+  secondary: Nov
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_nov') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1
+
+- type: custom:mushroom-template-card
+  primary: "{{ states('input_number.dhw_archive_dec') | round(1) }}"
+  secondary: Dec
+  icon: mdi:water-boiler
+  icon_color: "{{ 'cyan' if states('input_number.dhw_archive_dec') | float > 0 else 'grey' }}"
+  layout_options:
+    grid_columns: 1
+    grid_rows: 1

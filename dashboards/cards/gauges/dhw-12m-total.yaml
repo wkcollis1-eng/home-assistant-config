@@ -1,0 +1,13 @@
+# DHW Gas Consumption (12-Month Total) - Stats Card
+# Shows rolling 12-month DHW gas usage from Navien-metered archives
+# Dashboard: Energy Performance - Diagnostics, Engineering
+type: custom:mushroom-template-card
+primary: "{{ states('sensor.dhw_gas_12m') }} CCF"
+secondary: DHW Gas (12 Month)
+icon: mdi:water-boiler
+icon_color: cyan
+layout_options:
+  grid_columns: 2
+  grid_rows: 2
+tap_action:
+  action: more-info

@@ -332,6 +332,51 @@ seed_2025_gas_archive:
         title: "✅ 2025 Gas Archive Loaded"
         message: "All 12 months of 2025 gas data loaded"
 
+seed_dhw_archives:
+  alias: "Seed DHW Archive Data (Navien-metered)"
+  description: "Load Navien DHW readings for accurate heating isolation (Mar 2025 - Feb 2026)"
+  sequence:
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_jan }
+      data: { value: 17.76 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_feb }
+      data: { value: 13.63 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_mar }
+      data: { value: 22.47 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_apr }
+      data: { value: 20.66 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_may }
+      data: { value: 19.21 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_jun }
+      data: { value: 16.72 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_jul }
+      data: { value: 15.59 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_aug }
+      data: { value: 11.24 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_sep }
+      data: { value: 15.59 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_oct }
+      data: { value: 17.40 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_nov }
+      data: { value: 19.21 }
+    - service: input_number.set_value
+      target: { entity_id: input_number.dhw_archive_dec }
+      data: { value: 21.75 }
+    - service: persistent_notification.create
+      data:
+        title: "✅ DHW Archive Loaded"
+        message: "12 months of Navien-metered DHW data loaded (215.6 CCF total)"
+
 # ===============================================================
 # MONTHLY ACCUMULATOR SEEDING SCRIPT
 # Run ONCE before restarting HA to seed accumulators with MTD values
