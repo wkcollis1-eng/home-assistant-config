@@ -6,6 +6,11 @@
 
 This section is for Claude Code. Read it completely before making any changes to this repository.
 
+### Golden Rule
+
+> **If an entity ID is not explicitly listed in this document, assume it is unsafe to modify.**
+> Do not infer entity IDs from naming patterns. Do not guess. Look it up here first.
+
 ### Repository Layout
 
 ```
@@ -18,47 +23,123 @@ home-assistant-config/
 ├── tools/
 │   └── analyze_ha.py        # Static analyzer — run before every commit (see below)
 ├── reports/                 # CSV output files (do not edit manually)
-├── dashboards/cards/        # Lovelace card snippets (YAML fragments, not full configs)
+├── dashboards/
+│   └── cards/               # Lovelace card snippets (YAML fragments only — see Dashboard Boundaries below)
+├── .storage/                # ⛔ DO NOT TOUCH — HA-managed dashboard JSON (see below)
 └── scripts/                 # Python helper scripts (climate_norms, setback_csv)
 ```
 
+### Step 0 — Change Classification (Required Before Any Edit)
+
+Before touching any file, state the change type and impacted files inline:
+
+```
+Change type: AUTOMATION logic change
+Impacted files: automations.yaml, configuration.yaml (new helper), CLAUDE.md (entity ref)
+```
+
+Valid types: `SENSOR` · `AUTOMATION` · `ENTITY rename` · `DASHBOARD snippet` · `CSV/reporting` · `ANALYZER` · `DOCUMENTATION`
+
+This forces cross-file dependency awareness before the first edit.
+
 ### Before Making Any Change
 
-1. **Read this file first.** Entity IDs here are authoritative. Do not infer entity IDs from patterns — use the exact IDs documented below. Several sensors have `_2` suffixes from entity registry conflicts; these are canonical, not typos.
+1. **Read this file first.** Entity IDs here are authoritative. Do not infer entity IDs from
+   patterns — use the exact IDs documented below. Several sensors have `_2` suffixes from entity
+   registry conflicts; these are canonical, not typos.
 
-2. **Run the static analyzer** before committing any change to `configuration.yaml` or `automations.yaml`:
+2. **Run the static analyzer** before committing any change to `configuration.yaml` or
+   `automations.yaml`:
    ```bash
    python3 tools/analyze_ha.py
    ```
-   The analyzer checks: YAML syntax, duplicate automation IDs, unresolved entity references, Jinja2 template syntax, time trigger formats, shell_command consistency, end-of-day timing collisions, `_2` suffix risks.
+   The analyzer checks: YAML syntax, duplicate automation IDs, unresolved entity references,
+   Jinja2 template syntax, time trigger formats, shell_command consistency, end-of-day timing
+   collisions, `_2` suffix risks.
 
-3. **Do not rename entities.** Renaming a sensor in `configuration.yaml` without updating every reference in `automations.yaml`, dashboard cards, and CSV scripts will cause silent failures. Search all files before renaming anything.
+3. **Rigorous search before any rename or deletion.** Before modifying an entity ID, you MUST
+   run the following across the entire repository — YAML, Python scripts, and dashboard JSON:
+   ```bash
+   grep -rnw . -e 'entity_name' --include="*.yaml" --include="*.json" --include="*.py"
+   ```
+   Update all references simultaneously. Missing a single reference causes silent logic failures.
+   Dashboard cards in `.storage/` are JSON — the `--include="*.json"` flag catches these too.
 
-4. **Preserve comments.** The YAML files contain architecture rationale inline. Do not remove comments during edits.
+4. **Safe Jinja2 templates.** Never use `| float` or `| int` without a default value. Always use
+   `| float(0)` or `| int(0)`. All new template sensors must include an `availability:` template
+   to prevent math errors during HA startup or when source entities are `unknown`/`unavailable`.
+   Templates must tolerate all of: `unknown`, `unavailable`, `none`, empty string, missing
+   attributes. Preferred defensive pattern:
+   ```yaml
+   - name: "My Sensor"
+     availability: "{{ states('sensor.source') not in ['unknown', 'unavailable', 'none', ''] }}"
+     state: >
+       {% set v = states('sensor.source') %}
+       {{ v | float(0) if v not in ['unknown','unavailable','none',''] else 0 }}
+   ```
 
-5. **Test mode pattern.** Any automation that calls a destructive service (shutdown, reset, archive) should check an `input_boolean` guard before executing. See `input_boolean.ups_test_mode` in the UPS config as the reference implementation.
+5. **Dashboard boundaries.** Never modify any file inside `.storage/`. Those are HA-managed
+   binary JSON blobs — editing them directly corrupts the dashboard in ways not recoverable
+   from YAML. All dashboard work must be done exclusively as YAML snippets in `dashboards/cards/`.
+   Provide the updated YAML snippet to the user so they can manually paste it into the UI editor.
+
+6. **Preserve comments.** The YAML files contain architecture rationale inline. Do not remove
+   comments during edits.
+
+7. **Guard all destructive service calls.** Any automation calling a destructive service
+   (shell_command, archive, CSV write, hassio.host_shutdown, input_number reset) MUST check an
+   `input_boolean` guard before executing:
+   ```yaml
+   - condition: state
+     entity_id: input_boolean.ha_maintenance_mode
+     state: "off"
+   - service: shell_command.appenddailycsv
+   ```
+   `input_boolean.ha_maintenance_mode` is **pending creation** (see Pending Improvements).
+   Until created, document any new destructive service call in Pending Improvements.
+   Reference implementation: `input_boolean.ups_test_mode` in the UPS config.
+
+   Shell commands must also follow the **append-only rule**: never overwrite or truncate CSV
+   files or historical reports. Only `append` or `rotate` operations are permitted. A command
+   that overwrites `hvac_daily_YYYY.csv` destroys irrecoverable historical data.
 
 ### Known Fragile Areas — Check These First
 
 | Area | Risk | Notes |
 |------|------|-------|
-| `_2` suffix entities | Break on entity registry clear | 10 sensors — listed in Known Issues below. Used **directly** in automations, not just as fallbacks. |
+| `_2` suffix entities | Break on entity registry clear | 10 sensors — listed in Known Issues. Used **directly** in automations, not just as fallbacks. |
 | 23:58:00 timing | Two automations fire simultaneously | `archive_monthly_hdd` + `accumulate_filter_runtime` — separate entities, no data risk, but fragile |
-| Dynamic entity names | Analyzer false-positives | `electric_archive_{{ month }}` etc. — these work at runtime; ignore analyzer warnings for these three patterns |
+| Dynamic entity names | Analyzer false-positives | `electric_archive_{{ month }}` etc. — work at runtime; ignore analyzer warnings for these three patterns |
 | `_1s` suffix sensors | **Fixed Feb 2026** | `sensor.hvac_runtime_per_hdd_upper_bound` / `_lower_bound` — no `_1s` suffix in production |
 | `shell_command.testcmd` | Development leftover | Defined line 16 of `configuration.yaml`, never called — safe to remove |
+| `.storage/` directory | HA-managed JSON | Never edit directly — corrupts dashboards unrecoverably |
 
 ### Pre-Commit Checklist
 
-Before every `git commit`:
+Before every `git commit` — use a feature branch, not main, so `git restore` is clean:
 - [ ] `python3 tools/analyze_ha.py` — zero hard errors
-- [ ] All new entity IDs added to this CLAUDE.md
+- [ ] All new entity IDs added to this CLAUDE.md (Key Entity IDs section)
 - [ ] CHANGELOG.md updated if behavior changes
 - [ ] No `_1s`, `_3`, or unexpected suffix entities introduced
 - [ ] No service calls added without availability guard (`not is_state(..., 'unavailable')`)
-- [ ] Timing: new end-of-day automations must not collide with existing 23:55–23:58:30 sequence
+- [ ] No new time triggers between 23:54:30 and 23:58:45 (EOD collision zone)
+- [ ] All new `choose:` blocks have `default: []`
+- [ ] All new template sensors have `availability:` guards and `| float(0)` / `| int(0)` defaults
+- [ ] All new shell_command calls: wrapped with `ha_maintenance_mode` guard AND append-only
+- [ ] Multi-line Jinja2 templates use `>` (strip newlines, preferred for notifications) or `|`
+      (preserve newlines, use only when literal line breaks are intentional), with exact 2-space
+      indentation relative to the parent key
+- [ ] Automation trace check: all triggers reachable, all `choose:` branches reachable,
+      conditions not mutually exclusive, templates resolve when entity = `unknown`
+- [ ] If changes span both `configuration.yaml` and `automations.yaml`: micro-commit working
+      state to feature branch before testing (allows clean `git restore` on failure)
+- [ ] One logical change per commit (see Commit Granularity Rule below)
 
 ### End-of-Day Timing Sequence (DO NOT DISRUPT)
+
+**Hard rule: No new automations may have time triggers between 23:54:30 and 23:58:45.**
+New EOD automations must be explicitly slotted into the sequence below with a unique timestamp
+and documented here. Accidental collisions in this window cause silent data corruption.
 
 ```
 23:55:00  capture_daily_hdd              — 7-day rolling window only
@@ -70,27 +151,112 @@ Before every `git commit`:
 23:58:30  CSV monthly report (last day of month only)
 ```
 
-All month sensors (`hdd_cumulative_month_auto`, `hvac_furnace_runtime_month_2`, etc.) reference `monthly_tracking_capture_last_ok` (set at 23:56:30) as their synchronization timestamp. If you add a new month sensor, it must also reference this timestamp — not `hdd_capture_last_ok` or its own timestamp.
+All month sensors (`hdd_cumulative_month_auto`, `hvac_furnace_runtime_month_2`, etc.) reference
+`monthly_tracking_capture_last_ok` (set at 23:56:30) as their synchronization timestamp. If you
+add a new month sensor, it must also reference this timestamp — not `hdd_capture_last_ok` or its
+own timestamp.
+
+End-of-day capture automations must evaluate sensors into a `variables:` block at trigger time
+to prevent day-boundary re-evaluation drift (a template re-evaluating at 00:00:01 instead of
+23:59:59 can capture the wrong day's value):
+```yaml
+- alias: "Capture Daily HDD/CDD"
+  variables:
+    hdd_today: "{{ states('sensor.hvac_hdd65_today') | float(0) }}"
+    cdd_today: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+  action:
+    - service: input_number.set_value
+      data:
+        value: "{{ hdd_today }}"   # Snapshot — not re-evaluated at step execution time
+```
 
 ### Common Edit Patterns
 
+**Writing or modifying any automation:**
+- Every `choose:` block MUST have `default: []` — makes the no-match case explicit in traces
+- Time-critical triggers (end-of-day captures) MUST use a `variables:` block to snapshot
+  sensor values at trigger time (see End-of-Day section above)
+- All shell_command calls MUST include `ha_maintenance_mode` guard (pending creation — see
+  Pending Improvements; document in that section until the helper exists)
+
 **Adding a new monthly archive sensor:**
 - Add 12 `input_number` entries to `configuration.yaml` (jan–dec)
-- Add a template sensor that sums them
+- Add a template sensor that sums them with `availability:` guard
 - Add save automation triggered by a button press
+- Wrap any shell_command in `ha_maintenance_mode` guard
 - Update the bill entry workflow section of this file
 - Update CHANGELOG.md
 
 **Adding a new efficiency alert:**
 - Trigger on the relevant `binary_sensor.*_alert` entity
 - Use `sensor.hvac_runtime_per_hdd_7_day_2` (not `_7_day`) for the current value in message
-- Add `data_count` guard: `{{ states('sensor.hvac_runtime_per_hdd_data_count') | int >= 4 }}`
+- Add `data_count` guard: `{{ states('sensor.hvac_runtime_per_hdd_data_count') | int(0) >= 4 }}`
 - Add to Pre-Commit Checklist verification run
 
 **Modifying end-of-day capture automations:**
 - Never change the 23:56:30 timestamp — all month sensors depend on it
 - If adding a new accumulator, add it to `capture_daily_monthly_tracking`, not `capture_daily_hdd`
+- Add new sensor snapshots to the `variables:` block at the top of the action sequence
 - Run the timing audit section of the analyzer after any time trigger change
+
+**Renaming or deleting any entity:**
+- Run `grep -rnw . -e 'old_entity_id' --include="*.yaml" --include="*.json" --include="*.py"`
+- Update all matches simultaneously — automations, scripts, dashboard cards, and `.storage/` JSON
+- Commit the rename as a single atomic commit with a clear message
+
+### Edit Workflow (Follow This Order)
+
+Claude must edit files in this sequence — never out of order:
+
+1. **Impact scan** — `grep -rnw` for all affected entity IDs
+2. **`configuration.yaml`** — sensors, helpers, shell_commands
+3. **`automations.yaml`** — logic changes
+4. **`CLAUDE.md`** — update entity references, pending items, known issues
+5. **`CHANGELOG.md`** — document behavior changes
+6. **Run analyzer** — `python3 tools/analyze_ha.py` — zero hard errors
+7. **Provide diff summary** — list every file changed and what changed in each
+
+Editing out of order (e.g., automations before helpers) produces inconsistent diffs
+and missed cross-file dependencies.
+
+### Entity Creation Contract
+
+When any new entity is created (sensor, input_boolean, input_number, input_datetime,
+input_button, binary_sensor), ALL of the following must be updated in the same commit:
+
+1. `configuration.yaml` — entity definition
+2. **`CLAUDE.md` → Key Entity IDs** — add with description and any caveats
+3. **Pre-Commit Checklist** — add any new validation rules if the entity is fragile
+4. `CHANGELOG.md` — document the addition
+
+**Pending entity — document now:**
+`input_boolean.ha_maintenance_mode` (Toggle, default OFF) — dry-run gate for all
+shell_command calls. Blocks CSV writes, log appends, and archive operations during
+Developer Tools testing. Pattern from `input_boolean.ups_test_mode` (UPS config).
+Add to Lovelace as a clearly-labelled toggle; turn ON before testing, OFF before live use.
+
+### Commit Granularity Rule
+
+One logical change per commit. Allowed combinations:
+
+```
+✓ automation + its helper entities
+✓ sensor + automation that uses it
+✓ documentation-only changes
+✓ analyzer update
+```
+
+Disallowed in a single commit:
+
+```
+✗ multiple unrelated automations
+✗ sensor + dashboard + automation bundle
+✗ structural repo changes mixed with logic changes
+✗ CLAUDE.md updates bundled with behavior changes
+```
+
+Rationale: fine-grained commits make `git restore` surgical. A 10-file commit that
+breaks one automation requires rolling back everything.
 
 ---
 
