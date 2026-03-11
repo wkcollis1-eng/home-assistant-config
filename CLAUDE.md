@@ -1,5 +1,99 @@
 # Home Assistant Configuration Notes
 
+---
+
+## Claude Code — Session Protocol
+
+This section is for Claude Code. Read it completely before making any changes to this repository.
+
+### Repository Layout
+
+```
+home-assistant-config/
+├── configuration.yaml       # 3,800+ lines — sensors, input helpers, recorder, shell_commands
+├── automations.yaml         # 56 automations — all HVAC, bill, dehumidifier, filter logic
+├── scripts.yaml             # Bill/DHW archive seed scripts
+├── CLAUDE.md                # This file — authoritative entity/automation reference
+├── CHANGELOG.md             # Version history (CalVer YYYY.MM)
+├── tools/
+│   └── analyze_ha.py        # Static analyzer — run before every commit (see below)
+├── reports/                 # CSV output files (do not edit manually)
+├── dashboards/cards/        # Lovelace card snippets (YAML fragments, not full configs)
+└── scripts/                 # Python helper scripts (climate_norms, setback_csv)
+```
+
+### Before Making Any Change
+
+1. **Read this file first.** Entity IDs here are authoritative. Do not infer entity IDs from patterns — use the exact IDs documented below. Several sensors have `_2` suffixes from entity registry conflicts; these are canonical, not typos.
+
+2. **Run the static analyzer** before committing any change to `configuration.yaml` or `automations.yaml`:
+   ```bash
+   python3 tools/analyze_ha.py
+   ```
+   The analyzer checks: YAML syntax, duplicate automation IDs, unresolved entity references, Jinja2 template syntax, time trigger formats, shell_command consistency, end-of-day timing collisions, `_2` suffix risks.
+
+3. **Do not rename entities.** Renaming a sensor in `configuration.yaml` without updating every reference in `automations.yaml`, dashboard cards, and CSV scripts will cause silent failures. Search all files before renaming anything.
+
+4. **Preserve comments.** The YAML files contain architecture rationale inline. Do not remove comments during edits.
+
+5. **Test mode pattern.** Any automation that calls a destructive service (shutdown, reset, archive) should check an `input_boolean` guard before executing. See `input_boolean.ups_test_mode` in the UPS config as the reference implementation.
+
+### Known Fragile Areas — Check These First
+
+| Area | Risk | Notes |
+|------|------|-------|
+| `_2` suffix entities | Break on entity registry clear | 10 sensors — listed in Known Issues below. Used **directly** in automations, not just as fallbacks. |
+| 23:58:00 timing | Two automations fire simultaneously | `archive_monthly_hdd` + `accumulate_filter_runtime` — separate entities, no data risk, but fragile |
+| Dynamic entity names | Analyzer false-positives | `electric_archive_{{ month }}` etc. — these work at runtime; ignore analyzer warnings for these three patterns |
+| `_1s` suffix sensors | **Fixed Feb 2026** | `sensor.hvac_runtime_per_hdd_upper_bound` / `_lower_bound` — no `_1s` suffix in production |
+| `shell_command.testcmd` | Development leftover | Defined line 16 of `configuration.yaml`, never called — safe to remove |
+
+### Pre-Commit Checklist
+
+Before every `git commit`:
+- [ ] `python3 tools/analyze_ha.py` — zero hard errors
+- [ ] All new entity IDs added to this CLAUDE.md
+- [ ] CHANGELOG.md updated if behavior changes
+- [ ] No `_1s`, `_3`, or unexpected suffix entities introduced
+- [ ] No service calls added without availability guard (`not is_state(..., 'unavailable')`)
+- [ ] Timing: new end-of-day automations must not collide with existing 23:55–23:58:30 sequence
+
+### End-of-Day Timing Sequence (DO NOT DISRUPT)
+
+```
+23:55:00  capture_daily_hdd              — 7-day rolling window only
+23:56:00  capture_daily_runtime_per_hdd  — daily runtime/HDD storage
+23:56:15  capture_daily_furnace_min_per_cycle
+23:56:30  capture_daily_monthly_tracking — ALL month accumulators + timestamp
+23:57:00  CSV daily report
+23:58:00  archive_monthly_hdd + accumulate_filter_runtime  ← collision (known)
+23:58:30  CSV monthly report (last day of month only)
+```
+
+All month sensors (`hdd_cumulative_month_auto`, `hvac_furnace_runtime_month_2`, etc.) reference `monthly_tracking_capture_last_ok` (set at 23:56:30) as their synchronization timestamp. If you add a new month sensor, it must also reference this timestamp — not `hdd_capture_last_ok` or its own timestamp.
+
+### Common Edit Patterns
+
+**Adding a new monthly archive sensor:**
+- Add 12 `input_number` entries to `configuration.yaml` (jan–dec)
+- Add a template sensor that sums them
+- Add save automation triggered by a button press
+- Update the bill entry workflow section of this file
+- Update CHANGELOG.md
+
+**Adding a new efficiency alert:**
+- Trigger on the relevant `binary_sensor.*_alert` entity
+- Use `sensor.hvac_runtime_per_hdd_7_day_2` (not `_7_day`) for the current value in message
+- Add `data_count` guard: `{{ states('sensor.hvac_runtime_per_hdd_data_count') | int >= 4 }}`
+- Add to Pre-Commit Checklist verification run
+
+**Modifying end-of-day capture automations:**
+- Never change the 23:56:30 timestamp — all month sensors depend on it
+- If adding a new accumulator, add it to `capture_daily_monthly_tracking`, not `capture_daily_hdd`
+- Run the timing audit section of the analyzer after any time trigger change
+
+---
+
 ## Overview
 Energy performance tracking and HVAC monitoring system for a 2-zone residential setup.
 
@@ -119,7 +213,7 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `binary_sensor.hvac_filter_change_alert` - Alert when >= 1000 hours
 
 ### Efficiency Monitoring
-- `sensor.hvac_runtime_per_hdd_7_day` - 7-day rolling runtime per HDD (min/HDD) (note: `_2` suffix exists as fallback)
+- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day rolling runtime per HDD (min/HDD) — **used directly in notification messages**
 - `sensor.hvac_total_runtime_per_hdd_today` - Today's runtime per HDD (min/HDD)
 - `sensor.hvac_1f_runtime_per_hdd_today` - 1F today's runtime per HDD
 - `sensor.hvac_2f_runtime_per_hdd_today` - 2F today's runtime per HDD
@@ -163,8 +257,8 @@ Energy performance tracking and HVAC monitoring system for a 2-zone residential 
 - `sensor.hvac_runtime_per_hdd_month` - Monthly runtime per HDD (min/HDD)
 
 ### Runtime/HDD Statistics (Auto-calculated Bounds)
-- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean (note: `_2` suffix exists as fallback)
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation (note: `_2` suffix exists as fallback)
+- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean — **used directly in notification messages**
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day standard deviation — **used directly in notification messages**
 - `sensor.hvac_runtime_per_hdd_upper_bound` - Mean + 2σ boundary
 - `sensor.hvac_runtime_per_hdd_lower_bound` - Mean - 2σ boundary
 - `sensor.hvac_runtime_per_hdd_data_count` - Number of valid samples (alerts suppressed if <4)
@@ -429,7 +523,7 @@ Captured at recovery_end for each zone via `scripts/setback_csv.py`.
 ## Database Configuration
 - **Type:** SQLite (home-assistant_v2.db)
 - **Retention:** 14 days (states/events), forever (long-term statistics)
-- **Commit interval:** 2 seconds (reduces lock contention)
+- **Commit interval:** 5 seconds (HA Green eMMC longevity; changed from 2s Feb 2026)
 - **Maintenance:** Weekly purge with repack (Sunday 3 AM via automation)
 - **Excluded from recorder:** sensor.time, sensor.date, *_signal_level, weather.*, pirate_weather (selective: visibility, cloud_cover, uv_index, ozone, condition, pressure, data_age, forecasts). Temperature, feels_like, humidity, dew_point, wind sensors ARE recorded for charts.
 
@@ -475,7 +569,103 @@ Month-to-date sensors use accumulated `input_number` values plus today's live va
 - **Important:** ALL month sensors (HDD, CDD, runtime, cycles) reference `monthly_tracking_capture_last_ok` (set at 23:56:30) to ensure synchronized timestamps. HDD/CDD accumulators are updated in `capture_daily_monthly_tracking`, NOT `capture_daily_hdd`.
 - `capture_daily_hdd` (23:55) handles ONLY the 7-day rolling window (`hdd_day_1` through `_7`) and its own staleness timestamp (`hdd_capture_last_ok`)
 
+## Pending Improvements
+
+These items were identified by cross-analysis of the UPS v4 automation patterns against
+the production HVAC config (2026-03-11). None are bugs — all are hardening improvements.
+Address in the next configuration update.
+
+### 1. Add `default: []` to Five `choose:` Blocks (Low effort, correctness)
+
+Five `choose:` blocks have no `default:` branch. If conditions don't match (entity
+unavailable, unexpected state), the automation silently does nothing with no trace
+indication. Add `default: []` to make intent explicit.
+
+Automations affected:
+- `Update Outdoor Temp Daily High/Low` — 2 `choose:` blocks (step[1] and step[2])
+- `Validate Input Numbers on Startup` — 3 `choose:` blocks (step[1], step[2], step[3])
+
+Fix pattern (add to each `choose:` block that lacks it):
+```yaml
+- choose:
+    - conditions: [...]
+      sequence: [...]
+  default: []   # No match — intentional no-op
+```
+
+### 2. Add `input_boolean.ha_maintenance_mode` Guard to Shell Command Calls (Medium effort, operational safety)
+
+Seven automations call `shell_command.*` with no dry-run gate. Accidentally firing
+these in Developer Tools during debugging appends garbage rows to CSV logs (recoverable
+but annoying). Pattern learned from `input_boolean.ups_test_mode` in UPS v4.
+
+Automations affected:
+- `1F Recovery End` → `shell_command.appendsetbacklog_1f`
+- `2F Recovery End` → `shell_command.appendsetbacklog_2f`
+- `CSV Daily Report` → `shell_command.appenddailycsv`
+- `CSV Monthly Report` → `shell_command.appendmonthlycsv`
+- `CSV Yearly Rotation` → `shell_command.rotatedailycsv`
+- `Backup Input Numbers Weekly` → `shell_command.backup_input_numbers`
+- `Rotate Setback Log Yearly` → `shell_command.rotate_setback_log`
+
+Implementation:
+1. Create helper: `input_boolean.ha_maintenance_mode` (Toggle, default OFF)
+2. Wrap each shell_command call:
+```yaml
+- condition: state
+  entity_id: input_boolean.ha_maintenance_mode
+  state: "off"
+- service: shell_command.appendsetbacklog_1f
+```
+3. Add to Lovelace as a clearly-labeled toggle (red when ON)
+4. Turn ON before any Developer Tools testing; turn OFF when done
+5. Add to CLAUDE.md Claude Code Session Protocol pre-commit checklist
+
+### 3. Add `variables:` Snapshot Blocks to End-of-Day Capture Automations (Low effort, correctness)
+
+Zero automations currently use `variables:` blocks. The end-of-day capture sequence
+(23:55–23:58:30) evaluates sensors across multiple steps. If HA is slow and a template
+re-evaluates across the midnight boundary, day-boundary values can be incorrect.
+
+Capturing sensor values in a `variables:` block at trigger time is more correct for
+time-critical automations. Pattern from UPS v4.
+
+Automations to prioritize:
+- `capture_daily_hdd` — HDD/CDD values should be captured at 23:55 trigger time
+- `capture_daily_runtime_per_hdd` — runtime values at 23:56 trigger time
+- `capture_daily_monthly_tracking` — all accumulator snapshots at 23:56:30 trigger time
+
+Fix pattern:
+```yaml
+- alias: "Capture Daily HDD/CDD"
+  variables:
+    hdd_today: "{{ states('sensor.hvac_hdd65_today') | float(0) }}"
+    cdd_today: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+  action:
+    - service: input_number.set_value
+      data:
+        value: "{{ hdd_today }}"   # Use captured variable, not live re-read
+```
+
+### Already Correct — Do Not Change
+
+These UPS v4 patterns were checked and are already implemented correctly in production:
+
+| Pattern | Status | Notes |
+|---------|--------|-------|
+| Timestamp overwrite guards | ✅ Correct | All setback/recovery `set_datetime` calls have latch checks |
+| `wait_template` + `continue_on_timeout` | ✅ Correct | Every wait has explicit `continue_on_timeout` |
+| Duplicate trigger IDs | ✅ Clean | No duplicates across all 56 automations |
+
+---
+
 ## Known Issues
+
+### Unused Shell Command
+- `shell_command.testcmd` (`echo hello`) is defined in `configuration.yaml` line 16 but never called from any automation. Safe to remove — development leftover.
+
+### 23:58:00 Timing Collision
+- `archive_monthly_hdd` and `accumulate_filter_runtime` both fire at exactly `23:58:00`. Both touch separate entities so there is no data integrity risk, but a 15-second offset on one would be cleaner.
 
 ### EUI Calculation
 - EUI now computed from rolling 12-month archive inputs (electric_archive_*_kwh + gas_archive_*_ccf), updated whenever archives change
@@ -483,13 +673,13 @@ Month-to-date sensors use accumulated `input_number` values plus today's live va
 ### Entity Registry Note
 Several sensors have `_2` suffix from entity registry conflicts. The canonical (preferred) entity IDs are:
 - `sensor.hdd_rolling_7_day_auto_2` - 7-day rolling HDD
-- `sensor.hvac_runtime_per_hdd_7_day` - 7-day runtime per HDD (min/HDD) — `_2` suffix exists as fallback
-- `sensor.hvac_runtime_per_hdd_7_day_mean` - Rolling 7-day mean — `_2` suffix exists as fallback
-- `sensor.hvac_runtime_per_hdd_7_day_std_dev` - Rolling 7-day standard deviation — `_2` suffix exists as fallback
+- `sensor.hvac_runtime_per_hdd_7_day_2` - 7-day runtime per HDD — used **directly** in notify_runtime_per_hdd_high/low notification messages
+- `sensor.hvac_runtime_per_hdd_7_day_mean_2` - Rolling 7-day mean — used **directly** in notification messages
+- `sensor.hvac_runtime_per_hdd_7_day_std_dev_2` - Rolling 7-day std dev — used **directly** in notification messages
 - `sensor.hvac_furnace_runtime_month_2` - Monthly furnace runtime
 - `sensor.hvac_furnace_cycles_month_2` - Monthly furnace cycles
 
-Do NOT delete `_2` entities - they are used as fallbacks in sensor templates.
+Do NOT delete `_2` entities — they are used **directly** in automation notification messages (not just as template fallbacks). Deleting them will cause notifications to display `unavailable` for runtime values.
 
 ## Known Limitations
 
