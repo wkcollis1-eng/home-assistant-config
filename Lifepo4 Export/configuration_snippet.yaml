@@ -1,9 +1,5 @@
-# ===============================================================
-# LIFEPO4 BATTERY DATA EXPORT
-# ===============================================================
-# ADD to existing shell_command: block (do not create a new shell_command: key)
-# Paste these lines inside the existing shell_command: section in configuration.yaml
-
+# MERGE into existing shell_command: block — do not add a second shell_command: key
+shell_command:
   # Weekly LiFePO4 battery data export
   # Queries HA recorder DB, writes to /config/lifepo4_exports/data/
   # Samba access: \\homeassistant\config\lifepo4_exports\data\
