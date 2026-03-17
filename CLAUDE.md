@@ -39,24 +39,24 @@ MUST update §ENTITIES + CHANGELOG.md in same commit as any new entity
 
 ## EXECUTION PROTOCOL
 
-**Before any edit:**
+Before any edit:
 1. `python3 tools/analyze_ha.py` — record baseline error count
 2. `grep -rnw . -e '<entity_id>' --include="*.yaml" --include="*.json" --include="*.py"` — impact scan
 3. Automation edits only: `grep -A2 'trigger:' automations.yaml | grep 'id:'` — confirm no trigger ID conflict
 
-**After edit:**
-- Re-run analyzer — zero new hard errors (new errors beyond baseline = FAIL regardless of absolute count)
+After edit:
+- Re-run analyzer — zero new hard errors
 - Update §ENTITIES if any new entity added
 - Update CHANGELOG.md if behavior changed
 - One logical change per commit
 
-**Output format** — Risk: LOW=new sensor/no deps | MEDIUM=automation logic/helper/existing sensor | HIGH=EOD/_2 entities/shell_command/state machine
+Output format — Risk: LOW=new sensor/no deps | MEDIUM=automation logic/helper/existing sensor | HIGH=EOD/_2 entities/shell_command/state machine
 
-*LOW:* diff only (unified, ±3 lines context) + `analyzer: PASS|FAIL`
+LOW: diff only (unified, ±3 lines context) + `analyzer: PASS|FAIL`
 
-*MEDIUM:* prepend `Change type / Impacted files / Risk: MEDIUM`
+MEDIUM: prepend `Change type / Impacted files / Risk: MEDIUM`
 
-*HIGH:* prepend simulation block:
+HIGH: prepend simulation block:
 ```
 Simulation:
   Trigger / Condition result / Action / Side effects / Race risk
@@ -85,22 +85,20 @@ If any CONSTRAINT is violated, requirement is ambiguous, or cannot be resolved f
 23:56:30  capture_daily_monthly_tracking  ALL month accumulators → sets monthly_tracking_capture_last_ok
 23:57:00  csv_daily_report
 23:58:00  archive_monthly_hdd + accumulate_filter_runtime  [known collision — separate entities, no data risk]
+          accumulate_filter_runtime: live read intentional — accumulator pattern, not snapshot; variables: not required
 23:58:30  csv_monthly_report (last day of month only)
 ```
 
 RULE: 23:56:30 is immovable — all month sensors depend on `monthly_tracking_capture_last_ok`
 RULE: New month accumulators → add to `capture_daily_monthly_tracking`, NOT `capture_daily_hdd`
 RULE: EOD automations MUST use `variables:` block — FROZEN = trigger times only; adding logic/entities permitted if variables: block present or added in same commit
+RULE: Exception — accumulate_filter_runtime: accumulator pattern; live read of sensor.hvac_total_heat_runtime_today is intentional; variables: not required
 
 ---
 
 ## DANGEROUS PATTERNS
 
-Reject and output `NO CHANGE` if any edit would introduce:
-- template sensor without `availability:` guard
-- shell_command call without ha_maintenance_mode condition (unless P2 unresolved — then flag only)
-- EOD capture automation without `variables:` snapshot block, or using `states('sensor.xxx')` directly in action instead of snapshot variable
-- time trigger in EOD window 23:54:30–23:58:45
+Any edit violating §CONSTRAINTS or §PROJECT GOALS triggers automatic `NO CHANGE` — do not proceed.
 
 Required pattern for new sensors — use verbatim:
 
@@ -132,11 +130,6 @@ P1 exception: address automatically when editing either automation ID above.
      hvac_1f_recovery_end, hvac_2f_recovery_end
 3. Add Lovelace toggle (red when ON)
 4. Add to §ENTITIES
-```
-
-### P4 — Remove notify_efficiency_degradation [LOW]
-```
-Disabled Feb 2026. Requires explicit instruction — do not remove proactively.
 ```
 
 ### Known Issues
@@ -180,10 +173,6 @@ sensor.hvac_outdoor_temp_hartford_proxy          combined source (Live>Pirate>NW
 weather.local_weather_2                          NWS/NOAA  [_2 FRAGILE]
 weather.home / weather.pirateweather
 sensor.pirate_weather_*                          28 sensors — never infer; verify exact IDs in automations.yaml
-  temperature, feels_like, humidity, pressure, wind_speed, wind_bearing, wind_direction,
-  visibility, cloud_cover, dew_point, uv_index, ozone, condition, data_age,
-  today_high/low/precip_prob/condition, tomorrow_high/low/precip_prob/condition,
-  hdd_forecast_today/tomorrow/7day, cdd_forecast_today
 ```
 
 ### HDD/CDD
@@ -291,7 +280,7 @@ input_number.furnace_min_per_cycle_day_1 … _7
 sensor.hvac_furnace_cycles_per_day_week / _month
 sensor.hvac_chaining_index / _week / _month
 sensor.hvac_zone_overlap_today / _week / _month / _percent
-sensor.hvac_total_cycles_week / _month
+sensor.hvac_total_cycles_today / _week / _month
 sensor.hvac_1f_heat_cycles_today / hvac_1f_heat_runtime_today
 sensor.hvac_2f_heat_cycles_today / hvac_2f_heat_runtime_today
 sensor.hvac_total_heat_runtime_today
@@ -390,25 +379,8 @@ Note: Computer Kasa plug entity IDs pending confirmation — do not infer or fab
 Any gas / electric / DHW / bill entry MUST follow the engineering-monthly-update skill.
 
 ```
-NEVER edit HA input_number archives directly via YAML
-NEVER mix a monthly bill entry commit with any config or automation change
-ALWAYS use button/automation paths: save_electric_bill_button, save_gas_bill_button, save_dhw_button
+ALWAYS use button/automation paths: input_button.save_electric_bill, input_button.save_gas_bill, input_button.save_dhw
 ALWAYS verify Therms→CCF conversion (×0.9643) before archiving DHW figures
-```
-
----
-
-## BASELINES (reference only)
-
-```
-Building UA:          493 BTU/hr-°F       Balance point:   59°F
-HDD59/HDD65 ratio:    0.844               AFUE:            0.95
-BTU/CCF:              103,700             Therms→CCF:      ×0.9643
-Heating efficiency:   90.3 CCF/1k HDD (Navien-corrected 2025)
-DHW ratio:            28.1% (220.8/787 CCF Navien-metered)
-Annual HDD65:         6,270 (2025 actual); climate normal 5,270
-Annual electricity:   6,730 kWh           Annual gas:      787 CCF
-Site EUI:             41.7 kBtu/ft²-yr
 ```
 
 ---
@@ -418,7 +390,6 @@ Site EUI:             41.7 kBtu/ft²-yr
 configuration.yaml     sensors, helpers, shell_commands
 automations.yaml       automations
 scripts.yaml           bill archive seed scripts
-CLAUDE.md              this file — authoritative
 CHANGELOG.md           CalVer YYYY.MM — update on behavior changes
 tools/analyze_ha.py    static analyzer — run before every commit
 reports/               CSV outputs — DO NOT edit manually
