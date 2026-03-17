@@ -6,7 +6,7 @@
 1. Zero data loss or corruption — archives, CSVs, input_numbers are permanent records
 2. All automations must be idempotent, restart-safe, and trigger-reentrant
 3. Maximize debuggability — every change leaves clear audit trail in logs + CHANGELOG
-4. Prefer explicit variables: snapshots over live sensor reads in time-critical automations
+4. MUST use explicit variables: snapshots for all EOD and time-critical automations — live sensor reads forbidden at trigger time
 5. Strict separation — monthly data updates NEVER mixed with config/automation changes
 ```
 
@@ -53,8 +53,7 @@ Then:
 ## PENDING POLICY
 
 PENDING items: DO NOT address unless explicitly instructed.
-Exception: P1 (default: [] additions) MAY be appended as a second commit
-  if Claude is already editing the same automation in which the omission exists.
+Exception: P1 (default: [] additions) MUST be addressed if Claude is already editing the same automation in which the omission exists.
 All other PENDING items: treat as read-only context.
 
 ---
@@ -67,6 +66,7 @@ All other PENDING items: treat as read-only context.
 Change type: <SENSOR|AUTOMATION|ENTITY rename|DASHBOARD snippet|CSV/reporting|ANALYZER|DOCUMENTATION>
 Impacted files: <list>
 Risk class: <LOW|MEDIUM|HIGH>
+Grep hits: <count from Step 1 impact scan — 0 is a valid result>
 ```
 New errors introduced beyond baseline = FAIL regardless of absolute count.
 
@@ -144,6 +144,7 @@ If you need the full pirate_weather sensor list or full setback entity list, typ
 RULE: 23:56:30 timestamp is immovable — all month sensors depend on `monthly_tracking_capture_last_ok`
 RULE: New month accumulators → add to `capture_daily_monthly_tracking`, NOT `capture_daily_hdd`
 RULE: EOD capture automations MUST use `variables:` block to snapshot sensor values at trigger time
+RULE: FROZEN means trigger times only — adding logic/entities to existing EOD automations is permitted; shifting or adding trigger times is not
 
 ```yaml
 # Pattern — snapshot at trigger, use variable in action (prevents midnight boundary re-eval)
@@ -575,7 +576,7 @@ Update Outdoor Temp Daily High/Low   step[1] step[2]
 Validate Input Numbers on Startup    step[1] step[2] step[3]
 ```
 
-### P2 — Add ha_maintenance_mode guard to all shell_command calls [MEDIUM]
+### P2 — Add ha_maintenance_mode guard to all shell_command calls [HIGH — unresolved guard is a data risk]
 ```
 Steps:
 1. Create input_boolean.ha_maintenance_mode (toggle, default OFF)
@@ -583,6 +584,9 @@ Steps:
 3. Add Lovelace toggle (red when ON)
 4. Add to §ENTITIES
 5. Add to pre-commit checklist
+
+While P2 unresolved: each unguarded shell_command call requires explicit user ACK in session before Claude may proceed.
+Do not batch-ACK — each call must be confirmed individually.
 ```
 
 ### P3 — Add variables: snapshot blocks to EOD capture automations [LOW EFFORT]
