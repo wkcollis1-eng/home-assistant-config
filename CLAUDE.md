@@ -1,5 +1,17 @@
 # HA CONFIG — CLAUDE CODE SESSION RULES
 
+## PROJECT GOALS (never violate — supersede all other rules when in conflict)
+
+```
+1. Zero data loss or corruption — archives, CSVs, input_numbers are permanent records
+2. All automations must be idempotent, restart-safe, and trigger-reentrant
+3. Maximize debuggability — every change leaves clear audit trail in logs + CHANGELOG
+4. Prefer explicit variables: snapshots over live sensor reads in time-critical automations
+5. Strict separation — monthly data updates NEVER mixed with config/automation changes
+```
+
+---
+
 ## CONSTRAINTS (CHECK BEFORE ANY ACTION)
 
 NEVER infer entity IDs from patterns — use only IDs listed in §ENTITIES
@@ -9,22 +21,54 @@ NEVER add time triggers between 23:54:30–23:58:45
 NEVER use `| float` or `| int` without default: use `| float(0)` `| int(0)`
 NEVER commit multiple unrelated changes in one commit
 NEVER remove inline YAML comments
+NEVER correct `voltge` in any Shelly entity ID — intentional hardware registration artifact, not a typo
+NEVER reuse an automation trigger ID — all trigger IDs must be globally unique across automations.yaml
+NEVER auto-resolve §PENDING items unless explicitly instructed (see PENDING POLICY)
 
 MUST run `python3 tools/analyze_ha.py` before every commit — zero hard errors required
 MUST add `default: []` to every `choose:` block
 MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard (§PENDING item 2)
+  → IF input_boolean.ha_maintenance_mode does not yet exist: SKIP guard, append "⚠ P2 UNRESOLVED" to diff output
 MUST update §ENTITIES + CHANGELOG.md in same commit as any new entity
+
+---
+
+## FAIL-CLOSED POLICY
+
+If ANY of the following occur:
+- Entity ID not found in §ENTITIES
+- `python3 tools/analyze_ha.py` would produce new hard errors
+- Requirement is ambiguous or contradictory
+- Trigger collision detected in EOD window (23:54:30–23:58:45)
+
+Then:
+→ OUTPUT ONLY "NO CHANGE — [reason]"
+→ DO NOT GUESS
+→ DO NOT PARTIALLY FIX
+→ DO NOT PROCEED until ambiguity is resolved by user
+
+---
+
+## PENDING POLICY
+
+PENDING items: DO NOT address unless explicitly instructed.
+Exception: P1 (default: [] additions) MAY be appended as a second commit
+  if Claude is already editing the same automation in which the omission exists.
+All other PENDING items: treat as read-only context.
 
 ---
 
 ## STEP 0 — REQUIRED BEFORE ANY EDIT
 
-State inline:
+1. Run `python3 tools/analyze_ha.py` — record existing error count as **baseline**
+2. State inline:
 ```
 Change type: <SENSOR|AUTOMATION|ENTITY rename|DASHBOARD snippet|CSV/reporting|ANALYZER|DOCUMENTATION>
 Impacted files: <list>
+Risk class: <LOW|MEDIUM|HIGH>
 ```
+New errors introduced beyond baseline = FAIL regardless of absolute count.
 
 ---
 
@@ -34,12 +78,35 @@ For all changes output ONLY:
 ```
 Change type: ...
 Impacted files: ...
+Risk class: LOW|MEDIUM|HIGH
 ```diff
-[minimal diff — changed lines only, no full file rewrites]
-analyzer: PASS|FAIL
+[minimal diff — unified format, changed lines only, ±3 lines context max]
 ```
-If no change needed: reply ONLY "NO CHANGE"
+analyzer: PASS|FAIL
+  PASS = zero NEW hard errors beyond baseline (warnings acceptable)
+  FAIL = list hard error lines; do not commit
+
+  Hard errors (block commit): missing entity, invalid template, trigger collision, unsafe shell_command
+  Soft warnings (do not block commit): missing default: [], non-critical availability gaps — log only
+```
+If no change needed: reply ONLY "NO CHANGE — [reason]"
 Never rewrite full files. Never explain unless asked.
+
+Diff discipline (no exceptions):
+- Touch only lines required by the change
+- DO NOT reorder YAML keys or blocks
+- DO NOT reformat unrelated sections
+- If diff contains unrelated lines → remove them or output NO CHANGE
+
+HIGH risk changes MUST additionally output BEFORE the diff:
+```
+Simulation:
+  Trigger: [what fires it]
+  Condition result: [PASS/FAIL + reason]
+  Action: [what executes]
+  Side effects: [any other entity written]
+  Race risk: [none | describe if present]
+```
 
 ---
 
@@ -119,6 +186,54 @@ choose block (REQUIRED default):
 
 ---
 
+## PROTECTED SYSTEMS — DO NOT MODIFY WITHOUT EXPLICIT REQUEST
+
+```
+EOD TIMING SEQUENCE        23:54:30–23:58:45 — frozen, no additions or shifts
+_2 suffix entities         10 sensors — entity registry artifacts — canonical IDs — DO NOT DELETE
+runtime_per_hdd alerts     notify_runtime_per_hdd_high/low — entity IDs hardcoded in message templates
+climate_norms calculations sensor.climate_norms_today + dependent sensors
+voltge entity              sensor.shelly_plus_uni_voltge — intentional typo — DO NOT CORRECT
+```
+
+---
+
+## CHANGE RISK CLASSIFICATION
+
+```
+LOW:    new sensor, no downstream dependencies, no automation logic
+MEDIUM: automation logic change, new helper, existing sensor modification
+HIGH:   EOD timing sequence, _2 suffix entities, shared accumulators,
+        alert thresholds, shell_command calls, state machine transitions
+```
+
+HIGH risk: simulation output block REQUIRED before diff (see §OUTPUT FORMAT)
+HIGH risk: run analyzer twice — before and after — report both counts
+
+---
+
+## DANGEROUS PATTERNS — AUTO-REJECT
+
+Reject and output NO CHANGE if edit would introduce any of:
+
+```
+- numeric_state trigger on raw live sensor (outdoor_temp_live, pirate_weather_*, voltge)
+  without `for:` debounce duration
+- template sensor without availability: guard
+- shell_command call without ha_maintenance_mode condition
+  (unless P2 explicitly unresolved — then flag only)
+- notify service call without explicit message payload
+- two automations writing same input_number simultaneously without sequencing
+- time trigger in EOD window 23:54:30–23:58:45
+- automation trigger ID already present anywhere in automations.yaml
+- direct state transition IDLE→RECOVERING in setback state machine
+  (valid sequence: IDLE→SETBACK_ACTIVE→RECOVERING→IDLE only)
+- EOD capture automation without variables: snapshot block
+- `| float` or `| int` without (0) default
+```
+
+---
+
 ## PRE-COMMIT CHECKLIST
 
 - [ ] `python3 tools/analyze_ha.py` — zero hard errors
@@ -133,6 +248,8 @@ choose block (REQUIRED default):
 - [ ] Multi-line Jinja2 uses `>` (strip newlines) or `|` (preserve) with 2-space indent
 - [ ] All triggers reachable; conditions not mutually exclusive; templates resolve on `unknown`
 - [ ] One logical change per commit
+- [ ] Automation trigger ID is globally unique — grep confirmed
+- [ ] No direct state machine jumps — setback sequence is IDLE→SETBACK_ACTIVE→RECOVERING→IDLE only
 
 ---
 
@@ -352,6 +469,21 @@ sensor.hvac_daily_total_cost_estimate
 input_boolean.ha_maintenance_mode                 PENDING CREATION — gate for all shell_command calls
 ```
 
+### UPS (DIY LiFePO4 — Shelly Plus Uni)
+```
+sensor.shelly_plus_uni_voltge                     [INTENTIONAL TYPO — DO NOT CORRECT] battery/bus voltage 0–30V
+sensor.shelly_plus_uni_temperature                DS18B20 ambient
+binary_sensor.shelly_plus_uni_input               grid power presence (Pololu diode input)
+```
+Note: UPS phase latch entity IDs (input_boolean.ups_*) to be added when HA integration commit lands.
+
+### POWER MONITORING (Kasa plugs)
+```
+switch.dehumidifier                               [already listed above]
+sensor.dehumidifier_current                       [already listed above]
+```
+Note: Computer Kasa plug entity IDs to be confirmed and added here before any cost/power automation edits.
+
 ---
 
 ## AUTOMATIONS INDEX
@@ -421,6 +553,20 @@ Rotate Setback Log Yearly       → shell_command.rotate_setback_log          [n
 
 ---
 
+## MONTHLY DATA ENTRY PROTOCOL
+
+Any gas / electric / DHW / bill entry MUST follow the engineering-monthly-update skill.
+Cross-repo sequencing is strict — never shortcut it.
+
+```
+NEVER edit HA input_number archives directly via YAML
+NEVER mix a monthly bill entry commit with any config or automation change
+ALWAYS use the documented button/automation paths (save_electric_bill_button, save_gas_bill_button, save_dhw_button)
+ALWAYS verify Therms→CCF conversion (×0.9643) before archiving DHW figures
+```
+
+---
+
 ## PENDING (incomplete — address in next update)
 
 ### P1 — Add `default: []` to 5 choose: blocks [LOW EFFORT]
@@ -452,10 +598,11 @@ Pattern: see §EOD TIMING SEQUENCE
 ## KNOWN ISSUES
 
 ```
-shell_command.testcmd           defined config.yaml:16 — never called — safe to remove
+shell_command.testcmd           defined config.yaml:16 — never called — PENDING explicit removal instruction (do not remove proactively)
 23:58:00 collision              archive_monthly_hdd + accumulate_filter_runtime — separate entities, no data risk
 _2 suffix entities              10 sensors — entity registry artifacts — canonical IDs — DO NOT DELETE
 notify_efficiency_degradation   DISABLED Feb 2026 — fixed threshold replaced by ±2σ
+sensor.shelly_plus_uni_voltge   intentional entity registry typo — `voltge` not `voltage` — DO NOT CORRECT anywhere
 ```
 
 ---
@@ -493,3 +640,19 @@ dashboards/cards/      Lovelace YAML snippets only
 .storage/              BLOCKED — HA-managed JSON — never edit
 scripts/               climate_norms_today.py, setback_csv.py
 ```
+
+---
+
+## MAINTAINING THIS FILE
+
+When a new guardrail, gotcha, or best practice is discovered during a session:
+
+```
+1. Add it to the appropriate section (NEVER / DANGEROUS PATTERNS / KNOWN ISSUES)
+2. Update §PENDING or §KNOWN ISSUES if it reveals an open item
+3. Commit as: docs: update CLAUDE.md — [one-line reason]
+4. If the rule is reusable across repos, extract it to the global skills.md instead
+```
+
+CLAUDE.md is a living document — it should get stricter over time, never looser.
+Any relaxation of a constraint requires explicit user instruction and a CHANGELOG entry.
