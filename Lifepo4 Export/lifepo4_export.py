@@ -2,13 +2,15 @@
 """
 lifepo4_export.py — Weekly LiFePO4 battery data export from HA recorder DB.
 
-Exports to /config/lifepo4_exports/ (accessible via Samba at \\homeassistant\config\lifepo4_exports\)
+Exports to /config/lifepo4_exports/ (accessible via Samba at \\\\homeassistant\\config\\lifepo4_exports\\)
 
 Outputs per run:
-  data/combined_output.csv          — appends new hourly voltage rows (DD/MM/YYYY format)
-  data/combined_temperature.csv     — appends new hourly temperature rows (°F)
-  data/combined_humidity.csv        — appends new hourly humidity rows (%)
-  data/high_freq_voltage/           — new weekly HF file (entity_id, voltage, last_changed UTC)
+  data/combined_output.csv          — appends new hourly voltage rows (DD/MM/YYYY format, local time)
+  data/combined_temperature.csv     — appends new hourly temperature rows (°F, local time)
+  data/combined_humidity.csv        — appends new hourly humidity rows (%, local time)
+  data/high_freq_voltage/           — new weekly HF file (entity_id, voltage, last_changed LOCAL time)
+
+All timestamps use HA Green local time (America/New_York, DST-aware).
 
 Run: python3 /config/scripts/lifepo4_export.py
 Called by shell_command.export_lifepo4_weekly every Sunday at 22:30.
@@ -21,6 +23,7 @@ import sys
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # ============================================================================
 # CONFIGURATION
@@ -29,6 +32,9 @@ from pathlib import Path
 DB_PATH     = "/config/home-assistant_v2.db"
 EXPORT_DIR  = Path("/config/lifepo4_exports/data")
 HF_DIR      = EXPORT_DIR / "high_freq_voltage"
+
+# HA Green local timezone — handles EST (UTC-5) and EDT (UTC-4) automatically
+HA_TZ = ZoneInfo("America/New_York")
 
 # Entity IDs — do not correct the 'voltge' typo, it is intentional
 VOLTAGE_ENTITY  = "sensor.shelly_plus_uni_voltge"
@@ -89,54 +95,29 @@ def query_states(cursor, metadata_id, since_ts):
 
 
 # ============================================================================
-# FILE HELPERS
+# TIMESTAMP HELPERS
 # ============================================================================
-
-def read_last_csv_timestamp(csv_path, date_col="Date", time_col="Time",
-                            date_fmt="%d/%m/%Y"):
-    """
-    Read the last Date+Time row from a DD/MM/YYYY HH:MM CSV.
-    Returns a UTC datetime or None if file doesn't exist / is empty.
-    """
-    if not csv_path.exists():
-        return None
-    try:
-        with open(csv_path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        if not rows:
-            return None
-        last = rows[-1]
-        dt_local = datetime.strptime(
-            f"{last[date_col]} {last[time_col]}", f"{date_fmt} %H:%M"
-        )
-        # Treat as local time (EST/EDT) — convert to UTC for DB comparison
-        # HA stores last_updated_ts as UTC Unix float
-        # Approximate: use system timezone (HA Green runs UTC or local)
-        # Safe conservative: subtract 6h to avoid missing rows at tz boundary
-        return dt_local.replace(tzinfo=timezone.utc) - timedelta(hours=6)
-    except Exception as e:
-        log.warning(f"Could not read last row from {csv_path}: {e}")
-        return None
-
 
 def ts_to_local_parts(ts_float):
     """
-    Convert Unix float timestamp to local (EST = UTC-5 / EDT = UTC-4) date/time parts.
-    Returns (date_str DD/MM/YYYY, hour_str HH:00).
-    HA Green is typically set to local time; use UTC-5 (EST) as conservative default.
-    Adjust UTC_OFFSET below if your HA Green is configured differently.
+    Convert Unix float timestamp to HA Green local time (America/New_York,
+    DST-aware). Returns (date_str DD/MM/YYYY, hour_str HH:00).
+
+    Matches the Date/Time columns in combined_output.csv, combined_temperature.csv,
+    and combined_humidity.csv.
     """
-    UTC_OFFSET = -5  # EST; change to -4 for EDT if needed, or read from HA config
-    dt_utc = datetime.fromtimestamp(ts_float, tz=timezone.utc)
-    dt_local = dt_utc + timedelta(hours=UTC_OFFSET)
+    dt_local = datetime.fromtimestamp(ts_float, tz=HA_TZ)
     return dt_local.strftime("%d/%m/%Y"), dt_local.strftime("%H:00")
 
 
-def ts_to_iso_utc(ts_float):
-    """Convert Unix float to ISO 8601 UTC string matching existing HF file format."""
-    dt = datetime.fromtimestamp(ts_float, tz=timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M:%S.%f+0000")
+def ts_to_local_iso(ts_float):
+    """
+    Convert Unix float to ISO 8601 local time string with UTC offset.
+    Format: YYYY-MM-DD HH:MM:SS.ffffff±HHMM  (e.g. 2025-03-01 18:45:12.345678-0500)
+    Used for the last_changed column in HF voltage files.
+    """
+    dt_local = datetime.fromtimestamp(ts_float, tz=HA_TZ)
+    return dt_local.strftime("%Y-%m-%d %H:%M:%S.%f%z")
 
 
 # ============================================================================
@@ -146,7 +127,7 @@ def ts_to_iso_utc(ts_float):
 def export_hf_voltage(cursor, metadata_id, since_ts, week_start, week_end):
     """
     Write a new weekly HF file: voltage_data_YYYY-MM-DD_to_YYYY-MM-DD.csv
-    Columns: entity_id, voltage, last_changed  (matches existing repo schema)
+    Columns: entity_id, voltage, last_changed  (local time, DST-aware)
     Keeps all raw readings including spikes — analysis script handles filtering.
     """
     rows = query_states(cursor, metadata_id, since_ts)
@@ -170,7 +151,7 @@ def export_hf_voltage(cursor, metadata_id, since_ts, week_start, week_end):
                 float(state_str)  # validate numeric
             except ValueError:
                 continue
-            writer.writerow([VOLTAGE_ENTITY, state_str, ts_to_iso_utc(ts)])
+            writer.writerow([VOLTAGE_ENTITY, state_str, ts_to_local_iso(ts)])
             written += 1
 
     log.info(f"HF export: {written} records → {filename}")
@@ -184,6 +165,7 @@ def export_hf_voltage(cursor, metadata_id, since_ts, week_start, week_end):
 def build_hourly_aggregates(rows, value_min=None, value_max=None):
     """
     Aggregate (state_str, ts_float) rows into hourly min/max buckets.
+    Timestamps are bucketed by HA Green local hour (America/New_York, DST-aware).
     Returns dict keyed by (date_str DD/MM/YYYY, hour_str HH:00) → (min_val, max_val).
     """
     buckets = {}
@@ -206,11 +188,16 @@ def build_hourly_aggregates(rows, value_min=None, value_max=None):
     return buckets
 
 
-def append_hourly_csv(csv_path, header, new_rows, cutoff_dt=None):
+def _bucket_sort_key(item):
+    """Sort key for hourly bucket items: parses DD/MM/YYYY HH:00 into a datetime."""
+    (date_str, hour_str), _ = item
+    return datetime.strptime(f"{date_str} {hour_str}", "%d/%m/%Y %H:%M")
+
+
+def append_hourly_csv(csv_path, header, new_rows):
     """
     Append new_rows to csv_path, skipping rows already present (by date+time key).
     new_rows: list of dicts with keys matching header.
-    cutoff_dt: UTC datetime — skip rows older than this.
     Returns count of rows written.
     """
     # Read existing keys to avoid duplicates
@@ -242,7 +229,7 @@ def export_hourly_voltage(cursor, metadata_id, since_ts, csv_path):
 
     sorted_rows = [
         {"Date": d, "Time": t, "Min": round(mn, 3), "Max": round(mx, 3)}
-        for (d, t), (mn, mx) in sorted(buckets.items())
+        for (d, t), (mn, mx) in sorted(buckets.items(), key=_bucket_sort_key)
     ]
     n = append_hourly_csv(csv_path, ["Date", "Time", "Min", "Max"], sorted_rows)
     log.info(f"Hourly voltage: {n} new rows appended → {csv_path.name}")
@@ -255,7 +242,7 @@ def export_hourly_sensor(cursor, metadata_id, since_ts, csv_path, value_col):
     buckets = build_hourly_aggregates(rows)
 
     sorted_rows = []
-    for (d, t), (mn, mx) in sorted(buckets.items()):
+    for (d, t), (mn, mx) in sorted(buckets.items(), key=_bucket_sort_key):
         row = {"Date": d, "Time": t}
         row["Min"] = round(mn, 2)
         row["Max"] = round(mx, 2)
@@ -274,6 +261,11 @@ def main():
     log.info("=" * 60)
     log.info("LiFePO4 weekly export starting")
 
+    # Log the active local timezone offset for diagnostic confirmation
+    now_local = datetime.now(HA_TZ)
+    utc_offset = now_local.strftime("%Z %z")  # e.g. "EST -0500" or "EDT -0400"
+    log.info(f"HA Green local timezone: America/New_York  ({utc_offset})")
+
     # Create output directories
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     HF_DIR.mkdir(parents=True, exist_ok=True)
@@ -283,12 +275,12 @@ def main():
     since_dt = now_utc - timedelta(days=EXPORT_DAYS)
     since_ts = since_dt.timestamp()
 
-    # Week boundary strings for HF filename
-    week_start = (now_utc - timedelta(days=6)).strftime("%Y-%m-%d")
-    week_end   = now_utc.strftime("%Y-%m-%d")
+    # Week boundary strings for HF filename (local date, not UTC)
+    week_start = (now_local - timedelta(days=6)).strftime("%Y-%m-%d")
+    week_end   = now_local.strftime("%Y-%m-%d")
 
     log.info(f"Query window: {since_dt.strftime('%Y-%m-%d %H:%M UTC')} → now")
-    log.info(f"HF file will cover: {week_start} to {week_end}")
+    log.info(f"HF file will cover: {week_start} to {week_end}  (local dates)")
 
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -305,12 +297,12 @@ def main():
             log.error("Check entity IDs in script CONFIGURATION block")
             sys.exit(1)
 
-        # 1 — HF voltage file (weekly, new file each run)
+        # 1 — HF voltage file (weekly, new file each run, local timestamps)
         hf_count = export_hf_voltage(
             cursor, v_meta, since_ts, week_start, week_end
         )
 
-        # 2 — Hourly voltage (append to combined_output.csv)
+        # 2 — Hourly voltage (append to combined_output.csv, local time buckets)
         export_hourly_voltage(
             cursor, v_meta, since_ts,
             EXPORT_DIR / "combined_output.csv"
