@@ -10,11 +10,14 @@
 5. Strict separation — monthly data updates NEVER mixed with config/automation changes
 ```
 
----
-
 ## CONSTRAINTS
 
-NEVER infer entity IDs from patterns — use only IDs listed in §ENTITIES
+Entity ID rules:
+  Listed in §ENTITIES → use verbatim — no expansion, no inference
+  NOT in §ENTITIES → expansion allowed ONLY IF:
+    grep confirms exact match in config/automations AND no _2 variant exists for that base name
+    → flag for §ENTITIES addition in same commit
+  _2 FRAGILE entities → always use listed ID exactly — no substitution ever
 NEVER edit .storage/* — corrupts dashboards unrecoverably
 NEVER overwrite/truncate CSV files — append/rotate only
 NEVER add time triggers between 23:54:30–23:58:45
@@ -34,8 +37,6 @@ MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard (§SYSTEM STATE P2)
   → While P2 unresolved: flag ⚠ P2 UNRESOLVED in diff header; proceed only if user says "proceed" in current turn
 MUST update §ENTITIES + CHANGELOG.md in same commit as any new entity
-
----
 
 ## EXECUTION PROTOCOL
 
@@ -64,17 +65,22 @@ Simulation:
 
 Hard errors (block commit): missing entity, invalid template, trigger collision, unsafe shell_command, missing default: []
 Never rewrite full files. Touch only lines required by the change.
-If no change needed: reply ONLY `NO CHANGE — [reason]`
-
----
+If no change needed: NO CHANGE — [reason] + optional ANALYSIS block (see §FAIL-CLOSED)
 
 ## FAIL-CLOSED
 
 If any CONSTRAINT is violated, requirement is ambiguous, or cannot be resolved from CLAUDE.md alone:
-→ `NO CHANGE — [reason]`
-→ No partial fixes. No guessing. Wait for user resolution.
+→ NO CHANGE — [reason]
 
----
+ANALYSIS block — always permitted after NO CHANGE, never executes, never modifies files:
+```
+NO CHANGE — [reason]
+
+ANALYSIS (non-executing):
+  Observed:  [what triggered the block]
+  Cause:     [likely root cause]
+  Fix:       [exact instruction that would unblock this]
+```
 
 ## EOD TIMING SEQUENCE — FROZEN
 
@@ -89,18 +95,15 @@ If any CONSTRAINT is violated, requirement is ambiguous, or cannot be resolved f
 23:58:30  csv_monthly_report (last day of month only)
 ```
 
-RULE: 23:56:30 is immovable — all month sensors depend on `monthly_tracking_capture_last_ok`
-RULE: New month accumulators → add to `capture_daily_monthly_tracking`, NOT `capture_daily_hdd`
-RULE: EOD automations MUST use `variables:` block — FROZEN = trigger times only; adding logic/entities permitted if variables: block present or added in same commit
-RULE: Exception — accumulate_filter_runtime: accumulator pattern; live read of sensor.hvac_total_heat_runtime_today is intentional; variables: not required
+RULES:
+  23:56:30 immovable — all month sensors depend on monthly_tracking_capture_last_ok
+  New month accumulators → capture_daily_monthly_tracking only (NOT capture_daily_hdd)
+  EOD automations MUST use variables: block; adding logic/entities permitted if block present or added same commit
+  Exception — accumulate_filter_runtime: live read intentional; variables: not required
 
----
+## NEW SENSOR TEMPLATE
 
-## DANGEROUS PATTERNS
-
-Any edit violating §CONSTRAINTS or §PROJECT GOALS triggers automatic `NO CHANGE` — do not proceed.
-
-Required pattern for new sensors — use verbatim:
+Required pattern — use verbatim:
 
 ```yaml
 - name: "Sensor Name"
@@ -109,8 +112,6 @@ Required pattern for new sensors — use verbatim:
     {% set v = states('sensor.source') %}
     {{ v | float(0) if v not in ['unknown','unavailable','none',''] else 0 }}
 ```
-
----
 
 ## SYSTEM STATE
 
@@ -135,15 +136,12 @@ P1 exception: address automatically when editing either automation ID above.
 ### Known Issues
 ```
 shell_command.testcmd        config.yaml:16 — never called — do not remove proactively
-23:58:00 collision           archive_monthly_hdd + accumulate_filter_runtime — documented, no data risk
-                             FAIL-CLOSED if any new concurrent write added without explicit documentation
+23:58:00 collision           archive_monthly_hdd + accumulate_filter_runtime — FAIL-CLOSED if new concurrent write added without documentation
 _2 suffix entities           8 confirmed canonical IDs — DO NOT DELETE (full audit of "10 sensors" claim incomplete)
 duplicate trigger IDs        reset_monthly_hdd + reset_yearly_hdd both define id: scheduled and id: startup
                              fix required before next edit to either automation
 voltge typo                  sensor.shelly_plus_uni_voltge — intentional entity registry typo — DO NOT CORRECT
 ```
-
----
 
 ## ENTITIES
 
@@ -372,8 +370,6 @@ binary_sensor.shelly_plus_uni_input               grid power presence (Pololu di
 Note: input_boolean.ups_* IDs pending confirmation — do not reference in any automation until listed here.
 Note: Computer Kasa plug entity IDs pending confirmation — do not infer or fabricate.
 
----
-
 ## MONTHLY DATA ENTRY PROTOCOL
 
 Any gas / electric / DHW / bill entry MUST follow the engineering-monthly-update skill.
@@ -382,8 +378,6 @@ Any gas / electric / DHW / bill entry MUST follow the engineering-monthly-update
 ALWAYS use button/automation paths: input_button.save_electric_bill, input_button.save_gas_bill, input_button.save_dhw
 ALWAYS verify Therms→CCF conversion (×0.9643) before archiving DHW figures
 ```
-
----
 
 ## FILE MAP
 ```
