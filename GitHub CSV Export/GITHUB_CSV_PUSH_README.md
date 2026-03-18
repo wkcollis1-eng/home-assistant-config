@@ -62,7 +62,7 @@ data trail and complement (not replace) the `data/` files.
 | `reports/hvac_monthly.csv` | `homeassistant/reports/hvac_monthly.csv` | `appendmonthlycsv` (last day, 23:58:30) |
 | `reports/hvac_setback_log.csv` | `homeassistant/reports/hvac_setback_log.csv` | `appendsetbacklog_1f/2f` (event-driven) |
 | `reports/input_number_backup.csv` | `homeassistant/reports/input_number_backup.csv` | `backup_input_numbers` (weekly) |
-| `reports/utility_monthly.csv` | `homeassistant/reports/utility_monthly.csv` | `appendutilitymonthlycsv` (last day, 23:59:00) |
+| `reports/utility_monthly.csv` | `homeassistant/reports/utility_monthly.csv` | `appendutilitymonthlycsv` (2nd of month, 10:00 AM) |
 
 ---
 
@@ -73,23 +73,23 @@ available in HA.  Complements the billing-cycle-precise `data/` files.
 
 | Column | Source entity | Unit | Notes |
 |--------|--------------|------|-------|
-| `month` | `now().strftime('%Y-%m')` | YYYY-MM | Calendar month |
+| `month` | `(now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m')` | YYYY-MM | Previous calendar month (run on 2nd) |
 | `gas_ccf` | `input_number.gas_bill_ccf` | CCF | Total gas this bill |
 | `gas_cost` | `input_number.gas_bill_amount` | $ | Total gas charges |
 | `gas_days` | `input_number.gas_bill_days` | days | Billing period length |
 | `elec_kwh` | `input_number.electricity_bill_kwh` | kWh | Total electricity this bill |
 | `elec_cost` | `input_number.electricity_bill_amount` | $ | Total electricity charges |
 | `elec_days` | `input_number.electricity_bill_days` | days | Billing period length |
-| `dhw_thm` | `input_number.dhw_bill_thm` | Thm | Navien NaviLink reading, prior month |
-| `hdd65` | `input_number.hdd_cumulative_month_auto` | °F-days | Month HDD accumulator |
-| `cdd65` | `input_number.cdd_cumulative_month_auto` | °F-days | Month CDD accumulator |
-| `furnace_hrs` | `sensor.hvac_furnace_runtime_month_2` | hrs | Total furnace runtime |
-| `heat_1f_hrs` | `input_number.zone_1f_runtime_month_acc` | hrs | 1F heating zone runtime |
-| `heat_2f_hrs` | `input_number.zone_2f_runtime_month_acc` | hrs | 2F heating zone runtime |
+| `dhw_thm` | `input_number.dhw_bill_thm` | Thm | Navien NaviLink reading, entered on 1st |
+| `hdd65` | `input_number.snapshot_hdd_month` | °F-days | Snapshotted at 23:58:45, last day |
+| `cdd65` | `input_number.snapshot_cdd_month` | °F-days | Snapshotted at 23:58:45, last day |
+| `furnace_hrs` | `input_number.snapshot_furnace_hrs_month` | hrs | Snapshotted from `furnace_runtime_month_acc` |
+| `heat_1f_hrs` | `input_number.snapshot_heat_1f_hrs_month` | hrs | Snapshotted from `zone_1f_runtime_month_acc` |
+| `heat_2f_hrs` | `input_number.snapshot_heat_2f_hrs_month` | hrs | Snapshotted from `zone_2f_runtime_month_acc` |
 | `cool_1f_hrs` | *(stub — 0)* | hrs | **Not yet implemented** — see below |
 | `cool_2f_hrs` | *(stub — 0)* | hrs | **Not yet implemented** — see below |
-| `heating_eff_ccf_per_1k_hdd` | `sensor.hvac_heating_efficiency_mtd` | CCF/1kHDD | Month-to-date heating intensity |
-| `efficiency_deviation_pct` | `sensor.efficiency_deviation_month` | % | vs. expected runtime |
+| `heating_eff_ccf_per_1k_hdd` | `input_number.snapshot_heating_eff_month` | CCF/1kHDD | Snapshotted from `sensor.hvac_heating_efficiency_mtd` |
+| `efficiency_deviation_pct` | `input_number.snapshot_efficiency_dev_month` | % | Snapshotted from `sensor.efficiency_deviation_month` |
 
 ### Cooling columns (future work)
 
@@ -120,16 +120,26 @@ The schema is already stable; no column additions or CSV migrations needed.
 ## End-of-Month Timing
 
 ```
-23:55:00  EOD capture sequence begins
-23:56:30  HDD/CDD accumulators captured (capture_daily_monthly_tracking)
-23:57:00  appenddailycsv
-23:58:30  appendmonthlycsv           (last day of month only)
-23:59:00  appendutilitymonthlycsv    (last day of month only)  ← 30 s margin
-─────────────────────────────────────────────────────────────
-02:00:00  push_csv_to_github         (all five files → GitHub)
+Last day of month:
+  23:55:00  EOD capture sequence begins
+  23:56:30  HDD/CDD/zone accumulators captured (capture_daily_monthly_tracking)
+  23:57:00  appenddailycsv
+  23:58:30  appendmonthlycsv
+  23:58:45  snapshot_utility_month      ← saves 7 accumulators to snapshot entities
+
+1st of month:
+  00:01:00  reset_monthly_hdd           ← zeros all accumulators (snapshots safe)
+  evening   user enters dhw_bill_thm from NaviLink
+
+2nd of month:
+  10:00:00  appendutilitymonthlycsv     ← reads snapshots + billing + dhw_bill_thm
+─────────────────────────────────────────────────────────────────────────────
+daily:
+  02:00:00  push_csv_to_github          ← all five files → GitHub
 ```
 
-All five files are consistently written before the 02:00 AM push.
+`utility_monthly.csv` is written on the 2nd and picked up by the next
+02:00 AM push. All other files are current every morning.
 
 ---
 
@@ -153,19 +163,24 @@ Inside the existing `shell_command:` block in `configuration.yaml`
 ```yaml
   appendutilitymonthlycsv: >-
     python3 /config/scripts/csv_manager.py append_utility_monthly --data '{
-      "month":                      "{{ now().strftime('%Y-%m') }}",
+      "month":                      "{{ (now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m') }}",
       "gas_ccf":                    {{ states('input_number.gas_bill_ccf')              | float(0) }},
       ...
+      "hdd65":                      {{ states('input_number.snapshot_hdd_month')        | float(0) }},
+      "furnace_hrs":                {{ states('input_number.snapshot_furnace_hrs_month')| float(0) }},
       "cool_1f_hrs":                0,
       "cool_2f_hrs":                0,
       ...
     }'
 ```
 
-### 3 — Add the automation
+### 3 — Add both automations
 
-Paste the `append_utility_monthly_csv` block from `utility_monthly_ha_snippets.yaml`
-into `automations.yaml`.  It fires at 23:59:00 on the last day of each month.
+Paste both the `snapshot_utility_month` and `append_utility_monthly_csv` blocks
+from `utility_monthly_ha_snippets.yaml` into `automations.yaml`.
+`snapshot_utility_month` fires at 23:58:45 on the last day of the month to
+preserve accumulator values before the 00:01 reset.  `append_utility_monthly_csv`
+fires at 10:00 AM on the 2nd — after the reset and after DHW has been entered.
 
 ### 4 — Add `utility_monthly.csv` to the push script
 
@@ -213,7 +228,7 @@ github_token: ghp_REPLACE_WITH_YOUR_ACTUAL_TOKEN
 | `utility_monthly.csv` not created | `csv_manager.py` not updated | Confirm `append_utility_monthly` subcommand is present |
 | Row for month already exists, skipping | Manual test run earlier in month | Expected — duplicate guard is working correctly |
 | `cool_1f_hrs` / `cool_2f_hrs` always 0 | Cooling sensors not yet implemented | Expected until cooling tracking is added |
-| `dhw_thm` is 0 | `input_number.dhw_bill_thm` not entered yet | Enter Navien reading before month-end trigger |
+| `dhw_thm` is 0 | `input_number.dhw_bill_thm` not entered yet | Enter Navien reading on the 1st before 10:00 AM on the 2nd |
 | File not pushed to GitHub | See `push_csv_to_github` troubleshooting | Check HA log for `[push_csv_to_github]` entries |
 
 ---
