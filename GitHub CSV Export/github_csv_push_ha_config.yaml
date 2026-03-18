@@ -35,10 +35,12 @@ shell_command:
   alias: "Push CSV reports to GitHub (Baseline Repo)"
   description: >
     Uploads reports/hvac_daily_YYYY.csv, hvac_monthly.csv,
-    hvac_setback_log.csv, and input_number_backup.csv to
+    hvac_setback_log.csv, input_number_backup.csv, and utility_monthly.csv to
     homeassistant/reports/ in wkcollis1-eng/Residential-HVAC-Performance-Baseline-
     @main via the GitHub REST API.
     Runs at 02:00 AM — hours after EOD CSV writes finish.
+    utility_monthly.csv is written on the 2nd of each month and picked up
+    by the next 02:00 AM run.
   trigger:
     - platform: time
       at: "02:00:00"
