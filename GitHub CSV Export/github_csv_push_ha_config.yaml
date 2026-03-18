@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# STEP 1 — secrets.yaml
+# Add this line (one-time setup).  Generate a classic PAT at:
+#   https://github.com/settings/tokens
+# Required scope: repo  (or fine-grained: Contents read/write on
+#   Residential-HVAC-Performance-Baseline- only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# secrets.yaml  (DO NOT commit this file to GitHub)
+github_token: ghp_REPLACE_WITH_YOUR_ACTUAL_TOKEN
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STEP 2 — configuration.yaml  (add inside the existing shell_command: block)
+# ══════════════════════════════════════════════════════════════════════════════
+
+shell_command:
+  # ... your existing shell_commands ...
+
+  # ── GitHub CSV push ──────────────────────────────────────────────
+  # Pushes reports/*.csv to homeassistant/reports/ in the
+  # Residential-HVAC-Performance-Baseline- repo via the REST API.
+  # Token is injected as an environment variable — never logged.
+  push_csv_to_github: >-
+    env GITHUB_TOKEN='{{ token }}'
+    python3 /config/scripts/push_csv_to_github.py
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STEP 3 — automations.yaml  (paste this block)
+# Fires at 02:00 AM daily — safely clear of all 23:57–23:59 EOD CSV writes.
+# ══════════════════════════════════════════════════════════════════════════════
+
+- id: push_csv_to_github_daily
+  alias: "Push CSV reports to GitHub (Baseline Repo)"
+  description: >
+    Uploads reports/hvac_daily_YYYY.csv, hvac_monthly.csv,
+    hvac_setback_log.csv, and input_number_backup.csv to
+    homeassistant/reports/ in wkcollis1-eng/Residential-HVAC-Performance-Baseline-
+    @main via the GitHub REST API.
+    Runs at 02:00 AM — hours after EOD CSV writes finish.
+  trigger:
+    - platform: time
+      at: "02:00:00"
+  condition: []
+  action:
+    - alias: "Push CSV files to GitHub baseline repo"
+      service: shell_command.push_csv_to_github
+      data:
+        token: !secret github_token
+  mode: single
