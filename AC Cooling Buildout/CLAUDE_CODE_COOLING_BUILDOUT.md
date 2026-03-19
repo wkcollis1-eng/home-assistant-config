@@ -240,6 +240,31 @@ Add after `zone_2f_cycles_month_acc` block (around line 806). Follow the exact s
     icon: mdi:home-floor-2
 ```
 
+Also add yearly accumulators. The monthly accumulators above reset on the 1st of each month (Step 8). Yearly accumulators persist until Jan 1, giving a full-season total that survives the monthly resets. Only compressor-level yearly tracking is needed — zone-level yearly is not tracked on the heating side and is not required here:
+
+```yaml
+  # === AC COOLING YEARLY ACCUMULATORS ===
+  # Reset Jan 1 by reset_yearly_hdd. Updated nightly alongside monthly tracking.
+
+  ac_runtime_year_acc:
+    name: "AC Runtime Year Accumulated"
+    min: 0
+    max: 10000
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:air-conditioner
+
+  ac_cycles_year_acc:
+    name: "AC Cycles Year Accumulated"
+    min: 0
+    max: 50000
+    step: 1
+    unit_of_measurement: "cycles"
+    mode: box
+    icon: mdi:counter
+```
+
 Also add the SPC seed values. These are the fallback for mean and std dev while the `runtime_per_cdd_day_1..7` window is still populating (first 3–7 days of cooling operation). Once the window has real data the template sensors compute live values automatically — seeds remain as the fallback for any future window drain (e.g., extended HA outage). Add alongside the other SPC-related input_numbers:
 
 ```yaml
@@ -451,13 +476,16 @@ Add in the template sensor block, logically grouped after the existing heating d
           {{ valid | sum | round(1) }}
 
       # Runtime/CDD 7-day rolling (mirrors runtime_per_hdd_7_day)
+      # IMPORTANT: numerator uses hvac_ac_runtime_week (7-day history_stats sensor),
+      # NOT hvac_ac_runtime_today — dividing one day of runtime by seven days of CDD
+      # would chronically underreport and break comparability with the heating baseline.
       - name: "HVAC Runtime per CDD 7-Day"
         unique_id: hvac_runtime_per_cdd_7_day
         unit_of_measurement: "min/CDD"
         state_class: measurement
         icon: mdi:sun-thermometer
         state: >
-          {% set rt_min = states('sensor.hvac_ac_runtime_today') | float(0) * 60 %}
+          {% set rt_min = states('sensor.hvac_ac_runtime_week') | float(0) * 60 %}
           {% set cdd_7 = states('sensor.cdd_rolling_7_day_auto') | float(0) %}
           {% if cdd_7 > 0 %}
             {{ (rt_min / cdd_7) | round(1) }}
@@ -948,11 +976,13 @@ Add after `capture_daily_runtime_per_hdd`. Mirrors it exactly.
     name: "CDD Capture Last OK"
     has_date: true
     has_time: true
+    icon: mdi:check-circle
 
   runtime_per_cdd_capture_last_ok:
     name: "Runtime/CDD Capture Last OK"
     has_date: true
     has_time: true
+    icon: mdi:check-circle
 ```
 
 ---
@@ -978,6 +1008,9 @@ This is the most complex change. Three additions are needed to the existing `cap
         zone_2f_cool_runtime_acc: "{{ states('input_number.zone_2f_cool_runtime_month_acc') | float(0) }}"
         zone_1f_cool_cycles_acc: "{{ states('input_number.zone_1f_cool_cycles_month_acc') | int(0) }}"
         zone_2f_cool_cycles_acc: "{{ states('input_number.zone_2f_cool_cycles_month_acc') | int(0) }}"
+        # AC cooling yearly accumulators
+        ac_runtime_year_acc: "{{ states('input_number.ac_runtime_year_acc') | float(0) }}"
+        ac_cycles_year_acc: "{{ states('input_number.ac_cycles_year_acc') | int(0) }}"
 ```
 
 ### 7b. Add accumulator update steps (after the existing zone_2f_cycles_month_acc update, before the expected_runtime_sum step)
@@ -1014,6 +1047,17 @@ This is the most complex change. Three additions are needed to the existing `cap
         entity_id: input_number.zone_2f_cool_cycles_month_acc
       data:
         value: "{{ zone_2f_cool_cycles_acc + zone_2f_cool_cycles_today }}"
+    # ── AC cooling yearly accumulators ───────────────────────────
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_year_acc
+      data:
+        value: "{{ (ac_runtime_year_acc + ac_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_year_acc
+      data:
+        value: "{{ ac_cycles_year_acc + ac_cycles_today }}"
 ```
 
 ### 7c. Update the system_log.write message to include AC runtime
@@ -1024,7 +1068,7 @@ Append `, AC={{ ac_runtime_today }}h` to the existing log message so cooling dat
 
 ## Step 8 — Modify reset_monthly_hdd (automations.yaml)
 
-Add AC accumulator resets alongside the furnace/zone heat resets. Insert after `zone_2f_cycles_month_acc` reset:
+Add AC accumulator resets alongside the furnace/zone heat resets. Insert after `zone_2f_cycles_month_acc` reset. Also update the existing `system_log.write` message at the end of the action to reflect that AC accumulators are now included — change `"Monthly HDD/CDD and furnace accumulators reset completed"` to `"Monthly HDD/CDD, furnace, and AC cooling accumulators reset completed"`:
 
 ```yaml
     # Reset AC cooling monthly accumulators
@@ -1061,6 +1105,22 @@ Add AC accumulator resets alongside the furnace/zone heat resets. Insert after `
 ```
 
 Apply the same additions to `reset_yearly_hdd` if AC data is also tracked on a yearly basis (recommended — add yearly accumulators if desired, following the same pattern as `hdd_cumulative_year_auto`).
+
+Add these resets to `reset_yearly_hdd` alongside the existing `hdd_cumulative_year_auto` and `cdd_cumulative_year_auto` resets:
+
+```yaml
+    # Reset AC cooling yearly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_year_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_year_acc
+      data:
+        value: 0
+```
 
 ---
 
@@ -1109,7 +1169,14 @@ Add to the backup JSON after the existing `z2f_cy_acc` line:
       "cdd_d6": {{ states('input_number.cdd_day_6') | float(0) }},
       "cdd_d7": {{ states('input_number.cdd_day_7') | float(0) }},
       "cdd_seed_mean": {{ states('input_number.runtime_per_cdd_seed_mean') | float(0) }},
-      "cdd_seed_stddev": {{ states('input_number.runtime_per_cdd_seed_stddev') | float(0) }}
+      "cdd_seed_stddev": {{ states('input_number.runtime_per_cdd_seed_stddev') | float(0) }},
+      "rpc_d1": {{ states('input_number.runtime_per_cdd_day_1') | float(0) }},
+      "rpc_d2": {{ states('input_number.runtime_per_cdd_day_2') | float(0) }},
+      "rpc_d3": {{ states('input_number.runtime_per_cdd_day_3') | float(0) }},
+      "rpc_d4": {{ states('input_number.runtime_per_cdd_day_4') | float(0) }},
+      "rpc_d5": {{ states('input_number.runtime_per_cdd_day_5') | float(0) }},
+      "rpc_d6": {{ states('input_number.runtime_per_cdd_day_6') | float(0) }},
+      "rpc_d7": {{ states('input_number.runtime_per_cdd_day_7') | float(0) }}
 ```
 
 ---
@@ -1157,7 +1224,69 @@ Locate `accumulate_filter_runtime` (~line 1065). Change the condition and value 
 
 Add alongside the existing `notify_hdd_capture_stale` and `notify_runtime_per_hdd_capture_stale` automations. Mirrors them exactly — only names, IDs, entity references, and messages differ.
 
+Also add the three **alert** notifications that mirror `notify_short_cycling_furnace`, `notify_runtime_per_hdd_high`, and `notify_runtime_per_hdd_low`. The binary sensors for these are defined in Step 4c but without notify automations they will only appear as silent Lovelace problems — no persistent notifications will fire.
+
 ```yaml
+- id: notify_ac_short_cycling
+  alias: "Notify AC Short Cycling"
+  description: "Alert when AC compressor is short cycling (<8 min/cycle)"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_ac_short_cycling_alert
+      to: "on"
+      for:
+        minutes: 15
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "AC Short Cycling Alert"
+        message: >
+          AC compressor is short cycling: {{ states('sensor.hvac_ac_min_per_cycle') }} min/cycle
+          (threshold: 8 min). Cycles today: {{ states('sensor.hvac_ac_cycles_today') }}.
+          Check refrigerant charge, filter, and thermostat settings.
+        notification_id: ac_short_cycling
+
+- id: notify_runtime_per_cdd_high
+  alias: "Notify Runtime per CDD High"
+  description: "Alert when runtime/CDD 7-day ratio exceeds mean+2σ upper bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_high_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD High Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          exceeds upper bound {{ states('sensor.hvac_runtime_per_cdd_upper_bound') }} (mean + 2σ).
+          Possible causes: dirty filter, low refrigerant, high humidity load, or degraded equipment.
+        notification_id: runtime_per_cdd_high
+
+- id: notify_runtime_per_cdd_low
+  alias: "Notify Runtime per CDD Low"
+  description: "Alert when runtime/CDD 7-day ratio falls below mean-2σ lower bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_low_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD Low Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          is below lower bound {{ states('sensor.hvac_runtime_per_cdd_lower_bound') }} (mean - 2σ).
+          Possible causes: very low humidity, sensor fault, or unusually efficient conditions.
+        notification_id: runtime_per_cdd_low
+
 - id: notify_cdd_capture_stale
   alias: "Notify CDD Capture Stale"
   description: "Alert when CDD sliding window capture has not succeeded in 26+ hours"
@@ -1215,7 +1344,95 @@ No conflicts. CDD window capture runs 15 seconds after HDD, runtime/CDD capture 
 
 ---
 
-## New Entity Reference List
+## Step 12 — Update HVAC Daily Electric Cost Estimate (configuration.yaml)
+
+**Verified gap:** `sensor.hvac_daily_electric_cost_estimate` (line ~2304 of configuration.yaml) uses only `sensor.hvac_furnace_runtime_today` with `blower_kw = 0.5`. During cooling season the AC condenser is the dominant load — this sensor will read near $0 all summer and the downstream `sensor.hvac_daily_total_cost_estimate` will under-report accordingly.
+
+**Two corrections in this step — not one:**
+
+1. **`blower_kw` is wrong for heating too.** The existing template hardcodes `blower_kw = 0.5`, but SYSTEM_SPECIFICATIONS.md documents a measured draw of **0.21 kW** during heating operation (Vortica II ECM motor). The 0.5 kW figure is 2.4× the actual draw, meaning the heating electricity cost estimate has been overstated since deployment. Correct it here.
+
+2. **`condenser_kw` from primary source.** SYSTEM_SPECIFICATIONS.md documents a measured steady-state outdoor unit draw of **4.9 kW** (American Standard Silver 14, 4-ton). Use this directly — bottom-up derivation from billing data is not viable because the dehumidifier and AC are concurrent summer loads that cannot be separated without circuit-level monitoring (Fusion Energy CT system, planned but not yet installed).
+
+Add `input_number.ac_condenser_kw` to the `input_number:` section alongside the other system constants:
+
+```yaml
+  ac_condenser_kw:
+    name: "AC Condenser Power Draw"
+    min: 0
+    max: 10
+    step: 0.1
+    initial: 4.9
+    mode: box
+    unit_of_measurement: "kW"
+    icon: mdi:air-conditioner
+```
+
+Then replace the existing `hvac_daily_electric_cost_estimate` template sensor with:
+
+```yaml
+      # Uses furnace blower runtime (heating) + AC compressor runtime (cooling)
+      # blower_kw = 0.21: measured ECM draw per SYSTEM_SPECIFICATIONS.md (corrected from 0.5)
+      # condenser_kw drawn from input_number: 4.9 kW measured steady-state per SYSTEM_SPECIFICATIONS.md
+      # AC total = blower + condenser (blower runs during both heat and cool calls)
+      - name: "HVAC Daily Electric Cost Estimate"
+        unique_id: hvac_daily_electric_cost_estimate
+        unit_of_measurement: "$"
+        state_class: measurement
+        icon: mdi:currency-usd
+        state: >
+          {% set heat_runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set ac_runtime = states('sensor.hvac_ac_runtime_today') | float(0) %}
+          {% set blower_kw = 0.21 %}
+          {% set condenser_kw = states('input_number.ac_condenser_kw') | float(4.9) %}
+          {% set elec_rate = states('sensor.electricity_effective_rate') | float(0.27) %}
+          {% set heat_cost = heat_runtime * blower_kw * elec_rate %}
+          {% set ac_cost = ac_runtime * (blower_kw + condenser_kw) * elec_rate %}
+          {{ (heat_cost + ac_cost) | round(2) }}
+```
+
+**Note on future calibration:** The 4.9 kW figure is a steady-state measurement from SYSTEM_SPECIFICATIONS.md — it is the best available primary source until the Fusion Energy CT monitoring system is installed. At that point, verify against actual circuit data and update `input_number.ac_condenser_kw` via Developer Tools if needed. The `| float(4.9)` fallback in the template ensures the sensor remains functional even if the input_number entity is temporarily unavailable.
+
+---
+
+## Step 13 — Update Daily HVAC Summary Automation (automations.yaml)
+
+**Verified gap:** `daily_hvac_summary` (line ~876 of automations.yaml) has condition `{{ states('sensor.hvac_hdd65_today') | float(0) > 0 }}`. On any day where HDD = 0 (every day from roughly May through September in CT), the automation is silently suppressed — no evening summary fires for the entire cooling season.
+
+Replace the existing `daily_hvac_summary` automation with:
+
+```yaml
+- id: daily_hvac_summary
+  alias: "Daily HVAC Summary"
+  trigger:
+    - platform: time
+      at: "22:00:00"
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('sensor.hvac_hdd65_today') | float(0) > 0 or
+           states('sensor.hvac_cdd65_today') | float(0) > 0 }}
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "📊 Daily HVAC Summary"
+        message: >
+          {% if states('sensor.hvac_hdd65_today') | float(0) > 0 %}
+          🔥 Heating: HDD={{ states('sensor.hvac_hdd65_today') }}
+          Runtime={{ states('sensor.hvac_total_heat_runtime_today') }}h
+          {% endif %}
+          {% if states('sensor.hvac_cdd65_today') | float(0) > 0 %}
+          ❄️ Cooling: CDD={{ states('sensor.hvac_cdd65_today') }}
+          AC Runtime={{ states('sensor.hvac_ac_runtime_today') }}h
+          {% endif %}
+          Zone Balance: {{ states('sensor.hvac_zone_balance_ratio_today') }}%
+```
+
+**Note:** The condition now passes on any day with meaningful thermal load (HDD > 0 OR CDD > 0). Shoulder-season days where both HDD and CDD are 0 (rare, but possible in May/October) will correctly suppress the notification since there is nothing to report.
+
+---
+
+
 
 For ENTITIES.md and Claude Code awareness:
 
@@ -1244,7 +1461,7 @@ For ENTITIES.md and Claude Code awareness:
 | `sensor.hvac_total_cool_cycles_today` | template | Sum of zone cool cycles today |
 | `sensor.hvac_ac_min_per_cycle` | template | AC min/cycle today |
 | `sensor.cdd_rolling_7_day_auto` | template | 7-day CDD rolling sum |
-| `sensor.hvac_runtime_per_cdd_7_day` | template | Runtime/CDD 7-day (min/CDD) |
+| `sensor.hvac_runtime_per_cdd_7_day` | template | Runtime/CDD 7-day (min/CDD) — numerator is hvac_ac_runtime_week |
 | `sensor.hvac_ac_runtime_month` | template | AC runtime MTD (acc + today) |
 | `sensor.hvac_ac_cycles_month` | template | AC cycles MTD |
 | `sensor.hvac_1f_cool_runtime_month` | template | Zone 1F cool runtime MTD |
@@ -1257,6 +1474,8 @@ For ENTITIES.md and Claude Code awareness:
 | `sensor.hvac_runtime_per_cdd_data_count` | template | Valid samples in 7-day window |
 | `input_number.ac_runtime_month_acc` | input_number | AC runtime accumulator |
 | `input_number.ac_cycles_month_acc` | input_number | AC cycles accumulator |
+| `input_number.ac_runtime_year_acc` | input_number | AC runtime yearly accumulator |
+| `input_number.ac_cycles_year_acc` | input_number | AC cycles yearly accumulator |
 | `input_number.zone_1f_cool_runtime_month_acc` | input_number | Zone 1F cool runtime acc |
 | `input_number.zone_2f_cool_runtime_month_acc` | input_number | Zone 2F cool runtime acc |
 | `input_number.zone_1f_cool_cycles_month_acc` | input_number | Zone 1F cool cycles acc |
@@ -1265,6 +1484,7 @@ For ENTITIES.md and Claude Code awareness:
 | `input_number.runtime_per_cdd_day_1..7` | input_number | Runtime/CDD 7-day sliding window |
 | `input_number.runtime_per_cdd_seed_mean` | input_number | SPC fallback mean (update after first week) |
 | `input_number.runtime_per_cdd_seed_stddev` | input_number | SPC fallback std dev (update after first week) |
+| `input_number.ac_condenser_kw` | input_number | AC condenser power draw (kW) for cost estimate |
 | `input_datetime.cdd_capture_last_ok` | input_datetime | Last successful CDD window capture |
 | `input_datetime.runtime_per_cdd_capture_last_ok` | input_datetime | Last successful runtime/CDD capture |
 
@@ -1291,3 +1511,5 @@ For ENTITIES.md and Claude Code awareness:
 9. **`appendmonthlycsv` has a pre-existing CDD gap** — the current shell command includes `total_hdd65` but omits `total_cdd65` entirely, even though `input_number.cdd_cumulative_month_auto` has been populated correctly all along. Step 9b corrects this. Do not skip Step 9b on the assumption that CDD is already being exported — it is not.
 
 10. **Recorder purge and history_stats:** The `history_stats` sensors in Step 2 (today and week) depend on recorder history. If `purge_keep_days` is set to 7 or less, the week sensors will under-report on days near the purge boundary. The month sensors in Step 4b are immune — they use `input_number` accumulators that are independent of the recorder. This matches the same constraint that already applies to the heating history_stats sensors.
+
+11. **`blower_kw` correction affects the heating cost estimate too.** Changing `blower_kw` from 0.5 to 0.21 (measured per SYSTEM_SPECIFICATIONS.md) reduces `hvac_daily_electric_cost_estimate` during heating season by ~58%. This is a correction of a pre-existing overstatement, not a new behavior — the heating cost estimate has been running high since deployment. `input_number.ac_condenser_kw` initializes at 4.9 kW (measured steady-state per SYSTEM_SPECIFICATIONS.md). Update it via Developer Tools after Fusion Energy CT monitoring is installed and actual circuit draw is confirmed.
