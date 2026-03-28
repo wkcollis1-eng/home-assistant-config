@@ -2134,3 +2134,149 @@
         entity_id: input_text.last_automation_failure
       data:
         value: ""
+
+# ===============================================================
+# DIY LiFePO4 UPS — BATTERY MONITORING & SHUTDOWN (v2 Minimal)
+# ===============================================================
+# Single-signal, high-confidence shutdown controller.
+# Ref: DIY-LiFePO4-UPS repo / ha_ups_automation_v2_minimal_readme.md
+#
+# Hardware context:
+#   Shelly Plus Uni   — battery voltage telemetry (ADC)
+#   Victron BP-65     — hardware LVD at 11.8V (independent, always active)
+#   HA Green          — executes software shutdown at 12.2V
+#
+# Voltage thresholds:
+#   13.3V  PSU float — normal operation
+#   13.0V  Early warning — PSU offline or grid outage
+#   12.4V  Approaching shutdown — ~15–30 min runtime remaining
+#   12.2V  Software shutdown trigger
+#   11.8V  BP-65 hardware cutoff (safety backstop, 0.4V margin below SW)
+#
+# All three automations:
+#   mode: single       — prevents duplicate alerts on threshold bounce
+#   validity guard     — blocks action if sensor is unknown/unavailable
+#   filtered sensor    — sensor.ups_battery_voltage_filtered (never raw ADC)
+# ===============================================================
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 1 OF 3 — Early Warning: PSU Failure / Power Outage
+# ---------------------------------------------------------------
+# Trigger: filtered voltage below 13.0V sustained for 2 minutes.
+# At normal float (13.3V), sustained drop below 13.0V indicates
+# PSU has gone offline or grid power has been lost.
+# Duration of 2 minutes filters transient dips and startup settling.
+# ---------------------------------------------------------------
+- id: ups_warn_psu_failure_v2
+  alias: "UPS: Early Warning — PSU Failure or Power Outage"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.ups_battery_voltage_filtered
+      below: 13.0
+      for:
+        minutes: 2
+  condition:
+    # Validity guard: abort if sensor is in a fault state (Shelly
+    # reconnect, HA restart, or integration glitch).
+    - condition: template
+      value_template: >
+        {{ states('sensor.ups_battery_voltage_filtered') not in ['unknown', 'unavailable'] }}
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "⚠️ Power Outage or PSU Failure"
+        message: >
+          Battery voltage {{ states('sensor.ups_battery_voltage_filtered') }}V —
+          below 13.0V for 2 minutes.
+          Power outage or PSU failure. Investigate hardware state.
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 2 OF 3 — Approaching Shutdown Warning at 12.4V
+# ---------------------------------------------------------------
+# Trigger: filtered voltage below 12.4V sustained for 1 minute.
+# Provides advance notice before the 12.2V shutdown trigger fires.
+# Duration of 1 minute: tighter than early warning because battery
+# is now discharging; faster confirmation is appropriate.
+# Estimated runtime remaining at 12.4V: ~15–30 min
+# (based on 112.5Wh usable capacity at ~13.5W DC typical load).
+# ---------------------------------------------------------------
+- id: ups_warn_approaching_shutdown_v2
+  alias: "UPS: Approaching Shutdown Warning at 12.4V"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.ups_battery_voltage_filtered
+      below: 12.4
+      for:
+        minutes: 1
+  condition:
+    # Validity guard: abort if sensor is in a fault state.
+    - condition: template
+      value_template: >
+        {{ states('sensor.ups_battery_voltage_filtered') not in ['unknown', 'unavailable'] }}
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "⚠️ Preparing for HA Green Shutdown at 12.2V"
+        message: >
+          Battery voltage {{ states('sensor.ups_battery_voltage_filtered') }}V —
+          below 12.4V. HA Green will be powered down shortly.
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 3 OF 3 — Low Battery Shutdown (v2 Minimal)
+# ---------------------------------------------------------------
+# Trigger: filtered voltage below 12.2V sustained for 2 minutes.
+# Four-layer protection chain:
+#   Layer 1 — Temporal filter: 2-min duration blocks transient dips
+#             and load spikes from triggering shutdown.
+#   Layer 2 — Validity guard: blocks execution if sensor is faulted.
+#   Layer 3 — Execution delay: 30s buffer allows voltage to stabilize
+#             and prevents shutdown during a recovery bounce.
+#   Layer 4 — Revalidation: second numeric check before shutdown.
+#             If voltage has recovered above 12.2V, automation aborts.
+#
+# Hardware backstop: Victron BP-65 cuts at 11.8V regardless of
+# software state. The 0.4V margin covers load variation, ADC error,
+# and temperature effects.
+#
+# Shutdown method: hassio.host_shutdown (full OS shutdown, not
+# just HA stop). Enables clean cold boot on DC power restore.
+# Tested and confirmed: powers off in ~1 min, boots cleanly.
+# ---------------------------------------------------------------
+- id: ups_low_battery_shutdown_v2_minimal
+  alias: "UPS: Low Battery Shutdown (v2 Minimal)"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.ups_battery_voltage_filtered
+      below: 12.2
+      for:
+        minutes: 2
+  condition:
+    # Layer 2 — Validity guard: blocks shutdown on sensor faults.
+    # Prevents false shutdown during Shelly reconnect, HA restart,
+    # or integration glitch. Without this guard the system is unsafe.
+    - condition: template
+      value_template: >
+        {{ states('sensor.ups_battery_voltage_filtered') not in ['unknown', 'unavailable'] }}
+  action:
+    # Layer 3 — Execution delay: 30s stability buffer.
+    - delay: "00:00:30"
+
+    # Layer 4 — Revalidation: if voltage has recovered above 12.2V
+    # during the delay, execution stops here and shutdown is aborted.
+    - condition: numeric_state
+      entity_id: sensor.ups_battery_voltage_filtered
+      below: 12.2
+
+    # Notify immediately before shutdown fires.
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "⚠️ HA Green Shutting Down"
+        message: >
+          Battery voltage {{ states('sensor.ups_battery_voltage_filtered') }}V —
+          critically low below 12.2V sustained. HA Green powering down now.
+
+    # Full OS shutdown — clean cold boot on DC power restore.
+    - service: hassio.host_shutdown
