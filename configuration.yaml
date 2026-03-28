@@ -3797,6 +3797,32 @@ sensor:
     start: "{{ now() - timedelta(days=7) }}"
     end: "{{ now() }}"
 
+  # ===============================================================
+  # DIY LiFePO4 UPS — FILTERED VOLTAGE SENSOR
+  # ===============================================================
+  # Provides a noise-resistant battery voltage signal for all UPS
+  # automation triggers. Raw ADC from Shelly Plus Uni has ±0.03V
+  # quantization noise; this sensor removes it before control logic.
+  #
+  # Pipeline:
+  #   outlier filter  — window=4, radius=0.04V  (removes ADC spikes)
+  #   moving average  — window=6, precision=2   (smooths control signal)
+  #
+  # CRITICAL: All UPS automations MUST reference this sensor.
+  #           Never use the raw Shelly ADC entity as a trigger.
+  # ===============================================================
+  - platform: filter
+    name: "UPS Battery Voltage Filtered"
+    unique_id: ups_battery_voltage_filtered
+    entity_id: sensor.ups_battery_voltge_ups_battery_voltage_voltmeter
+    filters:
+      - filter: outlier
+        window_size: 4
+        radius: 0.04
+      - filter: time_simple_moving_average
+        window_size: "00:03"  # 3-min time window; captures 2-4 samples at float
+        precision: 4          # 4dp lets filtered avg move between raw 0.01V steps
+
 # ===============================================================
 # CLIMATE NORMS - Daily lookup from historical climate data
 # ===============================================================
