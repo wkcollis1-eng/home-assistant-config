@@ -1,7 +1,7 @@
 # ===============================================================
 # COMPLETE AUTOMATIONS.YAML - ENERGY MONITORING
 # ===============================================================
-# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders
+# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders + Santa Fe Dehumidifier
 # ===============================================================
 
 # ===============================================================
@@ -942,15 +942,17 @@
         entity_id: switch.dehumidifier
 
 # ===============================================================
-# DEHUMIDIFIER PERFORMANCE TRACKING
+# DEHUMIDIFIER PERFORMANCE TRACKING (Santa Fe Classic Tuned)
+# Triggers on compressor_active (power-gated), not switch state.
+# Control automations (auto_on / auto_off) are unchanged above.
 # ===============================================================
 - id: dehumidifier_cycle_start_capture
   alias: "Dehumidifier Cycle Start Capture"
-  description: "Capture dew point and timestamp when dehumidifier turns on"
+  description: "Capture dew point and timestamp when compressor turns on"
   mode: single
   trigger:
     - platform: state
-      entity_id: switch.dehumidifier
+      entity_id: binary_sensor.dehumidifier_compressor_active
       from: "off"
       to: "on"
   condition:
@@ -995,11 +997,11 @@
 
 - id: dehumidifier_cycle_end_capture
   alias: "Dehumidifier Cycle End Capture"
-  description: "Calculate pull-down rate and cycle duration when dehumidifier turns off"
+  description: "Calculate pull-down rate and cycle duration when compressor turns off"
   mode: single
   trigger:
     - platform: state
-      entity_id: switch.dehumidifier
+      entity_id: binary_sensor.dehumidifier_compressor_active
       from: "on"
       to: "off"
   condition:
