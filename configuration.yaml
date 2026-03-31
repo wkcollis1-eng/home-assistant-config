@@ -1,7 +1,7 @@
 # ===============================================================
 # COMPLETE CONFIGURATION.YAML - ENERGY PERFORMANCE TRACKING
 # ===============================================================
-# Version: Final with Auto HDD + Live Weather (10 min updates)
+# Version: Final with Auto HDD + Live Weather + Santa Fe Dehumidifier
 #
 # INSTRUCTIONS:
 # 1. Backup your current configuration.yaml
@@ -1340,7 +1340,7 @@ input_number:
     mode: box
 
   # ===============================================================
-  # DEHUMIDIFIER CONTROL
+  # DEHUMIDIFIER CONTROL (Santa Fe Classic)
   # ===============================================================
   dehumidifier_dewpoint_threshold:
     name: "Dehumidifier Dew Point Threshold"
@@ -1351,6 +1351,18 @@ input_number:
     mode: box
     icon: mdi:water-thermometer
     initial: 52
+
+  # Compressor gate threshold — Santa Fe Classic: fan ~50-120W, compressor ~500-600W
+  # Initial value 250W sits cleanly between bands; tune after observing real power curves
+  dehumidifier_power_threshold:
+    name: "Dehumidifier Power Threshold"
+    min: 50
+    max: 600
+    step: 10
+    initial: 250
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:power-plug
 
   # --- Dehumidifier Performance Tracking ---
   dehumidifier_cycle_start_dp:
@@ -1562,6 +1574,27 @@ template:
           {% set dp = states('sensor.basement_dew_point') | float %}
           {% set threshold = states('input_number.dehumidifier_dewpoint_threshold') | float %}
           {{ temp > 60 and dp > threshold }}
+
+      # ===============================================================
+      # DEHUMIDIFIER COMPRESSOR ACTIVE (Santa Fe Classic ~540W tuned)
+      # Switch guard prevents false triggers from Kasa sensor glitches.
+      # Threshold referenced from input_number for field tuning without
+      # YAML edits. Validate 250W starting point against real power curves.
+      # ===============================================================
+      - name: "Dehumidifier Compressor Active"
+        unique_id: dehumidifier_compressor_active
+        device_class: running
+        availability: >
+          {{ states('sensor.dehumidifier_current_consumption') not in ['unknown', 'unavailable'] }}
+        state: >
+          {{ is_state('switch.dehumidifier', 'on') and
+             states('sensor.dehumidifier_current_consumption') | float(0) >
+             states('input_number.dehumidifier_power_threshold') | float(250) }}
+        delay_on:
+          seconds: 3
+        delay_off:
+          seconds: 10
+        icon: mdi:compressor
 
       - name: "HVAC Filter Change Alert"
         unique_id: hvac_filter_change_alert
@@ -3778,11 +3811,11 @@ sensor:
   # NOTE: Month furnace runtime/cycles sensors removed - now use accumulated template sensors
   # (immune to recorder purge_keep_days=14, see template sensor section)
 
-  # === DEHUMIDIFIER RUNTIME ===
+  # === DEHUMIDIFIER RUNTIME (power-gated: tracks compressor-only time) ===
   - platform: history_stats
     name: "Dehumidifier Runtime Today"
     unique_id: dehumidifier_runtime_today
-    entity_id: switch.dehumidifier
+    entity_id: binary_sensor.dehumidifier_compressor_active
     state: "on"
     type: time
     start: "{{ now().replace(hour=0, minute=0, second=0, microsecond=0) }}"
@@ -3791,7 +3824,7 @@ sensor:
   - platform: history_stats
     name: "Dehumidifier Runtime Week"
     unique_id: dehumidifier_runtime_week
-    entity_id: switch.dehumidifier
+    entity_id: binary_sensor.dehumidifier_compressor_active
     state: "on"
     type: time
     start: "{{ now() - timedelta(days=7) }}"
