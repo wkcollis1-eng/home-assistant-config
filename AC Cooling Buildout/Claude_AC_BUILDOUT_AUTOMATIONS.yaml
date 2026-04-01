@@ -1364,7 +1364,7 @@
       default:
         - service: system_log.write
           data:
-            message: "Filter runtime capture skipped - sensor unavailable: {{ states('sensor.hvac_total_heat_runtime_today') }}"
+            message: "Filter runtime capture skipped - sensor unavailable: {{ states('sensor.hvac_total_heat_runtime_today') }}, AC: {{ states('sensor.hvac_ac_runtime_today') }}"
             level: warning
 
 - id: reset_filter_runtime_button
