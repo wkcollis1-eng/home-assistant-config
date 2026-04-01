@@ -1,0 +1,1665 @@
+============================
+ENERGY PERFORMANCE DASHBOARD — AC/CDD BUILDOUT UPDATE
+============================
+Only modified sections are included below.
+All other sections are unchanged.
+Section headers match the original for direct lookup.
+Legend: [MODIFIED] = updated in place, [CARDS ADDED] = new cards appended to existing section
+
+==================
+# Pg 1 Section 1 # [MODIFIED]
+==================
+Changes:
+  - Card 2: "HDD Today" → adaptive HDD/CDD combined card (icon, color, label adapt to season)
+  - Card 3: "Runtime" → adaptive Heat/AC runtime card (follows dominant degree-day type)
+  - ApexChart: added hvac yaxis + 3 HVAC binary overlays (1F heat, 2F heat, AC running)
+
+type: grid
+column_span: 2
+cards:
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.pirate_weather_temperature') | round(1) }}°F"
+    secondary: Outside
+    icon: mdi:thermometer
+    grid_options:
+      columns: 4
+      rows: 3
+    color: >-
+      {% set temp = states('sensor.pirate_weather_temperature') | float(50) %}{%
+      if temp < 32 %}cyan{% elif temp < 50 %}blue{% elif temp < 70 %}green{%
+      else %}orange{% endif %}
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% if hdd > 0 and cdd > 0 %}{{ hdd | round(1) }} H / {{ cdd | round(1) }} C
+      {% elif hdd > 0 %}{{ hdd | round(1) }}
+      {% elif cdd > 0 %}{{ cdd | round(1) }}
+      {% else %}0{% endif %}
+    secondary: >-
+      {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% if hdd > 0 and cdd > 0 %}HDD / CDD{% elif cdd > hdd %}CDD Today{% else %}HDD Today{% endif %}
+    icon: >-
+      {% if states('sensor.hvac_cdd65_today') | float(0) > states('sensor.hvac_hdd65_today') | float(0) %}
+        mdi:sun-thermometer{% else %}mdi:snowflake{% endif %}
+    grid_options:
+      columns: 4
+      rows: 3
+    color: >-
+      {% if states('sensor.hvac_cdd65_today') | float(0) > states('sensor.hvac_hdd65_today') | float(0) %}
+        orange{% else %}cyan{% endif %}
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% if cdd > hdd %}{{ states('sensor.hvac_ac_runtime_today') | float(0) | round(2) }}h
+      {% else %}{{ states('sensor.hvac_total_heat_runtime_today') | float(0) | round(2) }}h{% endif %}
+    secondary: >-
+      {% if states('sensor.hvac_cdd65_today') | float(0) > states('sensor.hvac_hdd65_today') | float(0) %}
+        AC Runtime{% else %}Heat Runtime{% endif %}
+    icon: >-
+      {% if states('sensor.hvac_cdd65_today') | float(0) > states('sensor.hvac_hdd65_today') | float(0) %}
+        mdi:air-conditioner{% else %}mdi:timer{% endif %}
+    grid_options:
+      columns: 4
+      rows: 3
+    color: >-
+      {% if states('sensor.hvac_cdd65_today') | float(0) > states('sensor.hvac_hdd65_today') | float(0) %}
+        blue{% else %}green{% endif %}
+    features_position: bottom
+    vertical: true
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Temperature Trend (48h)
+      show_states: true
+      colorize_states: true
+    graph_span: 48h
+    span:
+      end: hour
+    yaxis:
+      - id: temp
+        min: ~10
+        max: ~80
+        apex_config:
+          tickAmount: 5
+          title:
+            text: °F
+      - id: hvac
+        opposite: true
+        min: 0
+        max: 1.5
+        show: false
+    apex_config:
+      chart:
+        height: 265
+      legend:
+        show: true
+        position: bottom
+      stroke:
+        curve: smooth
+    series:
+      - entity: sensor.pirate_weather_temperature
+        name: Pirate Weather
+        color: "#E91E63"
+        stroke_width: 3
+        yaxis_id: temp
+        show:
+          in_header: true
+      - entity: sensor.outdoor_temp_live
+        name: Open-Meteo Live
+        color: "#2196F3"
+        stroke_width: 2
+        yaxis_id: temp
+      - entity: sensor.pirate_weather_feels_like
+        name: Feels Like
+        color: "#FF9800"
+        stroke_width: 1
+        opacity: 0.7
+        yaxis_id: temp
+      - entity: binary_sensor.hvac_1f_call_for_heat
+        name: 1F Heat
+        type: area
+        color: "#F97316"
+        yaxis_id: hvac
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.2
+        stroke_width: 0
+        show:
+          legend_value: false
+      - entity: binary_sensor.hvac_2f_call_for_heat
+        name: 2F Heat
+        type: area
+        color: "#FC937E"
+        yaxis_id: hvac
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.2
+        stroke_width: 0
+        show:
+          legend_value: false
+      - entity: binary_sensor.hvac_ac_running
+        name: AC
+        type: area
+        color: "#2196F3"
+        yaxis_id: hvac
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.25
+        stroke_width: 0
+        show:
+          legend_value: false
+
+==================
+# Pg 1 Section 2 # [MODIFIED]
+==================
+Changes:
+  - Heading updated: "Today's Runtime" → "Today's HVAC Runtime"
+  - Heat cards: secondary labels updated to include "Heat" for clarity
+  - AC cooling cards added: AC Runtime total, 1F Cool, 2F Cool
+  - Runtime/HDD card updated to adaptive HDD/CDD depending on dominant degree-day type
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Today's HVAC Runtime
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_total_heat_runtime_today') | round(2) }}"
+    secondary: Heat Zone Demand (sum)
+    icon: mdi:fire
+    color: green
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 3
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_heat_runtime_today') | round(2) }}"
+    secondary: 1F Heat
+    icon: mdi:home-floor-1
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 3
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_1f_heat_runtime_today
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_heat_runtime_today') | round(2) }}"
+    secondary: 2F Heat
+    icon: mdi:home-floor-2
+    color: deep-orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 3
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_2f_heat_runtime_today
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_ac_runtime_today') | float(0) | round(2) }}"
+    secondary: AC Runtime (total)
+    icon: mdi:air-conditioner
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 3
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_cool_runtime_today') | float(0) | round(2) }}"
+    secondary: 1F Cool
+    icon: mdi:home-floor-1
+    color: light-blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 3
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_cool_runtime_today') | float(0) | round(2) }}"
+    secondary: 2F Cool
+    icon: mdi:home-floor-2
+    color: cyan
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 3
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% if cdd > hdd %}
+        {{ states('sensor.hvac_runtime_per_cdd_7_day') | float(0) | round(1) }} min/CDD
+      {% else %}
+        {{ states('sensor.hvac_total_runtime_per_hdd_today') | round(1) }} min/HDD
+      {% endif %}
+    secondary: >-
+      {% set hdd = states('sensor.hvac_hdd65_today') | float(0) %}
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% if cdd > hdd %}Runtime per CDD (7d){% else %}Runtime per HDD{% endif %}
+    icon: mdi:speedometer
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      rows: 3
+      columns: 4
+  - type: gauge
+    entity: sensor.hvac_zone_balance_ratio_today
+    name: Zone Balance (2F %)
+    min: 0
+    max: 100
+    needle: true
+    segments:
+      - from: 0
+        color: "#db4437"
+      - from: 40
+        color: "#43a047"
+      - from: 60
+        color: "#ff9800"
+      - from: 75
+        color: "#db4437"
+    grid_options:
+      columns: 6
+      rows: 3
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_zone_balance_status') }}"
+    secondary: Zone Status
+    icon: mdi:scale-balance
+    color: >-
+      {% if 'Balanced' in states('sensor.hvac_zone_balance_status') %}green{%
+      else %}orange{% endif %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 3
+
+==================
+# Pg 1 Section 3 # [MODIFIED]
+==================
+Changes:
+  - Heading unchanged
+  - Existing heat/furnace cards: secondary labels updated for "Heat" clarity
+  - AC cooling section added at bottom: AC call events, 1F/2F avg cool cycle,
+    AC compressor cycles, AC min/cycle, conditional short-cycling alert
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Cycle Length Analysis - Today
+    heading_style: title
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_total_cycles_today') }}"
+    secondary: Heat Call Events
+    icon: mdi:fire
+    color: teal
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set r1 = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}{%
+      set c1 = states('sensor.hvac_1f_heat_cycles_today') | int(0) %}{{ ((r1 *
+      60 / c1) | round(1)) if c1 > 0 else 'N/A' }} min
+    secondary: 1F Avg Heat Cycle
+    icon: mdi:home-floor-1
+    color: >-
+      {% set r1 = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}{%
+      set c1 = states('sensor.hvac_1f_heat_cycles_today') | int(0) %}{% set a1 =
+      (r1 * 60 / c1) if c1 > 0 else 0 %}{% if a1 == 0 %}grey{% elif a1 < 3
+      %}red{% elif a1 < 5 %}orange{% elif a1 < 8 %}amber{% else %}green{% endif
+      %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set r2 = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}{%
+      set c2 = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}{{ ((r2 *
+      60 / c2) | round(1)) if c2 > 0 else 'N/A' }} min
+    secondary: 2F Avg Heat Cycle
+    icon: mdi:home-floor-2
+    color: >-
+      {% set r2 = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}{%
+      set c2 = states('sensor.hvac_2f_heat_cycles_today') | int(0) %}{% set a2 =
+      (r2 * 60 / c2) if c2 > 0 else 0 %}{% if a2 == 0 %}grey{% elif a2 < 3
+      %}red{% elif a2 < 5 %}orange{% elif a2 < 8 %}amber{% else %}green{% endif
+      %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    tap_action:
+      action: more-info
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_heat_cycles_today') }}"
+    secondary: 1F Heat Cycles
+    icon: mdi:home-floor-1
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_heat_cycles_today') }}"
+    secondary: 2F Heat Cycles
+    icon: mdi:home-floor-2
+    color: deep-orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    entity: sensor.hvac_furnace_cycles_today
+    primary: "{{ states('sensor.hvac_furnace_cycles_today') | int(0) }}"
+    secondary: Furnace Cycles (ON→OFF Events)
+    icon: mdi:refresh
+    tap_action:
+      action: more-info
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    entity: sensor.hvac_furnace_min_per_cycle
+    primary: "{{ states('sensor.hvac_furnace_min_per_cycle') | round(1) }} min"
+    secondary: Furnace Min/Cycle
+    icon: mdi:timer-cog
+    tap_action:
+      action: more-info
+    color: teal
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    entity: sensor.hvac_furnace_runtime_today
+    primary: >-
+      {{ (states('sensor.hvac_furnace_runtime_today') | float(0) * 60) |
+      round(0) }} min
+    secondary: Furnace Runtime
+    icon: mdi:clock-outline
+    tap_action:
+      action: more-info
+    color: teal
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  # === AC COOLING CYCLES ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_total_cool_cycles_today') | int(0) }}"
+    secondary: AC Call Events
+    icon: mdi:air-conditioner
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set r1 = states('sensor.hvac_1f_cool_runtime_today') | float(0) %}
+      {% set c1 = states('sensor.hvac_1f_cool_cycles_today') | int(0) %}
+      {{ ((r1 * 60 / c1) | round(1)) if c1 > 0 else 'N/A' }} min
+    secondary: 1F Avg Cool Cycle
+    icon: mdi:home-floor-1
+    color: >-
+      {% set r1 = states('sensor.hvac_1f_cool_runtime_today') | float(0) %}
+      {% set c1 = states('sensor.hvac_1f_cool_cycles_today') | int(0) %}
+      {% set a1 = (r1 * 60 / c1) if c1 > 0 else 0 %}
+      {% if a1 == 0 %}grey{% elif a1 < 5 %}red{% elif a1 < 8 %}orange{% elif a1 < 12 %}amber{% else %}green{% endif %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set r2 = states('sensor.hvac_2f_cool_runtime_today') | float(0) %}
+      {% set c2 = states('sensor.hvac_2f_cool_cycles_today') | int(0) %}
+      {{ ((r2 * 60 / c2) | round(1)) if c2 > 0 else 'N/A' }} min
+    secondary: 2F Avg Cool Cycle
+    icon: mdi:home-floor-2
+    color: >-
+      {% set r2 = states('sensor.hvac_2f_cool_runtime_today') | float(0) %}
+      {% set c2 = states('sensor.hvac_2f_cool_cycles_today') | int(0) %}
+      {% set a2 = (r2 * 60 / c2) if c2 > 0 else 0 %}
+      {% if a2 == 0 %}grey{% elif a2 < 5 %}red{% elif a2 < 8 %}orange{% elif a2 < 12 %}amber{% else %}green{% endif %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_ac_cycles_today') | int(0) }}"
+    secondary: AC Compressor Cycles
+    icon: mdi:refresh
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_ac_min_per_cycle') | float(0) | round(1) }} min"
+    secondary: AC Min/Cycle
+    icon: mdi:timer-cog
+    color: >-
+      {% set mpc = states('sensor.hvac_ac_min_per_cycle') | float(0) %}
+      {% if mpc == 0 %}grey{% elif mpc < 8 %}red{% elif mpc < 12 %}orange{% else %}green{% endif %}
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.hvac_ac_short_cycling_alert
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: SHORT CYCLING
+      secondary: "AC < 8 min/cycle — check refrigerant/filter"
+      icon: mdi:alert-circle
+      color: red
+      vertical: true
+      grid_options:
+        columns: 6
+        rows: 2
+    grid_options:
+      columns: 6
+      rows: 2
+
+==================
+# Pg 1 Section 4 # [MODIFIED]
+==================
+Changes:
+  - Runtime/CDD gauge added alongside existing Runtime/HDD gauge
+  - Runtime/CDD 7-day chart added (mirrors Runtime/HDD chart, SPC bands included)
+  - Existing Runtime/HDD gauge and chart unchanged
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Efficiency Tracking
+  - type: gauge
+    entity: sensor.hvac_runtime_per_hdd_7_day
+    name: Runtime/HDD (7d)
+    min: 0
+    max: 25
+    needle: true
+    severity:
+      green: 0
+      yellow: 12
+      red: 20
+  - type: gauge
+    entity: sensor.hvac_runtime_per_cdd_7_day
+    name: Runtime/CDD (7d)
+    min: 0
+    max: 40
+    needle: true
+    severity:
+      green: 0
+      yellow: 22
+      red: 30
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Runtime per HDD (7-Day Rolling)
+      show_states: true
+      colorize_states: true
+    graph_span: 14d
+    span:
+      end: day
+    yaxis:
+      - id: primary
+        min: 0
+        apex_config:
+          tickAmount: 5
+          title:
+            text: min/HDD
+    apex_config:
+      chart:
+        height: 280
+      legend:
+        show: true
+        position: bottom
+      stroke:
+        curve: smooth
+      tooltip:
+        shared: true
+    series:
+      - entity: sensor.hvac_runtime_per_hdd_upper_bound_1s
+        name: Upper (+2σ)
+        color: "#ff6b6b"
+        stroke_width: 1
+        opacity: 0.7
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_hdd_lower_bound_1s
+        name: Lower (-2σ)
+        color: "#4ecdc4"
+        stroke_width: 1
+        opacity: 0.7
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_hdd_7_day
+        name: Last 7 Days of Furnace Runtime/HDD
+        color: "#3498db"
+        stroke_width: 3
+        yaxis_id: primary
+        extend_to: now
+        show:
+          in_header: true
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_hdd_7_day_mean
+        name: 7-Day Mean
+        color: "#f39c12"
+        stroke_width: 2
+        opacity: 0.8
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Runtime per CDD (7-Day Rolling)
+      show_states: true
+      colorize_states: true
+    graph_span: 14d
+    span:
+      end: day
+    yaxis:
+      - id: primary
+        min: 0
+        apex_config:
+          tickAmount: 5
+          title:
+            text: min/CDD
+    apex_config:
+      chart:
+        height: 280
+      legend:
+        show: true
+        position: bottom
+      stroke:
+        curve: smooth
+      tooltip:
+        shared: true
+    series:
+      - entity: sensor.hvac_runtime_per_cdd_upper_bound
+        name: Upper (+2σ)
+        color: "#ff6b6b"
+        stroke_width: 1
+        opacity: 0.7
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_cdd_lower_bound
+        name: Lower (-2σ)
+        color: "#4ecdc4"
+        stroke_width: 1
+        opacity: 0.7
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_cdd_7_day
+        name: Runtime/CDD (7d)
+        color: "#2196F3"
+        stroke_width: 3
+        yaxis_id: primary
+        extend_to: now
+        show:
+          in_header: true
+        group_by:
+          func: last
+          duration: 1d
+      - entity: sensor.hvac_runtime_per_cdd_7_day_mean
+        name: 7-Day Mean
+        color: "#f39c12"
+        stroke_width: 2
+        opacity: 0.8
+        yaxis_id: primary
+        extend_to: now
+        show:
+          legend_value: false
+        group_by:
+          func: last
+          duration: 1d
+
+==================
+# Pg 1 Section 5 # [CARDS ADDED]
+==================
+Changes:
+  - Heading updated: "Last 7-Days" (unchanged label but note heat cards relabeled for clarity)
+  - Heat runtime card label: "Total Runtime" → "Heat Runtime (7d)"
+  - "1F Runtime" / "2F Runtime" → "1F Heat (7d)" / "2F Heat (7d)"
+  - AC runtime week cards added: AC Runtime (7d), 1F Cool (7d), 2F Cool (7d)
+  - All remaining cards (Zone Balance, Furnace, Chaining, Overlap, Cycles, Min/Cycle, charts) unchanged
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Last 7-Days
+    heading_style: title
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_total_heat_runtime_week') | round(2) }}"
+    secondary: Heat Runtime (7d)
+    icon: mdi:fire
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_heat_runtime_week') | round(2) }}"
+    secondary: 1F Heat (7d)
+    icon: mdi:home-floor-1
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_heat_runtime_week') | round(2) }}"
+    secondary: 2F Heat (7d)
+    icon: mdi:home-floor-2
+    color: deep-orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_ac_runtime_week') | float(0) | round(2) }}"
+    secondary: AC Runtime (7d)
+    icon: mdi:air-conditioner
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_cool_runtime_week') | float(0) | round(2) }}"
+    secondary: 1F Cool (7d)
+    icon: mdi:home-floor-1
+    color: light-blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_cool_runtime_week') | float(0) | round(2) }}"
+    secondary: 2F Cool (7d)
+    icon: mdi:home-floor-2
+    color: cyan
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  # All remaining cards below are UNCHANGED from original
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_zone_balance_week') | round(0) }}%"
+    secondary: Zone Balance (2F %)
+    icon: mdi:scale-balance
+    color: teal
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_furnace_runtime_week') | float(0) | round(1) }}h"
+    secondary: Furnace Runtime (7d)
+    icon: mdi:fire
+    icon_color: orange
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_furnace_runtime_week
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_chaining_index_week') | float(1) | round(2) }}"
+    secondary: >
+      {% set idx = states('sensor.hvac_chaining_index_week') | float(1) %} {% if
+      idx >= 1.7 %}Excellent (7d) {% elif idx >= 1.4 %}Good (7d) {% elif idx >=
+      1.2 %}Fair (7d) {% else %}Low (7d){% endif %}
+    icon: mdi:link-variant
+    icon_color: >
+      {% set idx = states('sensor.hvac_chaining_index_week') | float(1) %} {% if
+      idx >= 1.7 %}green {% elif idx >= 1.4 %}light-green {% elif idx >= 1.2
+      %}orange {% else %}red{% endif %}
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_chaining_index_week
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_zone_overlap_week') | float(0) | round(0) }} min"
+    secondary: Zone Overlap (7d)
+    icon: mdi:set-center
+    icon_color: >
+      {% set overlap = states('sensor.hvac_zone_overlap_week') | float(0) %} {%
+      if overlap >= 120 %}green {% elif overlap >= 60 %}light-green {% elif
+      overlap >= 30 %}orange {% else %}grey{% endif %}
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_zone_overlap_week
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_furnace_cycles_week') | int(0) }}"
+    secondary: >
+      {% set cycles = states('sensor.hvac_furnace_cycles_week') | int(0) %} {{
+      (cycles / 7) | round(1) }} cycles/day avg
+    icon: mdi:counter
+    icon_color: blue
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_furnace_cycles_week
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ states('sensor.hvac_furnace_min_per_cycle_week') | float(0) | round(1)
+      }} min
+    secondary: Furnace Avg Cycle (7d)
+    icon: mdi:timer-cog
+    icon_color: >-
+      {% set avg = states('sensor.hvac_furnace_min_per_cycle_week') | float(0)
+      %} {% if avg == 0 %}grey {% elif avg < 5 %}red {% elif avg < 7 %}orange {%
+      elif avg < 10 %}amber {% else %}green{% endif %}
+    badge_icon: >-
+      {% set count = states('sensor.hvac_furnace_cycle_data_count') | int(0) %}
+      {% if count < 4 %}mdi:alert-circle{% endif %}
+    badge_color: >-
+      {% set count = states('sensor.hvac_furnace_cycle_data_count') | int(0) %}
+      {% if count < 4 %}orange{% endif %}
+    tap_action:
+      action: more-info
+      entity: sensor.hvac_furnace_min_per_cycle_week
+    layout: vertical
+  # Charts below are UNCHANGED from original (Furnace Min/Cycle chart + status grid)
+
+==================
+# Pg 1 Section 6 # [MODIFIED]
+==================
+Changes:
+  - "Data Capture Health" card updated: now checks HDD + CDD + runtime/HDD + runtime/CDD
+  - "Runtime Pipeline History" card updated to show both HDD and CDD data counts
+  - CDD pipeline health card added
+  - AC short cycling alert card added
+
+square: false
+type: grid
+grid_options:
+  rows: auto
+  columns: full
+cards:
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% if is_state('binary_sensor.hvac_short_cycling_alert_1f', 'on')
+      %}ALERT{% else %}OK{% endif %}
+    secondary: 1F HVAC Cycling
+    icon: mdi:air-conditioner
+    color: >-
+      {% if is_state('binary_sensor.hvac_short_cycling_alert_1f', 'on') %}red{%
+      else %}green{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% if is_state('binary_sensor.hvac_short_cycling_alert_2f', 'on')
+      %}ALERT{% else %}OK{% endif %}
+    secondary: 2F HVAC Cycling
+    icon: mdi:air-conditioner
+    color: >-
+      {% if is_state('binary_sensor.hvac_short_cycling_alert_2f', 'on') %}red{%
+      else %}green{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% if is_state('binary_sensor.hvac_ac_short_cycling_alert', 'on')
+      %}ALERT{% else %}OK{% endif %}
+    secondary: AC Compressor Cycling
+    icon: mdi:air-conditioner
+    color: >-
+      {% if is_state('binary_sensor.hvac_ac_short_cycling_alert', 'on') %}red{%
+      else %}green{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set hdd_ok = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+      {% set cdd_ok = is_state('binary_sensor.cdd_capture_stale', 'off') %}
+      {% set runtime_hdd_ok = is_state('binary_sensor.runtime_per_hdd_capture_stale', 'off') %}
+      {% set runtime_cdd_ok = is_state('binary_sensor.runtime_per_cdd_capture_stale', 'off') %}
+      {% set climate_ok = states('sensor.climate_norms_today') not in ['error', 'unknown', 'unavailable'] %}
+      {% if hdd_ok and cdd_ok and runtime_hdd_ok and runtime_cdd_ok and climate_ok %}Healthy
+      {% else %}Issues Detected{% endif %}
+    secondary: Data Capture Health
+    icon: mdi:database-check
+    color: >-
+      {% set hdd_ok = is_state('binary_sensor.hdd_capture_stale', 'off') %}
+      {% set cdd_ok = is_state('binary_sensor.cdd_capture_stale', 'off') %}
+      {% if hdd_ok and cdd_ok %}green{% else %}red{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% if is_state('binary_sensor.cdd_pipeline_healthy', 'on') and
+           is_state('binary_sensor.runtime_per_cdd_pipeline_healthy', 'on') %}Healthy
+      {% else %}Check Pipeline{% endif %}
+    secondary: CDD Pipeline
+    icon: mdi:sun-thermometer
+    color: >-
+      {% if is_state('binary_sensor.cdd_pipeline_healthy', 'on') %}green{% else %}red{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: Verified
+    secondary: Data Integrity Tier 1
+    icon: mdi:shield-check
+    color: green
+    vertical: true
+  - type: conditional
+    conditions:
+      - entity: sensor.climate_norms_today
+        state: error
+    card:
+      type: custom:mushroom-template-card
+      primary: Climate Error
+      secondary: Check Python Script
+      icon: mdi:script-text-outline
+      color: red
+      vertical: true
+  - type: conditional
+    conditions:
+      - entity: sensor.hvac_outdoor_weather_source
+        state: Open-Meteo
+    card:
+      type: custom:mushroom-template-card
+      primary: Weather Fallback
+      secondary: Open-Meteo Active
+      icon: mdi:weather-cloudy-alert
+      color: amber
+      vertical: true
+  - type: custom:mushroom-template-card
+    primary: >
+      {% set count = states('counter.automation_failures_24h') | int(0) %}
+      {% if count == 0 %}Healthy{% else %}{{ count }} Failures{% endif %}
+    secondary: Automations (24h)
+    icon: >
+      {% set count = states('counter.automation_failures_24h') | int(0) %}
+      {% if count == 0 %}mdi:robot{% else %}mdi:robot-dead{% endif %}
+    icon_color: >
+      {% set count = states('counter.automation_failures_24h') | int(0) %}
+      {% if count == 0 %}green{% elif count <= 2 %}orange{% else %}red{% endif %}
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hdd_valid_days_7d') }} / 7 Days"
+    secondary: HDD Pipeline History
+    icon: mdi:calendar-check
+    icon_color: green
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ states('sensor.hvac_runtime_per_hdd_data_count') }} HDD /
+      {{ states('sensor.hvac_runtime_per_cdd_data_count') }} CDD
+    secondary: Runtime Pipeline (7d samples)
+    icon: mdi:chart-timeline-variant
+    icon_color: green
+    vertical: true
+columns: 4
+title: System Status
+
+==================
+# Pg 2 Section 2 # [MODIFIED]
+==================
+Changes:
+  - Heading updated: "Degree Days" (unchanged label)
+  - CDD Today, CDD 7-day, CDD Month, CDD Year cards added alongside HDD equivalents
+  - Existing HDD cards and Weather vs Normal cards unchanged
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Degree Days
+  # === HDD ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_hdd65_today') | round(1) }}"
+    secondary: HDD Today
+    icon: mdi:snowflake
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hdd_rolling_7_day_auto_2') | round(1) }}"
+    secondary: HDD (7-Day)
+    icon: mdi:calendar-week
+    color: indigo
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_hdd65_cumulative_month') | round(0) }}"
+    secondary: HDD Month Total
+    icon: mdi:calendar-month
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: blue
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_hdd65_cumulative_year') | round(0) }}"
+    secondary: HDD Year Total
+    icon: mdi:calendar
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: purple
+    features_position: bottom
+    vertical: true
+  # === CDD ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_cdd65_today') | float(0) | round(1) }}"
+    secondary: CDD Today
+    icon: mdi:sun-thermometer
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.cdd_rolling_7_day_auto') | float(0) | round(1) }}"
+    secondary: CDD (7-Day)
+    icon: mdi:calendar-week
+    color: deep-orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 3
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) | round(0) }}"
+    secondary: CDD Month Total
+    icon: mdi:calendar-month
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: orange
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('input_number.cdd_cumulative_year_auto') | float(0) | round(0) }}"
+    secondary: CDD Year Total
+    icon: mdi:calendar
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: red
+    features_position: bottom
+    vertical: true
+  # === UNCHANGED ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.weather_severity_vs_normal_mtd') | round(1) }}%"
+    secondary: Weather vs Normal
+    icon: mdi:weather-partly-cloudy
+    color: amber
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-entity-card
+    entity: sensor.weather_severity_progress_mtd
+    name: Heating Load vs Normal (MTD)
+    icon: mdi:progress-clock
+    grid_options:
+      columns: 6
+      rows: 2
+    fill_container: true
+    layout: vertical
+
+==================
+# Pg 2 Section 3 # [CARDS ADDED]
+==================
+Changes:
+  - All existing heat/furnace MTD cards unchanged
+  - AC MTD cards added at bottom: AC Runtime MTD, 1F Cool MTD, 2F Cool MTD, Runtime/CDD MTD
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Month-to-Date Runtime
+  # === HEAT (all unchanged) ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_total_heat_runtime_month') | round(2) }}"
+    secondary: Zone Calls Total Runtime MTD
+    icon: mdi:clock-outline
+    layout_options:
+      grid_columns: 2
+      grid_rows: 2
+    color: green
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_heat_runtime_month_2') | round(2) }}"
+    secondary: 1F Runtime MTD
+    icon: mdi:home-floor-1
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: orange
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_heat_runtime_month_2') | round(2) }}"
+    secondary: 2F Runtime MTD
+    icon: mdi:home-floor-2
+    layout_options:
+      grid_columns: 1
+      grid_rows: 2
+    color: deep-orange
+    features_position: bottom
+    vertical: true
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_runtime_per_hdd_month') | round(1) }} min/HDD"
+    secondary: Furnace Runtime/HDD (Month)
+    icon: mdi:speedometer
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_zone_balance_month') | round(0) }}%"
+    secondary: Zone Balance (Month)
+    icon: mdi:scale-balance
+    color: teal
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_furnace_runtime_month_2') | float(0) | round(1) }}h"
+    secondary: Furnace Runtime (MTD)
+    icon: mdi:fire
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_furnace_runtime_month_2
+    vertical: true
+    color: deep-orange
+    features_position: bottom
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_zone_overlap_month') | float(0) | round(0) }} min"
+    secondary: Zone Overlap (MTD)
+    icon: mdi:set-center
+    icon_color: >
+      {% set overlap = states('sensor.hvac_zone_overlap_month') | float(0) %} {%
+      if overlap >= 300 %}green {% elif overlap >= 150 %}light-green {% elif
+      overlap >= 60 %}orange {% else %}grey{% endif %}
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_zone_overlap_month
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_chaining_index_month') | float(1) | round(2) }}"
+    secondary: >
+      {% set idx = states('sensor.hvac_chaining_index_month') | float(1) %} {%
+      if idx >= 1.7 %}Excellent (MTD) {% elif idx >= 1.4 %}Good (MTD) {% elif
+      idx >= 1.2 %}Fair (MTD) {% else %}Low (MTD){% endif %}
+    icon: mdi:link-variant
+    icon_color: >
+      {% set idx = states('sensor.hvac_chaining_index_month') | float(1) %} {%
+      if idx >= 1.7 %}green {% elif idx >= 1.4 %}light-green {% elif idx >= 1.2
+      %}orange {% else %}red{% endif %}
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_chaining_index_month
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_furnace_cycles_month_2') | int(0) }}"
+    secondary: >
+      {% set cycles = states('sensor.hvac_furnace_cycles_month_2') | int(0) %}
+      {% set days = now().day %} {{ (cycles / days) | round(1) if days > 0 else
+      0 }} cycles/day avg
+    icon: mdi:counter
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_furnace_cycles_month_2
+    vertical: true
+    color: indigo
+    features_position: bottom
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ states('sensor.hvac_furnace_min_per_cycle_month') | float(0) | round(1)
+      }}
+    secondary: >
+      {% set mpc = states('sensor.hvac_furnace_min_per_cycle_month') | float(0)
+      %} {% if mpc >= 15 %}
+       Long cycles (MTD)
+      {% elif mpc >= 8 %}
+       Normal cycles (MTD)
+      {% elif mpc >= 5 %}
+       Short cycles (MTD)
+      {% else %}
+       Very short (MTD)
+      {% endif %}
+    icon: mdi:timer-cog
+    tap_action:
+      action: more-info
+    entity: sensor.hvac_furnace_min_per_cycle_month
+    vertical: true
+    color: >
+      {% set mpc = states('sensor.hvac_furnace_min_per_cycle_month') | float(0)
+      %} {% if mpc >= 15 %}green {% elif mpc >= 10 %}light-green {% elif mpc >=
+      5 %}orange {% else %}red{% endif %}
+    features_position: bottom
+    grid_options:
+      columns: 5
+      rows: 2
+  # === AC COOLING MTD ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_ac_runtime_month') | float(0) | round(2) }}h"
+    secondary: AC Runtime MTD
+    icon: mdi:air-conditioner
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_1f_cool_runtime_month') | float(0) | round(2) }}h"
+    secondary: 1F Cool MTD
+    icon: mdi:home-floor-1
+    color: light-blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_2f_cool_runtime_month') | float(0) | round(2) }}h"
+    secondary: 2F Cool MTD
+    icon: mdi:home-floor-2
+    color: cyan
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 5
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_runtime_per_cdd_month') | float(0) | round(1) }} min/CDD"
+    secondary: AC Runtime/CDD (Month)
+    icon: mdi:speedometer
+    color: blue
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+
+==================
+# Pg 4 Section 1 # [MODIFIED]
+==================
+Changes:
+  - "Electric Cost Today" secondary label updated to clarify it now includes AC condenser
+  - All other cards unchanged
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Daily HVAC Cost
+  - type: custom:mushroom-template-card
+    primary: ${{ states('sensor.hvac_daily_gas_cost_estimate') | round(2) }}
+    secondary: Gas Cost Today
+    icon: mdi:fire
+    color: orange
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: ${{ states('sensor.hvac_daily_electric_cost_estimate') | round(2) }}
+    secondary: Electric Cost Today (Heat Blower + AC)
+    icon: mdi:flash
+    color: yellow
+    features_position: bottom
+    vertical: true
+    grid_options:
+      columns: 6
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: ${{ states('sensor.hvac_daily_total_cost_estimate') | round(2) }}
+    secondary: Total HVAC Cost Today
+    icon: mdi:currency-usd
+    layout_options:
+      grid_columns: 2
+      grid_rows: 2
+    color: green
+    features_position: bottom
+    vertical: true
+
+===================
+# Pg 5 Section 1A # [MODIFIED]
+===================
+Changes:
+  - "Temperature & Heating (48h)" chart: title updated, AC binary sensor area overlay added
+  - All other charts in this section unchanged
+
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Temperature, Heating & Cooling (48h)
+      show_states: false
+    graph_span: 48h
+    span:
+      end: hour
+    yaxis:
+      - id: temp
+        min: ~10
+        max: ~80
+        apex_config:
+          tickAmount: 4
+          title:
+            text: °F
+            style:
+              color: "#BAC0C6"
+          labels:
+            style:
+              colors: "#BAC0C6"
+      - id: heat
+        opposite: true
+        min: 0
+        max: 1.5
+        show: false
+    apex_config:
+      chart:
+        height: 310
+        background: transparent
+      grid:
+        borderColor: "#3a4a5e"
+      legend:
+        show: true
+        position: top
+        labels:
+          colors: "#BAC0C6"
+      tooltip:
+        theme: dark
+    series:
+      - entity: sensor.outdoor_temp_live
+        name: Outside
+        color: "#1A89F5"
+        stroke_width: 2
+        yaxis_id: temp
+      - entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+        attribute: current_temperature
+        name: 1F Indoor
+        color: "#00CA8B"
+        stroke_width: 2
+        yaxis_id: temp
+      - entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+        attribute: current_temperature
+        name: 2F Indoor
+        color: "#F7D88B"
+        stroke_width: 2
+        yaxis_id: temp
+      - entity: binary_sensor.hvac_1f_call_for_heat
+        name: 1F Heat
+        type: area
+        color: "#F97316"
+        yaxis_id: heat
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.3
+        stroke_width: 0
+      - entity: binary_sensor.hvac_2f_call_for_heat
+        name: 2F Heat
+        type: area
+        color: "#FC937E"
+        yaxis_id: heat
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.3
+        stroke_width: 0
+      - entity: binary_sensor.hvac_ac_running
+        name: AC
+        type: area
+        color: "#2196F3"
+        yaxis_id: heat
+        transform: "return x === 'on' ? 1 : 0;"
+        opacity: 0.3
+        stroke_width: 0
+
+==================
+# Pg 6 Section 1 # [CARDS ADDED]
+==================
+Changes:
+  - Heading unchanged
+  - Existing HDD cards unchanged
+  - CDD Today, CDD vs Normal, and CDD climate status cards added
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Today's Climate Comparison
+    heading_style: title
+  # === HDD (unchanged) ===
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.expected_hdd_today') }}"
+    secondary: Expected HDD
+    icon: mdi:snowflake-thermometer
+    color: cyan
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_hdd65_today') | round(1) }}"
+    secondary: Actual HDD
+    icon: mdi:snowflake
+    color: >-
+      {% set dev = states('sensor.hdd_deviation_today') | float(0) %}{% if dev >
+      5 %}blue{% elif dev < -5 %}orange{% else %}green{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hdd_deviation_today') }}"
+    secondary: HDD Deviation
+    icon: mdi:delta
+    color: >-
+      {% set dev = states('sensor.hdd_deviation_today') | float(0) %}{% if dev >
+      5 %}blue{% elif dev < -5 %}orange{% else %}green{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: "{{ state_attr('sensor.hdd_deviation_today', 'interpretation') }}"
+    secondary: HDD Climate Status
+    icon: >-
+      {% set dev = states('sensor.hdd_deviation_today') | float(0) %}{% if dev >
+      5 %}mdi:snowflake-alert{% elif dev < -5 %}mdi:sun-thermometer{% else
+      %}mdi:check-circle{% endif %}
+    color: >-
+      {% set dev = states('sensor.hdd_deviation_today') | float(0) %}{% if dev >
+      5 %}blue{% elif dev < -5 %}orange{% else %}green{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  # === CDD ===
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ state_attr('sensor.climate_norms_today', 'cdd_mean') | round(1) }}
+    secondary: Expected CDD
+    icon: mdi:sun-thermometer-outline
+    color: orange
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_cdd65_today') | float(0) | round(1) }}"
+    secondary: Actual CDD
+    icon: mdi:sun-thermometer
+    color: >-
+      {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+      {% set exp = state_attr('sensor.climate_norms_today', 'cdd_mean') | float(0) %}
+      {% if cdd > exp * 1.15 %}red{% elif cdd < exp * 0.85 %}green{% else %}orange{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ states('sensor.hvac_runtime_per_cdd_7_day') | float(0) | round(1) }} min/CDD
+    secondary: Runtime/CDD (7d)
+    icon: mdi:speedometer
+    color: >-
+      {% set val = states('sensor.hvac_runtime_per_cdd_7_day') | float(0) %}
+      {% set upper = states('sensor.hvac_runtime_per_cdd_upper_bound') | float(0) %}
+      {% set lower = states('sensor.hvac_runtime_per_cdd_lower_bound') | float(0) %}
+      {% set count = states('sensor.hvac_runtime_per_cdd_data_count') | int(0) %}
+      {% if count < 3 %}grey{% elif val > upper %}red{% elif val < lower %}cyan{% else %}green{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.climate_cold_snap_today
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: Cold Snap
+      secondary: HDD > 90th percentile
+      icon: mdi:snowflake-alert
+      color: blue
+      vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+
+==================
+# Pg 6 Section 3 # [CARDS ADDED]
+==================
+Changes:
+  - Existing Normal Temp, Normal Range, HDD Band, Climate Data Basis cards unchanged
+  - CDD Band (p10-p90) card added
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: Climate Normals Reference
+    heading_style: title
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.expected_temperature_today') }}°F"
+    secondary: Normal Temp
+    icon: mdi:thermometer
+    color: orange
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ state_attr('sensor.expected_temperature_today', 'tmin') }}°F - {{
+      state_attr('sensor.expected_temperature_today', 'tmax') }}°F
+    secondary: Normal Range
+    icon: mdi:thermometer-lines
+    color: grey
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ state_attr('sensor.expected_hdd_today', 'p10') }} - {{
+      state_attr('sensor.expected_hdd_today', 'p90') }}
+    secondary: HDD Band (p10-p90)
+    icon: mdi:chart-bell-curve
+    color: grey
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: >-
+      {{ state_attr('sensor.climate_norms_today', 'cdd_p10') | default('—') }} -
+      {{ state_attr('sensor.climate_norms_today', 'cdd_p90') | default('—') }}
+    secondary: CDD Band (p10-p90)
+    icon: mdi:chart-bell-curve
+    color: orange
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+  - type: custom:mushroom-template-card
+    primary: "{{ state_attr('sensor.climate_norms_today', 'samples') }} years"
+    secondary: Climate Data Basis
+    icon: mdi:database
+    color: grey
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+    features_position: bottom
+
+==================
+# Pg 6 Section 5 # [CARDS ADDED]
+==================
+Changes:
+  - Climate Data and Day of Year cards unchanged
+  - "Current Baseline" Runtime/HDD card relabeled as "Heat Baseline (7d)"
+  - Runtime/CDD 7-day card added alongside it
+
+type: grid
+column_span: 2
+cards:
+  - type: heading
+    heading: System Status
+    heading_style: subtitle
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.climate_norms_status') }}"
+    secondary: Climate Data
+    icon: mdi:cloud-check
+    color: >-
+      {% if 'OK' in states('sensor.climate_norms_status') %}green{% else %}red{%
+      endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: Day {{ state_attr('sensor.climate_norms_today', 'day_of_year') }}
+    secondary: Day of Year
+    icon: mdi:calendar-today
+    color: grey
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.hvac_runtime_per_hdd_7_day') | round(1) }} min/HDD"
+    secondary: Heat Baseline (7d)
+    icon: mdi:chart-line
+    color: grey
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set val = states('sensor.hvac_runtime_per_cdd_7_day') | float(0) %}
+      {% set count = states('sensor.hvac_runtime_per_cdd_data_count') | int(0) %}
+      {% if count < 3 %}Seeding…{% else %}{{ val | round(1) }} min/CDD{% endif %}
+    secondary: >-
+      {% set count = states('sensor.hvac_runtime_per_cdd_data_count') | int(0) %}
+      {% if count < 3 %}CDD Baseline ({{ count }}/3 days){% else %}Cool Baseline (7d){% endif %}
+    icon: mdi:chart-line
+    color: >-
+      {% set count = states('sensor.hvac_runtime_per_cdd_data_count') | int(0) %}
+      {% if count < 3 %}grey{% else %}orange{% endif %}
+    vertical: true
+    grid_options:
+      columns: 4
+      rows: 2
