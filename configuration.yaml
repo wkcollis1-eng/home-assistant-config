@@ -3510,8 +3510,18 @@ template:
       - name: "Gas Heating Cost Month"
         unique_id: gas_heating_cost_month
         unit_of_measurement: "$"
-        # Heating ratio: 71.9% (matches gas_heating_usage_month)
-        state: "{{ (states('input_number.gas_bill_amount') | float(0) * 0.719) | round(2) }}"
+        state: >
+          {% set total_cost = states('input_number.gas_bill_amount') | float(0) %}
+          {% set total_ccf = states('input_number.gas_bill_ccf') | float(0) %}
+          {% set dhw_thm = states('input_number.dhw_bill_thm') | float(0) %}
+          {% if dhw_thm > 0 and total_ccf > 0 %}
+             {% set dhw_ccf = dhw_thm * 0.9643 %}
+             {% set heating_ccf = [total_ccf - dhw_ccf, 0] | max %}
+             {{ total_cost * (heating_ccf / total_ccf) | round(2) }}
+          {% else %}
+             {# Fallback to fixed 71.9% heating share #}
+             {{ total_cost * 0.719 | round(2) }}
+          {% endif %}
 
       - name: "Total Cost Month"
         unique_id: total_cost_month
@@ -3525,7 +3535,9 @@ template:
         unique_id: total_utility_cost_month
         unit_of_measurement: "$"
         state: >
-          {{ (states('sensor.total_cost_month') | float(0) + states('sensor.gas_cost_this_month') | float(0)) | round(2) }}
+          {% set electric = states('input_number.electricity_bill_amount') | float(0) %}
+          {% set gas = states('input_number.gas_bill_amount') | float(0) %}
+          {{ (electric + gas) | round(2) }}
 
       - name: "HVAC Cathedral Ceiling Impact MTD"
         unique_id: hvac_cathedral_ceiling_impact_mtd
