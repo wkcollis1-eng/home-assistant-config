@@ -2662,3 +2662,4 @@
 
     # Full OS shutdown — clean cold boot on DC power restore.
     - service: hassio.host_shutdown
+    
