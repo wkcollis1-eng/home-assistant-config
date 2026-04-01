@@ -2661,5 +2661,4 @@
           critically low below 12.2V sustained. HA Green powering down now.
 
     # Full OS shutdown — clean cold boot on DC power restore.
-    - service: hassio.host_shutdown
-    
+    - service: hassio.host_shutdown   
