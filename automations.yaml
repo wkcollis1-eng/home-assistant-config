@@ -204,6 +204,83 @@
               Cum_Month={{ states('input_number.hdd_cumulative_month_auto') }},
               Cum_Year={{ states('input_number.hdd_cumulative_year_auto') }}
 
+# AUTO CDD TRACKING - Daily capture at 11:55:15 PM (mirrors capture_daily_hdd)
+# ===============================================================
+- id: capture_daily_cdd
+  alias: "Capture Daily CDD"
+  description: "Shifts 7-day CDD sliding window and captures today's CDD value"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:55:15"
+  action:
+    - variables:
+        todays_cdd: "{{ states('sensor.hvac_cdd65_today') | float(-1) }}"
+        proxy_ok: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ proxy_ok and todays_cdd >= 0 and todays_cdd <= 50 }}"
+          sequence:
+            - variables:
+                d1: "{{ states('input_number.cdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.cdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.cdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.cdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.cdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.cdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_1
+              data:
+                value: "{{ todays_cdd }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.cdd_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            - service: system_log.write
+              data:
+                message: "CDD sliding window captured: today={{ todays_cdd }}"
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              CDD capture skipped - proxy_ok={{ proxy_ok }},
+              CDD={{ todays_cdd }}
+
 # ===============================================================
 # RUNTIME PER HDD TRACKING - Daily capture at 11:56 PM (HARDENED)
 # ===============================================================
@@ -419,6 +496,23 @@
         zone_2f_runtime_acc: "{{ states('input_number.zone_2f_runtime_month_acc') | float(0) }}"
         zone_1f_cycles_acc: "{{ states('input_number.zone_1f_cycles_month_acc') | int(0) }}"
         zone_2f_cycles_acc: "{{ states('input_number.zone_2f_cycles_month_acc') | int(0) }}"
+        # AC cooling daily values
+        ac_runtime_today: "{{ states('sensor.hvac_ac_runtime_today') | float(0) }}"
+        ac_cycles_today: "{{ states('sensor.hvac_ac_cycles_today') | int(0) }}"
+        zone_1f_cool_runtime_today: "{{ states('sensor.hvac_1f_cool_runtime_today') | float(0) }}"
+        zone_2f_cool_runtime_today: "{{ states('sensor.hvac_2f_cool_runtime_today') | float(0) }}"
+        zone_1f_cool_cycles_today: "{{ states('sensor.hvac_1f_cool_cycles_today') | int(0) }}"
+        zone_2f_cool_cycles_today: "{{ states('sensor.hvac_2f_cool_cycles_today') | int(0) }}"
+        # AC cooling accumulators
+        ac_runtime_acc: "{{ states('input_number.ac_runtime_month_acc') | float(0) }}"
+        ac_cycles_acc: "{{ states('input_number.ac_cycles_month_acc') | int(0) }}"
+        zone_1f_cool_runtime_acc: "{{ states('input_number.zone_1f_cool_runtime_month_acc') | float(0) }}"
+        zone_2f_cool_runtime_acc: "{{ states('input_number.zone_2f_cool_runtime_month_acc') | float(0) }}"
+        zone_1f_cool_cycles_acc: "{{ states('input_number.zone_1f_cool_cycles_month_acc') | int(0) }}"
+        zone_2f_cool_cycles_acc: "{{ states('input_number.zone_2f_cool_cycles_month_acc') | int(0) }}"
+        # AC cooling yearly accumulators
+        ac_runtime_year_acc: "{{ states('input_number.ac_runtime_year_acc') | float(0) }}"
+        ac_cycles_year_acc: "{{ states('input_number.ac_cycles_year_acc') | int(0) }}"
     - condition: template
       value_template: >
         {{ todays_high > -49 and todays_low < 149 and
@@ -497,6 +591,48 @@
         entity_id: input_number.zone_2f_cycles_month_acc
       data:
         value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
+    # ── AC cooling accumulators ──────────────────────────────────
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_month_acc
+      data:
+        value: "{{ (ac_runtime_acc + ac_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_month_acc
+      data:
+        value: "{{ ac_cycles_acc + ac_cycles_today }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_runtime_month_acc
+      data:
+        value: "{{ (zone_1f_cool_runtime_acc + zone_1f_cool_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_runtime_month_acc
+      data:
+        value: "{{ (zone_2f_cool_runtime_acc + zone_2f_cool_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_cycles_month_acc
+      data:
+        value: "{{ zone_1f_cool_cycles_acc + zone_1f_cool_cycles_today }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_cycles_month_acc
+      data:
+        value: "{{ zone_2f_cool_cycles_acc + zone_2f_cool_cycles_today }}"
+    # ── AC cooling yearly accumulators ───────────────────────────
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_year_acc
+      data:
+        value: "{{ (ac_runtime_year_acc + ac_runtime_today) | round(2) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_year_acc
+      data:
+        value: "{{ ac_cycles_year_acc + ac_cycles_today }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.expected_runtime_sum_month
@@ -507,8 +643,94 @@
         message: >
           Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
           mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
-          expected={{ todays_expected }}h
+          expected={{ todays_expected }}h, AC={{ ac_runtime_today }}h
         level: info
+
+# RUNTIME PER CDD TRACKING - Daily capture at 11:56:45 PM
+# ===============================================================
+- id: capture_daily_runtime_per_cdd
+  alias: "Capture Daily Runtime per CDD"
+  description: "Shifts 7-day runtime/CDD sliding window for cooling efficiency tracking"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:56:45"
+  action:
+    - variables:
+        ac_runtime: "{{ states('sensor.hvac_ac_runtime_today') }}"
+        todays_cdd: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+        upstream_ok: "{{ ac_runtime not in ['unknown', 'unavailable'] and
+                         todays_cdd > 0 }}"
+        todays_ratio: >
+          {% if upstream_ok %}
+            {% set rt_min = ac_runtime | float(0) * 60 %}
+            {{ (rt_min / todays_cdd) | round(1) }}
+          {% else %}
+            -1
+          {% endif %}
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ upstream_ok and todays_ratio >= 0 }}"
+          sequence:
+            - variables:
+                d1: "{{ states('input_number.runtime_per_cdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.runtime_per_cdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.runtime_per_cdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.runtime_per_cdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.runtime_per_cdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.runtime_per_cdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_1
+              data:
+                value: "{{ todays_ratio }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.runtime_per_cdd_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            - service: system_log.write
+              data:
+                message: "Runtime/CDD sliding window captured: ratio={{ todays_ratio }} min/CDD"
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Runtime/CDD capture skipped - AC_runtime={{ ac_runtime }},
+              CDD={{ todays_cdd }}
 
 # ===============================================================
 # MONTHLY/YEARLY RESETS - With startup catch-up
@@ -601,9 +823,40 @@
         entity_id: input_number.zone_2f_cycles_month_acc
       data:
         value: 0
+    # Reset AC cooling monthly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_cycles_month_acc
+      data:
+        value: 0
     - service: system_log.write
       data:
-        message: "Monthly HDD/CDD and furnace accumulators reset completed (trigger: {{ trigger.id }})"
+        message: "Monthly HDD/CDD, furnace, and AC cooling accumulators reset completed (trigger: {{ trigger.id }})"
         level: info
 
 - id: reset_yearly_hdd
@@ -646,6 +899,17 @@
     - service: input_number.set_value
       target:
         entity_id: input_number.cdd_cumulative_year_auto
+      data:
+        value: 0
+    # Reset AC cooling yearly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_year_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_year_acc
       data:
         value: 0
     - service: system_log.write
@@ -880,14 +1144,22 @@
       at: "22:00:00"
   condition:
     - condition: template
-      value_template: "{{ states('sensor.hvac_hdd65_today') | float(0) > 0 }}"
+      value_template: >
+        {{ states('sensor.hvac_hdd65_today') | float(0) > 0 or
+           states('sensor.hvac_cdd65_today') | float(0) > 0 }}
   action:
     - service: persistent_notification.create
       data:
         title: "📊 Daily HVAC Summary"
         message: >
-          HDD: {{ states('sensor.hvac_hdd65_today') }}
-          Runtime: {{ states('sensor.hvac_total_heat_runtime_today') }}h
+          {% if states('sensor.hvac_hdd65_today') | float(0) > 0 %}
+          🔥 Heating: HDD={{ states('sensor.hvac_hdd65_today') }}
+          Runtime={{ states('sensor.hvac_total_heat_runtime_today') }}h
+          {% endif %}
+          {% if states('sensor.hvac_cdd65_today') | float(0) > 0 %}
+          ❄️ Cooling: CDD={{ states('sensor.hvac_cdd65_today') }}
+          AC Runtime={{ states('sensor.hvac_ac_runtime_today') }}h
+          {% endif %}
           Zone Balance: {{ states('sensor.hvac_zone_balance_ratio_today') }}%
 
 # ===============================================================
@@ -1076,8 +1348,10 @@
         - conditions:
             - condition: template
               value_template: >
-                {{ is_number(states('sensor.hvac_total_heat_runtime_today')) and
-                   (states('sensor.hvac_total_heat_runtime_today')|float) >= 0 }}
+                {{ (is_number(states('sensor.hvac_total_heat_runtime_today')) and
+                    states('sensor.hvac_total_heat_runtime_today')|float >= 0) or
+                   (is_number(states('sensor.hvac_ac_runtime_today')) and
+                    states('sensor.hvac_ac_runtime_today')|float >= 0) }}
           sequence:
             - service: input_number.set_value
               target:
@@ -1085,7 +1359,8 @@
               data:
                 value: >
                   {{ (states('input_number.hvac_filter_runtime_hours')|float(0) +
-                      states('sensor.hvac_total_heat_runtime_today')|float)|round(2) }}
+                      states('sensor.hvac_total_heat_runtime_today')|float(0) +
+                      states('sensor.hvac_ac_runtime_today')|float(0))|round(2) }}
       default:
         - service: system_log.write
           data:
@@ -1613,6 +1888,106 @@
           Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
           which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound') }} = mean - 2σ).
           System running more efficiently than expected.
+
+- id: notify_ac_short_cycling
+  alias: "Notify AC Short Cycling"
+  description: "Alert when AC compressor is short cycling (<8 min/cycle)"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_ac_short_cycling_alert
+      to: "on"
+      for:
+        minutes: 15
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "AC Short Cycling Alert"
+        message: >
+          AC compressor is short cycling: {{ states('sensor.hvac_ac_min_per_cycle') }} min/cycle
+          (threshold: 8 min). Cycles today: {{ states('sensor.hvac_ac_cycles_today') }}.
+          Check refrigerant charge, filter, and thermostat settings.
+        notification_id: ac_short_cycling
+
+- id: notify_runtime_per_cdd_high
+  alias: "Notify Runtime per CDD High"
+  description: "Alert when runtime/CDD 7-day ratio exceeds mean+2σ upper bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_high_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD High Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          exceeds upper bound {{ states('sensor.hvac_runtime_per_cdd_upper_bound') }} (mean + 2σ).
+          Possible causes: dirty filter, low refrigerant, high humidity load, or degraded equipment.
+        notification_id: runtime_per_cdd_high
+
+- id: notify_runtime_per_cdd_low
+  alias: "Notify Runtime per CDD Low"
+  description: "Alert when runtime/CDD 7-day ratio falls below mean-2σ lower bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_low_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD Low Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          is below lower bound {{ states('sensor.hvac_runtime_per_cdd_lower_bound') }} (mean - 2σ).
+          Possible causes: very low humidity, sensor fault, or unusually efficient conditions.
+        notification_id: runtime_per_cdd_low
+
+- id: notify_cdd_capture_stale
+  alias: "Notify CDD Capture Stale"
+  description: "Alert when CDD sliding window capture has not succeeded in 26+ hours"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.cdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "CDD Capture Stale"
+        message: >
+          CDD capture has not succeeded in over 26 hours.
+          Last OK: {{ states('input_datetime.cdd_capture_last_ok') }}.
+          Check outdoor proxy sensor and capture_daily_cdd automation.
+        notification_id: cdd_capture_stale
+
+- id: notify_runtime_per_cdd_capture_stale
+  alias: "Notify Runtime per CDD Capture Stale"
+  description: "Alert when runtime/CDD sliding window capture has not succeeded in 26+ hours"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.runtime_per_cdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD Capture Stale"
+        message: >
+          Runtime/CDD capture has not succeeded in over 26 hours.
+          Last OK: {{ states('input_datetime.runtime_per_cdd_capture_last_ok') }}.
+          Check AC runtime sensor and capture_daily_runtime_per_cdd automation.
+        notification_id: runtime_per_cdd_capture_stale
 
 # ===============================================================
 # DATABASE MAINTENANCE
