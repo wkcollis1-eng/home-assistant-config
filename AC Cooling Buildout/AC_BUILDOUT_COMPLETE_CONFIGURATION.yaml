@@ -4612,5 +4612,4 @@ command_line:
         - tmean
         - tmin
         - tmax
-        - samples
-        
+        - samples        
