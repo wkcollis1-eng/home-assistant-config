@@ -3391,17 +3391,58 @@ template:
         unique_id: projected_annual_gas_ccf
         unit_of_measurement: "CCF"
         state: >
-          {% set ccf = states('input_number.gas_bill_ccf') | float(110) %}
-          {% set days = states('input_number.gas_bill_days') | float(28) %}
-          {{ ((ccf / days) * 365) | round(0) if days > 0 else 787 }}
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(90.3) %}
+          {% set dhw_annual = states('sensor.dhw_gas_12m') | float(42) %}
+          {% set dhw_monthly = dhw_annual / 12 %}
+          {% set ns = namespace(actual=0, projected=0) %}
+          {% for m in months %}
+            {% set gas = states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set hdd = states('input_number.hdd_archive_' ~ m) | float(0) %}
+            {% set dhw = states('input_number.dhw_archive_' ~ m) | float(dhw_monthly) %}
+            {% if gas > 0 %}
+              {# Month has been billed — use actual #}
+              {% set ns.actual = ns.actual + gas %}
+            {% else %}
+              {# Unbilled — project heating from HDD × efficiency + DHW #}
+              {% set heat_est = (hdd / 1000.0) * efficiency %}
+              {% set ns.projected = ns.projected + heat_est + dhw %}
+            {% endif %}
+          {% endfor %}
+          {{ (ns.actual + ns.projected) | round(0) }}
 
       - name: "Projected Annual Electricity kWh"
         unique_id: projected_annual_electricity_kwh
         unit_of_measurement: "kWh"
         state: >
-          {% set kwh = states('input_number.electricity_bill_kwh') | float(454) %}
-          {% set days = states('input_number.electricity_bill_days') | float(33) %}
-          {{ ((kwh / days) * 365) | round(0) if days > 0 else 6730 }}
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set baseline = states('input_number.annual_electricity_baseline') | float(6730) %}
+          {% set ns = namespace(total=0, billed=0) %}
+          {% for m in months %}
+            {% set kwh = states('input_number.electric_archive_' ~ m ~ '_kwh') | float(0) %}
+            {% if kwh > 0 %}
+              {% set ns.total = ns.total + kwh %}
+              {% set ns.billed = ns.billed + 1 %}
+            {% endif %}
+          {% endfor %}
+          {% if ns.billed == 0 %}
+            {# No archive data at all — return baseline #}
+            {{ baseline | round(0) }}
+          {% elif ns.billed == 12 %}
+            {# All 12 months billed — straight sum of actuals #}
+            {{ ns.total | round(0) }}
+          {% else %}
+            {# Mix of actual + prior-year proxy: all 12 archive slots sum naturally.
+               Billed months hold this year's actuals. Unbilled months hold last year's
+               same-month values. Sum of all 12 is the best available full-year estimate. #}
+            {% set ns2 = namespace(full=0) %}
+            {% for m in months %}
+              {% set ns2.full = ns2.full + states('input_number.electric_archive_' ~ m ~ '_kwh') | float(baseline / 12) %}
+            {% endfor %}
+            {{ ns2.full | round(0) }}
+          {% endif %}
 
       - name: "Electricity Effective Rate"
         unique_id: electricity_effective_rate
