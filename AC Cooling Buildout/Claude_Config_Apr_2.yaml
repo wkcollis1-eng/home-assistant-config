@@ -3601,8 +3601,13 @@ template:
         unique_id: total_utility_cost_month
         unit_of_measurement: "$"
         state: >
-          {{ (states('sensor.total_cost_month') | float(0) + states('sensor.gas_cost_this_month') | float(0)) | round(2) }}
-
+          {% set electric = states('input_number.electricity_bill_amount') | float(0) %}
+          {% set gas = states('input_number.gas_bill_amount') | float(0) %}
+          {% if electric > 0 or gas > 0 %}
+            {{ (electric + gas) | round(2) }}
+          {% else %}
+            0.00
+        {% endif %}
       - name: "HVAC Cathedral Ceiling Impact MTD"
         unique_id: hvac_cathedral_ceiling_impact_mtd
         unit_of_measurement: "$"
