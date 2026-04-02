@@ -1523,6 +1523,82 @@ input_number:
     mode: box
 
   # ===============================================================
+  # 12-MONTH ARCHIVE - CDD (mirrors HDD archive for cooling season analysis)
+  # ===============================================================
+  cdd_archive_jan:
+    name: "Archive: Jan CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_feb:
+    name: "Archive: Feb CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_mar:
+    name: "Archive: Mar CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_apr:
+    name: "Archive: Apr CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_may:
+    name: "Archive: May CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_jun:
+    name: "Archive: Jun CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_jul:
+    name: "Archive: Jul CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_aug:
+    name: "Archive: Aug CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_sep:
+    name: "Archive: Sep CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_oct:
+    name: "Archive: Oct CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_nov:
+    name: "Archive: Nov CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+  cdd_archive_dec:
+    name: "Archive: Dec CDD"
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+
+  # ===============================================================
   # FILTER TRACKING
   # ===============================================================
   hvac_filter_runtime_hours:
@@ -3538,7 +3614,7 @@ template:
           {% set electric = states('input_number.electricity_bill_amount') | float(0) %}
           {% set gas = states('input_number.gas_bill_amount') | float(0) %}
           {{ (electric + gas) | round(2) }}
-
+          
       - name: "HVAC Cathedral Ceiling Impact MTD"
         unique_id: hvac_cathedral_ceiling_impact_mtd
         unit_of_measurement: "$"
