@@ -513,138 +513,150 @@
         # AC cooling yearly accumulators
         ac_runtime_year_acc: "{{ states('input_number.ac_runtime_year_acc') | float(0) }}"
         ac_cycles_year_acc: "{{ states('input_number.ac_cycles_year_acc') | int(0) }}"
-    - condition: template
-      value_template: >
-        {{ todays_high > -49 and todays_low < 149 and
-           is_number(todays_hdd) and is_number(todays_cdd) and
-           0 <= todays_hdd <= 65 and 0 <= todays_cdd <= 50 }}
-    # ── TIMESTAMP FIRST ──────────────────────────────────────────
-    # Set before ANY accumulator updates so captured_today flips
-    # atomically for all month sensors (HDD + runtime + cycles).
-    # Brief dip (accumulators missing today) affects numerator and
-    # denominator equally, keeping the efficiency ratio stable.
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.monthly_tracking_capture_last_ok
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # ── HDD/CDD accumulators (moved from capture_daily_hdd) ─────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hdd_cumulative_month_auto
-      data:
-        value: "{{ (hdd_month_acc + todays_hdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.cdd_cumulative_month_auto
-      data:
-        value: "{{ (cdd_month_acc + todays_cdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hdd_cumulative_year_auto
-      data:
-        value: "{{ (hdd_year_acc + todays_hdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.cdd_cumulative_year_auto
-      data:
-        value: "{{ (cdd_year_acc + todays_cdd) | round(1) }}"
-    # ── Outdoor temp tracking ────────────────────────────────────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_sum_month
-      data:
-        value: "{{ current_temp_sum + todays_mean }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_days_month
-      data:
-        value: "{{ current_days + 1 }}"
-    # ── Furnace/zone accumulators (immune to recorder purge) ─────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_runtime_month_acc
-      data:
-        value: "{{ (furnace_runtime_acc + furnace_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_cycles_month_acc
-      data:
-        value: "{{ furnace_cycles_acc + furnace_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_runtime_month_acc
-      data:
-        value: "{{ (zone_1f_runtime_acc + zone_1f_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_runtime_month_acc
-      data:
-        value: "{{ (zone_2f_runtime_acc + zone_2f_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_cycles_month_acc
-      data:
-        value: "{{ zone_1f_cycles_acc + zone_1f_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_cycles_month_acc
-      data:
-        value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
-    # ── AC cooling accumulators ──────────────────────────────────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.ac_runtime_month_acc
-      data:
-        value: "{{ (ac_runtime_acc + ac_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.ac_cycles_month_acc
-      data:
-        value: "{{ ac_cycles_acc + ac_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_cool_runtime_month_acc
-      data:
-        value: "{{ (zone_1f_cool_runtime_acc + zone_1f_cool_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_cool_runtime_month_acc
-      data:
-        value: "{{ (zone_2f_cool_runtime_acc + zone_2f_cool_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_cool_cycles_month_acc
-      data:
-        value: "{{ zone_1f_cool_cycles_acc + zone_1f_cool_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_cool_cycles_month_acc
-      data:
-        value: "{{ zone_2f_cool_cycles_acc + zone_2f_cool_cycles_today }}"
-    # ── AC cooling yearly accumulators ───────────────────────────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.ac_runtime_year_acc
-      data:
-        value: "{{ (ac_runtime_year_acc + ac_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.ac_cycles_year_acc
-      data:
-        value: "{{ ac_cycles_year_acc + ac_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.expected_runtime_sum_month
-      data:
-        value: "{{ current_expected_sum + todays_expected }}"
-    - service: system_log.write
-      data:
-        message: >
-          Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
-          mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
-          expected={{ todays_expected }}h, AC={{ ac_runtime_today }}h
-        level: info
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ todays_high > -49 and todays_low < 149 and
+                   is_number(todays_hdd) and is_number(todays_cdd) and
+                   0 <= todays_hdd <= 65 and 0 <= todays_cdd <= 50 }}
+          sequence:
+            # ── TIMESTAMP FIRST ──────────────────────────────────────────
+            # Set before ANY accumulator updates so captured_today flips
+            # atomically for all month sensors (HDD + runtime + cycles).
+            # Brief dip (accumulators missing today) affects numerator and
+            # denominator equally, keeping the efficiency ratio stable.
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.monthly_tracking_capture_last_ok
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            # ── HDD/CDD accumulators (moved from capture_daily_hdd) ─────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_month_auto
+              data:
+                value: "{{ (hdd_month_acc + todays_hdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_month_auto
+              data:
+                value: "{{ (cdd_month_acc + todays_cdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_year_auto
+              data:
+                value: "{{ (hdd_year_acc + todays_hdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_year_auto
+              data:
+                value: "{{ (cdd_year_acc + todays_cdd) | round(1) }}"
+            # ── Outdoor temp tracking ────────────────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_sum_month
+              data:
+                value: "{{ current_temp_sum + todays_mean }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_days_month
+              data:
+                value: "{{ current_days + 1 }}"
+            # ── Furnace/zone accumulators (immune to recorder purge) ─────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_runtime_month_acc
+              data:
+                value: "{{ (furnace_runtime_acc + furnace_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_cycles_month_acc
+              data:
+                value: "{{ furnace_cycles_acc + furnace_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_runtime_month_acc
+              data:
+                value: "{{ (zone_1f_runtime_acc + zone_1f_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_runtime_month_acc
+              data:
+                value: "{{ (zone_2f_runtime_acc + zone_2f_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cycles_month_acc
+              data:
+                value: "{{ zone_1f_cycles_acc + zone_1f_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cycles_month_acc
+              data:
+                value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
+            # ── AC cooling accumulators ──────────────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_runtime_month_acc
+              data:
+                value: "{{ (ac_runtime_acc + ac_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_cycles_month_acc
+              data:
+                value: "{{ ac_cycles_acc + ac_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cool_runtime_month_acc
+              data:
+                value: "{{ (zone_1f_cool_runtime_acc + zone_1f_cool_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cool_runtime_month_acc
+              data:
+                value: "{{ (zone_2f_cool_runtime_acc + zone_2f_cool_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cool_cycles_month_acc
+              data:
+                value: "{{ zone_1f_cool_cycles_acc + zone_1f_cool_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cool_cycles_month_acc
+              data:
+                value: "{{ zone_2f_cool_cycles_acc + zone_2f_cool_cycles_today }}"
+            # ── AC cooling yearly accumulators ───────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_runtime_year_acc
+              data:
+                value: "{{ (ac_runtime_year_acc + ac_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_cycles_year_acc
+              data:
+                value: "{{ ac_cycles_year_acc + ac_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.expected_runtime_sum_month
+              data:
+                value: "{{ current_expected_sum + todays_expected }}"
+            - service: system_log.write
+              data:
+                message: >
+                  Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
+                  mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
+                  expected={{ todays_expected }}h, AC={{ ac_runtime_today }}h
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Monthly tracking SKIPPED - invalid temp or degree-day data.
+              high={{ todays_high }}, low={{ todays_low }},
+              HDD={{ todays_hdd }}, CDD={{ todays_cdd }}.
+              Accumulators NOT updated. Check outdoor proxy sensor.
 
 # RUNTIME PER CDD TRACKING - Daily capture at 11:56:45 PM
 # ===============================================================
@@ -725,6 +737,11 @@
                 message: "Runtime/CDD sliding window captured: ratio={{ todays_ratio }} min/CDD"
                 level: info
       default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.runtime_per_cdd_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
         - service: system_log.write
           data:
             level: warning
@@ -926,7 +943,7 @@
   mode: single
   trigger:
     - platform: time
-      at: "23:58:00"
+      at: "23:58:15"
   condition:
     # Only run on last day of month
     - condition: template
@@ -948,6 +965,39 @@
     - service: system_log.write
       data:
         message: "Monthly HDD archived: {{ month_name | upper }} = {{ month_hdd | round(1) }} HDD"
+        level: info
+
+# ===============================================================
+# MONTHLY CDD ARCHIVE (mirrors HDD archive for cooling season analysis)
+# ===============================================================
+- id: archive_monthly_cdd
+  alias: "Archive Monthly CDD"
+  description: "Archives month's total CDD to rolling 12-month archive on last day of month"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:58:30"
+  condition:
+    # Only run on last day of month
+    - condition: template
+      value_template: >
+        {% set tomorrow = now() + timedelta(days=1) %}
+        {{ tomorrow.day == 1 }}
+  action:
+    - variables:
+        # Note: cdd_cumulative_month_auto already includes today's CDD (added at 23:56:30)
+        month_cdd: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[now().month - 1] }}
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.cdd_archive_{{ month_name }}"
+      data:
+        value: "{{ month_cdd | round(1) }}"
+    - service: system_log.write
+      data:
+        message: "Monthly CDD archived: {{ month_name | upper }} = {{ month_cdd | round(1) }} CDD"
         level: info
 
 # ===============================================================
@@ -2052,10 +2102,10 @@
 
 - id: csv_monthly_report
   alias: "CSV Monthly Report"
-  description: "Append monthly HVAC data to CSV on last day of month at 23:58:30"
+  description: "Append monthly HVAC data to CSV on last day of month at 23:58:45"
   trigger:
     - platform: time
-      at: "23:58:30"
+      at: "23:58:45"
   condition:
     - condition: template
       value_template: "{{ (now() + timedelta(days=1)).day == 1 }}"
@@ -2296,6 +2346,101 @@
               data:
                 message: "INFO: Outdoor temp daily high/low at initial values - will auto-correct when sensor available"
                 level: info
+    - choose:
+        # Check CDD cumulative values
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.cdd_cumulative_year_auto') | float(0) > 2500 or
+                   states('input_number.cdd_cumulative_month_auto') | float(0) > 500 or
+                   states('input_number.cdd_cumulative_year_auto') | float(0) < 0 or
+                   states('input_number.cdd_cumulative_month_auto') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: CDD cumulative values appear corrupt.
+                  Year: {{ states('input_number.cdd_cumulative_year_auto') }},
+                  Month: {{ states('input_number.cdd_cumulative_month_auto') }}
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ CDD Data Validation Warning"
+                message: >
+                  CDD cumulative values may be corrupt:
+                  - Year-to-date: {{ states('input_number.cdd_cumulative_year_auto') }} CDD
+                  - Month-to-date: {{ states('input_number.cdd_cumulative_month_auto') }} CDD
+
+                  Reasonable values: Year < 2500, Month < 500
+    - choose:
+        # Check AC runtime accumulators for corrupt values
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.ac_runtime_year_acc') | float(0) > 5000 or
+                   states('input_number.ac_runtime_month_acc') | float(0) > 750 or
+                   states('input_number.ac_runtime_year_acc') | float(0) < 0 or
+                   states('input_number.ac_runtime_month_acc') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: AC runtime accumulators appear corrupt.
+                  Year: {{ states('input_number.ac_runtime_year_acc') }}h,
+                  Month: {{ states('input_number.ac_runtime_month_acc') }}h
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ AC Runtime Accumulator Warning"
+                message: >
+                  AC runtime accumulator values may be corrupt:
+                  - Year-to-date: {{ states('input_number.ac_runtime_year_acc') }}h
+                  - Month-to-date: {{ states('input_number.ac_runtime_month_acc') }}h
+
+                  Reasonable values: Year < 5000h, Month < 750h
+    - choose:
+        # Check 7-day sliding window slots for negative values (sign corruption)
+        - conditions:
+            - condition: template
+              value_template: >
+                {% set hdd_slots = [
+                  states('input_number.hdd_day_1') | float(0),
+                  states('input_number.hdd_day_2') | float(0),
+                  states('input_number.hdd_day_3') | float(0),
+                  states('input_number.hdd_day_4') | float(0),
+                  states('input_number.hdd_day_5') | float(0),
+                  states('input_number.hdd_day_6') | float(0),
+                  states('input_number.hdd_day_7') | float(0)
+                ] %}
+                {% set cdd_slots = [
+                  states('input_number.cdd_day_1') | float(0),
+                  states('input_number.cdd_day_2') | float(0),
+                  states('input_number.cdd_day_3') | float(0),
+                  states('input_number.cdd_day_4') | float(0),
+                  states('input_number.cdd_day_5') | float(0),
+                  states('input_number.cdd_day_6') | float(0),
+                  states('input_number.cdd_day_7') | float(0)
+                ] %}
+                {{ (hdd_slots | select('<', 0) | list | count > 0) or
+                   (hdd_slots | select('>', 65) | list | count > 0) or
+                   (cdd_slots | select('<', 0) | list | count > 0) or
+                   (cdd_slots | select('>', 50) | list | count > 0) }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: HDD or CDD 7-day sliding window slots contain out-of-range values.
+                  HDD slots: {{ [states('input_number.hdd_day_1')|float(0), states('input_number.hdd_day_2')|float(0), states('input_number.hdd_day_3')|float(0), states('input_number.hdd_day_4')|float(0), states('input_number.hdd_day_5')|float(0), states('input_number.hdd_day_6')|float(0), states('input_number.hdd_day_7')|float(0)] }},
+                  CDD slots: {{ [states('input_number.cdd_day_1')|float(0), states('input_number.cdd_day_2')|float(0), states('input_number.cdd_day_3')|float(0), states('input_number.cdd_day_4')|float(0), states('input_number.cdd_day_5')|float(0), states('input_number.cdd_day_6')|float(0), states('input_number.cdd_day_7')|float(0)] }}
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ Degree-Day Window Corruption"
+                message: >
+                  One or more HDD/CDD 7-day sliding window slots contain out-of-range
+                  values (negative or > physical maximum). SPC calculations may be skewed.
+                  Check Developer Tools → input_number.hdd_day_1 through hdd_day_7
+                  and cdd_day_1 through cdd_day_7.
 
 # CLIMATE NORMS SCRIPT FAILURE HANDLER
 - id: notify_climate_norms_failure
