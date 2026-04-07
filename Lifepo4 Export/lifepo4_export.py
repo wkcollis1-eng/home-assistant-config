@@ -18,7 +18,6 @@ Called by shell_command.export_lifepo4_weekly every Sunday at 22:30.
 
 import sqlite3
 import csv
-import os
 import sys
 import logging
 from datetime import datetime, timezone, timedelta
@@ -29,16 +28,16 @@ from zoneinfo import ZoneInfo
 # CONFIGURATION
 # ============================================================================
 
-DB_PATH     = "/config/home-assistant_v2.db"
-EXPORT_DIR  = Path("/config/lifepo4_exports/data")
-HF_DIR      = EXPORT_DIR / "high_freq_voltage"
+DB_PATH = "/config/home-assistant_v2.db"
+EXPORT_DIR = Path("/config/lifepo4_exports/data")
+HF_DIR = EXPORT_DIR / "high_freq_voltage"
 
 # HA Green local timezone — handles EST (UTC-5) and EDT (UTC-4) automatically
 HA_TZ = ZoneInfo("America/New_York")
 
 # Entity IDs — do not correct the 'voltge' typo, it is intentional
-VOLTAGE_ENTITY  = "sensor.shelly_plus_uni_voltge"
-TEMP_ENTITY     = "sensor.shelly_temperature_humidity_temperature"
+VOLTAGE_ENTITY = "sensor.shelly_plus_uni_voltge"
+TEMP_ENTITY = "sensor.shelly_temperature_humidity_temperature"
 HUMIDITY_ENTITY = "sensor.shelly_temperature_humidity_humidity"
 
 # How many days to query (must be < recorder purge_keep_days=14)
@@ -56,13 +55,14 @@ VOLTAGE_MAX = 16.0
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("lifepo4_export")
 
 # ============================================================================
 # DB HELPERS
 # ============================================================================
+
 
 def get_metadata_id(cursor, entity_id):
     """Return metadata_id for an entity_id (HA 2023+ schema)."""
@@ -98,6 +98,7 @@ def query_states(cursor, metadata_id, since_ts):
 # TIMESTAMP HELPERS
 # ============================================================================
 
+
 def ts_to_local_parts(ts_float):
     """
     Convert Unix float timestamp to HA Green local time (America/New_York,
@@ -123,6 +124,7 @@ def ts_to_local_iso(ts_float):
 # ============================================================================
 # EXPORT: HIGH-FREQUENCY VOLTAGE FILE (weekly)
 # ============================================================================
+
 
 def export_hf_voltage(cursor, metadata_id, since_ts, week_start, week_end):
     """
@@ -161,6 +163,7 @@ def export_hf_voltage(cursor, metadata_id, since_ts, week_start, week_end):
 # ============================================================================
 # EXPORT: HOURLY AGGREGATES (append to cumulative CSVs)
 # ============================================================================
+
 
 def build_hourly_aggregates(rows, value_min=None, value_max=None):
     """
@@ -225,7 +228,9 @@ def append_hourly_csv(csv_path, header, new_rows):
 
 def export_hourly_voltage(cursor, metadata_id, since_ts, csv_path):
     rows = query_states(cursor, metadata_id, since_ts)
-    buckets = build_hourly_aggregates(rows, value_min=VOLTAGE_MIN, value_max=VOLTAGE_MAX)
+    buckets = build_hourly_aggregates(
+        rows, value_min=VOLTAGE_MIN, value_max=VOLTAGE_MAX
+    )
 
     sorted_rows = [
         {"Date": d, "Time": t, "Min": round(mn, 3), "Max": round(mx, 3)}
@@ -257,6 +262,7 @@ def export_hourly_sensor(cursor, metadata_id, since_ts, csv_path, value_col):
 # MAIN
 # ============================================================================
 
+
 def main():
     log.info("=" * 60)
     log.info("LiFePO4 weekly export starting")
@@ -277,7 +283,7 @@ def main():
 
     # Week boundary strings for HF filename (local date, not UTC)
     week_start = (now_local - timedelta(days=6)).strftime("%Y-%m-%d")
-    week_end   = now_local.strftime("%Y-%m-%d")
+    week_end = now_local.strftime("%Y-%m-%d")
 
     log.info(f"Query window: {since_dt.strftime('%Y-%m-%d %H:%M UTC')} → now")
     log.info(f"HF file will cover: {week_start} to {week_end}  (local dates)")
@@ -289,8 +295,8 @@ def main():
 
         # Resolve metadata IDs
         try:
-            v_meta  = get_metadata_id(cursor, VOLTAGE_ENTITY)
-            t_meta  = get_metadata_id(cursor, TEMP_ENTITY)
+            v_meta = get_metadata_id(cursor, VOLTAGE_ENTITY)
+            t_meta = get_metadata_id(cursor, TEMP_ENTITY)
             rh_meta = get_metadata_id(cursor, HUMIDITY_ENTITY)
         except ValueError as e:
             log.error(f"Entity lookup failed: {e}")
@@ -298,28 +304,25 @@ def main():
             sys.exit(1)
 
         # 1 — HF voltage file (weekly, new file each run, local timestamps)
-        hf_count = export_hf_voltage(
-            cursor, v_meta, since_ts, week_start, week_end
-        )
+        hf_count = export_hf_voltage(cursor, v_meta, since_ts, week_start, week_end)
 
         # 2 — Hourly voltage (append to combined_output.csv, local time buckets)
         export_hourly_voltage(
-            cursor, v_meta, since_ts,
-            EXPORT_DIR / "combined_output.csv"
+            cursor, v_meta, since_ts, EXPORT_DIR / "combined_output.csv"
         )
 
         # 3 — Hourly temperature (append to combined_temperature.csv)
         export_hourly_sensor(
-            cursor, t_meta, since_ts,
+            cursor,
+            t_meta,
+            since_ts,
             EXPORT_DIR / "combined_temperature.csv",
-            "temperature"
+            "temperature",
         )
 
         # 4 — Hourly humidity (append to combined_humidity.csv)
         export_hourly_sensor(
-            cursor, rh_meta, since_ts,
-            EXPORT_DIR / "combined_humidity.csv",
-            "humidity"
+            cursor, rh_meta, since_ts, EXPORT_DIR / "combined_humidity.csv", "humidity"
         )
 
         conn.close()
@@ -329,8 +332,8 @@ def main():
         sys.exit(1)
 
     log.info("Export complete")
-    log.info(f"Files ready at: /config/lifepo4_exports/data/")
-    log.info(f"Samba path:     \\\\homeassistant\\config\\lifepo4_exports\\data\\")
+    log.info("Files ready at: /config/lifepo4_exports/data/")
+    log.info("Samba path:     \\\\homeassistant\\config\\lifepo4_exports\\data\\")
     log.info("=" * 60)
     return hf_count
 

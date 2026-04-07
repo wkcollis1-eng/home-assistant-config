@@ -1,4 +1,4 @@
-noctis: 
+noctis:
   modes:
     dark: {}
   # Fonts
@@ -34,7 +34,7 @@ noctis:
   # ha-font-smoothing: antialiased
 
   # Text
-  text-color: '#ffffff' 
+  text-color: '#ffffff'
   primary-text-color: 'var(--text-color)'
   text-primary-color: 'var(--text-color)'
   secondary-text-color: "#BAC0C6"
@@ -66,7 +66,7 @@ noctis:
   ha-color-fill-primary-normal-resting: '#2e3b53'
   ha-color-fill-disabled-normal-resting: '#222c40'
   input-idle-line-color: 'var(--accent-color)'
-  
+
   # Main Colors
   app-header-background-color: '#242e42'
   header-height: 48px
@@ -78,13 +78,13 @@ noctis:
   # Background
   background-color: '#242e42'
   primary-background-color: 'var(--background-color)'
-  background-color-2: '#20293c' 
+  background-color-2: '#20293c'
   secondary-background-color: 'none'
   markdown-code-background-color: 'var(--background-color)'
   material-background-color: "var(--paper-listbox-background-color)"
   material-secondary-background-color: 'var(--ha-card-background)'
   clear-background-color: 'var(--accent-color)'
-  
+
   # Card
   card-background-color: 'var(--ha-card-background)'
   ha-card-background: 'rgba(43,55,78,1)' #'linear-gradient(145deg, #273246, #2e3b53)'
@@ -260,7 +260,7 @@ noctis:
   lumo-shade-10pct: 'rgba(34, 34, 34, .1)'
   lumo-shade-5pct: 'rgba(34, 34, 34, .05)'
   lumo-tint-5pct: 'var(--background-color)'
-  
+
   # Custom Header
   ch-background: 'var(--background-color)'
   ch-active-tab-color: 'var(--accent-color)'
@@ -294,14 +294,14 @@ noctis:
 
 
   # card-mod-theme: noctis
-  
+
   # card-mod-more-info-yaml: |
   #   $: |
   #     .mdc-dialog .mdc-dialog__scrim {
   #       backdrop-filter: blur(15px);
   #       -webkit-backdrop-filter: blur(15px);
   #       background: rgba(0,0,0,.6);
-  #     } 
+  #     }
   #     .mdc-dialog .mdc-dialog__container .mdc-dialog__surface {
   #       box-shadow: none !important;
   #       border-radius: var(--ha-card-border-radius);
@@ -310,4 +310,3 @@ noctis:
   #     :host {
   #       --ha-card-box-shadow: none;
   #     }
-  

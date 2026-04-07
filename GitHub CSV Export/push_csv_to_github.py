@@ -46,10 +46,10 @@ from pathlib import Path
 # ──────────────────────────────────────────────────────────────────
 # Configuration — edit REPO / BRANCH if the repo ever moves
 # ──────────────────────────────────────────────────────────────────
-OWNER      = "wkcollis1-eng"
-REPO       = "Residential-HVAC-Performance-Baseline-"
-BRANCH     = "main"
-API_BASE   = "https://api.github.com"
+OWNER = "wkcollis1-eng"
+REPO = "Residential-HVAC-Performance-Baseline-"
+BRANCH = "main"
+API_BASE = "https://api.github.com"
 CONFIG_DIR = Path("/config")
 
 # Files to push: local path (relative to CONFIG_DIR) → GitHub path
@@ -62,16 +62,17 @@ CONFIG_DIR = Path("/config")
 # The daily CSV filename is year-dynamic.
 YEAR = datetime.now().year
 FILES_TO_PUSH = {
-    f"reports/hvac_daily_{YEAR}.csv":   f"homeassistant/reports/hvac_daily_{YEAR}.csv",
-    "reports/hvac_monthly.csv":         "homeassistant/reports/hvac_monthly.csv",
-    "reports/hvac_setback_log.csv":     "homeassistant/reports/hvac_setback_log.csv",
-    "reports/input_number_backup.csv":  "homeassistant/reports/input_number_backup.csv",
-    "reports/utility_monthly.csv":      "homeassistant/reports/utility_monthly.csv",
+    f"reports/hvac_daily_{YEAR}.csv": f"homeassistant/reports/hvac_daily_{YEAR}.csv",
+    "reports/hvac_monthly.csv": "homeassistant/reports/hvac_monthly.csv",
+    "reports/hvac_setback_log.csv": "homeassistant/reports/hvac_setback_log.csv",
+    "reports/input_number_backup.csv": "homeassistant/reports/input_number_backup.csv",
+    "reports/utility_monthly.csv": "homeassistant/reports/utility_monthly.csv",
 }
 
 # ──────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────
+
 
 def log(msg: str) -> None:
     """Timestamped stdout log — captured by HA logger."""
@@ -79,8 +80,9 @@ def log(msg: str) -> None:
     print(f"[push_csv_to_github] {ts}  {msg}", flush=True)
 
 
-def github_request(token: str, method: str, path: str,
-                   body: dict | None = None) -> dict:
+def github_request(
+    token: str, method: str, path: str, body: dict | None = None
+) -> dict:
     """
     Make a GitHub API request and return the parsed JSON response.
     Raises urllib.error.HTTPError on 4xx/5xx.
@@ -88,13 +90,12 @@ def github_request(token: str, method: str, path: str,
     url = f"{API_BASE}{path}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "Accept":        "application/vnd.github+json",
+        "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent":    "ha-csv-pusher/1.0",
+        "User-Agent": "ha-csv-pusher/1.0",
     }
     data = json.dumps(body).encode() if body else None
-    req  = urllib.request.Request(url, data=data, headers=headers,
-                                  method=method)
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode())
 
@@ -111,7 +112,7 @@ def get_file_sha(token: str, repo_path: str) -> str | None:
         return data.get("sha")
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            return None          # File does not exist yet — will be created
+            return None  # File does not exist yet — will be created
         raise
 
 
@@ -122,10 +123,10 @@ def push_file(token: str, local_path: Path, repo_path: str) -> bool:
     """
     if not local_path.exists():
         log(f"SKIP  {local_path.name} — file not found locally")
-        return True             # Not a push error; skip silently
+        return True  # Not a push error; skip silently
 
-    content_bytes  = local_path.read_bytes()
-    content_b64    = base64.b64encode(content_bytes).decode()
+    content_bytes = local_path.read_bytes()
+    content_b64 = base64.b64encode(content_bytes).decode()
 
     sha = get_file_sha(token, repo_path)
 
@@ -137,16 +138,16 @@ def push_file(token: str, local_path: Path, repo_path: str) -> bool:
     body: dict = {
         "message": commit_msg,
         "content": content_b64,
-        "branch":  BRANCH,
+        "branch": BRANCH,
     }
     if sha:
-        body["sha"] = sha       # Required for updates; omit for creates
+        body["sha"] = sha  # Required for updates; omit for creates
 
     api_path = f"/repos/{OWNER}/{REPO}/contents/{repo_path}"
     try:
         result = github_request(token, "PUT", api_path, body)
         commit_sha = result.get("commit", {}).get("sha", "?")[:7]
-        action     = "updated" if sha else "created"
+        action = "updated" if sha else "created"
         log(f"OK    {repo_path}  [{action}]  commit={commit_sha}")
         return True
     except urllib.error.HTTPError as exc:
@@ -159,14 +160,14 @@ def push_file(token: str, local_path: Path, repo_path: str) -> bool:
 # Main
 # ──────────────────────────────────────────────────────────────────
 
+
 def main() -> int:
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         log("ERROR  GITHUB_TOKEN environment variable is not set.")
         return 1
 
-    log(f"Starting push of {len(FILES_TO_PUSH)} CSV file(s) → "
-        f"{OWNER}/{REPO}@{BRANCH}")
+    log(f"Starting push of {len(FILES_TO_PUSH)} CSV file(s) → {OWNER}/{REPO}@{BRANCH}")
 
     failures = 0
     for local_rel, repo_rel in FILES_TO_PUSH.items():
@@ -176,7 +177,7 @@ def main() -> int:
             failures += 1
 
     if failures == 0:
-        log(f"Done — all files pushed successfully.")
+        log("Done — all files pushed successfully.")
     else:
         log(f"Done — {failures} file(s) FAILED.")
 

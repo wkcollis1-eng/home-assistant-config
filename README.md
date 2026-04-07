@@ -78,13 +78,13 @@ All target values, statistical thresholds, and alert logic are derived from the 
 
 This configuration is designed for homeowners and DIY enthusiasts who want to:
 
-✅ **Track HVAC efficiency over time** - Monitor if your furnace is running more than expected based on weather conditions  
-✅ **Detect performance anomalies early** - Statistical alerts when runtime drifts outside normal operating bounds  
-✅ **Compare against climate normals** - Understand if you're using more heat than typical for your local weather patterns  
-✅ **Optimize thermostat setback schedules** - Data-driven analysis of recovery times from overnight setbacks  
-✅ **Predict filter maintenance needs** - Runtime-based alerts for filter changes instead of arbitrary time intervals  
-✅ **Balance multi-zone heating** - Ensure even heat distribution between floors or zones  
-✅ **Validate HVAC contractor work** - Objective performance data before and after service calls  
+✅ **Track HVAC efficiency over time** - Monitor if your furnace is running more than expected based on weather conditions
+✅ **Detect performance anomalies early** - Statistical alerts when runtime drifts outside normal operating bounds
+✅ **Compare against climate normals** - Understand if you're using more heat than typical for your local weather patterns
+✅ **Optimize thermostat setback schedules** - Data-driven analysis of recovery times from overnight setbacks
+✅ **Predict filter maintenance needs** - Runtime-based alerts for filter changes instead of arbitrary time intervals
+✅ **Balance multi-zone heating** - Ensure even heat distribution between floors or zones
+✅ **Validate HVAC contractor work** - Objective performance data before and after service calls
 ✅ **Support energy-related decisions** - Quantify the impact of insulation, air sealing, or equipment upgrades
 
 ## Building Details
@@ -343,7 +343,7 @@ Check the [Actions tab](https://github.com/wkcollis1-eng/home-assistant-config/a
 ## Related Documentation
 
 ### Baseline Analysis
-For the complete four-year energy analysis that established the targets used in this configuration, see:  
+For the complete four-year energy analysis that established the targets used in this configuration, see:
 📂 [**Residential-HVAC-Performance-Baseline**](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
 
 This baseline repository provides the scientific foundation; this Home Assistant configuration provides the operational implementation.
@@ -407,11 +407,11 @@ Unless otherwise noted, this project is licensed under the **MIT License** (see 
 
 This repository vendors third-party components under `custom_components/`, which remain under their respective upstream licenses:
 
-- `custom_components/hacs` — MIT (HACS)  
-  - Upstream: https://github.com/hacs/integration  
+- `custom_components/hacs` — MIT (HACS)
+  - Upstream: https://github.com/hacs/integration
   - License: `custom_components/hacs/LICENSE`
-- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather)  
-  - Upstream: https://github.com/Pirate-Weather/pirate-weather-ha  
+- `custom_components/pirateweather` — Apache-2.0 + NOTICE (Pirate Weather)
+  - Upstream: https://github.com/Pirate-Weather/pirate-weather-ha
   - License/Notice: `custom_components/pirateweather/LICENSE`, `custom_components/pirateweather/NOTICE`
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.

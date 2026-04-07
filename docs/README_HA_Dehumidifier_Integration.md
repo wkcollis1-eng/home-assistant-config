@@ -60,4 +60,3 @@ Upon cycle completion, the system executes two primary engineering calculations:
 | `sensor.dehumidifier_avg_cycle_minutes` | Mean duration of active dehumidification cycles. |
 
 ---
-

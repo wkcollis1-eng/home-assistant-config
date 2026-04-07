@@ -51,3 +51,7 @@ nul
 
 # Custom components downloaded via HACS (optional - uncomment if you want to exclude)
 # custom_components/hacs/
+
+custom_components/hacs/
+
+custom_components/hacs/
