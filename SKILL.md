@@ -93,7 +93,7 @@ Outside ±25% → FLAG
   Proceed ONLY IF user explicitly confirms in current turn
   Document justification in output report under FLAGS
 
-RULE V2 — Direction check  
+RULE V2 — Direction check
 Efficiency metrics (CCF/1kHDD, kWh, runtime/HDD) should trend consistently
 with HDD. A high-HDD month with lower-than-expected gas use → FLAG if >15% deviation
 A low-HDD month with higher-than-expected gas use → FLAG if >15% deviation

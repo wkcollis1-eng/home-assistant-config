@@ -22,8 +22,7 @@ from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -33,44 +32,100 @@ REPORTS_DIR = Path("/config/reports")
 # CSV schemas (header definitions)
 SCHEMAS = {
     "daily": [
-        "date", "outdoor_high", "outdoor_low", "outdoor_mean", "hdd65",
-        "furnace_runtime_min", "furnace_cycles", "avg_min_per_cycle",
-        "zone_calls_total", "chaining_index", "runtime_1f_min", "runtime_2f_min",
-        "basement_dew_point"
+        "date",
+        "outdoor_high",
+        "outdoor_low",
+        "outdoor_mean",
+        "hdd65",
+        "furnace_runtime_min",
+        "furnace_cycles",
+        "avg_min_per_cycle",
+        "zone_calls_total",
+        "chaining_index",
+        "runtime_1f_min",
+        "runtime_2f_min",
+        "basement_dew_point",
     ],
     "monthly": [
-        "month", "days", "mean_outdoor_temp", "total_hdd65", "furnace_runtime_hours",
-        "avg_runtime_per_hdd", "heating_efficiency_ccf_per_1k_hdd", "actual_runtime",
-        "expected_runtime", "efficiency_deviation_pct", "gas_usage_ccf", "gas_cost",
-        "electric_kwh"
+        "month",
+        "days",
+        "mean_outdoor_temp",
+        "total_hdd65",
+        "furnace_runtime_hours",
+        "avg_runtime_per_hdd",
+        "heating_efficiency_ccf_per_1k_hdd",
+        "actual_runtime",
+        "expected_runtime",
+        "efficiency_deviation_pct",
+        "gas_usage_ccf",
+        "gas_cost",
+        "electric_kwh",
     ],
     "setback": [
-        "date", "zone", "overnight_low", "setback_depth", "recovery_minutes",
-        "setback_degrees", "recovery_rate", "total_runtime", "expected_hold",
-        "net_runtime"
+        "date",
+        "zone",
+        "overnight_low",
+        "setback_depth",
+        "recovery_minutes",
+        "setback_degrees",
+        "recovery_rate",
+        "total_runtime",
+        "expected_hold",
+        "net_runtime",
     ],
     "backup": [
-        "timestamp", "hdd_year", "hdd_month", "cdd_year", "cdd_month", "filter_hrs",
-        "temp_sum", "temp_days", "expected_runtime", "hdd_d1", "hdd_d2", "hdd_d3",
-        "hdd_d4", "hdd_d5", "hdd_d6", "hdd_d7"
-    ]
+        "timestamp",
+        "hdd_year",
+        "hdd_month",
+        "cdd_year",
+        "cdd_month",
+        "filter_hrs",
+        "temp_sum",
+        "temp_days",
+        "expected_runtime",
+        "hdd_d1",
+        "hdd_d2",
+        "hdd_d3",
+        "hdd_d4",
+        "hdd_d5",
+        "hdd_d6",
+        "hdd_d7",
+    ],
 }
 
 ONE_DECIMAL_COLUMNS = {
-    "outdoor_high", "outdoor_low", "outdoor_mean", "hdd65",
-    "avg_min_per_cycle", "chaining_index", "overnight_low",
-    "setback_depth", "setback_degrees", "recovery_rate",
-    "furnace_runtime_hours", "avg_runtime_per_hdd",
-    "heating_efficiency_ccf_per_1k_hdd", "mean_outdoor_temp",
-    "total_hdd65", "efficiency_deviation_pct",
-    "furnace_runtime_min", "runtime_1f_min", "runtime_2f_min",
-    "recovery_minutes", "basement_dew_point"
+    "outdoor_high",
+    "outdoor_low",
+    "outdoor_mean",
+    "hdd65",
+    "avg_min_per_cycle",
+    "chaining_index",
+    "overnight_low",
+    "setback_depth",
+    "setback_degrees",
+    "recovery_rate",
+    "furnace_runtime_hours",
+    "avg_runtime_per_hdd",
+    "heating_efficiency_ccf_per_1k_hdd",
+    "mean_outdoor_temp",
+    "total_hdd65",
+    "efficiency_deviation_pct",
+    "furnace_runtime_min",
+    "runtime_1f_min",
+    "runtime_2f_min",
+    "recovery_minutes",
+    "basement_dew_point",
 }
 
 INTEGER_COLUMNS = {
-    "total_runtime", "expected_hold", "net_runtime",
-    "furnace_cycles", "zone_calls_total", "gas_usage_ccf",
-    "electric_kwh", "days"
+    "total_runtime",
+    "expected_hold",
+    "net_runtime",
+    "furnace_cycles",
+    "zone_calls_total",
+    "gas_usage_ccf",
+    "electric_kwh",
+    "days",
 }
 
 
@@ -78,7 +133,7 @@ def ensure_csv_exists(filepath: Path, schema_name: str) -> None:
     """Create CSV with header if it doesn't exist."""
     if not filepath.exists():
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, 'w', newline='') as f:
+        with open(filepath, "w", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             writer.writerow(SCHEMAS[schema_name])
         logger.info(f"Created new CSV: {filepath}")
@@ -89,7 +144,7 @@ def row_exists(filepath: Path, key_column: str, key_value: str) -> bool:
     if not filepath.exists():
         return False
 
-    with open(filepath, 'r', newline='') as f:
+    with open(filepath, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row.get(key_column) == key_value:
@@ -101,9 +156,7 @@ def atomic_write_dict_rows(filepath: Path, fieldnames: list, rows: list) -> None
     """Write CSV rows via temp file + atomic rename to avoid truncation-loss on failures."""
     filepath.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{filepath.name}.",
-        suffix=".tmp",
-        dir=str(filepath.parent)
+        prefix=f".{filepath.name}.", suffix=".tmp", dir=str(filepath.parent)
     )
     try:
         with os.fdopen(fd, "w", newline="") as f:
@@ -123,7 +176,6 @@ def atomic_write_dict_rows(filepath: Path, fieldnames: list, rows: list) -> None
 
 def validate_data(data: dict, schema_name: str, required_fields: list = None) -> bool:
     """Validate data against schema and check for invalid values."""
-    schema = SCHEMAS[schema_name]
 
     # Check required fields
     if required_fields:
@@ -150,7 +202,9 @@ def validate_data(data: dict, schema_name: str, required_fields: list = None) ->
         degrees = float(data.get("setback_degrees", 0))
         recovery = float(data.get("recovery_minutes", 0))
         if depth < 1 or degrees < 1 or recovery <= 0:
-            logger.warning(f"Invalid setback data: depth={depth}, degrees={degrees}, recovery={recovery}")
+            logger.warning(
+                f"Invalid setback data: depth={depth}, degrees={degrees}, recovery={recovery}"
+            )
             return False
 
     return True
@@ -177,7 +231,7 @@ def append_row(filepath: Path, data: dict, schema_name: str) -> bool:
                 value = round(number, 2)
         row.append(value)
 
-    with open(filepath, 'a', newline='') as f:
+    with open(filepath, "a", newline="") as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer.writerow(row)
 
@@ -255,9 +309,7 @@ def cmd_backup(args):
 def cmd_rotate_daily(args):
     """Rotate daily CSV at year boundary."""
     year = datetime.now().year
-    prev_year = year - 1
 
-    prev_file = REPORTS_DIR / f"hvac_daily_{prev_year}.csv"
     curr_file = REPORTS_DIR / f"hvac_daily_{year}.csv"
 
     if curr_file.exists():
@@ -283,13 +335,17 @@ def cmd_rotate_setback(args):
         return True
 
     # Read all rows
-    with open(src_file, 'r', newline='') as f:
+    with open(src_file, "r", newline="") as f:
         reader = csv.DictReader(f)
         all_rows = list(reader)
 
     # Split by year
-    prev_year_rows = [r for r in all_rows if r.get("date", "").startswith(str(prev_year))]
-    curr_year_rows = [r for r in all_rows if not r.get("date", "").startswith(str(prev_year))]
+    prev_year_rows = [
+        r for r in all_rows if r.get("date", "").startswith(str(prev_year))
+    ]
+    curr_year_rows = [
+        r for r in all_rows if not r.get("date", "").startswith(str(prev_year))
+    ]
 
     # Write archive
     if prev_year_rows:

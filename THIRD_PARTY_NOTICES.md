@@ -9,7 +9,7 @@ Those components are distributed under their respective upstream licenses. The r
 - Upstream: https://github.com/hacs/integration
 - License: MIT
 - Local license file: `custom_components/hacs/LICENSE`
-- Modifications: none 
+- Modifications: none
 
 ### Pirate Weather (`custom_components/pirateweather`)
 - Upstream: https://github.com/Pirate-Weather/pirate-weather-ha
@@ -17,4 +17,3 @@ Those components are distributed under their respective upstream licenses. The r
 - Local license file: `custom_components/pirateweather/LICENSE`
 - Local NOTICE file: `custom_components/pirateweather/NOTICE`
 - Modifications: none
-

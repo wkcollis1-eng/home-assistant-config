@@ -3614,7 +3614,7 @@ template:
           {% set electric = states('input_number.electricity_bill_amount') | float(0) %}
           {% set gas = states('input_number.gas_bill_amount') | float(0) %}
           {{ (electric + gas) | round(2) }}
-          
+
       - name: "HVAC Cathedral Ceiling Impact MTD"
         unique_id: hvac_cathedral_ceiling_impact_mtd
         unit_of_measurement: "$"

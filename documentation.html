@@ -16,26 +16,26 @@
             --border: #e1e8ed;
             --code-bg: #f6f8fa;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             color: var(--text);
             background: var(--background);
         }
-        
+
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 0 20px;
         }
-        
+
         /* Navigation */
         nav {
             background: white;
@@ -44,39 +44,39 @@
             top: 0;
             z-index: 100;
         }
-        
+
         nav .container {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 15px 20px;
         }
-        
+
         nav .logo {
             font-size: 1.3rem;
             font-weight: 700;
             color: var(--secondary-color);
             text-decoration: none;
         }
-        
+
         nav ul {
             list-style: none;
             display: flex;
             gap: 25px;
         }
-        
+
         nav a {
             color: var(--text);
             text-decoration: none;
             transition: color 0.3s;
             font-weight: 500;
         }
-        
+
         nav a:hover,
         nav a.active {
             color: var(--primary-color);
         }
-        
+
         .github-link {
             display: inline-flex;
             align-items: center;
@@ -87,11 +87,11 @@
             border-radius: 5px;
             font-weight: 600;
         }
-        
+
         .github-link:hover {
             background: var(--primary-color);
         }
-        
+
         /* Header */
         header {
             background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
@@ -99,19 +99,19 @@
             padding: 60px 0 40px;
             text-align: center;
         }
-        
+
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 15px;
         }
-        
+
         header p {
             font-size: 1.1rem;
             opacity: 0.95;
             max-width: 700px;
             margin: 0 auto;
         }
-        
+
         /* Table of Contents */
         .toc {
             background: white;
@@ -120,26 +120,26 @@
             margin: 40px 0;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
-        
+
         .toc h2 {
             color: var(--secondary-color);
             margin-bottom: 20px;
         }
-        
+
         .toc ul {
             list-style: none;
             padding-left: 0;
         }
-        
+
         .toc li {
             padding: 10px 0;
             border-bottom: 1px solid var(--border);
         }
-        
+
         .toc li:last-child {
             border-bottom: none;
         }
-        
+
         .toc a {
             color: var(--text);
             text-decoration: none;
@@ -147,38 +147,38 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .toc a:hover {
             color: var(--primary-color);
         }
-        
+
         /* Content Sections */
         section {
             padding: 60px 0;
         }
-        
+
         section:nth-child(even) {
             background: var(--surface);
         }
-        
+
         h2 {
             font-size: 2rem;
             color: var(--secondary-color);
             margin-bottom: 30px;
         }
-        
+
         h3 {
             font-size: 1.5rem;
             color: var(--secondary-color);
             margin: 30px 0 15px;
         }
-        
+
         h4 {
             font-size: 1.2rem;
             color: var(--text);
             margin: 20px 0 10px;
         }
-        
+
         /* Glossary Entry */
         .glossary-entry {
             background: white;
@@ -188,19 +188,19 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             border-left: 4px solid var(--primary-color);
         }
-        
+
         .glossary-term {
             font-size: 1.3rem;
             font-weight: 700;
             color: var(--secondary-color);
             margin-bottom: 10px;
         }
-        
+
         .glossary-definition {
             color: var(--text);
             line-height: 1.8;
         }
-        
+
         .glossary-formula {
             background: var(--code-bg);
             padding: 15px;
@@ -209,7 +209,7 @@
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 0.9rem;
         }
-        
+
         /* Tables */
         table {
             width: 100%;
@@ -220,23 +220,23 @@
             border-radius: 8px;
             overflow: hidden;
         }
-        
+
         th, td {
             padding: 15px;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
-        
+
         th {
             background: var(--surface);
             font-weight: 600;
             color: var(--secondary-color);
         }
-        
+
         tr:last-child td {
             border-bottom: none;
         }
-        
+
         /* Code Blocks */
         pre {
             background: var(--code-bg);
@@ -246,12 +246,12 @@
             border-left: 4px solid var(--primary-color);
             margin: 15px 0;
         }
-        
+
         code {
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.9rem;
         }
-        
+
         /* Alert Boxes */
         .alert {
             padding: 20px;
@@ -259,25 +259,25 @@
             margin: 20px 0;
             border-left: 4px solid;
         }
-        
+
         .alert-info {
             background: #e3f2fd;
             border-color: #2196f3;
             color: #0d47a1;
         }
-        
+
         .alert-warning {
             background: #fff3e0;
             border-color: #f39c12;
             color: #e65100;
         }
-        
+
         .alert-success {
             background: #e8f5e9;
             border-color: #27ae60;
             color: #1b5e20;
         }
-        
+
         /* Footer */
         footer {
             background: var(--secondary-color);
@@ -285,22 +285,22 @@
             padding: 40px 0;
             text-align: center;
         }
-        
+
         footer a {
             color: var(--primary-color);
             text-decoration: none;
         }
-        
+
         footer a:hover {
             text-decoration: underline;
         }
-        
+
         /* Responsive */
         @media (max-width: 768px) {
             nav ul {
                 display: none;
             }
-            
+
             header h1 {
                 font-size: 1.8rem;
             }
@@ -495,7 +495,7 @@
             <h2>Calculations & Formulas</h2>
 
             <h3>Core Temperature & Degree Day Calculations</h3>
-            
+
             <div class="glossary-entry">
                 <h4>Daily HDD Calculation</h4>
                 <pre><code># Template sensor in Home Assistant
@@ -511,7 +511,7 @@ sensor:
             </div>
 
             <h3>Runtime Efficiency Calculations</h3>
-            
+
             <div class="glossary-entry">
                 <h4>Runtime per HDD (Daily)</h4>
                 <pre><code># Calculates efficiency metric
@@ -544,7 +544,7 @@ sensor:
             </div>
 
             <h3>Statistical Process Control</h3>
-            
+
             <div class="glossary-entry">
                 <h4>Control Limit Calculation</h4>
                 <pre><code># Upper and lower control limits (±2σ)
@@ -559,7 +559,7 @@ LCL = 10.0 - (2 × 2.0) = 6.0 min/HDD</code></pre>
             </div>
 
             <h3>Zone Performance Calculations</h3>
-            
+
             <div class="glossary-entry">
                 <h4>Zone Balance Percentage</h4>
                 <pre><code># Calculate zone distribution
@@ -579,7 +579,7 @@ sensor:
             </div>
 
             <h3>Building Performance Metrics</h3>
-            
+
             <div class="glossary-entry">
                 <h4>Heating Intensity (Gas Usage)</h4>
                 <pre><code># CCF per 1000 HDD calculation
@@ -596,7 +596,7 @@ Heating Intensity = (598 × 1000) / 6270 = 95.4 CCF/1k HDD</code></pre>
     <section id="entities">
         <div class="container">
             <h2>Entity Reference</h2>
-            
+
             <h3>Core Temperature & Weather Sensors</h3>
             <table>
                 <thead>
@@ -1153,16 +1153,16 @@ Expected Runtime/HDD: 120 / 15 = 8.0 min/HDD
     <footer>
         <div class="container">
             <p style="margin-bottom: 10px;">
-                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> | 
+                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> |
                 <a href="https://substack.com/@billcollis">Technical Articles on Substack</a>
             </p>
             <p style="font-size: 0.9rem; opacity: 0.8;">
                 Applying professional engineering methodologies to residential energy optimization
             </p>
             <p style="margin-top: 20px; font-size: 0.85rem;">
-                <a href="https://github.com/wkcollis1-eng/home-assistant-config">GitHub Repository</a> • 
-                <a href="index.html">Home</a> • 
-                <a href="installation.html">Installation Guide</a> • 
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config">GitHub Repository</a> •
+                <a href="index.html">Home</a> •
+                <a href="installation.html">Installation Guide</a> •
                 <a href="gallery.html">Gallery</a>
             </p>
         </div>

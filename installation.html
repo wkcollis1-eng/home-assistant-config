@@ -18,26 +18,26 @@
             --warning: #f39c12;
             --code-bg: #f6f8fa;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             color: var(--text);
             background: var(--background);
         }
-        
+
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 0 20px;
         }
-        
+
         /* Navigation */
         nav {
             background: white;
@@ -46,39 +46,39 @@
             top: 0;
             z-index: 100;
         }
-        
+
         nav .container {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 15px 20px;
         }
-        
+
         nav .logo {
             font-size: 1.3rem;
             font-weight: 700;
             color: var(--secondary-color);
             text-decoration: none;
         }
-        
+
         nav ul {
             list-style: none;
             display: flex;
             gap: 25px;
         }
-        
+
         nav a {
             color: var(--text);
             text-decoration: none;
             transition: color 0.3s;
             font-weight: 500;
         }
-        
+
         nav a:hover,
         nav a.active {
             color: var(--primary-color);
         }
-        
+
         .github-link {
             display: inline-flex;
             align-items: center;
@@ -89,11 +89,11 @@
             border-radius: 5px;
             font-weight: 600;
         }
-        
+
         .github-link:hover {
             background: var(--primary-color);
         }
-        
+
         /* Header */
         header {
             background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
@@ -101,19 +101,19 @@
             padding: 60px 0 40px;
             text-align: center;
         }
-        
+
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 15px;
         }
-        
+
         header p {
             font-size: 1.1rem;
             opacity: 0.95;
             max-width: 700px;
             margin: 0 auto;
         }
-        
+
         /* Progress Steps */
         .progress-steps {
             display: flex;
@@ -121,13 +121,13 @@
             margin: 40px 0;
             padding: 0 20px;
         }
-        
+
         .step {
             flex: 1;
             text-align: center;
             position: relative;
         }
-        
+
         .step::before {
             content: '';
             position: absolute;
@@ -138,11 +138,11 @@
             background: var(--border);
             z-index: -1;
         }
-        
+
         .step:last-child::before {
             display: none;
         }
-        
+
         .step-number {
             width: 40px;
             height: 40px;
@@ -156,39 +156,39 @@
             font-weight: 700;
             color: var(--text-secondary);
         }
-        
+
         .step-label {
             font-size: 0.9rem;
             color: var(--text-secondary);
         }
-        
+
         /* Content Sections */
         section {
             padding: 60px 0;
         }
-        
+
         section:nth-child(even) {
             background: var(--surface);
         }
-        
+
         h2 {
             font-size: 2rem;
             color: var(--secondary-color);
             margin-bottom: 30px;
         }
-        
+
         h3 {
             font-size: 1.5rem;
             color: var(--secondary-color);
             margin: 30px 0 15px;
         }
-        
+
         h4 {
             font-size: 1.2rem;
             color: var(--text);
             margin: 20px 0 10px;
         }
-        
+
         /* Checklist */
         .checklist {
             background: white;
@@ -197,18 +197,18 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
         }
-        
+
         .checklist-item {
             display: flex;
             align-items: flex-start;
             padding: 15px 0;
             border-bottom: 1px solid var(--border);
         }
-        
+
         .checklist-item:last-child {
             border-bottom: none;
         }
-        
+
         .checklist-icon {
             width: 24px;
             height: 24px;
@@ -221,17 +221,17 @@
             justify-content: center;
             color: var(--success);
         }
-        
+
         .checklist-content h4 {
             margin: 0 0 5px 0;
             font-size: 1.1rem;
         }
-        
+
         .checklist-content p {
             color: var(--text-secondary);
             margin: 0;
         }
-        
+
         /* Installation Steps */
         .install-step {
             background: white;
@@ -241,13 +241,13 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             border-left: 4px solid var(--primary-color);
         }
-        
+
         .step-header {
             display: flex;
             align-items: center;
             margin-bottom: 20px;
         }
-        
+
         .step-icon {
             width: 50px;
             height: 50px;
@@ -261,13 +261,13 @@
             font-weight: 700;
             margin-right: 20px;
         }
-        
+
         .step-title {
             font-size: 1.5rem;
             color: var(--secondary-color);
             margin: 0;
         }
-        
+
         /* Code Blocks */
         pre {
             background: var(--code-bg);
@@ -278,12 +278,12 @@
             margin: 15px 0;
             position: relative;
         }
-        
+
         code {
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.9rem;
         }
-        
+
         .copy-btn {
             position: absolute;
             top: 10px;
@@ -296,11 +296,11 @@
             cursor: pointer;
             font-size: 0.85rem;
         }
-        
+
         .copy-btn:hover {
             background: var(--secondary-color);
         }
-        
+
         /* Alert Boxes */
         .alert {
             padding: 20px;
@@ -308,30 +308,30 @@
             margin: 20px 0;
             border-left: 4px solid;
         }
-        
+
         .alert-info {
             background: #e3f2fd;
             border-color: #2196f3;
             color: #0d47a1;
         }
-        
+
         .alert-warning {
             background: #fff3e0;
             border-color: var(--warning);
             color: #e65100;
         }
-        
+
         .alert-success {
             background: #e8f5e9;
             border-color: var(--success);
             color: #1b5e20;
         }
-        
+
         .alert-title {
             font-weight: 700;
             margin-bottom: 8px;
         }
-        
+
         /* Tabs */
         .tabs {
             display: flex;
@@ -339,7 +339,7 @@
             margin-bottom: 20px;
             border-bottom: 2px solid var(--border);
         }
-        
+
         .tab-button {
             padding: 12px 24px;
             background: transparent;
@@ -350,20 +350,20 @@
             border-bottom: 3px solid transparent;
             margin-bottom: -2px;
         }
-        
+
         .tab-button.active {
             color: var(--primary-color);
             border-bottom-color: var(--primary-color);
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         /* Footer */
         footer {
             background: var(--secondary-color);
@@ -371,31 +371,31 @@
             padding: 40px 0;
             text-align: center;
         }
-        
+
         footer a {
             color: var(--primary-color);
             text-decoration: none;
         }
-        
+
         footer a:hover {
             text-decoration: underline;
         }
-        
+
         /* Responsive */
         @media (max-width: 768px) {
             nav ul {
                 display: none;
             }
-            
+
             .progress-steps {
                 flex-direction: column;
                 gap: 20px;
             }
-            
+
             .step::before {
                 display: none;
             }
-            
+
             header h1 {
                 font-size: 1.8rem;
             }
@@ -458,7 +458,7 @@
     <section>
         <div class="container">
             <h2>Prerequisites Checklist</h2>
-            
+
             <div class="checklist">
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
@@ -467,7 +467,7 @@
                         <p>Home Assistant OS, Container, or Supervised installation (version 2023.1 or later recommended)</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
                     <div class="checklist-content">
@@ -475,7 +475,7 @@
                         <p>Thermostat(s) with Home Assistant integration (Honeywell, Ecobee, Nest, etc.) providing runtime state</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
                     <div class="checklist-content">
@@ -483,7 +483,7 @@
                         <p>Weather service integration (Pirate Weather recommended, but any service providing temperature data works)</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
                     <div class="checklist-content">
@@ -491,7 +491,7 @@
                         <p>Basic understanding of Home Assistant YAML configuration and file editing</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
                     <div class="checklist-content">
@@ -510,7 +510,7 @@
     <section>
         <div class="container">
             <h2>⚡ Minimum Required Edits</h2>
-            
+
             <div class="alert alert-warning">
                 <div class="alert-title">Quick Start Checklist</div>
                 <p>These are the <strong>minimum changes required</strong> for first boot success. Make these edits before deploying:</p>
@@ -527,7 +527,7 @@ home_latitude: YOUR_LAT
 home_longitude: YOUR_LONG</code></pre>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">2</div>
                     <div class="checklist-content">
@@ -536,11 +536,11 @@ home_longitude: YOUR_LONG</code></pre>
                         <pre><code># Find: climate.1f_thermostat
 # Replace with: climate.YOUR_FIRST_FLOOR_ID
 
-# Find: climate.2f_thermostat  
+# Find: climate.2f_thermostat
 # Replace with: climate.YOUR_SECOND_FLOOR_ID</code></pre>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">3</div>
                     <div class="checklist-content">
@@ -549,7 +549,7 @@ home_longitude: YOUR_LONG</code></pre>
                         <pre><code>home_square_footage: 2440  # Change to YOUR_SQ_FT</code></pre>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">4</div>
                     <div class="checklist-content">
@@ -558,7 +558,7 @@ home_longitude: YOUR_LONG</code></pre>
                         <pre><code>furnace_capacity: 60556  # Change to YOUR_FURNACE_BTU</code></pre>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">5</div>
                     <div class="checklist-content">
@@ -589,19 +589,19 @@ home_longitude: YOUR_LONG</code></pre>
                     <div class="step-icon">1</div>
                     <h3 class="step-title">Clone the Repository</h3>
                 </div>
-                
+
                 <p>Download the configuration files to your local machine:</p>
-                
+
                 <div class="tabs">
                     <button class="tab-button active" onclick="showTab('git-tab')">Git Clone</button>
                     <button class="tab-button" onclick="showTab('download-tab')">Direct Download</button>
                 </div>
-                
+
                 <div id="git-tab" class="tab-content active">
                     <pre><code>git clone https://github.com/wkcollis1-eng/home-assistant-config.git
 cd home-assistant-config</code></pre>
                 </div>
-                
+
                 <div id="download-tab" class="tab-content">
                     <p>Download the ZIP file from GitHub:</p>
                     <pre><code>wget https://github.com/wkcollis1-eng/home-assistant-config/archive/refs/heads/master.zip
@@ -615,9 +615,9 @@ cd home-assistant-config-master</code></pre>
                     <div class="step-icon">2</div>
                     <h3 class="step-title">Configure Secrets</h3>
                 </div>
-                
+
                 <p>Create your secrets file with API keys and sensitive information:</p>
-                
+
                 <pre><code># Copy the example file
 cp secrets.yaml.example secrets.yaml
 
@@ -647,9 +647,9 @@ notify_email: "your-email@example.com"</code></pre>
                     <div class="step-icon">3</div>
                     <h3 class="step-title">Update Entity IDs</h3>
                 </div>
-                
+
                 <p>Customize the configuration to match your thermostat entity IDs:</p>
-                
+
                 <h4>Find Your Entity IDs</h4>
                 <p>In Home Assistant:</p>
                 <ol style="margin-left: 30px; line-height: 2;">
@@ -660,12 +660,12 @@ notify_email: "your-email@example.com"</code></pre>
 
                 <h4>Update Configuration</h4>
                 <p>Edit <code>configuration.yaml</code> and replace the example entity IDs:</p>
-                
+
                 <pre><code># Find and replace these entity IDs with yours:
 # Old: climate.1f_thermostat
 # New: climate.your_first_floor
 
-# Old: climate.2f_thermostat  
+# Old: climate.2f_thermostat
 # New: climate.your_second_floor
 
 # Search for all instances in configuration.yaml</code></pre>
@@ -681,11 +681,11 @@ notify_email: "your-email@example.com"</code></pre>
                     <div class="step-icon">4</div>
                     <h3 class="step-title">Customize Baseline Values</h3>
                 </div>
-                
+
                 <p>Adjust the baseline values to match your home's characteristics:</p>
-                
+
                 <h4>Key Values to Update</h4>
-                
+
                 <pre><code># In configuration.yaml, find and update:
 
 # Your home's square footage
@@ -712,9 +712,9 @@ balance_point: 59.0  # Adjust based on your climate
                     <div class="step-icon">5</div>
                     <h3 class="step-title">Install Custom Components</h3>
                 </div>
-                
+
                 <p>Install required custom integrations via HACS (Home Assistant Community Store):</p>
-                
+
                 <h4>Install HACS (if not already installed)</h4>
                 <ol style="margin-left: 30px; line-height: 2;">
                     <li>Follow instructions at <a href="https://hacs.xyz/docs/setup/download" target="_blank">hacs.xyz</a></li>
@@ -746,14 +746,14 @@ weather:
                     <div class="step-icon">6</div>
                     <h3 class="step-title">Copy Files to Home Assistant</h3>
                 </div>
-                
+
                 <p>Copy the configuration files to your Home Assistant config directory:</p>
-                
+
                 <div class="tabs">
                     <button class="tab-button active" onclick="showTab('samba-tab')">Via Samba Share</button>
                     <button class="tab-button" onclick="showTab('ssh-tab')">Via SSH</button>
                 </div>
-                
+
                 <div id="samba-tab" class="tab-content active">
                     <ol style="margin-left: 30px; line-height: 2;">
                         <li>Connect to your Home Assistant Samba share (usually <code>\\homeassistant.local\config</code>)</li>
@@ -770,7 +770,7 @@ weather:
                         <li>Merge or replace existing files as needed</li>
                     </ol>
                 </div>
-                
+
                 <div id="ssh-tab" class="tab-content">
                     <pre><code># SSH into your Home Assistant instance
 ssh root@homeassistant.local
@@ -794,9 +794,9 @@ cd /config
                     <div class="step-icon">7</div>
                     <h3 class="step-title">Validate Configuration</h3>
                 </div>
-                
+
                 <p>Check your configuration for errors before restarting:</p>
-                
+
                 <h4>Using Home Assistant UI</h4>
                 <ol style="margin-left: 30px; line-height: 2;">
                     <li>Go to <strong>Developer Tools → YAML</strong></li>
@@ -825,9 +825,9 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                     <div class="step-icon">8</div>
                     <h3 class="step-title">Restart Home Assistant</h3>
                 </div>
-                
+
                 <p>Restart to load the new configuration:</p>
-                
+
                 <ol style="margin-left: 30px; line-height: 2;">
                     <li>Go to <strong>Settings → System → Restart</strong></li>
                     <li>Click <strong>Restart Home Assistant</strong></li>
@@ -848,9 +848,9 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                     <div class="step-icon">9</div>
                     <h3 class="step-title">Import Dashboards</h3>
                 </div>
-                
+
                 <p>Add the HVAC monitoring dashboards to your Home Assistant:</p>
-                
+
                 <ol style="margin-left: 30px; line-height: 2;">
                     <li>Go to <strong>Settings → Dashboards</strong></li>
                     <li>Click <strong>+ Add Dashboard</strong></li>
@@ -910,7 +910,7 @@ docker exec homeassistant python -m homeassistant --script check_config --config
     <section>
         <div class="container">
             <h2>Next Steps</h2>
-            
+
             <div class="checklist">
                 <div class="checklist-item">
                     <div class="checklist-icon">→</div>
@@ -919,7 +919,7 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                         <p>Allow 24-48 hours for the system to collect baseline data and calculate rolling averages</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">→</div>
                     <div class="checklist-content">
@@ -927,7 +927,7 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                         <p>Familiarize yourself with the <a href="gallery.html">dashboard visualizations</a> and what each metric represents</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">→</div>
                     <div class="checklist-content">
@@ -935,7 +935,7 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                         <p>Adjust efficiency thresholds and alert parameters based on your home's performance</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">→</div>
                     <div class="checklist-content">
@@ -943,14 +943,14 @@ docker exec homeassistant python -m homeassistant --script check_config --config
                         <p>Use the <a href="https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-" target="_blank">Baseline Analysis methodology</a> to calculate personalized targets</p>
                     </div>
                 </div>
-                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">→</div>
                     <div class="checklist-content">
                         <h4>Review Technical Documentation</h4>
                         <p>Read the <a href="index.html#documentation">full documentation</a> to understand sensor calculations and automation logic</p>
                     </div>
-                                
+
                 <div class="checklist-item">
                     <div class="checklist-icon">☑</div>
                     <div class="checklist-content">
@@ -966,15 +966,15 @@ docker exec homeassistant python -m homeassistant --script check_config --config
     <footer>
         <div class="container">
             <p style="margin-bottom: 10px;">
-                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> | 
+                Developed by <a href="https://github.com/wkcollis1-eng">Bill Collis</a> |
                 <a href="https://substack.com/@billcollis">Technical Articles on Substack</a>
             </p>
             <p style="font-size: 0.9rem; opacity: 0.8;">
                 Applying professional engineering methodologies to residential energy optimization
             </p>
             <p style="margin-top: 20px; font-size: 0.85rem;">
-                <a href="https://github.com/wkcollis1-eng/home-assistant-config">GitHub Repository</a> • 
-                <a href="index.html">Home</a> • 
+                <a href="https://github.com/wkcollis1-eng/home-assistant-config">GitHub Repository</a> •
+                <a href="index.html">Home</a> •
                 <a href="gallery.html">Gallery</a>
             </p>
         </div>
@@ -986,12 +986,12 @@ docker exec homeassistant python -m homeassistant --script check_config --config
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
-            
+
             // Remove active class from all buttons
             event.target.parentElement.querySelectorAll('.tab-button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Show selected tab
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');

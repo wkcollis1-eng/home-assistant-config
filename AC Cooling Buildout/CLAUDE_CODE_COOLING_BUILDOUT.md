@@ -1,6 +1,6 @@
 # Claude Code Directions: AC/CDD Cooling Monitoring Build-Out
-**Target files:** `configuration.yaml` · `automations.yaml`  
-**Reference:** Existing heating infrastructure is the structural template.  
+**Target files:** `configuration.yaml` · `automations.yaml`
+**Reference:** Existing heating infrastructure is the structural template.
 **Date:** 2026-03-18
 
 ---
@@ -1329,16 +1329,16 @@ Also add the three **alert** notifications that mirror `notify_short_cycling_fur
 ```
 
 The existing EOD sequence runs at:
-- 23:54:30 — daily high/low reset  
-- 23:55:00 — `capture_daily_hdd`  
-- **23:55:15 — `capture_daily_cdd` (NEW)**  
-- 23:56:00 — `capture_daily_runtime_per_hdd`  
-- 23:56:15 — `capture_daily_furnace_min_per_cycle`  
-- 23:56:30 — `capture_daily_monthly_tracking`  
-- **23:56:45 — `capture_daily_runtime_per_cdd` (NEW)**  
-- 23:57:00 — `appenddailycsv`  
-- 23:58:00 — `accumulate_filter_runtime`  
-- 23:58:30 — `appendmonthlycsv` (last day only)  
+- 23:54:30 — daily high/low reset
+- 23:55:00 — `capture_daily_hdd`
+- **23:55:15 — `capture_daily_cdd` (NEW)**
+- 23:56:00 — `capture_daily_runtime_per_hdd`
+- 23:56:15 — `capture_daily_furnace_min_per_cycle`
+- 23:56:30 — `capture_daily_monthly_tracking`
+- **23:56:45 — `capture_daily_runtime_per_cdd` (NEW)**
+- 23:57:00 — `appenddailycsv`
+- 23:58:00 — `accumulate_filter_runtime`
+- 23:58:30 — `appendmonthlycsv` (last day only)
 
 No conflicts. CDD window capture runs 15 seconds after HDD, runtime/CDD capture runs 15 seconds after monthly tracking — both after all source data is stable.
 
