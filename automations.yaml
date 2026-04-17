@@ -1239,10 +1239,13 @@
   alias: "Dehumidifier Auto Off"
   description: "Turn off dehumidifier after 4 hours or when conditions clear"
   trigger:
-    - platform: state
-      entity_id: binary_sensor.dehumidifier_should_run
-      to: "off"
+    # REPLACED: old binary_sensor state trigger with template using -1°F hysteresis
+    - platform: template
       id: conditions_cleared
+      value_template: >
+        {% set setpoint = states('input_number.dehumidifier_dewpoint_threshold') | float(45) %}
+        {% set current_dp = states('sensor.basement_dew_point') | float %}
+        {{ current_dp < (setpoint - 1) }}
     - platform: state
       entity_id: switch.dehumidifier
       to: "on"
