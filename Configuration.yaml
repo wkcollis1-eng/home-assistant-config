@@ -1657,6 +1657,271 @@ input_number:
     mode: box
 
   # ===============================================================
+  # 12-MONTH ARCHIVE - FURNACE MIN/CYCLE MEAN
+  # Written by Add-MonthlyMpcStats.ps1 via csv_manager update_monthly
+  # ===============================================================
+  furnace_mpc_archive_jan:
+    name: "Archive: Jan Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_feb:
+    name: "Archive: Feb Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_mar:
+    name: "Archive: Mar Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_apr:
+    name: "Archive: Apr Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_may:
+    name: "Archive: May Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_jun:
+    name: "Archive: Jun Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_jul:
+    name: "Archive: Jul Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_aug:
+    name: "Archive: Aug Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_sep:
+    name: "Archive: Sep Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_oct:
+    name: "Archive: Oct Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_nov:
+    name: "Archive: Nov Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_archive_dec:
+    name: "Archive: Dec Furnace MPC Mean"
+    min: 0
+    max: 60
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+
+  # ===============================================================
+  # 12-MONTH ARCHIVE - FURNACE MIN/CYCLE SIGMA
+  # ===============================================================
+  furnace_mpc_sigma_archive_jan:
+    name: "Archive: Jan Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_feb:
+    name: "Archive: Feb Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_mar:
+    name: "Archive: Mar Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_apr:
+    name: "Archive: Apr Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_may:
+    name: "Archive: May Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_jun:
+    name: "Archive: Jun Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_jul:
+    name: "Archive: Jul Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_aug:
+    name: "Archive: Aug Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_sep:
+    name: "Archive: Sep Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_oct:
+    name: "Archive: Oct Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_nov:
+    name: "Archive: Nov Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+  furnace_mpc_sigma_archive_dec:
+    name: "Archive: Dec Furnace MPC Sigma"
+    min: 0
+    max: 20
+    step: 0.01
+    mode: box
+    unit_of_measurement: "min/cycle"
+
+  # ===============================================================
+  # 12-MONTH ARCHIVE - FURNACE SHORT-CYCLE PERCENT
+  # ===============================================================
+  furnace_short_cycle_archive_jan:
+    name: "Archive: Jan Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_feb:
+    name: "Archive: Feb Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_mar:
+    name: "Archive: Mar Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_apr:
+    name: "Archive: Apr Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_may:
+    name: "Archive: May Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_jun:
+    name: "Archive: Jun Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_jul:
+    name: "Archive: Jul Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_aug:
+    name: "Archive: Aug Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_sep:
+    name: "Archive: Sep Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_oct:
+    name: "Archive: Oct Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_nov:
+    name: "Archive: Nov Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  furnace_short_cycle_archive_dec:
+    name: "Archive: Dec Short-Cycle Pct"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+
+  # ===============================================================
   # FILTER TRACKING
   # ===============================================================
   hvac_filter_runtime_hours:
@@ -2040,6 +2305,9 @@ template:
         state: >
           {{ states('input_number.hvac_filter_runtime_hours') | float(0) >= 1000 }}
 
+      # short-cycle pct and pipeline status sensors are in the sensor: block below
+
+
       - name: "HVAC Runtime per HDD High Alert"
         unique_id: hvac_runtime_per_hdd_high_alert
         device_class: problem
@@ -2205,7 +2473,114 @@ template:
           {% set count = states('sensor.hvac_runtime_per_cdd_data_count') | int(0) %}
           {{ cdd_healthy and not_stale and count >= 4 }}
 
+      - name: "AC Min/Cycle Capture Stale"
+        unique_id: ac_min_per_cycle_capture_stale
+        device_class: problem
+        state: >
+          {% set last_ok = states('input_datetime.ac_min_per_cycle_capture_last_ok') %}
+          {% if last_ok in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+            true
+          {% else %}
+            {% set dt = last_ok | as_datetime | as_local %}
+            {{ (now() - dt).total_seconds() > 90000 }}
+          {% endif %}
+
+      - name: "Furnace MPC Pipeline Healthy"
+        unique_id: furnace_mpc_pipeline_healthy
+        icon: mdi:sine-wave
+        state: >
+          {% set not_stale = is_state('binary_sensor.furnace_cycle_capture_stale', 'off') %}
+          {% set count = states('sensor.hvac_furnace_cycle_data_count') | int(0) %}
+          {{ not_stale and count >= 3 }}
+
+      - name: "AC MPC Pipeline Healthy"
+        unique_id: ac_mpc_pipeline_healthy
+        icon: mdi:sine-wave
+        state: >
+          {% set not_stale = is_state('binary_sensor.ac_min_per_cycle_capture_stale', 'off') %}
+          {% set count = states('sensor.hvac_ac_cycle_data_count') | int(0) %}
+          {{ not_stale and count >= 3 }}
+
   - sensor:
+      # === DASHBOARD SUMMARY SENSORS =======================================
+
+      - name: "HVAC Furnace Short Cycle Pct 7d"
+        unique_id: hvac_furnace_short_cycle_pct_7d
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:alert-circle-outline
+        state: >
+          {% set slots = [
+            states('input_number.furnace_min_per_cycle_day_1') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_2') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_3') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_4') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_5') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_6') | float(-1),
+            states('input_number.furnace_min_per_cycle_day_7') | float(-1)
+          ] %}
+          {% set valid = slots | select('>', 0) | select('<=', 60) | list %}
+          {% if valid | length == 0 %}
+            0
+          {% else %}
+            {% set short = valid | select('<', 8) | list %}
+            {{ (short | length / valid | length * 100) | round(1) }}
+          {% endif %}
+
+      - name: "HVAC AC Short Cycle Pct 7d"
+        unique_id: hvac_ac_short_cycle_pct_7d
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:alert-circle-outline
+        state: >
+          {% set slots = [
+            states('input_number.ac_min_per_cycle_day_1') | float(-1),
+            states('input_number.ac_min_per_cycle_day_2') | float(-1),
+            states('input_number.ac_min_per_cycle_day_3') | float(-1),
+            states('input_number.ac_min_per_cycle_day_4') | float(-1),
+            states('input_number.ac_min_per_cycle_day_5') | float(-1),
+            states('input_number.ac_min_per_cycle_day_6') | float(-1),
+            states('input_number.ac_min_per_cycle_day_7') | float(-1)
+          ] %}
+          {% set valid = slots | select('>', 0) | select('<=', 120) | list %}
+          {% if valid | length == 0 %}
+            0
+          {% else %}
+            {% set short = valid | select('<', 10) | list %}
+            {{ (short | length / valid | length * 100) | round(1) }}
+          {% endif %}
+
+      - name: "HVAC Pipeline Status"
+        unique_id: hvac_pipeline_status
+        icon: mdi:pipe-valve
+        state: >
+          {% set checks = [
+            is_state('binary_sensor.hdd_capture_stale', 'off'),
+            is_state('binary_sensor.cdd_capture_stale', 'off'),
+            is_state('binary_sensor.furnace_cycle_capture_stale', 'off'),
+            is_state('binary_sensor.ac_min_per_cycle_capture_stale', 'off'),
+            is_state('binary_sensor.furnace_mpc_pipeline_healthy', 'on'),
+          ] %}
+          {% set fail_count = checks | reject | list | length %}
+          {% if fail_count == 0 %}
+            ok
+          {% elif fail_count <= 2 %}
+            degraded
+          {% else %}
+            fault
+          {% endif %}
+        attributes:
+          hdd_capture: >
+            {{ 'ok' if is_state('binary_sensor.hdd_capture_stale','off') else 'stale' }}
+          cdd_capture: >
+            {{ 'ok' if is_state('binary_sensor.cdd_capture_stale','off') else 'stale' }}
+          furnace_mpc_capture: >
+            {{ 'ok' if is_state('binary_sensor.furnace_cycle_capture_stale','off') else 'stale' }}
+          ac_mpc_capture: >
+            {{ 'ok' if is_state('binary_sensor.ac_min_per_cycle_capture_stale','off') else 'stale' }}
+          monthly_tracking: >
+            {{ 'ok' if is_state('binary_sensor.monthly_tracking_capture_stale','off') else 'stale' }}
+
       # Uses live feed first (10 min updates), then Pirate Weather, then NWS/Open-Meteo
       # FAIL-FAST: Returns unavailable if ALL sources fail (no silent 35°F default)
       - name: "HVAC Outdoor Temp Hartford Proxy"
