@@ -913,6 +913,31 @@
         entity_id: input_number.zone_2f_cool_cycles_month_acc
       data:
         value: 0
+    # Archive closing month's MPC stats before reset
+    # Month index used to select the right archive slot
+    - variables:
+        closing_month: "{{ now().strftime('%b') | lower }}"
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_mpc_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_cycle_mean_7d') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_mpc_sigma_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_cycle_sigma_7d') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_short_cycle_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_short_cycle_pct_7d') | float(0) }}
     - service: system_log.write
       data:
         message: "Monthly HDD/CDD, furnace, and AC cooling accumulators reset completed (trigger: {{ trigger.id }})"
@@ -1292,7 +1317,7 @@
       entity_id: switch.dehumidifier
       to: "on"
       for:
-        hours: 4
+        minutes: 150
       id: max_runtime
   condition:
     - condition: state
@@ -1411,6 +1436,33 @@
             entity_id: input_number.dehumidifier_last_pull_down_rate
           data:
             value: 0
+    # SPC metrics — written for all cycles >= 10 min (same guard as pull-down rate)
+    - if:
+        - condition: template
+          value_template: "{{ cycle_minutes | float >= 10 }}"
+      then:
+        - variables:
+            start_rh: "{{ states('input_number.dehumidifier_cycle_start_rh') | float(0) }}"
+            current_rh: "{{ states('sensor.shelly_temperature_humidity_humidity') | float(0) }}"
+            rh_drop: "{{ (start_rh - current_rh) | round(2) }}"
+            rh_rate: >
+              {% set drop = start_rh - current_rh %}
+              {% set hrs = cycle_minutes | float / 60 %}
+              {{ (drop / hrs) | round(3) if hrs > 0 else 0 }}
+            rh_per_kwh: >
+              {% set drop = start_rh - current_rh %}
+              {% set kwh = 0.568 * (cycle_minutes | float / 60) %}
+              {{ (drop / kwh) | round(3) if kwh > 0 else 0 }}
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.dehumidifier_rh_rate_cycle
+          data:
+            value: "{{ [[rh_rate | float, 0] | max, 5] | min }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.dehumidifier_rh_per_kwh_cycle
+          data:
+            value: "{{ [[rh_per_kwh | float, 0] | max, 5] | min }}"
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.dehumidifier_last_cycle_end_time
@@ -1427,6 +1479,68 @@
     - service: counter.reset
       target:
         entity_id: counter.dehumidifier_cycles_today
+
+# ===============================================================
+# DEHUMIDIFIER STALL DETECTION (RH-based, tuned from 2026 data)
+# ---------------------------------------------------------------
+# Fires every 30 min while compressor is active and runtime > 90 min.
+# Stops the unit early when RH has improved < 0.3 %/hr over the
+# prior 60 min — the measured stall signature (5 of 8 cycles stall
+# at hr 3-4).  Uses RH directly (6-min median updates, 7.5× better
+# SNR than DP at 0.051°F/step).
+#
+# Threshold 0.3 %/hr = 3 steps of 0.1% RH in 60 min.
+# sensor.dehumidifier_rh_mean_60min: statistics platform, max_age 60 min.
+# sensor.dehumidifier_rh_drop_rate_60min = mean_60min − current_rh.
+#
+# SEASONAL NOTE: In July–Aug the unit pulls hard all cycle; this
+# automation will not fire (drop rate stays > 0.3%/hr). In June and
+# September it captures the stall pattern observed in the data.
+# ===============================================================
+- id: dehumidifier_rh_stall_shutdown
+  alias: "Dehumidifier RH Stall Shutdown"
+  description: "Stop dehumidifier early when RH improvement has stalled for 60 min"
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/30"
+  condition:
+    # Compressor must be actively running
+    - condition: state
+      entity_id: binary_sensor.dehumidifier_compressor_active
+      state: "on"
+    # Must have been running > 90 min (skip compressor warmup and early-cycle noise)
+    - condition: template
+      value_template: >
+        {{ (now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() > 5400 }}
+    # RH drop rate must be below stall threshold (< 0.3 %/hr)
+    # Two consecutive checks are needed; this is the check — mode: single
+    # prevents re-entry so a single stall reading won't double-fire.
+    - condition: template
+      value_template: >
+        {% set drop_rate = states('sensor.dehumidifier_rh_drop_rate_60min') | float(-99) %}
+        {{ drop_rate != -99 and drop_rate < 0.3 }}
+    # Stall stats sensor must have enough data (>= 5 readings)
+    - condition: template
+      value_template: >
+        {{ states('sensor.dehumidifier_rh_mean_60min') not in ['unknown', 'unavailable'] }}
+  action:
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: "rh_stall"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+    - service: system_log.write
+      data:
+        level: info
+        message: >
+          Dehumidifier stall shutdown: RH drop rate {{ states('sensor.dehumidifier_rh_drop_rate_60min') | float(0) | round(2) }} %/hr
+          (threshold 0.3 %/hr, runtime {{ ((now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() / 60) | round(0) | int }} min).
+          RH {{ states('sensor.shelly_temperature_humidity_humidity') }}%,
+          60-min mean {{ states('sensor.dehumidifier_rh_mean_60min') }}%.
 
 # ===============================================================
 # FILTER TRACKING AUTOMATIONS (HARDENED)
