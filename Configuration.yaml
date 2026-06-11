@@ -2009,7 +2009,7 @@ input_number:
     unit_of_measurement: "°F"
     mode: box
     icon: mdi:water-thermometer
-    initial: 46
+    initial: 47
 
   # Compressor gate threshold — Santa Fe Classic: fan ~50-120W, compressor ~500-600W
   # Initial value 250W sits cleanly between bands; tune after observing real power curves
@@ -2060,6 +2060,34 @@ input_number:
     mode: box
     icon: mdi:timer-sand
 
+  # --- Dehumidifier SPC Tracking (written at cycle end) ---
+  dehumidifier_cycle_start_rh:
+    name: "Dehumidifier Cycle Start RH"
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:water-percent
+
+  dehumidifier_rh_rate_cycle:
+    name: "Dehumidifier RH Rate per Cycle"
+    min: 0
+    max: 5
+    step: 0.001
+    unit_of_measurement: "%/hr"
+    mode: box
+    icon: mdi:trending-down
+
+  dehumidifier_rh_per_kwh_cycle:
+    name: "Dehumidifier RH per kWh (last cycle)"
+    min: 0
+    max: 5
+    step: 0.001
+    unit_of_measurement: "%RH/kWh"
+    mode: box
+    icon: mdi:lightning-bolt-circle
+
 # ===============================================================
 # INPUT SELECT
 # ===============================================================
@@ -2069,6 +2097,7 @@ input_select:
     options:
       - conditions_cleared
       - max_runtime
+      - rh_stall
       - unknown
     initial: unknown
     icon: mdi:information-outline
@@ -4234,11 +4263,10 @@ template:
         state_class: measurement
         icon: mdi:percent
         availability: >
-          {{ states('sensor.dehumidifier_runtime_week') not in ['unknown', 'unavailable'] }}
+          {{ states('sensor.dehumidifier_runtime_today') not in ['unknown', 'unavailable'] }}
         state: >
-          {% set weekly = states('sensor.dehumidifier_runtime_week') | float(0) %}
-          {% set daily_avg = weekly / 7 %}
-          {{ ((daily_avg / 24) * 100) | round(1) }}
+          {% set runtime_h = states('sensor.dehumidifier_runtime_today') | float(0) %}
+          {{ ((runtime_h / 24) * 100) | round(1) }}
 
       - name: "Dehumidifier Avg Cycle Minutes"
         unique_id: dehumidifier_avg_cycle_minutes
@@ -4275,12 +4303,56 @@ template:
         unit_of_measurement: "h"
         state_class: measurement
         icon: mdi:timer-sand
+        # Availability: show whenever the hold value has been written (not uninitialized 0 from 1970)
         availability: >
           {% set hold = states('input_number.dehumidifier_last_hold_hours') %}
-          {% set reason = states('input_select.dehumidifier_last_stop_reason') %}
-          {{ hold not in ['unknown', 'unavailable'] and reason == 'conditions_cleared' }}
+          {% set end_time = states('input_datetime.dehumidifier_last_cycle_end_time') %}
+          {{ hold not in ['unknown', 'unavailable'] and
+             end_time not in ['unknown', 'unavailable'] and
+             end_time[:4] != '1970' }}
         state: >
           {{ states('input_number.dehumidifier_last_hold_hours') | float(0) | round(1) }}
+
+      - name: "Dehumidifier Daily Cost"
+        unique_id: dehumidifier_daily_cost
+        unit_of_measurement: "$"
+        state_class: total_increasing
+        icon: mdi:currency-usd
+        # Cost today = runtime hours * 0.568 kW * $0.29/kWh
+        availability: >
+          {{ states('sensor.dehumidifier_runtime_today') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set runtime_h = states('sensor.dehumidifier_runtime_today') | float(0) %}
+          {{ (runtime_h * 0.568 * 0.29) | round(2) }}
+
+      - name: "Dehumidifier Projected Seasonal Cost"
+        unique_id: dehumidifier_projected_seasonal_cost
+        unit_of_measurement: "$"
+        state_class: measurement
+        icon: mdi:calendar-clock
+        # Projected 180-day season cost based on 7-day runtime average
+        # formula: (runtime_week_h / 7) * 0.568 kW * $0.29/kWh * 180 days
+        availability: >
+          {{ states('sensor.dehumidifier_runtime_week') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set weekly_h = states('sensor.dehumidifier_runtime_week') | float(0) %}
+          {% set daily_avg_h = weekly_h / 7 %}
+          {{ (daily_avg_h * 0.568 * 0.29 * 180) | round(0) | int }}
+
+      - name: "Dehumidifier RH Drop Rate 60min"
+        unique_id: dehumidifier_rh_drop_rate_60min
+        unit_of_measurement: "%/hr"
+        state_class: measurement
+        icon: mdi:trending-down
+        # RH drop rate over 60 min for stall detection
+        # Positive = humidity falling (unit working), negative = rising
+        availability: >
+          {{ states('sensor.shelly_temperature_humidity_humidity') not in ['unknown', 'unavailable'] and
+             states('sensor.dehumidifier_rh_mean_60min') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set current_rh = states('sensor.shelly_temperature_humidity_humidity') | float(0) %}
+          {% set mean_60min = states('sensor.dehumidifier_rh_mean_60min') | float(0) %}
+          {{ (mean_60min - current_rh) | round(2) }}
 
       # ===============================================================
       # PIRATE WEATHER SENSORS
@@ -5291,6 +5363,26 @@ sensor:
     type: time
     start: "{{ now() - timedelta(days=7) }}"
     end: "{{ now() }}"
+
+
+  # ===============================================================
+  # DEHUMIDIFIER RH STATISTICS (60-min rolling mean for stall detection)
+  # ===============================================================
+  # Provides 60-min mean of RH sensor for stall detection automation.
+  # RH has 6-min median update rate — reliable 8-12 readings per 60-min window.
+  # Used by dehumidifier_rh_stall_shutdown automation to detect when unit
+  # has made < 0.3% RH improvement in 60 min (stall condition).
+  # ===============================================================
+
+  - platform: statistics
+    name: "Dehumidifier RH Mean 60min"
+    unique_id: dehumidifier_rh_mean_60min
+    entity_id: sensor.shelly_temperature_humidity_humidity
+    state_characteristic: mean
+    max_age:
+      minutes: 60
+    sampling_size: 20
+    precision: 2
 
 
 # ===============================================================
