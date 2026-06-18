@@ -1224,6 +1224,16 @@
         entity_id: "input_number.dhw_archive_{{ month_name | trim }}"
       data:
         value: "{{ current_dhw }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.dhw_op_hrs_archive_{{ month_name | trim }}"
+      data:
+        value: "{{ states('input_number.dhw_op_hrs_bill') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.dhw_recirc_hrs_archive_{{ month_name | trim }}"
+      data:
+        value: "{{ states('input_number.dhw_recirc_hrs_bill') | float(0) }}"
     - service: persistent_notification.create
       data:
         title: "✅ DHW Archived"
@@ -1436,33 +1446,6 @@
             entity_id: input_number.dehumidifier_last_pull_down_rate
           data:
             value: 0
-    # SPC metrics — written for all cycles >= 10 min (same guard as pull-down rate)
-    - if:
-        - condition: template
-          value_template: "{{ cycle_minutes | float >= 10 }}"
-      then:
-        - variables:
-            start_rh: "{{ states('input_number.dehumidifier_cycle_start_rh') | float(0) }}"
-            current_rh: "{{ states('sensor.shelly_temperature_humidity_humidity') | float(0) }}"
-            rh_drop: "{{ (start_rh - current_rh) | round(2) }}"
-            rh_rate: >
-              {% set drop = start_rh - current_rh %}
-              {% set hrs = cycle_minutes | float / 60 %}
-              {{ (drop / hrs) | round(3) if hrs > 0 else 0 }}
-            rh_per_kwh: >
-              {% set drop = start_rh - current_rh %}
-              {% set kwh = 0.568 * (cycle_minutes | float / 60) %}
-              {{ (drop / kwh) | round(3) if kwh > 0 else 0 }}
-        - service: input_number.set_value
-          target:
-            entity_id: input_number.dehumidifier_rh_rate_cycle
-          data:
-            value: "{{ [[rh_rate | float, 0] | max, 5] | min }}"
-        - service: input_number.set_value
-          target:
-            entity_id: input_number.dehumidifier_rh_per_kwh_cycle
-          data:
-            value: "{{ [[rh_per_kwh | float, 0] | max, 5] | min }}"
     - service: input_datetime.set_datetime
       target:
         entity_id: input_datetime.dehumidifier_last_cycle_end_time
@@ -3218,3 +3201,303 @@
           Min voltage: {{ states('sensor.ups_monitor_last_outage_min_voltage') | float(0) | round(3) }}V
           Peak recharge: {{ states('sensor.ups_monitor_last_recharge_peak_current') | float(0) | round(2) }}A
           Battery now: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V
+
+# ===============================================================
+# DEHUMIDIFIER RUNNING-WATTS SPC — EOD capture
+# Fires 23:59:00 (after the frozen 23:54:30–23:58:45 sequence, before the
+# 00:00:00 counter reset). Shifts the 7-day window and writes today's
+# trailing-24h mean running watts. Guarded so no-run days never poison slots.
+# ===============================================================
+- id: capture_daily_dehumidifier_watts
+  alias: "Capture Daily Dehumidifier Running Watts"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:00"
+  action:
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {% set w = states('sensor.dehumidifier_running_watts_24h') | float(-1) %}
+                {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
+                {{ rt >= 0.5 and 300 < w <= 800 }}
+          sequence:
+            - variables:
+                today_w: "{{ states('sensor.dehumidifier_running_watts_24h') | float(0) | round(1) }}"
+                d1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
+                d2: "{{ states('input_number.dehumidifier_running_watts_day_2') | float(0) }}"
+                d3: "{{ states('input_number.dehumidifier_running_watts_day_3') | float(0) }}"
+                d4: "{{ states('input_number.dehumidifier_running_watts_day_4') | float(0) }}"
+                d5: "{{ states('input_number.dehumidifier_running_watts_day_5') | float(0) }}"
+                d6: "{{ states('input_number.dehumidifier_running_watts_day_6') | float(0) }}"
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_7}
+              data: {value: "{{ d6 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_6}
+              data: {value: "{{ d5 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_5}
+              data: {value: "{{ d4 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_4}
+              data: {value: "{{ d3 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_3}
+              data: {value: "{{ d2 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_2}
+              data: {value: "{{ d1 }}"}
+            - service: input_number.set_value
+              target: {entity_id: input_number.dehumidifier_running_watts_day_1}
+              data: {value: "{{ today_w }}"}
+            - service: system_log.write
+              data:
+                level: info
+                message: "Dehumidifier running-watts captured: {{ today_w }} W (runtime {{ states('sensor.dehumidifier_runtime_today') }} h)"
+      default:
+        - service: system_log.write
+          data:
+            level: info
+            message: >
+              Dehumidifier watts capture skipped — runtime={{ states('sensor.dehumidifier_runtime_today') }} h,
+              mean_w={{ states('sensor.dehumidifier_running_watts_24h') }} (needs >=0.5 h and 300-800 W).
+
+# ===============================================================
+# DEHUMIDIFIER OPERATING COST — daily EOD accumulation
+# Fires 23:59:30 (after watts capture 23:59:00, before 00:00 resets).
+# Adds today's cost (sensor.dehumidifier_daily_cost, already rate-aware)
+# to the year-to-date accumulator and stamps the capture time so the
+# live YTD sensor stops double-counting today.
+# ===============================================================
+- id: capture_daily_dehumidifier_cost
+  alias: "Capture Daily Dehumidifier Cost"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:30"
+  action:
+    - variables:
+        today_cost: "{{ states('sensor.dehumidifier_daily_cost') | float(0) }}"
+        acc: "{{ states('input_number.dehumidifier_cost_year_acc') | float(0) }}"
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_year_acc}
+      data: {value: "{{ (acc + today_cost) | round(2) }}"}
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.dehumidifier_cost_capture_last_ok}
+      data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Dehumidifier cost captured: +${{ today_cost }} -> YTD ${{ (acc + today_cost) | round(2) }}"
+
+# ===============================================================
+# DEHUMIDIFIER OPERATING COST — yearly reset (mirrors reset_yearly_hdd)
+# On Jan 1: snapshot the season total into prev-year (for comparison),
+# then zero the YTD accumulator. Scheduled + startup catch-up so a reboot
+# across midnight Jan 1 still resets exactly once.
+# ===============================================================
+- id: reset_yearly_dehumidifier_cost
+  alias: "Reset Yearly Dehumidifier Cost"
+  description: "Snapshot prior-year cost then zero YTD on Jan 1, with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:04:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.dehumidifier_cost_capture_last_ok') %}
+        {% set year_val = states('input_number.dehumidifier_cost_year_acc') | float(0) %}
+        {% if not (now().month == 1 and now().day == 1) %}
+          false
+        {% elif year_val == 0 %}
+          false
+        {% elif now().hour < 3 %}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.year != now().year }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_prev_year}
+      data: {value: "{{ states('input_number.dehumidifier_cost_year_acc') | float(0) | round(2) }}"}
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_year_acc}
+      data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Dehumidifier cost yearly reset: prev-year snapshot taken, YTD zeroed (trigger: {{ trigger.id }})"
+
+# ===============================================================
+# AC OPERATING COST — daily EOD accumulation
+# Fires 23:59:45 (after dehumidifier cost 23:59:30, before 00:00 resets).
+# Locks today's AC cost at today's rate into the YTD accumulator.
+# ===============================================================
+- id: capture_daily_ac_cost
+  alias: "Capture Daily AC Cost"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:45"
+  action:
+    - variables:
+        today_cost: "{{ states('sensor.hvac_ac_daily_cost') | float(0) }}"
+        acc: "{{ states('input_number.ac_cost_year_acc') | float(0) }}"
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_year_acc}
+      data: {value: "{{ (acc + today_cost) | round(2) }}"}
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.ac_cost_capture_last_ok}
+      data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}
+    - service: system_log.write
+      data:
+        level: info
+        message: "AC cost captured: +${{ today_cost }} -> YTD ${{ (acc + today_cost) | round(2) }}"
+
+# ===============================================================
+# AC OPERATING COST — yearly reset (mirrors reset_yearly_dehumidifier_cost)
+# On Jan 1: snapshot season total to prev-year, then zero YTD. Scheduled +
+# startup catch-up so a reboot across midnight Jan 1 still resets exactly once.
+# ===============================================================
+- id: reset_yearly_ac_cost
+  alias: "Reset Yearly AC Cost"
+  description: "Snapshot prior-year AC cost then zero YTD on Jan 1, with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:06:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.ac_cost_capture_last_ok') %}
+        {% set year_val = states('input_number.ac_cost_year_acc') | float(0) %}
+        {% if not (now().month == 1 and now().day == 1) %}
+          false
+        {% elif year_val == 0 %}
+          false
+        {% elif now().hour < 3 %}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.year != now().year }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_prev_year}
+      data: {value: "{{ states('input_number.ac_cost_year_acc') | float(0) | round(2) }}"}
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_year_acc}
+      data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "AC cost yearly reset: prev-year snapshot taken, YTD zeroed (trigger: {{ trigger.id }})"
+
+# ===============================================================
+# GAS HEATING COST — monthly capture into season store
+# On Save Gas Bill: write that bill's DHW-corrected heating cost into the
+# current-season slot (1=Jul .. 12=Jun), keyed off the bill date to stay
+# consistent with the gas_archive month keying.
+# ===============================================================
+- id: archive_monthly_gas_heat_cost
+  alias: "Archive Monthly Gas Heating Cost (season store)"
+  description: "On Save Gas Bill, write gas_heating_cost_month into the current-season slot keyed off the bill date"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_button.save_gas_bill
+  action:
+    - variables:
+        bill_dt: "{{ states('input_datetime.gas_bill_date') }}"
+        bill_year: "{{ (bill_dt | as_datetime).year if bill_dt not in ['unknown', 'unavailable', 'none'] else now().year }}"
+        bill_month: "{{ (bill_dt | as_datetime).month if bill_dt not in ['unknown', 'unavailable', 'none'] else now().month }}"
+        slot: "{{ (((bill_month | int) - 7) % 12) + 1 }}"
+        bill_season: "{{ (bill_year | int) if (bill_month | int) >= 7 else (bill_year | int) - 1 }}"
+        cur_season: "{{ now().year if now().month >= 7 else now().year - 1 }}"
+        arr: >
+          {% set d = (cur_season | int) - (bill_season | int) %}
+          {{ 'cs' if d == 0 else 'ls' if d == 1 else 'ls2' if d == 2 else 'none' }}
+        cost: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
+    - choose:
+        - conditions: "{{ arr != 'none' }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.gas_heat_{{ arr }}_{{ slot }}"
+              data:
+                value: "{{ cost }}"
+            - service: system_log.write
+              data:
+                level: info
+                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int) }}) = ${{ cost }}"
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: "Gas heating cost NOT archived: bill {{ bill_year }}-{{ '%02d' | format(bill_month | int) }} is older than the 3-season store"
+
+# ===============================================================
+# GAS HEATING SEASON — July 1 rollover
+# Roll the season store (ls2<-ls<-cs) then zero current season. Stamp-first
+# guard fires once per year; startup catch-up covers a reboot across Jul 1.
+# Stamp is written BEFORE the shift so a partial failure cannot re-fire and
+# double-shift (which would destroy a season of data).
+# ===============================================================
+- id: reset_season_gas_heat_cost
+  alias: "Reset Gas Heating Season (Jul 1)"
+  description: "On Jul 1 roll season store ls2<-ls<-cs and zero current season, once per year with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:08:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last = states('input_datetime.gas_heat_season_last_reset') %}
+        {% if not (now().month == 7 and now().day == 1) %}
+          false
+        {% elif last in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          true
+        {% else %}
+          {{ (last | as_datetime | as_local).year != now().year }}
+        {% endif %}
+  action:
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.gas_heat_season_last_reset}
+      data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}
+    - repeat:
+        for_each: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        sequence:
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_ls2_{{ repeat.item }}"}
+            data: {value: "{{ states('input_number.gas_heat_ls_' ~ repeat.item) | float(0) }}"}
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_ls_{{ repeat.item }}"}
+            data: {value: "{{ states('input_number.gas_heat_cs_' ~ repeat.item) | float(0) }}"}
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_cs_{{ repeat.item }}"}
+            data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Gas heating season rolled over on Jul 1 (ls2<-ls<-cs, cs zeroed; trigger: {{ trigger.id }})"

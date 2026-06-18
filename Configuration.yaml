@@ -40,7 +40,8 @@ shell_command:
       "ac_min_per_cycle": {{ states('sensor.hvac_ac_min_per_cycle') | float(0) }},
       "cool_calls_total": {{ states('sensor.hvac_total_cool_cycles_today') | int(0) }},
       "cool_runtime_1f_min": {{ (states('sensor.hvac_1f_cool_runtime_today') | float(0) * 60) | round(1) }},
-      "cool_runtime_2f_min": {{ (states('sensor.hvac_2f_cool_runtime_today') | float(0) * 60) | round(1) }}
+      "cool_runtime_2f_min": {{ (states('sensor.hvac_2f_cool_runtime_today') | float(0) * 60) | round(1) }},
+      "dehumidifier_kwh": {{ states('sensor.dehumidifier_energy_daily') | float(0) | round(3) }}
     }'
 
   # Monthly HVAC report - appends one row per month
@@ -61,7 +62,8 @@ shell_command:
       "electric_kwh": {{ states('input_number.electricity_bill_kwh') | float(0) }},
       "total_cdd65": {{ states('input_number.cdd_cumulative_month_auto') | float(0) }},
       "ac_runtime_hours": {{ states('sensor.hvac_ac_runtime_month') | float(0) }},
-      "avg_runtime_per_cdd": {{ states('sensor.hvac_runtime_per_cdd_month') | float(0) }}
+      "avg_runtime_per_cdd": {{ states('sensor.hvac_runtime_per_cdd_month') | float(0) }},
+      "dehumidifier_kwh": {{ states('sensor.dehumidifier_energy_monthly') | float(0) | round(2) }}
     }'
 
   # Rotate daily CSV at year boundary
@@ -269,6 +271,46 @@ input_boolean:
 # INPUT NUMBER HELPERS
 # ===============================================================
 input_number:
+  # === DHW OPERATING / RECIRC HOURS (added 2026-06) ===
+  dhw_op_hrs_bill:
+    name: "DHW Operating Hours (entry)"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "h"
+  dhw_recirc_hrs_bill:
+    name: "DHW Recirc Hours (entry)"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "h"
+  dhw_op_hrs_archive_jan: {name: "Archive: Jan DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_feb: {name: "Archive: Feb DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_mar: {name: "Archive: Mar DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_apr: {name: "Archive: Apr DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_may: {name: "Archive: May DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_jun: {name: "Archive: Jun DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_jul: {name: "Archive: Jul DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_aug: {name: "Archive: Aug DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_sep: {name: "Archive: Sep DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_oct: {name: "Archive: Oct DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_nov: {name: "Archive: Nov DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_op_hrs_archive_dec: {name: "Archive: Dec DHW Op Hrs", min: 0, max: 200, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_jan: {name: "Archive: Jan DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_feb: {name: "Archive: Feb DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_mar: {name: "Archive: Mar DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_apr: {name: "Archive: Apr DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_may: {name: "Archive: May DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_jun: {name: "Archive: Jun DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_jul: {name: "Archive: Jul DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_aug: {name: "Archive: Aug DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_sep: {name: "Archive: Sep DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_oct: {name: "Archive: Oct DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_nov: {name: "Archive: Nov DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+  dhw_recirc_hrs_archive_dec: {name: "Archive: Dec DHW Recirc Hrs", min: 0, max: 400, step: 0.1, mode: box, unit_of_measurement: "h"}
+
   # === SYSTEM CONSTANTS ===
   furnace_heating_rate_btu_hr:
     name: Furnace Heating Rate (BTU/hr)
@@ -2060,33 +2102,346 @@ input_number:
     mode: box
     icon: mdi:timer-sand
 
-  # --- Dehumidifier SPC Tracking (written at cycle end) ---
-  dehumidifier_cycle_start_rh:
-    name: "Dehumidifier Cycle Start RH"
+  # --- Dehumidifier Running-Watts SPC: 7-day rolling slots ---
+  dehumidifier_running_watts_day_1:
+    name: "Dehum Running W Day 1 (Yesterday)"
     min: 0
-    max: 100
+    max: 800
     step: 0.1
-    unit_of_measurement: "%"
     mode: box
-    icon: mdi:water-percent
-
-  dehumidifier_rh_rate_cycle:
-    name: "Dehumidifier RH Rate per Cycle"
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_2:
+    name: "Dehum Running W Day 2"
     min: 0
-    max: 5
-    step: 0.001
-    unit_of_measurement: "%/hr"
+    max: 800
+    step: 0.1
     mode: box
-    icon: mdi:trending-down
-
-  dehumidifier_rh_per_kwh_cycle:
-    name: "Dehumidifier RH per kWh (last cycle)"
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_3:
+    name: "Dehum Running W Day 3"
     min: 0
-    max: 5
-    step: 0.001
-    unit_of_measurement: "%RH/kWh"
+    max: 800
+    step: 0.1
     mode: box
-    icon: mdi:lightning-bolt-circle
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_4:
+    name: "Dehum Running W Day 4"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_5:
+    name: "Dehum Running W Day 5"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_6:
+    name: "Dehum Running W Day 6"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_7:
+    name: "Dehum Running W Day 7 (Oldest)"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- Dehumidifier Operating Cost: yearly accumulator + prior-year snapshot ---
+  dehumidifier_cost_year_acc:
+    name: "Dehumidifier Cost Year Accumulated"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:cash
+  dehumidifier_cost_prev_year:
+    name: "Dehumidifier Cost Previous Year"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:cash-clock
+
+  # --- AC Operating Cost: yearly accumulator + prior-year snapshot ---
+  ac_cost_year_acc:
+    name: "AC Cost Year Accumulated"
+    min: 0
+    max: 3000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:cash
+  ac_cost_prev_year:
+    name: "AC Cost Previous Year"
+    min: 0
+    max: 3000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:cash-clock
+
+  # --- Gas Heating Cost: 3-season store (season-indexed: slot 1=Jul .. 12=Jun) ---
+  gas_heat_cs_1:
+    name: "Gas Heat Current Season Jul"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_2:
+    name: "Gas Heat Current Season Aug"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_3:
+    name: "Gas Heat Current Season Sep"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_4:
+    name: "Gas Heat Current Season Oct"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_5:
+    name: "Gas Heat Current Season Nov"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_6:
+    name: "Gas Heat Current Season Dec"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_7:
+    name: "Gas Heat Current Season Jan"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_8:
+    name: "Gas Heat Current Season Feb"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_9:
+    name: "Gas Heat Current Season Mar"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_10:
+    name: "Gas Heat Current Season Apr"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_11:
+    name: "Gas Heat Current Season May"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_cs_12:
+    name: "Gas Heat Current Season Jun"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_1:
+    name: "Gas Heat Last Season Jul"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_2:
+    name: "Gas Heat Last Season Aug"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_3:
+    name: "Gas Heat Last Season Sep"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_4:
+    name: "Gas Heat Last Season Oct"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_5:
+    name: "Gas Heat Last Season Nov"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_6:
+    name: "Gas Heat Last Season Dec"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_7:
+    name: "Gas Heat Last Season Jan"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_8:
+    name: "Gas Heat Last Season Feb"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_9:
+    name: "Gas Heat Last Season Mar"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_10:
+    name: "Gas Heat Last Season Apr"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_11:
+    name: "Gas Heat Last Season May"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls_12:
+    name: "Gas Heat Last Season Jun"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_1:
+    name: "Gas Heat Season Before Last Jul"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_2:
+    name: "Gas Heat Season Before Last Aug"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_3:
+    name: "Gas Heat Season Before Last Sep"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_4:
+    name: "Gas Heat Season Before Last Oct"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_5:
+    name: "Gas Heat Season Before Last Nov"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_6:
+    name: "Gas Heat Season Before Last Dec"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_7:
+    name: "Gas Heat Season Before Last Jan"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_8:
+    name: "Gas Heat Season Before Last Feb"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_9:
+    name: "Gas Heat Season Before Last Mar"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_10:
+    name: "Gas Heat Season Before Last Apr"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_11:
+    name: "Gas Heat Season Before Last May"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+  gas_heat_ls2_12:
+    name: "Gas Heat Season Before Last Jun"
+    min: 0
+    max: 2000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
 
 # ===============================================================
 # INPUT SELECT
@@ -2153,6 +2508,24 @@ input_datetime:
     has_date: true
     has_time: true
     icon: mdi:clock-end
+
+  dehumidifier_cost_capture_last_ok:
+    name: "Dehumidifier Cost Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:check-circle
+
+  ac_cost_capture_last_ok:
+    name: "AC Cost Capture Last OK"
+    has_date: true
+    has_time: true
+    icon: mdi:check-circle
+
+  gas_heat_season_last_reset:
+    name: "Gas Heat Season Last Reset"
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-refresh
 
   hvac_filter_last_changed:
     name: "Filter Last Changed"
@@ -3534,6 +3907,102 @@ template:
           {% set elec = states('sensor.hvac_daily_electric_cost_estimate') | float(0) %}
           {{ (gas + elec) | round(2) }}
 
+      # AC-only cooling cost today = ac_runtime * (blower + condenser) kW * effective $/kWh.
+      # Rate is captured nightly into ac_cost_year_acc and locked, so a mid-month
+      # bill/rate change never reprices days already accumulated.
+      - name: "HVAC AC Daily Cost"
+        unique_id: hvac_ac_daily_cost
+        unit_of_measurement: "$"
+        state_class: total_increasing
+        icon: mdi:currency-usd
+        availability: >
+          {{ states('sensor.hvac_ac_runtime_today') not in ['unknown', 'unavailable'] }}
+        state: >
+          {% set ac_runtime = states('sensor.hvac_ac_runtime_today') | float(0) %}
+          {% set blower_kw = 0.21 %}
+          {% set condenser_kw = states('input_number.ac_condenser_kw') | float(4.9) %}
+          {% set rate = states('sensor.electricity_effective_rate') | float(0.2733) %}
+          {{ (ac_runtime * (blower_kw + condenser_kw) * rate) | round(2) }}
+
+      # Live AC year-to-date cost: locked accumulator (completed days) plus today's
+      # running cost until the 23:59:45 capture folds it in. Resets each Jan 1.
+      - name: "HVAC AC Cost Year To Date"
+        unique_id: hvac_ac_cost_year_to_date
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash-multiple
+        state: >
+          {% set acc = states('input_number.ac_cost_year_acc') | float(0) %}
+          {% set today = states('sensor.hvac_ac_daily_cost') | float(0) %}
+          {% set last = states('input_datetime.ac_cost_capture_last_ok') %}
+          {% set captured_today = last[:10] == now().strftime('%Y-%m-%d')
+             if last not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (acc if captured_today else acc + today) | round(2) }}
+
+      # === Gas heating cost summaries (season-indexed store) ===
+      - name: "Gas Heat Season Cost Current"
+        unique_id: gas_heat_season_cost_current
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash
+        state: >
+          {% set ns = namespace(t=0.0) %}
+          {% for i in range(1,13) %}{% set ns.t = ns.t + states('input_number.gas_heat_cs_' ~ i) | float(0) %}{% endfor %}
+          {{ ns.t | round(2) }}
+
+      - name: "Gas Heat Season Cost Last"
+        unique_id: gas_heat_season_cost_last
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash
+        state: >
+          {% set ns = namespace(t=0.0) %}
+          {% for i in range(1,13) %}{% set ns.t = ns.t + states('input_number.gas_heat_ls_' ~ i) | float(0) %}{% endfor %}
+          {{ ns.t | round(2) }}
+
+      - name: "Gas Heat Season Cost Prev"
+        unique_id: gas_heat_season_cost_prev
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash
+        state: >
+          {% set ns = namespace(t=0.0) %}
+          {% for i in range(1,13) %}{% set ns.t = ns.t + states('input_number.gas_heat_ls2_' ~ i) | float(0) %}{% endfor %}
+          {{ ns.t | round(2) }}
+
+      - name: "Gas Heat Cal YTD Current"
+        unique_id: gas_heat_cal_ytd_current
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash
+        state: >
+          {% set ns = namespace(t=0.0) %}
+          {% set s0 = now().year if now().month >= 7 else now().year - 1 %}
+          {% for m in range(1, now().month + 1) %}
+            {% set ss = (now().year) if m >= 7 else (now().year - 1) %}
+            {% set arr = 'cs' if ss == s0 else ('ls' if ss == s0 - 1 else ('ls2' if ss == s0 - 2 else 'none')) %}
+            {% set slot = (m - 6) if m >= 7 else (m + 6) %}
+            {% if arr != 'none' %}{% set ns.t = ns.t + states('input_number.gas_heat_' ~ arr ~ '_' ~ slot) | float(0) %}{% endif %}
+          {% endfor %}
+          {{ ns.t | round(2) }}
+
+      - name: "Gas Heat Cal YTD Last Year"
+        unique_id: gas_heat_cal_ytd_last_year
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash
+        state: >
+          {% set ns = namespace(t=0.0) %}
+          {% set s0 = now().year if now().month >= 7 else now().year - 1 %}
+          {% for m in range(1, now().month + 1) %}
+            {% set ss = (now().year - 1) if m >= 7 else (now().year - 1 - 1) %}
+            {% set arr = 'cs' if ss == s0 else ('ls' if ss == s0 - 1 else ('ls2' if ss == s0 - 2 else 'none')) %}
+            {% set slot = (m - 6) if m >= 7 else (m + 6) %}
+            {% if arr != 'none' %}{% set ns.t = ns.t + states('input_number.gas_heat_' ~ arr ~ '_' ~ slot) | float(0) %}{% endif %}
+          {% endfor %}
+          {{ ns.t | round(2) }}
+
+
       - name: "HVAC Filter Hours Remaining"
         unique_id: hvac_filter_hours_remaining
         unit_of_measurement: "hours"
@@ -4191,10 +4660,10 @@ template:
           {% if dhw_thm > 0 and total_ccf > 0 %}
              {% set dhw_ccf = dhw_thm * 0.9643 %}
              {% set heating_ccf = [total_ccf - dhw_ccf, 0] | max %}
-             {{ total_cost * (heating_ccf / total_ccf) | round(2) }}
+             {{ (total_cost * (heating_ccf / total_ccf)) | round(2) }}
           {% else %}
              {# Fallback to fixed 71.9% heating share #}
-             {{ total_cost * 0.719 | round(2) }}
+             {{ (total_cost * 0.719) | round(2) }}
           {% endif %}
 
       - name: "Total Cost Month"
@@ -4318,12 +4787,13 @@ template:
         unit_of_measurement: "$"
         state_class: total_increasing
         icon: mdi:currency-usd
-        # Cost today = runtime hours * 0.568 kW * $0.29/kWh
+        # Cost today = runtime hours * 0.568 kW * effective $/kWh (from current bill)
         availability: >
           {{ states('sensor.dehumidifier_runtime_today') not in ['unknown', 'unavailable'] }}
         state: >
           {% set runtime_h = states('sensor.dehumidifier_runtime_today') | float(0) %}
-          {{ (runtime_h * 0.568 * 0.29) | round(2) }}
+          {% set rate = states('sensor.electricity_effective_rate') | float(0.2733) %}
+          {{ (runtime_h * 0.568 * rate) | round(2) }}
 
       - name: "Dehumidifier Projected Seasonal Cost"
         unique_id: dehumidifier_projected_seasonal_cost
@@ -4331,13 +4801,31 @@ template:
         state_class: measurement
         icon: mdi:calendar-clock
         # Projected 180-day season cost based on 7-day runtime average
-        # formula: (runtime_week_h / 7) * 0.568 kW * $0.29/kWh * 180 days
+        # formula: (runtime_week_h / 7) * 0.568 kW * effective $/kWh * 180 days
         availability: >
           {{ states('sensor.dehumidifier_runtime_week') not in ['unknown', 'unavailable'] }}
         state: >
           {% set weekly_h = states('sensor.dehumidifier_runtime_week') | float(0) %}
           {% set daily_avg_h = weekly_h / 7 %}
-          {{ (daily_avg_h * 0.568 * 0.29 * 180) | round(0) | int }}
+          {% set rate = states('sensor.electricity_effective_rate') | float(0.2733) %}
+          {{ (daily_avg_h * 0.568 * rate * 180) | round(0) | int }}
+
+      # Live year-to-date operating cost: accumulator (completed days) plus
+      # today's running cost until the 23:59:30 capture folds it in.
+      # Resets each Jan 1 via reset_yearly_dehumidifier_cost; prior-year total
+      # is snapshot to input_number.dehumidifier_cost_prev_year for comparison.
+      - name: "Dehumidifier Cost Year To Date"
+        unique_id: dehumidifier_cost_year_to_date
+        unit_of_measurement: "$"
+        state_class: total
+        icon: mdi:cash-multiple
+        state: >
+          {% set acc = states('input_number.dehumidifier_cost_year_acc') | float(0) %}
+          {% set today = states('sensor.dehumidifier_daily_cost') | float(0) %}
+          {% set last = states('input_datetime.dehumidifier_cost_capture_last_ok') %}
+          {% set captured_today = last[:10] == now().strftime('%Y-%m-%d')
+             if last not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else false %}
+          {{ (acc if captured_today else acc + today) | round(2) }}
 
       - name: "Dehumidifier RH Drop Rate 60min"
         unique_id: dehumidifier_rh_drop_rate_60min
@@ -4720,6 +5208,104 @@ template:
             {{ None }}
           {% endif %}
 
+      # ===============================================================
+      # DEHUMIDIFIER RUNNING-WATTS SPC (compressor health)
+      # Gates on power > threshold directly (not compressor_active) to keep
+      # the delay_off tail of ~0 W samples out of the mean.
+      # ===============================================================
+      - name: "Dehumidifier Power When On"
+        unique_id: dehumidifier_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.dehumidifier_current_consumption') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.dehumidifier_power_threshold') | float(250) }}
+        state: "{{ states('sensor.dehumidifier_current_consumption') | float(0) }}"
+
+      - name: "Dehumidifier Running Watts Daily"
+        unique_id: dehumidifier_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        # Mirrors the most recent gated daily capture (input_number day_1).
+        # Steps once nightly at 23:59 when the capture automation shifts the
+        # buffer; recorded, so ApexCharts draws one dated column per day,
+        # consistent with the SPC limits (same gated day_1..7 source).
+        availability: >
+          {{ states('input_number.dehumidifier_running_watts_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) | round(0) }}"
+
+      - name: "Dehumidifier Running Watts Mean 7d"
+        unique_id: dehumidifier_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 800) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(0) }}
+          {% else %}
+            570
+          {% endif %}
+
+      - name: "Dehumidifier Running Watts Sigma 7d"
+        unique_id: dehumidifier_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 800) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) | round(1) }}
+          {% else %}
+            12
+          {% endif %}
+
+      - name: "Dehumidifier Running Watts Upper"
+        unique_id: dehumidifier_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        state: >
+          {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(570) %}
+          {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(12) %}
+          {{ (m + 2 * s) | round(0) }}
+
+      - name: "Dehumidifier Running Watts Lower"
+        unique_id: dehumidifier_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        state: >
+          {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(570) %}
+          {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(12) %}
+          {{ (m - 2 * s) | round(0) }}
+
   - binary_sensor:
       # === CLIMATE NORMS ALERTS ===
       - name: "Climate Cold Snap Today"
@@ -4784,6 +5370,18 @@ template:
         device_class: problem
         icon: mdi:alert-circle
         state: "{{ states('counter.automation_failures_24h') | int(0) > 0 }}"
+
+      # Running-watts out of control — gated on >=3 populated day-slots
+      - name: "Dehumidifier Watts Out Of Control"
+        unique_id: dehumidifier_watts_out_of_control
+        device_class: problem
+        icon: mdi:chart-bell-curve
+        state: >
+          {% set w = states('sensor.dehumidifier_running_watts_24h') | float(-1) %}
+          {% set u = states('sensor.dehumidifier_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.dehumidifier_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.dehumidifier_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
 
   - trigger:
       - trigger: homeassistant
@@ -5102,9 +5700,33 @@ template:
           {{ ns.total | round(1) }}
 
 # ===============================================================
+# ===============================================================
+# UTILITY METERS (added 2026-06) - dehumidifier energy daily/monthly
+# ===============================================================
+utility_meter:
+  dehumidifier_energy_daily:
+    source: sensor.dehumidifier_energy
+    name: "Dehumidifier Energy Daily"
+    cycle: daily
+  dehumidifier_energy_monthly:
+    source: sensor.dehumidifier_energy
+    name: "Dehumidifier Energy Monthly"
+    cycle: monthly
+
 # PLATFORM SENSORS
 # ===============================================================
 sensor:
+  - platform: integration
+    source: sensor.dehumidifier_current_consumption
+    name: "Dehumidifier Energy"
+    unique_id: dehumidifier_energy_kwh
+    unit_prefix: k
+    unit_time: h
+    method: trapezoidal
+    round: 3
+    max_sub_interval:
+      minutes: 5
+
   - platform: time_date
     display_options:
       - "time"
@@ -5383,6 +6005,30 @@ sensor:
       minutes: 60
     sampling_size: 20
     precision: 2
+
+  # Trailing-24h mean of compressor-on watts → daily SPC value (chart 1).
+  # sampling_size 2000 ≈ last ~1.5 cycles of on-time; the mean is stable.
+  - platform: statistics
+    name: "Dehumidifier Running Watts 24h"
+    unique_id: dehumidifier_running_watts_24h
+    entity_id: sensor.dehumidifier_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 2000
+    precision: 0
+
+  # Rolling 2-min MAX of raw power → captures the startup inrush spike.
+  # Charted as daily-max (chart 5). Kasa-sampling-limited: trend, not absolute.
+  - platform: statistics
+    name: "Dehumidifier Power Max 2min"
+    unique_id: dehumidifier_power_max_2min
+    entity_id: sensor.dehumidifier_current_consumption
+    state_characteristic: value_max
+    max_age:
+      minutes: 2
+    sampling_size: 60
+    precision: 0
 
 
 # ===============================================================
