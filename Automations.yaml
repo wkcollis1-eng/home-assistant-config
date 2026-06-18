@@ -916,7 +916,7 @@
     # Archive closing month's MPC stats before reset
     # Month index used to select the right archive slot
     - variables:
-        closing_month: "{{ now().strftime('%b') | lower }}"
+        closing_month: "{{ (now() - timedelta(days=1)).strftime('%b') | lower }}"
     - service: input_number.set_value
       target:
         entity_id: >
