@@ -4304,6 +4304,42 @@ template:
             {{ 90.3 }}
           {% endif %}
 
+      - name: "HVAC Heating Efficiency 12M (BDL)"
+        unique_id: hvac_heating_efficiency_12m_bdl
+        unit_of_measurement: "CCF/1k HDD"
+        state_class: measurement
+        icon: mdi:chart-bell-curve-cumulative
+        # BDL-denominator twin of hvac_heating_efficiency_12m: identical net-space-heat
+        # numerator (gas_archive_ccf - dhw_archive), but official BDL HDD from the BDL
+        # Degree Days sensor's trailing_12 attribute instead of the HA proxy archive.
+        availability: >
+          {{ state_attr('sensor.bdl_degree_days', 'trailing_12_count') | int(0) == 12 }}
+        state: >
+          {% set months = ['jan','feb','mar','apr','may','jun',
+                           'jul','aug','sep','oct','nov','dec'] %}
+          {% set t12 = state_attr('sensor.bdl_degree_days', 'trailing_12') %}
+          {% set ns = namespace(ccf=0, dhw=0, hdd=0) %}
+          {% for m in months %}
+            {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
+            {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
+            {% set ns.hdd = ns.hdd + (t12[m] | float(0) if (t12 is mapping and m in t12) else 0) %}
+          {% endfor %}
+          {% set heating_ccf = ns.ccf - ns.dhw %}
+          {% if ns.hdd >= 100 and heating_ccf > 0 %}
+            {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
+          {% else %}
+            {{ 90.3 }}
+          {% endif %}
+
+      - name: "HVAC Performance vs Baseline (BDL)"
+        unique_id: hvac_performance_vs_baseline_bdl
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {% set current = states('sensor.hvac_heating_efficiency_12m_bdl') | float(0) %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
+          {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
+
       # Rolling 12-month DHW total from Navien-metered archives
       - name: "DHW Gas 12M"
         unique_id: dhw_gas_12m
@@ -4681,7 +4717,7 @@ template:
           {% set electric = states('input_number.electricity_bill_amount') | float(0) %}
           {% set gas = states('input_number.gas_bill_amount') | float(0) %}
           {{ (electric + gas) | round(2) }}
-          
+
       - name: "HVAC Cathedral Ceiling Impact MTD"
         unique_id: hvac_cathedral_ceiling_impact_mtd
         unit_of_measurement: "$"
@@ -6040,6 +6076,28 @@ sensor:
 # ===============================================================
 
 command_line:
+  - sensor:
+      name: "BDL Degree Days"
+      unique_id: bdl_degree_days
+      # Fetches official Bradley/KBDL monthly HDD65/CDD65 from ACIS and upserts
+      # /config/reports/bdl_degree_days.csv. The daily scan IS the monthly
+      # capture: each completed month is written once ACIS has finalized it
+      # (self-backfilling), so a not-yet-published month fills in automatically.
+      command: "python3 /config/scripts/fetch_bdl_degree_days.py --csv /config/reports/bdl_degree_days.csv"
+      command_timeout: 45
+      scan_interval: 86400  # daily; ACIS finalizes a completed month within days
+      value_template: "{{ value_json.latest_month }}"
+      json_attributes:
+        - latest_hdd
+        - latest_cdd
+        - trailing_12
+        - trailing_12_sum
+        - trailing_12_count
+        - added
+        - updated
+        - rows
+        - status
+
   - sensor:
       name: "Climate Norms Today"
       unique_id: climate_norms_today
