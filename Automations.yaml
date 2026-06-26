@@ -2910,13 +2910,13 @@
 #   HA Green                 — executes software shutdown
 #
 # Binary sensor → automation map:
-#   ups_monitor_bench_on_battery        ON  → Auto 1: outage start notify
-#   ups_monitor_bench_voltage_warning   ON  → Auto 2: warning + runtime notify
+#   ups_monitor_on_battery        ON  → Auto 1: outage start notify
+#   ups_monitor_voltage_warning   ON  → Auto 2: warning + runtime notify
 #                                            → Auto 3: graceful shutdown (secondary)
 #   ups_monitor_cliff_imminent          ON  → Auto 3: graceful shutdown (PRIMARY)
 #   ups_monitor_runtime_remaining_minutes < 8 → Auto 3: graceful shutdown (structural backup)
-#   ups_monitor_bench_voltage_critical  ON  → Auto 4: hard fallback shutdown
-#   ups_monitor_bench_on_battery        OFF → Auto 5: AC restored notify
+#   ups_monitor_voltage_critical  ON  → Auto 4: hard fallback shutdown
+#   ups_monitor_on_battery        OFF → Auto 5: AC restored notify
 #
 # Protection layers:
 #   Layer A — ESPHome binary sensor: debounced in firmware, no raw ADC noise
@@ -2954,19 +2954,19 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       to: "on"
   condition:
     - condition: template
       value_template: >
-        {{ states('binary_sensor.ups_monitor_bench_on_battery') not in ['unknown', 'unavailable'] }}
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
   action:
     - service: notify.mobile_app_bills_iphone
       data:
         title: "🔴 Power Outage — On Battery"
         message: >
           Grid power lost. UPS running on battery.
-          Voltage: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V
           at {{ now().strftime('%H:%M:%S') }}.
           Outage #{{ states('sensor.ups_monitor_total_outages') | int(0) }}.
 
@@ -2990,11 +2990,11 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.ups_monitor_bench_voltage_warning
+      entity_id: binary_sensor.ups_monitor_voltage_warning
       to: "on"
   condition:
     - condition: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       state: "on"
   action:
     - service: notify.mobile_app_bills_iphone
@@ -3002,7 +3002,7 @@
         title: "⚠️ UPS Battery Warning — Cliff Entry (12.40V)"
         message: >
           Battery voltage below 12.40V — entering Cliff phase.
-          Voltage: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
           {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
           {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
           Runtime remaining: ~{{ rt | float | round(0) | int }} min.
@@ -3053,7 +3053,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.ups_monitor_bench_voltage_warning
+      entity_id: binary_sensor.ups_monitor_voltage_warning
       to: "on"
       id: warning_trigger
     - platform: state
@@ -3066,11 +3066,11 @@
       id: runtime_trigger
   condition:
     - condition: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       state: "on"
     - condition: template
       value_template: >
-        {{ states('binary_sensor.ups_monitor_bench_on_battery') not in ['unknown', 'unavailable'] }}
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
   action:
     # Notify immediately — record exists even if shutdown follows in 30 s.
     - service: notify.mobile_app_bills_iphone
@@ -3084,7 +3084,7 @@
           {% else %}
           Runtime below 8 minutes.
           {% endif %}
-          Voltage: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
           {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
           {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
           Runtime remaining: ~{{ rt | float | round(0) | int }} min.
@@ -3098,7 +3098,7 @@
 
     # Revalidation (a): if on_battery cleared during delay, grid restored — abort.
     - condition: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       state: "on"
 
     # Revalidation (b): at least one trigger condition must still be active.
@@ -3106,7 +3106,7 @@
     # warning-triggered shutdown.
     - condition: template
       value_template: >
-        {% set warning = states('binary_sensor.ups_monitor_bench_voltage_warning') %}
+        {% set warning = states('binary_sensor.ups_monitor_voltage_warning') %}
         {% set cliff   = states('binary_sensor.ups_monitor_cliff_imminent') %}
         {% set rt      = states('sensor.ups_monitor_runtime_remaining_minutes') | float(-1) %}
         {{ warning == 'on' or cliff == 'on' or (rt > 0 and rt < 8) }}
@@ -3139,11 +3139,11 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.ups_monitor_bench_voltage_critical
+      entity_id: binary_sensor.ups_monitor_voltage_critical
       to: "on"
   condition:
     - condition: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       state: "on"
   action:
     - service: notify.mobile_app_bills_iphone
@@ -3151,7 +3151,7 @@
         title: "🔴 UPS CRITICAL — Emergency Shutdown"
         message: >
           Voltage critical threshold (12.20V) reached. ~10 min to BP-65 LVD.
-          Voltage: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
           HA Green performing emergency shutdown NOW.
           BP-65 hardware LVD at 11.80V is the final backstop.
 
@@ -3179,12 +3179,12 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.ups_monitor_bench_on_battery
+      entity_id: binary_sensor.ups_monitor_on_battery
       to: "off"
   condition:
     - condition: template
       value_template: >
-        {{ states('binary_sensor.ups_monitor_bench_on_battery') not in ['unknown', 'unavailable'] }}
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
   action:
     - service: notify.mobile_app_bills_iphone
       data:
@@ -3200,7 +3200,7 @@
           Start voltage: {{ states('sensor.ups_monitor_last_outage_start_voltage') | float(0) | round(3) }}V
           Min voltage: {{ states('sensor.ups_monitor_last_outage_min_voltage') | float(0) | round(3) }}V
           Peak recharge: {{ states('sensor.ups_monitor_last_recharge_peak_current') | float(0) | round(2) }}A
-          Battery now: {{ states('sensor.ups_monitor_bench_battery_voltage') | float(0) | round(2) }}V
+          Battery now: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V
 
 # ===============================================================
 # DEHUMIDIFIER RUNNING-WATTS SPC — EOD capture
