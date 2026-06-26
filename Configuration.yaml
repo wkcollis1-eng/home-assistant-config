@@ -5235,7 +5235,7 @@ template:
         icon: mdi:omega
         state: >
           {% set r_raw = states('sensor.ups_apparent_internal_resistance') | float(0) %}
-          {% set t_f   = states('sensor.ups_monitor_bench_battery_temperature') | float(72) %}
+          {% set t_f   = states('sensor.ups_monitor_battery_temperature') | float(72) %}
           {% set t_c   = (t_f - 32) * 5 / 9 %}
           {% set factor = 1 + 0.008 * (25 - t_c) %}
           {% if r_raw > 0 %}
