@@ -11,6 +11,10 @@
 
 default_config:
 
+# Load split-out package files (SEM-Meter energy monitoring lives in packages/)
+homeassistant:
+  packages: !include_dir_named packages
+
 # Shell commands for CSV reports
 shell_command:
   testcmd: "echo hello"

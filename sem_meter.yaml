@@ -1,0 +1,449 @@
+# =====================================================================
+# SEM-Meter (Fusion Energy) — Home Assistant package
+# Device: 9070690B543A   Topic: SEMMETER/9070690B543A/HA   Cadence: ~2 s
+# Broker login: sem (Mosquitto add-on local login)
+#
+# DERIVED FROM A LIVE PAYLOAD (2026-06-27 11:45) — NOT from the §8 plan tables.
+# Two corrections the live data forced (see notes), both verified by
+# conservation (mains >= branches) and power-factor (P/(V*I) <= 1):
+#   * MAINS ARE ch16 + ch17.  §8 said ch17/ch18; that fails conservation
+#     (branch sum 2648 W > 2188 W).  ch18 is the unused/NA channel.
+#   * AC (ch11) is published ONE-LEG RAW -> apply x2 here (x0.01x2).
+#     Proof: PF = 1373.09/(118.5*12.37) = 0.937 (<=1, so un-doubled).
+#     Keep the SEM app's AC multiplier at x1 or this double-counts.
+# With both applied, balance lands at +77 W (~2%) — matches §6.
+#
+# Field map (per sense[ch][n], §8):  [0]V x0.1  [1]I x0.01  [2]P x0.01
+#                                    [3]Ein x0.001  [4]Eout x0.001
+# Channel -> circuit (ch0..15 branches, confirmed vs screenshot):
+#   0 Dining/Kitchen lights   1 Laundry & Bedroom   2 Master suite
+#   3 Family room   4 Bedroom/Office   5 Washer   6 Counter #1
+#   7 Counter #2   8 Dishwasher/Disposal   9 Fridge   10 Microwave
+#   11 AC (x2)   12 Garage   13 Furnace   14 Dryer-B   15 Dryer-A
+#   16 Main (leg ?)   17 Main (leg ?)   18 NA/unused
+#
+# TODO (non-blocking): confirm which of 16/17 is Leg A vs B (cosmetic —
+# whole-home/Other use the sum); one-time clamp check on the AC x2.
+# Filter precedence: every |float(0) is wrapped in parens before *  (the
+# gas_heating_cost_month footgun).
+# =====================================================================
+
+mqtt:
+  sensor:
+
+    # ----- shared line voltage (one channel; voltage is shared ref) -----
+    - name: "SEM Line Voltage"
+      unique_id: sem_line_voltage
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[16][0] | float(0)) * 0.1) | round(1) }}"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+      expire_after: 60
+
+    # ======================= BRANCH POWER (W) =======================
+    - name: "SEM Dining/Kitchen Lights Power"
+      unique_id: sem_dining_kitchen_lights_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[0][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Laundry & Bedroom Power"
+      unique_id: sem_laundry_bedroom_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[1][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Master Suite Power"
+      unique_id: sem_master_suite_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[2][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Family Room Power"
+      unique_id: sem_family_room_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[3][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Bedroom/Office Power"
+      unique_id: sem_bedroom_office_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[4][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Washer Power"
+      unique_id: sem_washer_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[5][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Counter #1 Power"
+      unique_id: sem_counter_1_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[6][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Counter #2 Power"
+      unique_id: sem_counter_2_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[7][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Dishwasher/Disposal Power"
+      unique_id: sem_dishwasher_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[8][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Fridge Power"
+      unique_id: sem_fridge_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[9][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Microwave Power"
+      unique_id: sem_microwave_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[10][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # AC: 240 V, single CT -> x2 (x0.01 x 2 = x0.02). Keep app multiplier x1.
+    - name: "SEM AC Power"
+      unique_id: sem_ac_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[11][2] | float(0)) * 0.02) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # AC current (one leg) — for compressor-draw / motor analysis.
+    - name: "SEM AC Current"
+      unique_id: sem_ac_current
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[11][1] | float(0)) * 0.01) | round(2) }}"
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Garage Power"
+      unique_id: sem_garage_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[12][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Furnace Power"
+      unique_id: sem_furnace_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[13][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # Dryer: 2 CTs, one per leg (ch14 Dryer-B, ch15 Dryer-A). Sum below.
+    - name: "SEM Dryer Power"
+      unique_id: sem_dryer_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: >-
+        {% set s = value_json.sense %}
+        {{ (((s[14][2] | float(0)) + (s[15][2] | float(0))) * 0.01) | round(1) }}
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # ======================= MAINS / DERIVED (W) =======================
+    - name: "SEM Main A Power"
+      unique_id: sem_main_a_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[16][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Main B Power"
+      unique_id: sem_main_b_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[17][2] | float(0)) * 0.01) | round(1) }}"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    - name: "SEM Whole Home Power"
+      unique_id: sem_whole_home_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: >-
+        {% set s = value_json.sense %}
+        {{ (((s[16][2] | float(0)) + (s[17][2] | float(0))) * 0.01) | round(1) }}
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # Balance bucket: mains - itemized branches (AC x2, Dryer = ch14+ch15).
+    # Can briefly read slightly negative on CT measurement noise — expected.
+    - name: "SEM Other Power"
+      unique_id: sem_other_power
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: >-
+        {% set s = value_json.sense %}
+        {% set mains = (s[16][2] | float(0)) + (s[17][2] | float(0)) %}
+        {% set branches = (s[0][2] | float(0)) + (s[1][2] | float(0))
+          + (s[2][2] | float(0)) + (s[3][2] | float(0)) + (s[4][2] | float(0))
+          + (s[5][2] | float(0)) + (s[6][2] | float(0)) + (s[7][2] | float(0))
+          + (s[8][2] | float(0)) + (s[9][2] | float(0)) + (s[10][2] | float(0))
+          + ((s[11][2] | float(0)) * 2) + (s[12][2] | float(0))
+          + (s[13][2] | float(0)) + (s[14][2] | float(0)) + (s[15][2] | float(0)) %}
+        {{ ((mains - branches) * 0.01) | round(1) }}
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 60
+
+    # ======================= ENERGY (kWh, cumulative) =======================
+    # state_class total_increasing -> Energy dashboard + utility_meter source.
+    # No expire_after (avoids utility_meter reset glitches on a brief gap).
+    - name: "SEM Dining/Kitchen Lights Energy"
+      unique_id: sem_dining_kitchen_lights_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[0][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Laundry & Bedroom Energy"
+      unique_id: sem_laundry_bedroom_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[1][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Master Suite Energy"
+      unique_id: sem_master_suite_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[2][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Family Room Energy"
+      unique_id: sem_family_room_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[3][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Bedroom/Office Energy"
+      unique_id: sem_bedroom_office_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[4][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Washer Energy"
+      unique_id: sem_washer_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[5][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Counter #1 Energy"
+      unique_id: sem_counter_1_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[6][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Counter #2 Energy"
+      unique_id: sem_counter_2_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[7][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Dishwasher/Disposal Energy"
+      unique_id: sem_dishwasher_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[8][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Fridge Energy"
+      unique_id: sem_fridge_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[9][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Microwave Energy"
+      unique_id: sem_microwave_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[10][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    # AC energy also one-leg -> x2 (x0.001 x 2 = x0.002).
+    - name: "SEM AC Energy"
+      unique_id: sem_ac_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[11][3] | float(0)) * 0.002) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Garage Energy"
+      unique_id: sem_garage_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[12][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Furnace Energy"
+      unique_id: sem_furnace_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[13][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    # Dryer energy = ch14 + ch15 (both legs).
+    - name: "SEM Dryer Energy"
+      unique_id: sem_dryer_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: >-
+        {% set s = value_json.sense %}
+        {{ (((s[14][3] | float(0)) + (s[15][3] | float(0))) * 0.001) | round(3) }}
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Main A Energy"
+      unique_id: sem_main_a_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[16][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Main B Energy"
+      unique_id: sem_main_b_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: "{{ ((value_json.sense[17][3] | float(0)) * 0.001) | round(3) }}"
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+    - name: "SEM Whole Home Energy"
+      unique_id: sem_whole_home_energy
+      state_topic: "SEMMETER/9070690B543A/HA"
+      value_template: >-
+        {% set s = value_json.sense %}
+        {{ (((s[16][3] | float(0)) + (s[17][3] | float(0))) * 0.001) | round(3) }}
+      unit_of_measurement: "kWh"
+      device_class: energy
+      state_class: total_increasing
+
+
+# =====================================================================
+# Utility meters — daily/monthly reset windows for the analysis circuits.
+# Replicate the 2-line pattern for any other *_energy sensor you want
+# windowed; for the Energy dashboard alone, the total_increasing sensors
+# above are enough (HA aggregates them itself).
+# NOTE: merges with the existing top-level utility_meter: (dehumidifier).
+# =====================================================================
+utility_meter:
+  sem_whole_home_daily:
+    source: sensor.sem_whole_home_energy
+    name: "SEM Whole Home Daily"
+    cycle: daily
+  sem_whole_home_monthly:
+    source: sensor.sem_whole_home_energy
+    name: "SEM Whole Home Monthly"
+    cycle: monthly
+
+  sem_ac_daily:
+    source: sensor.sem_ac_energy
+    name: "SEM AC Daily"
+    cycle: daily
+  sem_ac_monthly:
+    source: sensor.sem_ac_energy
+    name: "SEM AC Monthly"
+    cycle: monthly
+
+  sem_furnace_daily:
+    source: sensor.sem_furnace_energy
+    name: "SEM Furnace Daily"
+    cycle: daily
+  sem_furnace_monthly:
+    source: sensor.sem_furnace_energy
+    name: "SEM Furnace Monthly"
+    cycle: monthly
+
+  sem_fridge_daily:
+    source: sensor.sem_fridge_energy
+    name: "SEM Fridge Daily"
+    cycle: daily
+  sem_fridge_monthly:
+    source: sensor.sem_fridge_energy
+    name: "SEM Fridge Monthly"
+    cycle: monthly
+
+  sem_dryer_daily:
+    source: sensor.sem_dryer_energy
+    name: "SEM Dryer Daily"
+    cycle: daily
+  sem_dryer_monthly:
+    source: sensor.sem_dryer_energy
+    name: "SEM Dryer Monthly"
+    cycle: monthly
