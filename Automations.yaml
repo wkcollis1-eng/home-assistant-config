@@ -143,8 +143,8 @@
                 {{ upstream_ok and values_ok and delta_ok }}
           sequence:
             - variables:
-                todays_hdd: "{{ states('sensor.hvac_hdd65_today')|float }}"
-                todays_cdd: "{{ states('sensor.hvac_cdd65_today')|float }}"
+                todays_hdd: "{{ states('sensor.hvac_hdd65_today')| float(0) }}"
+                todays_cdd: "{{ states('sensor.hvac_cdd65_today')| float(0) }}"
                 d1: "{{ states('input_number.hdd_day_1')|float(0) }}"
                 d2: "{{ states('input_number.hdd_day_2')|float(0) }}"
                 d3: "{{ states('input_number.hdd_day_3')|float(0) }}"
@@ -308,7 +308,7 @@
                 {{ upstream_ok and values_ok }}
           sequence:
             - variables:
-                todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')|float }}"
+                todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')| float(0) }}"
                 d1: "{{ states('input_number.runtime_per_hdd_day_1')|float(0) }}"
                 d2: "{{ states('input_number.runtime_per_hdd_day_2')|float(0) }}"
                 d3: "{{ states('input_number.runtime_per_hdd_day_3')|float(0) }}"
@@ -395,7 +395,7 @@
                 {{ cycles_ok and values_ok }}
           sequence:
             - variables:
-                todays_min_per_cycle: "{{ states('sensor.hvac_furnace_min_per_cycle') | float }}"
+                todays_min_per_cycle: "{{ states('sensor.hvac_furnace_min_per_cycle') | float(0) }}"
                 d1: "{{ states('input_number.furnace_min_per_cycle_day_1') | float(0) }}"
                 d2: "{{ states('input_number.furnace_min_per_cycle_day_2') | float(0) }}"
                 d3: "{{ states('input_number.furnace_min_per_cycle_day_3') | float(0) }}"
@@ -1080,12 +1080,12 @@
         bill_month: >
           {% set dt = states('input_datetime.electricity_bill_date') %}
           {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
-        current_amount: "{{ states('input_number.electricity_bill_amount') | float }}"
-        current_kwh: "{{ states('input_number.electricity_bill_kwh') | float }}"
-        current_days: "{{ states('input_number.electricity_bill_days') | float }}"
+        current_amount: "{{ states('input_number.electricity_bill_amount') | float(0) }}"
+        current_kwh: "{{ states('input_number.electricity_bill_kwh') | float(0) }}"
+        current_days: "{{ states('input_number.electricity_bill_days') | float(0) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(bill_month | int) - 1] }}
+          {{ months[(bill_month | int(0)) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -1143,12 +1143,12 @@
         bill_month: >
           {% set dt = states('input_datetime.gas_bill_date') %}
           {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
-        current_amount: "{{ states('input_number.gas_bill_amount') | float }}"
-        current_ccf: "{{ states('input_number.gas_bill_ccf') | float }}"
-        current_days: "{{ states('input_number.gas_bill_days') | float }}"
+        current_amount: "{{ states('input_number.gas_bill_amount') | float(0) }}"
+        current_ccf: "{{ states('input_number.gas_bill_ccf') | float(0) }}"
+        current_days: "{{ states('input_number.gas_bill_days') | float(0) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(bill_month | int) - 1] }}
+          {{ months[(bill_month | int(0)) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -1215,7 +1215,7 @@
         current_dhw: "{{ (input_thm * 0.9643) | round(2) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(prev_month | int) - 1] }}
+          {{ months[(prev_month | int(0)) - 1] }}
         prev_dhw: "{{ states('input_number.dhw_archive_' ~ month_name) | float(0) }}"
     - condition: template
       value_template: "{{ input_thm > 0 }}"
@@ -1305,8 +1305,10 @@
       state: "off"
     - condition: template
       value_template: >
-        {% set last_off = state_attr('automation.dehumidifier_auto_off', 'last_triggered') %}
-        {{ last_off is none or (now() - last_off).total_seconds() > 1800 }}
+        {% set lo = states('input_datetime.dehumidifier_last_off_time') %}
+        {% set min_off = states('input_number.dehumidifier_min_off_minutes') | float(30) * 60 %}
+        {{ lo in ['unknown', 'unavailable'] or lo[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(lo, 0)) > min_off }}
   action:
     - service: switch.turn_on
       target:
@@ -1320,11 +1322,11 @@
     - platform: template
       id: conditions_cleared
       value_template: >
-        {% set setpoint = states('input_number.dehumidifier_dewpoint_threshold') | float(45) %}
-        {% set current_dp = states('sensor.basement_dew_point') | float %}
-        {{ current_dp < (setpoint - 1) }}
+        {% set rh_off = states('input_number.dehumidifier_rh_off_threshold') | float(46) %}
+        {% set current_rh = states('sensor.shelly_temperature_humidity_humidity') | float(100) %}
+        {{ current_rh < rh_off }}
     - platform: state
-      entity_id: switch.dehumidifier
+      entity_id: binary_sensor.dehumidifier_compressor_active
       to: "on"
       for:
         minutes: 150
@@ -1340,6 +1342,47 @@
       data:
         option: "{{ trigger.id }}"
     - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+
+- id: dehumidifier_stamp_last_off
+  alias: "Dehumidifier Stamp Last Off Time"
+  description: "Record every dehumidifier OFF for the reboot-proof anti-short-cycle lockout (covers conditions_cleared, max_runtime, rh_stall, and manual offs)"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: switch.dehumidifier
+      to: "off"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_last_off_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: dehumidifier_force_on_backstop
+  alias: "Dehumidifier Force On Backstop"
+  description: "Corrosion-ceiling override: ensure the unit runs when bank RH nears 50%, using a shortened 10-min lockout. Corrosion protection outranks short-cycle protection only when genuinely near the ceiling."
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.shelly_temperature_humidity_humidity
+      above: input_number.dehumidifier_rh_force_on
+  condition:
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "off"
+    - condition: template
+      value_template: >
+        {{ states('sensor.shelly_temperature_humidity_temperature') | float(0)
+           >= states('input_number.dehumidifier_min_temp') | float(58) }}
+    - condition: template
+      value_template: >
+        {% set lo = states('input_datetime.dehumidifier_last_off_time') %}
+        {{ lo in ['unknown', 'unavailable'] or lo[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(lo, 0)) > 600 }}
+  action:
+    - service: switch.turn_on
       target:
         entity_id: switch.dehumidifier
 
@@ -1425,19 +1468,19 @@
       target:
         entity_id: input_number.dehumidifier_last_cycle_minutes
       data:
-        value: "{{ [[cycle_minutes | float, 0] | max, 300] | min }}"
+        value: "{{ [[cycle_minutes | float(0), 0] | max, 300] | min }}"
     # Only calculate pull-down rate for cycles >= 10 minutes (short cycle guard)
     - if:
         - condition: template
-          value_template: "{{ cycle_minutes | float >= 10 }}"
+          value_template: "{{ cycle_minutes | float(0) >= 10 }}"
       then:
         - service: input_number.set_value
           target:
             entity_id: input_number.dehumidifier_last_pull_down_rate
           data:
             value: >
-              {% set delta_dp = start_dp | float - current_dp | float %}
-              {% set hours = cycle_minutes | float / 60 %}
+              {% set delta_dp = start_dp | float(0) - current_dp | float(0) %}
+              {% set hours = cycle_minutes | float(0) / 60 %}
               {% set rate = delta_dp / hours if hours > 0 else 0 %}
               {{ [[rate | round(1), -10] | max, 20] | min }}
       else:
@@ -1521,7 +1564,7 @@
         level: info
         message: >
           Dehumidifier stall shutdown: RH drop rate {{ states('sensor.dehumidifier_rh_drop_rate_60min') | float(0) | round(2) }} %/hr
-          (threshold 0.3 %/hr, runtime {{ ((now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() / 60) | round(0) | int }} min).
+          (threshold 0.3 %/hr, runtime {{ ((now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() / 60) | round(0) | int(0) }} min).
           RH {{ states('sensor.shelly_temperature_humidity_humidity') }}%,
           60-min mean {{ states('sensor.dehumidifier_rh_mean_60min') }}%.
 
@@ -1541,9 +1584,9 @@
             - condition: template
               value_template: >
                 {{ (is_number(states('sensor.hvac_total_heat_runtime_today')) and
-                    states('sensor.hvac_total_heat_runtime_today')|float >= 0) or
+                    states('sensor.hvac_total_heat_runtime_today')| float(0) >= 0) or
                    (is_number(states('sensor.hvac_ac_runtime_today')) and
-                    states('sensor.hvac_ac_runtime_today')|float >= 0) }}
+                    states('sensor.hvac_ac_runtime_today')| float(0) >= 0) }}
           sequence:
             - service: input_number.set_value
               target:
@@ -1837,14 +1880,14 @@
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
+        value: "{{ [recovery_minutes | float(0), 300] | min }}"
     - choose:
         - conditions:
             - condition: template
               value_template: >
-                {{ recovery_minutes | float > 0 and
-                   recovery_minutes | float <= 300 and
-                   degrees_to_recover | float >= 0.5 }}
+                {{ recovery_minutes | float(0) > 0 and
+                   recovery_minutes | float(0) <= 300 and
+                   degrees_to_recover | float(0) >= 0.5 }}
           sequence:
             - service: shell_command.appendsetbacklog_1f
       default:
@@ -1897,14 +1940,14 @@
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
+        value: "{{ [recovery_minutes | float(0), 300] | min }}"
     - choose:
         - conditions:
             - condition: template
               value_template: >
-                {{ recovery_minutes | float > 0 and
-                   recovery_minutes | float <= 300 and
-                   degrees_to_recover | float >= 0.5 }}
+                {{ recovery_minutes | float(0) > 0 and
+                   recovery_minutes | float(0) <= 300 and
+                   degrees_to_recover | float(0) >= 0.5 }}
           sequence:
             - service: shell_command.appendsetbacklog_2f
       default:
@@ -2742,7 +2785,7 @@
       data:
         title: "⚠️ Pirate Weather Stale"
         message: >
-          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int }} minutes old.
+          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int(0) }} minutes old.
           Check API key and integration status.
 
 # ===============================================================
@@ -2782,7 +2825,7 @@
           **Error:** {{ trigger.event.data.message | default('No message') }}
 
           **Time:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
-        notification_id: "automation_failure_{{ now().timestamp() | int }}"
+        notification_id: "automation_failure_{{ now().timestamp() | int(0) }}"
 
 - id: reset_automation_failure_counter
   alias: "Reset Automation Failure Counter"
@@ -2830,7 +2873,7 @@
                 {{ cycles_ok and values_ok }}
           sequence:
             - variables:
-                todays_min_per_cycle: "{{ states('sensor.hvac_ac_min_per_cycle') | float }}"
+                todays_min_per_cycle: "{{ states('sensor.hvac_ac_min_per_cycle') | float(0) }}"
                 d1: "{{ states('input_number.ac_min_per_cycle_day_1') | float(0) }}"
                 d2: "{{ states('input_number.ac_min_per_cycle_day_2') | float(0) }}"
                 d3: "{{ states('input_number.ac_min_per_cycle_day_3') | float(0) }}"
@@ -3005,7 +3048,7 @@
           Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
           {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
           {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
-          Runtime remaining: ~{{ rt | float | round(0) | int }} min.
+          Runtime remaining: ~{{ rt | float(0) | round(0) | int(0) }} min.
           {% else %}
           Runtime: estimating…
           {% endif %}
@@ -3087,7 +3130,7 @@
           Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
           {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
           {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
-          Runtime remaining: ~{{ rt | float | round(0) | int }} min.
+          Runtime remaining: ~{{ rt | float(0) | round(0) | int(0) }} min.
           {% endif %}
           HA Green shutting down in 30 s.
 
@@ -3206,7 +3249,8 @@
 # DEHUMIDIFIER RUNNING-WATTS SPC — EOD capture
 # Fires 23:59:00 (after the frozen 23:54:30–23:58:45 sequence, before the
 # 00:00:00 counter reset). Shifts the 7-day window and writes today's
-# trailing-24h mean running watts. Guarded so no-run days never poison slots.
+# calendar-day TIME-WEIGHTED mean running watts (energy_daily*1000/runtime_today),
+# an independent per-day subgroup. Guarded so no-run days never poison slots.
 # ===============================================================
 - id: capture_daily_dehumidifier_watts
   alias: "Capture Daily Dehumidifier Running Watts"
@@ -3219,12 +3263,16 @@
         - conditions:
             - condition: template
               value_template: >
-                {% set w = states('sensor.dehumidifier_running_watts_24h') | float(-1) %}
+                {% set e = states('sensor.dehumidifier_energy_daily') | float(0) %}
                 {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
+                {% set w = (e * 1000 / rt) if rt >= 0.5 else -1 %}
                 {{ rt >= 0.5 and 300 < w <= 800 }}
           sequence:
             - variables:
-                today_w: "{{ states('sensor.dehumidifier_running_watts_24h') | float(0) | round(1) }}"
+                today_w: >-
+                  {% set e = states('sensor.dehumidifier_energy_daily') | float(0) %}
+                  {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
+                  {{ (e * 1000 / rt) | round(1) if rt >= 0.5 else 0 }}
                 d1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
                 d2: "{{ states('input_number.dehumidifier_running_watts_day_2') | float(0) }}"
                 d3: "{{ states('input_number.dehumidifier_running_watts_day_3') | float(0) }}"
@@ -3255,14 +3303,14 @@
             - service: system_log.write
               data:
                 level: info
-                message: "Dehumidifier running-watts captured: {{ today_w }} W (runtime {{ states('sensor.dehumidifier_runtime_today') }} h)"
+                message: "Dehumidifier running-watts captured (calendar-day mean): {{ today_w }} W (runtime {{ states('sensor.dehumidifier_runtime_today') }} h, energy {{ states('sensor.dehumidifier_energy_daily') }} kWh)"
       default:
         - service: system_log.write
           data:
             level: info
             message: >
               Dehumidifier watts capture skipped — runtime={{ states('sensor.dehumidifier_runtime_today') }} h,
-              mean_w={{ states('sensor.dehumidifier_running_watts_24h') }} (needs >=0.5 h and 300-800 W).
+              energy={{ states('sensor.dehumidifier_energy_daily') }} kWh (needs >=0.5 h and computed mean 300-800 W).
 
 # ===============================================================
 # DEHUMIDIFIER OPERATING COST — daily EOD accumulation
@@ -3427,11 +3475,11 @@
         bill_dt: "{{ states('input_datetime.gas_bill_date') }}"
         bill_year: "{{ (bill_dt | as_datetime).year if bill_dt not in ['unknown', 'unavailable', 'none'] else now().year }}"
         bill_month: "{{ (bill_dt | as_datetime).month if bill_dt not in ['unknown', 'unavailable', 'none'] else now().month }}"
-        slot: "{{ (((bill_month | int) - 7) % 12) + 1 }}"
-        bill_season: "{{ (bill_year | int) if (bill_month | int) >= 7 else (bill_year | int) - 1 }}"
+        slot: "{{ (((bill_month | int(0)) - 7) % 12) + 1 }}"
+        bill_season: "{{ (bill_year | int(0)) if (bill_month | int(0)) >= 7 else (bill_year | int(0)) - 1 }}"
         cur_season: "{{ now().year if now().month >= 7 else now().year - 1 }}"
         arr: >
-          {% set d = (cur_season | int) - (bill_season | int) %}
+          {% set d = (cur_season | int(0)) - (bill_season | int(0)) %}
           {{ 'cs' if d == 0 else 'ls' if d == 1 else 'ls2' if d == 2 else 'none' }}
         cost: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
     - choose:
@@ -3445,12 +3493,12 @@
             - service: system_log.write
               data:
                 level: info
-                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int) }}) = ${{ cost }}"
+                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}) = ${{ cost }}"
       default:
         - service: system_log.write
           data:
             level: warning
-            message: "Gas heating cost NOT archived: bill {{ bill_year }}-{{ '%02d' | format(bill_month | int) }} is older than the 3-season store"
+            message: "Gas heating cost NOT archived: bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }} is older than the 3-season store"
 
 # ===============================================================
 # GAS HEATING SEASON — July 1 rollover
