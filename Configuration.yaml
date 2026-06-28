@@ -2057,6 +2057,57 @@ input_number:
     icon: mdi:water-thermometer
     initial: 47
 
+  # --- RH-band control (dehumidifier redesign) — field-tunable, no YAML edits ---
+  dehumidifier_rh_on_threshold:
+    name: "Dehumidifier RH On Threshold"
+    min: 40
+    max: 60
+    step: 0.5
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:water-percent
+    initial: 49
+
+  dehumidifier_rh_off_threshold:
+    name: "Dehumidifier RH Off Threshold"
+    min: 35
+    max: 55
+    step: 0.5
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:water-percent
+    initial: 46
+
+  dehumidifier_rh_force_on:
+    name: "Dehumidifier RH Force-On (corrosion ceiling)"
+    min: 45
+    max: 55
+    step: 0.5
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:shield-alert
+    initial: 49.5
+
+  dehumidifier_min_off_minutes:
+    name: "Dehumidifier Minimum Off Minutes"
+    min: 0
+    max: 120
+    step: 5
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer-off
+    initial: 30
+
+  dehumidifier_min_temp:
+    name: "Dehumidifier Minimum Run Temp"
+    min: 56
+    max: 70
+    step: 1
+    unit_of_measurement: "°F"
+    mode: box
+    icon: mdi:thermometer-low
+    initial: 58
+
   # Compressor gate threshold — Santa Fe Classic: fan ~50-120W, compressor ~500-600W
   # Initial value 250W sits cleanly between bands; tune after observing real power curves
   dehumidifier_power_threshold:
@@ -2513,6 +2564,12 @@ input_datetime:
     has_time: true
     icon: mdi:clock-end
 
+  dehumidifier_last_off_time:
+    name: "Dehumidifier Last Off Time"
+    has_date: true
+    has_time: true
+    icon: mdi:timer-off-outline
+
   dehumidifier_cost_capture_last_ok:
     name: "Dehumidifier Cost Capture Last OK"
     has_date: true
@@ -2675,14 +2732,15 @@ template:
         unique_id: dehumidifier_should_run
         availability: >
           {% set temp = states('sensor.shelly_temperature_humidity_temperature') %}
-          {% set dp = states('sensor.basement_dew_point') %}
-          {% set threshold = states('input_number.dehumidifier_dewpoint_threshold') %}
-          {{ is_number(temp) and is_number(dp) and is_number(threshold) }}
+          {% set rh = states('sensor.shelly_temperature_humidity_humidity') %}
+          {% set rh_on = states('input_number.dehumidifier_rh_on_threshold') %}
+          {{ is_number(temp) and is_number(rh) and is_number(rh_on) }}
         state: >
-          {% set temp = states('sensor.shelly_temperature_humidity_temperature') | float %}
-          {% set dp = states('sensor.basement_dew_point') | float %}
-          {% set threshold = states('input_number.dehumidifier_dewpoint_threshold') | float %}
-          {{ temp > 60 and dp > threshold }}
+          {% set temp = states('sensor.shelly_temperature_humidity_temperature') | float(0) %}
+          {% set rh = states('sensor.shelly_temperature_humidity_humidity') | float(0) %}
+          {% set rh_on = states('input_number.dehumidifier_rh_on_threshold') | float(49) %}
+          {% set min_temp = states('input_number.dehumidifier_min_temp') | float(58) %}
+          {{ temp >= min_temp and rh > rh_on }}
 
       # ===============================================================
       # DEHUMIDIFIER COMPRESSOR ACTIVE (Santa Fe Classic ~540W tuned)
@@ -4739,10 +4797,10 @@ template:
         availability: >
           {% set t = states('sensor.shelly_temperature_humidity_temperature') %}
           {% set rh = states('sensor.shelly_temperature_humidity_humidity') %}
-          {{ is_number(t) and is_number(rh) and (t | float) > 0 and (rh | float) > 0 and (rh | float) <= 100 }}
+          {{ is_number(t) and is_number(rh) and (t | float(0)) > 0 and (rh | float(0)) > 0 and (rh | float(0)) <= 100 }}
         state: >
-          {% set t = states('sensor.shelly_temperature_humidity_temperature') | float %}
-          {% set rh = states('sensor.shelly_temperature_humidity_humidity') | float %}
+          {% set t = states('sensor.shelly_temperature_humidity_temperature') | float(0) %}
+          {% set rh = states('sensor.shelly_temperature_humidity_humidity') | float(0) %}
           {% set t_c = (t - 32) * 5 / 9 %}
           {% set a = 17.27 %}
           {% set b = 237.7 %}
@@ -4848,7 +4906,7 @@ template:
           {% set weekly_h = states('sensor.dehumidifier_runtime_week') | float(0) %}
           {% set daily_avg_h = weekly_h / 7 %}
           {% set rate = states('sensor.electricity_effective_rate') | float(0.2733) %}
-          {{ (daily_avg_h * 0.568 * rate * 180) | round(0) | int }}
+          {{ (daily_avg_h * 0.568 * rate * 180) | round(0) | int(0) }}
 
       # Live year-to-date operating cost: accumulator (completed days) plus
       # today's running cost until the 23:59:30 capture folds it in.
@@ -4949,7 +5007,7 @@ template:
         state: >
           {% set bearing = state_attr('weather.pirateweather', 'wind_bearing') | float(0) %}
           {% set directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] %}
-          {{ directions[((bearing + 11.25) / 22.5) | int % 16] }}
+          {{ directions[((bearing + 11.25) / 22.5) | int(0) % 16] }}
 
       - name: "Pirate Weather Visibility"
         unique_id: pirate_weather_visibility
@@ -5011,14 +5069,14 @@ template:
         icon: mdi:thermometer-chevron-down
         availability: "{{ is_number(states('sensor.pirate_weather_today_low')) }}"
         state: >
-          {% set low = states('sensor.pirate_weather_today_low') | float %}
+          {% set low = states('sensor.pirate_weather_today_low') | float(0) %}
           {% if low > 30 %}5
           {% elif low > 15 %}3
           {% else %}1{% endif %}
         attributes:
           forecast_low: "{{ states('sensor.pirate_weather_today_low') }}"
           guidance: >
-            {% set low = states('sensor.pirate_weather_today_low') | float %}
+            {% set low = states('sensor.pirate_weather_today_low') | float(0) %}
             {% if low > 30 %}Mild night - deeper setback saves gas
             {% elif low > 15 %}Moderate cold - balanced setback
             {% else %}Very cold - shallow setback avoids recovery penalty{% endif %}
@@ -5048,7 +5106,7 @@ template:
           {{ states('sensor.climate_norms_today') not in ['unknown', 'unavailable', 'error'] and
              state_attr('sensor.climate_norms_today', 'cdd_mean') is not none }}
         state: >
-          {{ state_attr('sensor.climate_norms_today', 'cdd_mean') | float | round(1) }}
+          {{ state_attr('sensor.climate_norms_today', 'cdd_mean') | float(0) | round(1) }}
         attributes:
           p10: "{{ state_attr('sensor.climate_norms_today', 'cdd_p10') }}"
           p90: "{{ state_attr('sensor.climate_norms_today', 'cdd_p90') }}"
@@ -5063,7 +5121,7 @@ template:
           {{ states('sensor.climate_norms_today') not in ['unknown', 'unavailable', 'error'] and
              state_attr('sensor.climate_norms_today', 'tmean') is not none }}
         state: >
-          {{ state_attr('sensor.climate_norms_today', 'tmean') | float | round(1) }}
+          {{ state_attr('sensor.climate_norms_today', 'tmean') | float(0) | round(1) }}
         attributes:
           tmin: "{{ state_attr('sensor.climate_norms_today', 'tmin') }}"
           tmax: "{{ state_attr('sensor.climate_norms_today', 'tmax') }}"
@@ -5095,12 +5153,12 @@ template:
           {% set runtime_legacy = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
           {{ is_number(expected) and (is_number(runtime_primary) or is_number(runtime_legacy)) }}
         state: >
-          {% set expected_hdd = states('sensor.expected_hdd_today') | float %}
+          {% set expected_hdd = states('sensor.expected_hdd_today') | float(0) %}
           {% set runtime_state = states('sensor.hvac_runtime_per_hdd_7_day') %}
           {% if not is_number(runtime_state) %}
             {% set runtime_state = states('sensor.hvac_runtime_per_hdd_7_day_2') %}
           {% endif %}
-          {% set runtime_per_hdd = runtime_state | float %}
+          {% set runtime_per_hdd = runtime_state | float(0) %}
           {% if expected_hdd > 0 %}
             {{ (expected_hdd * runtime_per_hdd / 60) | round(2) }}
           {% else %}
@@ -5126,8 +5184,8 @@ template:
           {{ is_number(states('sensor.hvac_furnace_runtime_today')) and
              is_number(states('sensor.expected_runtime_today')) }}
         state: >
-          {% set actual = states('sensor.hvac_furnace_runtime_today') | float %}
-          {% set expected = states('sensor.expected_runtime_today') | float %}
+          {% set actual = states('sensor.hvac_furnace_runtime_today') | float(0) %}
+          {% set expected = states('sensor.expected_runtime_today') | float(0) %}
           {% if expected > 0.1 %}
             {{ (((actual / expected) - 1) * 100) | round(1) }}
           {% else %}
@@ -5275,7 +5333,7 @@ template:
         # consistent with the SPC limits (same gated day_1..7 source).
         availability: >
           {{ states('input_number.dehumidifier_running_watts_day_1') | float(0) > 0 }}
-        state: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) | round(0) }}"
+        state: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) | round(1) }}"
 
       - name: "Dehumidifier Running Watts Mean 7d"
         unique_id: dehumidifier_running_watts_mean_7d
@@ -5294,7 +5352,7 @@ template:
           ] %}
           {% set valid = days | select('>', 0) | select('<=', 800) | list %}
           {% if valid | length > 0 %}
-            {{ (valid | sum / valid | length) | round(0) }}
+            {{ (valid | sum / valid | length) | round(1) }}
           {% else %}
             570
           {% endif %}
@@ -5334,7 +5392,7 @@ template:
         state: >
           {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(570) %}
           {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(12) %}
-          {{ (m + 2 * s) | round(0) }}
+          {{ (m + 2 * s) | round(1) }}
 
       - name: "Dehumidifier Running Watts Lower"
         unique_id: dehumidifier_running_watts_lower
@@ -5344,7 +5402,7 @@ template:
         state: >
           {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(570) %}
           {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(12) %}
-          {{ (m - 2 * s) | round(0) }}
+          {{ (m - 2 * s) | round(1) }}
 
   - binary_sensor:
       # === CLIMATE NORMS ALERTS ===
@@ -5476,7 +5534,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[0].temperature | float }}
+          {{ forecast[0].temperature | float(0) }}
 
       - name: "Pirate Weather Today Low"
         unique_id: pirate_weather_today_low
@@ -5498,7 +5556,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[0].templow | float }}
+          {{ forecast[0].templow | float(0) }}
 
       - name: "Pirate Weather Today Precip Probability"
         unique_id: pirate_weather_today_precip_prob
@@ -5519,7 +5577,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[0].precipitation_probability | float }}
+          {{ forecast[0].precipitation_probability | float(0) }}
 
       - name: "Pirate Weather Today Condition"
         unique_id: pirate_weather_today_condition
@@ -5562,7 +5620,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[1].temperature | float }}
+          {{ forecast[1].temperature | float(0) }}
 
       - name: "Pirate Weather Tomorrow Low"
         unique_id: pirate_weather_tomorrow_low
@@ -5584,7 +5642,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[1].templow | float }}
+          {{ forecast[1].templow | float(0) }}
 
       - name: "Pirate Weather Tomorrow Precip Probability"
         unique_id: pirate_weather_tomorrow_precip_prob
@@ -5605,7 +5663,7 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {{ forecast[1].precipitation_probability | float }}
+          {{ forecast[1].precipitation_probability | float(0) }}
 
       - name: "Pirate Weather Tomorrow Condition"
         unique_id: pirate_weather_tomorrow_condition
@@ -5647,8 +5705,8 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {% set high = forecast[0].temperature | float %}
-          {% set low = forecast[0].templow | float %}
+          {% set high = forecast[0].temperature | float(0) %}
+          {% set low = forecast[0].templow | float(0) %}
           {% set avg = (high + low) / 2 %}
           {{ [65 - avg, 0] | max | round(1) }}
 
@@ -5671,8 +5729,8 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {% set high = forecast[0].temperature | float %}
-          {% set low = forecast[0].templow | float %}
+          {% set high = forecast[0].temperature | float(0) %}
+          {% set low = forecast[0].templow | float(0) %}
           {% set avg = (high + low) / 2 %}
           {{ [avg - 65, 0] | max | round(1) }}
 
@@ -5695,8 +5753,8 @@ template:
             {% set entity = data.values() | list | first %}
           {% endif %}
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
-          {% set high = forecast[1].temperature | float %}
-          {% set low = forecast[1].templow | float %}
+          {% set high = forecast[1].temperature | float(0) %}
+          {% set low = forecast[1].templow | float(0) %}
           {% set avg = (high + low) / 2 %}
           {{ [65 - avg, 0] | max | round(1) }}
 
@@ -5732,8 +5790,8 @@ template:
           {% set forecast = entity.get('forecast', []) if entity is mapping else (entity.forecast | default([], true) if entity is not none else []) %}
           {% set ns = namespace(total=0) %}
           {% for day in forecast[:7] %}
-            {% set high = day.temperature | float %}
-            {% set low = day.templow | float %}
+            {% set high = day.temperature | float(0) %}
+            {% set low = day.templow | float(0) %}
             {% set avg = (high + low) / 2 %}
             {% set ns.total = ns.total + [65 - avg, 0] | max %}
           {% endfor %}
@@ -6046,7 +6104,9 @@ sensor:
     sampling_size: 20
     precision: 2
 
-  # Trailing-24h mean of compressor-on watts → daily SPC value (chart 1).
+  # Trailing-24h mean of compressor-on watts — LIVE readout only.
+  # Daily SPC value now comes from a calendar-day time-weighted mean
+  # (energy_daily*1000/runtime_today), captured at 23:59 — see automation.
   # sampling_size 2000 ≈ last ~1.5 cycles of on-time; the mean is stable.
   - platform: statistics
     name: "Dehumidifier Running Watts 24h"
@@ -6056,7 +6116,7 @@ sensor:
     max_age:
       hours: 24
     sampling_size: 2000
-    precision: 0
+    precision: 1
 
   # Rolling 2-min MAX of raw power → captures the startup inrush spike.
   # Charted as daily-max (chart 5). Kasa-sampling-limited: trend, not absolute.
