@@ -2208,6 +2208,106 @@ input_number:
     mode: box
     unit_of_measurement: "W"
 
+  # --- daily duty% / kWh rolling buffers (test/optimization tracking) ---
+  dehumidifier_duty_day_1:
+    name: "Dehum Duty Day 1 (Yesterday)"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_2:
+    name: "Dehum Duty Day 2"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_3:
+    name: "Dehum Duty Day 3"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_4:
+    name: "Dehum Duty Day 4"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_5:
+    name: "Dehum Duty Day 5"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_6:
+    name: "Dehum Duty Day 6"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_duty_day_7:
+    name: "Dehum Duty Day 7 (Oldest)"
+    min: 0
+    max: 100
+    step: 0.1
+    mode: box
+    unit_of_measurement: "%"
+  dehumidifier_kwh_day_1:
+    name: "Dehum kWh Day 1 (Yesterday)"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_2:
+    name: "Dehum kWh Day 2"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_3:
+    name: "Dehum kWh Day 3"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_4:
+    name: "Dehum kWh Day 4"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_5:
+    name: "Dehum kWh Day 5"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_6:
+    name: "Dehum kWh Day 6"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+  dehumidifier_kwh_day_7:
+    name: "Dehum kWh Day 7 (Oldest)"
+    min: 0
+    max: 20
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+
   # --- Dehumidifier Operating Cost: yearly accumulator + prior-year snapshot ---
   dehumidifier_cost_year_acc:
     name: "Dehumidifier Cost Year Accumulated"
@@ -5404,6 +5504,81 @@ template:
           {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(12) %}
           {{ (m - 2 * s) | round(1) }}
 
+      # === dp-based removal / ingress rates (gated, 30-min settle) ===
+      - name: "Dehumidifier DP Removal Rate"
+        unique_id: dehumidifier_dp_removal_rate
+        unit_of_measurement: "°F/h"
+        state_class: measurement
+        icon: mdi:water-minus
+        availability: >
+          {{ is_state('binary_sensor.dehumidifier_compressor_active', 'on')
+             and is_number(states('sensor.basement_dp_rate'))
+             and (now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() > 1800 }}
+        state: "{{ (0 - states('sensor.basement_dp_rate') | float(0)) | round(2) }}"
+      - name: "Dehumidifier DP Ingress Rate"
+        unique_id: dehumidifier_dp_ingress_rate
+        unit_of_measurement: "°F/h"
+        state_class: measurement
+        icon: mdi:water-plus
+        availability: >
+          {{ is_state('binary_sensor.dehumidifier_compressor_active', 'off')
+             and is_number(states('sensor.basement_dp_rate'))
+             and (now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() > 1800 }}
+        state: "{{ states('sensor.basement_dp_rate') | float(0) | round(2) }}"
+      # === daily duty% / kWh (mirror newest buffer slot for charting) ===
+      - name: "Dehumidifier Duty Daily"
+        unique_id: dehumidifier_duty_daily
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:percent
+        state: "{{ states('input_number.dehumidifier_duty_day_1') | float(0) | round(1) }}"
+      - name: "Dehumidifier kWh Daily"
+        unique_id: dehumidifier_kwh_daily
+        unit_of_measurement: "kWh"
+        state_class: measurement
+        icon: mdi:lightning-bolt
+        state: "{{ states('input_number.dehumidifier_kwh_day_1') | float(0) | round(3) }}"
+      - name: "Dehumidifier Duty Mean 7d"
+        unique_id: dehumidifier_duty_mean_7d
+        unit_of_measurement: "%"
+        icon: mdi:chart-line
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_duty_day_1') | float(-1),
+            states('input_number.dehumidifier_duty_day_2') | float(-1),
+            states('input_number.dehumidifier_duty_day_3') | float(-1),
+            states('input_number.dehumidifier_duty_day_4') | float(-1),
+            states('input_number.dehumidifier_duty_day_5') | float(-1),
+            states('input_number.dehumidifier_duty_day_6') | float(-1),
+            states('input_number.dehumidifier_duty_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>=', 0) | select('<=', 100) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+      - name: "Dehumidifier KWH Mean 7d"
+        unique_id: dehumidifier_kwh_mean_7d
+        unit_of_measurement: "kWh"
+        icon: mdi:chart-line
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_kwh_day_1') | float(-1),
+            states('input_number.dehumidifier_kwh_day_2') | float(-1),
+            states('input_number.dehumidifier_kwh_day_3') | float(-1),
+            states('input_number.dehumidifier_kwh_day_4') | float(-1),
+            states('input_number.dehumidifier_kwh_day_5') | float(-1),
+            states('input_number.dehumidifier_kwh_day_6') | float(-1),
+            states('input_number.dehumidifier_kwh_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>=', 0) | select('<=', 20) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(3) }}
+          {% else %}
+            0
+          {% endif %}
+
   - binary_sensor:
       # === CLIMATE NORMS ALERTS ===
       - name: "Climate Cold Snap Today"
@@ -5824,6 +5999,15 @@ sensor:
     round: 3
     max_sub_interval:
       minutes: 5
+
+  # dp slope (deg F/hr) over 30-min window -> drives removal/ingress rate sensors
+  - platform: derivative
+    source: sensor.basement_dew_point
+    name: "Basement DP Rate"
+    unique_id: basement_dp_rate
+    unit_time: h
+    time_window: "00:30:00"
+    round: 2
 
   - platform: time_date
     display_options:
