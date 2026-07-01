@@ -169,8 +169,17 @@ recorder:
       - sensor.time
       - sensor.date
       - sensor.climate_norms_today  # Python script, changes daily
+      # Sony TV: ~40% dead-state writes (off/unavailable), zero analytical value
+      - media_player.sony_xr_55a95l
+      - remote.sony_xr_55a95l
     entity_globs:
       - sensor.*_signal_level
+      # Diagnostic RF/health telemetry — no analytical value (2026-06-30 DB cleanup).
+      # NOTE: deliberately NOT globbing *_voltage / *_current — that would also catch
+      # ups_monitor_battery_voltage/_current (UPS-critical). SEM V/I excluded by name below.
+      - sensor.*_signal_strength
+      - sensor.*_wifi_signal
+      - sensor.*_uptime
       - sensor.pirate_weather_visibility
       - sensor.pirate_weather_cloud_cover
       - sensor.pirate_weather_uv_index
@@ -183,6 +192,23 @@ recorder:
       - sensor.pirate_weather_*_forecast_*
       # Kept for charts: temperature, feels_like, humidity, dew_point, wind_*
       - weather.*  # Weather integrations, no history needed
+      # ---- SEM-Meter (2026-06-30 DB cleanup; see HA_Green_Recorder handover) ----
+      # Confirmed via first_seen: all SEM entities went live 2026-06-27 12:19; the
+      # 3.8x recorder write-rate step-change on 06-27 is 100% SEM. Split by role:
+      #   EXCLUDE _power  -> ~306k rows/day, the wear driver + InfluxDB target.
+      #                      state_class measurement; Energy dashboard does NOT use it.
+      #   EXCLUDE _daily/_monthly -> utility_meter helpers, ~60k rows/day, dedup-1.0
+      #                      attribute bloat (Q2). NOT a dashboard dependency (package
+      #                      note: "total_increasing sensors are enough"). Only their
+      #                      HISTORY/LTS is lost; current value + restart-restore keep
+      #                      working (restore_state, not recorder). Validate once on restart.
+      #   KEEP    _energy (total_increasing) -> feeds Energy dashboard LTS. NOT excluded.
+      - sensor.sem_*_power
+      - sensor.sem_*_daily
+      - sensor.sem_*_monthly
+      # Measurement extras, not dashboard-used — exclude if not charted:
+      - sensor.sem_line_voltage
+      - sensor.sem_ac_current
 
 automation: !include automations.yaml
 script: !include scripts.yaml
@@ -6369,4 +6395,4 @@ command_line:
         - tmean
         - tmin
         - tmax
-        - samples
+        - samples
