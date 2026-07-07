@@ -5,6 +5,7 @@
 ![Build Status](https://github.com/wkcollis1-eng/home-assistant-config/workflows/Validate%20Home%20Assistant%20Config/badge.svg)
 ![License](https://img.shields.io/github/license/wkcollis1-eng/home-assistant-config)
 [![Baseline Analysis](https://img.shields.io/badge/Baseline-v1.4.0-blue)](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-)
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA.svg?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/wkcollis1-eng)
 
 > **📊 Real-time implementation of:** [Residential HVAC Performance Baseline](https://github.com/wkcollis1-eng/Residential-HVAC-Performance-Baseline-) - Four-year statistical analysis establishing monitoring thresholds
 
@@ -421,6 +422,10 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
 ## About
 
 Developed and maintained by Bill Collis, a retired engineer applying professional engineering methodologies to residential energy optimization. For more detailed analysis and findings, see my [technical reports on GitHub](https://github.com/wkcollis1-eng) and [Substack articles](https://substack.com/@billcollis).
+
+## 💝 Support This Project
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/wkcollis1-eng)
 
 ---
 
