@@ -427,6 +427,7 @@ Developed and maintained by Bill Collis, a retired engineer applying professiona
 
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/wkcollis1-eng)
 
+If these projects or datasets are useful to you, sponsorship funds continued instrumentation, monitoring hardware, and documentation.
 ---
 
 *Last Updated: February 2026*
