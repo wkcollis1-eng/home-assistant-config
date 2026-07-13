@@ -1,0 +1,243 @@
+# =============================================================================
+# ina228-bringup.yaml — Adafruit INA228 breakout (on-board 15 mΩ shunt REMOVED)
+# Bench evaluation BEFORE installation in the Battery_Bank-Monitor-THT V2 system
+# (12V 500Ah bank, DROK 200 A / 75 mV low-side shunt — Wiring Summary Rev 1.9)
+# =============================================================================
+# Purpose: verify the INA228 survived shunt rework, in three tiers:
+#   TIER 1 — die alive / comms good:  I2C ACK at 0x40 + ID registers
+#            (MANUFACTURER_ID 0x3E == 0x5449 "TI", DEVICE_ID 0x3F die == 0x228)
+#            Runs automatically ~10 s after boot; re-run via "Run ID Check".
+#   TIER 2 — input channel intact:    jumper VIN+ to VIN- at the terminal block,
+#            press "Run Offset Check"; |shunt voltage| < 10 µV = PASS.
+#            (10 µV across 375 µΩ = 26.7 mA equivalent — inside the noise floor
+#            of the production 0.05 A detection band, so PASS here means the
+#            channel is clean enough for the bank's SOC integration.)
+#   TIER 3 — gain sanity (bench):     bench supply -> DROK shunt in series with a
+#            known load of a few amps (e.g. 5 A -> 1.875 mV, well above the
+#            ~µV noise floor at 128x averaging). Compare Current entity vs a
+#            series DMM. This is a FUNCTIONAL check only — real calibration is
+#            the §7.1 ~115 A clamp-meter run at commissioning.
+#            Also confirm the sign here: low-side polarity is verified
+#            empirically (§6.2/§8.3) — swap VIN+/VIN- leads if inverted.
+#
+# Wiring (bench):
+#   Breakout VCC(VIN pin) -> XIAO 3V3, GND -> GND, SDA/SCL per substitutions.
+#   TIER 1/2 need nothing else (USB power only).
+#   TIER 3 adds: DROK Kelvin taps -> breakout VIN+/VIN- terminals; supply
+#   positive -> VBUS terminal (through the 100-250 mA inline fuse if already
+#   made up); supply negative common with breakout GND.
+#   VBUS JUMPER (back of breakout): LEAVE OPEN — low-side configuration (§3.3).
+#   With VBUS unwired (Tier 1/2), bus voltage reads floating garbage: expected.
+#
+# Target: Seeed XIAO ESP32-C3 (GPIO6/GPIO7 I2C — matches V2 carrier §4.6).
+# Address 0x40 = bank monitor convention (UPS board is 0x41).
+# Flash hygiene: first flash via USB on the bench with TB1 disconnected; OTA
+# thereafter. Never connect USB while the 12 V bus is live (§2.1 discipline).
+# =============================================================================
+
+substitutions:
+  device_name: ina228-bringup
+  friendly_name: "INA228 Bring-Up"
+  sda_pin: GPIO6         # XIAO ESP32-C3, per V2 carrier map (§4.6)
+  scl_pin: GPIO7
+  shunt_ohms: "0.000375" # DROK 200 A / 75 mV manganin (75 mV / 200 A)
+  max_amps: "200.0"      # 200 A × 375 µΩ = 75 mV -> requires adc_range 0
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  comment: "Adafruit INA228 shunt-rework evaluation, 3-tier"
+  on_boot:
+    priority: 250
+    then:
+      - delay: 10s
+      - script.execute: id_check
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG   # bench logs over the same USB-C cable
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "Lake Poco"
+  password: "silentfire590"
+  ap:
+    ssid: "Lake Poco"
+    password: "silentfire590"
+
+captive_portal:
+
+i2c:
+  sda: ${sda_pin}
+  scl: ${scl_pin}
+  scan: true            # boot log lists every ACKing address — expect 0x40
+  frequency: 100kHz
+
+# Raw register access alongside the driver — used only for the ID-register check
+i2c_device:
+  id: ina228_raw
+  address: 0x40
+
+sensor:
+  - platform: ina2xx_i2c
+    id: ina228_main
+    model: INA228
+    address: 0x40
+    shunt_resistance: ${shunt_ohms}
+    max_current: ${max_amps}
+    adc_range: 0                 # ±163.84 mV; range 1 (±40.96 mV) too small for 75 mV FS
+    adc_time: 4120 us
+    adc_averaging: 128           # max averaging: quietest possible offset reading
+                                 # (matches production config §5.2; LSB 312.5 nV
+                                 #  -> ~0.83 mA/LSB at 375 µΩ)
+    temperature_coefficient: 0
+    reset_on_boot: false         # preserve hardware energy/charge across reboots
+    update_interval: 2s
+    bus_voltage:
+      name: "Bus Voltage"
+      id: ina_bus_v
+      accuracy_decimals: 3
+    shunt_voltage:
+      name: "Shunt Voltage"      # unit: mV — TIER 2 reads this
+      id: ina_shunt_v
+      accuracy_decimals: 4
+    current:
+      name: "Current"
+      id: ina_current
+      accuracy_decimals: 4
+    power:
+      name: "Power"
+      id: ina_power
+      accuracy_decimals: 3
+    energy:
+      name: "Accumulated Energy" # Wh — TIER 3 soak: compare vs P × t
+      id: ina_energy
+    charge:
+      name: "Accumulated Charge" # Ah
+      id: ina_charge
+    temperature:
+      name: "Die Temperature"
+      id: ina_temp
+      accuracy_decimals: 1
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+text_sensor:
+  - platform: template
+    name: "Bring-Up Status"
+    id: bringup_status
+    icon: mdi:clipboard-check-outline
+
+button:
+  - platform: template
+    name: "Run ID Check (Tier 1)"
+    on_press:
+      - script.execute: id_check
+  - platform: template
+    name: "Run Offset Check (Tier 2)"
+    on_press:
+      - script.execute: offset_check
+  - platform: template
+    name: "Bring-Up Report"
+    on_press:
+      - script.execute: bringup_report
+  - platform: restart
+    name: "Restart"
+
+script:
+  # ---- TIER 1: die alive / comms good --------------------------------------
+  - id: id_check
+    mode: single
+    then:
+      - lambda: |-
+          uint8_t buf[2] = {0, 0};
+          if (id(ina228_raw).read_register(0x3E, buf, 2) != i2c::ERROR_OK) {
+            ESP_LOGE("bringup", "TIER1 FAIL: no ACK / read error at 0x40 (MANUFACTURER_ID)");
+            id(bringup_status).publish_state("T1 FAIL: I2C read error at 0x40");
+            return;
+          }
+          uint16_t mfg = (uint16_t(buf[0]) << 8) | buf[1];
+          if (id(ina228_raw).read_register(0x3F, buf, 2) != i2c::ERROR_OK) {
+            ESP_LOGE("bringup", "TIER1 FAIL: MANUFACTURER_ID read OK but DEVICE_ID read failed");
+            id(bringup_status).publish_state("T1 FAIL: DEVICE_ID read error");
+            return;
+          }
+          uint16_t devid = (uint16_t(buf[0]) << 8) | buf[1];
+          uint16_t die = devid >> 4;
+          uint8_t rev = devid & 0x0F;
+          ESP_LOGI("bringup", "MANUFACTURER_ID=0x%04X (expect 0x5449 'TI')", mfg);
+          ESP_LOGI("bringup", "DEVICE_ID=0x%04X -> die=0x%03X (expect 0x228), rev=%u", devid, die, rev);
+          if (mfg == 0x5449 && die == 0x228) {
+            ESP_LOGI("bringup", "TIER1 PASS: die alive, I2C comms good");
+            id(bringup_status).publish_state("T1 PASS: die alive, IDs correct");
+          } else {
+            ESP_LOGE("bringup", "TIER1 FAIL: chip ACKs but IDs wrong — die damage or wrong device");
+            id(bringup_status).publish_state("T1 FAIL: wrong IDs");
+          }
+
+  # ---- TIER 2: input channel / offset (precondition: IN+ jumpered to IN-,
+  #      or shunt connected with zero load) -----------------------------------
+  - id: offset_check
+    mode: single
+    then:
+      - lambda: |-
+          float sv = id(ina_shunt_v).state;   // mV
+          if (std::isnan(sv)) {
+            ESP_LOGW("bringup", "TIER2: shunt voltage not ready yet — wait a few update cycles");
+            id(bringup_status).publish_state("T2: no reading yet");
+            return;
+          }
+          float uv = sv * 1000.0f;
+          ESP_LOGI("bringup", "Shunt voltage: %.4f mV (%.1f uV). Valid only with VIN+ shorted to VIN- or zero load.", sv, uv);
+          if (fabsf(uv) < 10.0f) {
+            ESP_LOGI("bringup", "TIER2 PASS: |offset| < 10 uV — input channel intact");
+            id(bringup_status).publish_state("T2 PASS: offset < 10 uV");
+          } else if (fabsf(uv) < 50.0f) {
+            ESP_LOGW("bringup", "TIER2 MARGINAL: offset 10-50 uV — recheck jumper/leads, then judge");
+            id(bringup_status).publish_state("T2 MARGINAL: offset 10-50 uV");
+          } else {
+            ESP_LOGE("bringup", "TIER2 FAIL (if inputs shorted): offset > 50 uV — input path suspect. If a load is flowing, this is signal, not offset.");
+            id(bringup_status).publish_state("T2 FAIL: offset > 50 uV (check preconditions)");
+          }
+
+  # ---- Summary report --------------------------------------------------------
+  - id: bringup_report
+    mode: single
+    then:
+      - lambda: |-
+          float bus = id(ina_bus_v).state;
+          float cur = id(ina_current).state;
+          float pwr = id(ina_power).state;
+          float tmp = id(ina_temp).state;
+          ESP_LOGI("bringup", "===== BRING-UP REPORT =====");
+          if (std::isnan(bus)) {
+            ESP_LOGW("bringup", "Bus voltage: no reading");
+          } else if (bus > 4.3f && bus < 5.3f) {
+            ESP_LOGI("bringup", "Bus voltage %.3f V -> USB bench mode (VBUS on 5V rail)", bus);
+          } else if (bus > 11.0f && bus < 14.0f) {
+            ESP_LOGI("bringup", "Bus voltage %.3f V -> 12V system present", bus);
+          } else if (bus < 0.5f) {
+            ESP_LOGW("bringup", "Bus voltage %.3f V -> VBUS pin floating or not wired", bus);
+          } else {
+            ESP_LOGW("bringup", "Bus voltage %.3f V -> unexpected; check VBUS wiring/jumper", bus);
+          }
+          ESP_LOGI("bringup", "Current: %.4f A | Power: %.3f W (garbage is expected if VIN+/VIN- floating)", cur, pwr);
+          if (!std::isnan(tmp) && tmp > 5.0f && tmp < 60.0f) {
+            ESP_LOGI("bringup", "Die temperature %.1f C -> plausible", tmp);
+          } else {
+            ESP_LOGW("bringup", "Die temperature %.1f C -> implausible, investigate", tmp);
+          }
+          ESP_LOGI("bringup", "Energy: %.4f Wh | Charge: %.4f Ah (24h soak: compare Energy vs P x t)",
+                   id(ina_energy).state, id(ina_charge).state);
+          ESP_LOGI("bringup", "===========================");
