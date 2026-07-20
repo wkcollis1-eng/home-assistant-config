@@ -1,0 +1,303 @@
+# =============================================================================
+# Basement Temp/Humidity Sensor Node  —  XIAO ESP32-C3 + Adafruit SHT45 (PID 6174)
+# -----------------------------------------------------------------------------
+# Rev 2.0  (2026-07-02)
+# Sensor/control policy:
+#   * SHT45 high-repeatability reads (precision: High -> 0xFD, 0.08 %RH noise)
+#   * 10 s update interval (self-heating negligible; see DESIGN.md)
+#   * RAW humidity is the control + stall-detector source (NO smoothing)
+#   * A separate median-5 entity exists ONLY for the dashboard (cosmetic
+#     spike rejection) and must NOT be used by control or stall logic
+# Hardened for headless, always-USB-powered deployment:
+#   * WiFi reboot-on-loss + AP/captive-portal fallback
+#   * api reboot_timeout: 0s  -> HA outages do NOT stop local sampling
+#   * I2C stale-data watchdog + bus-stall auto-recovery (reboot)
+#   * Status LED: slow heartbeat = healthy, fast strobe = fault
+# Logging over native USB Serial/JTAG (frees UART0/GPIO20 for the LED).
+# First flash over USB, then OTA.
+# =============================================================================
+
+esphome:
+  name: basement-th-node
+  friendly_name: Basement TH Node
+  on_boot:
+    priority: -100
+    then:
+      - output.turn_off: status_led_out
+      - lambda: 'id(panel).turn_off();'   # OLED starts dark; lux gate wakes it
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  reboot_timeout: 15min
+  # manual_ip:
+  #   static_ip: 192.168.1.50
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+  ap:
+    ssid: "Basement-TH Fallback"
+    password: !secret ap_fallback_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# --- Alternative transport: MQTT (uncomment, remove api: block) ---------------
+# mqtt:
+#   broker: !secret mqtt_broker
+#   username: !secret mqtt_username
+#   password: !secret mqtt_password
+#   discovery: true
+#   birth_message: {topic: basement-th-node/status, payload: online}
+#   will_message:  {topic: basement-th-node/status, payload: offline}
+
+i2c:
+  sda: GPIO6          # D4
+  scl: GPIO7          # D5
+  frequency: 100000
+  scan: true
+  timeout: 50ms
+
+globals:
+  - id: last_read_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: i2c_healthy
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+output:
+  - platform: gpio
+    pin: GPIO20         # D7 (UART0 RX; freed because logging is over USB)
+    id: status_led_out
+
+button:
+  - platform: restart
+    name: "Node Restart"
+    id: reboot_button
+
+sensor:
+  # --- SHT45: high-repeatability, 10 s. RAW outputs (control + stall source). --
+  - platform: sht4x
+    address: 0x44
+    precision: High          # -> 0xFD high-repeatability read (0.08 %RH noise)
+    update_interval: 10s
+    temperature:
+      name: "Basement Temperature"
+      id: basement_temp
+      accuracy_decimals: 2
+      filters:
+        - filter_out: nan
+    humidity:
+      name: "Basement Humidity"        # RAW — this is the control + stall entity
+      id: basement_rh
+      accuracy_decimals: 2
+      filters:
+        - filter_out: nan
+      on_value:
+        then:
+          - lambda: |-
+              id(last_read_ms) = millis();
+              id(i2c_healthy) = true;
+
+  # --- Dashboard-only smoothed humidity: median-5 (cosmetic spike rejection). --
+  # Mirrors the RAW entity; NOT to be consumed by control or stall logic.
+  - platform: template
+    name: "Basement Humidity (Smoothed)"
+    id: basement_rh_smoothed
+    unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 2
+    update_interval: 10s
+    lambda: |-
+      if (std::isnan(id(basement_rh).state)) return {};
+      return id(basement_rh).state;
+    filters:
+      - median:
+          window_size: 5
+          send_every: 1
+          send_first_at: 1
+
+  # --- Dew point (native component) from RAW temp + RAW humidity, deg C. -------
+  - platform: dew_point
+    name: "Basement Dew Point"
+    id: basement_dewpoint
+    temperature: basement_temp
+    humidity: basement_rh
+
+  # --- Diagnostics ------------------------------------------------------------
+  - platform: wifi_signal
+    name: "Node WiFi Signal"
+    update_interval: 60s
+    entity_category: diagnostic
+  - platform: uptime
+    name: "Node Uptime"
+    update_interval: 60s
+    entity_category: diagnostic
+
+  # --- Ambient light (VEML7700 0x10) — gates the OLED wake/blank. ---------------
+  # On the STEMMA QT daisy-chain. Auto gain/integration (default); reads a dim
+  # basement cleanly (steps gain up below ~46 lx).
+  - platform: veml7700
+    address: 0x10
+    update_interval: 2s
+    ambient_light:
+      name: "Basement Lux"
+      id: basement_lux
+      on_value:
+        then:
+          - lambda: |-
+              // WAKE threshold — START 12 lx, TUNE in place (dim, sparse-lit room).
+              // Err low: sparse fixtures + shadowed corner keep lights-on modest.
+              if (id(basement_lux).state >= 12.0f) {
+                id(panel).turn_on();
+                id(display_blank_timer).execute();   // restart-mode: re-arms 3-min countdown
+              }
+
+  # --- Dehumidifier RH band thresholds, imported from HA (single source of truth).
+  # Numeric input_number states; consumed ONLY by the page_status band readout
+  # (display, not control). Requires the native api: connection (below). These are
+  # id-only (internal) — not re-published to HA.
+  - platform: homeassistant
+    id: rh_on_threshold
+    entity_id: input_number.dehumidifier_rh_on_threshold
+  - platform: homeassistant
+    id: rh_off_threshold
+    entity_id: input_number.dehumidifier_rh_off_threshold
+
+binary_sensor:
+  - platform: status
+    name: "Node Status"
+  - platform: template
+    name: "Basement Sensor Fault"
+    device_class: problem
+    entity_category: diagnostic
+    lambda: |-
+      return !id(i2c_healthy);
+
+interval:
+  # (1) Stale-data watchdog: no successful read in 60 s -> mark unhealthy.
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (id(last_read_ms) == 0) return;
+          if ((millis() - id(last_read_ms)) > 60000) {
+            id(i2c_healthy) = false;
+          }
+
+  # (2) LED driver: 0.5 Hz heartbeat blip when healthy, 5 Hz strobe on fault.
+  - interval: 100ms
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          bool healthy = id(i2c_healthy);
+          uint32_t period = healthy ? 2000 : 200;
+          uint32_t on_ms  = 100;
+          if ((now % period) < on_ms) id(status_led_out).turn_on();
+          else                        id(status_led_out).turn_off();
+
+  # (3) Bus-stall recovery: unhealthy for >120 s -> reboot to re-init I2C.
+  - interval: 30s
+    then:
+      - lambda: |-
+          static uint32_t unhealthy_since = 0;
+          if (!id(i2c_healthy) && id(last_read_ms) != 0) {
+            if (unhealthy_since == 0) unhealthy_since = millis();
+            if ((millis() - unhealthy_since) > 120000) {
+              ESP_LOGW("watchdog", "I2C stalled >120s; rebooting to recover");
+              unhealthy_since = 0;
+              id(reboot_button).press();
+            }
+          } else {
+            unhealthy_since = 0;
+          }
+
+  # (4) OLED page cycle: advance every 15 s (harmless while the panel is blanked;
+  #     also serves as burn-in wear-leveling alongside dim + auto-blank).
+  - interval: 15s
+    then:
+      - display.page.show_next: panel
+
+# =============================================================================
+# LOCAL OLED (Adafruit 938, SSD1306 128x64) — presentation-only.
+#   Two 3-row pages, font_lg (Roboto 18px), left margin x=6, rows y=0/22/44
+#   (top/bottom limits + even spacing carried from battery-bank-monitor v7).
+#   Page 1: Temp / RH / Dew point (deg F, converted in-lambda — sensor stays C).
+#   Page 2: RH-vs-band (from HA thresholds) / condensation spread / sensor health.
+#   Woken by the lux gate; sleeps via the display_blank_timer script.
+#   MUST NOT feed control/stall logic (same rule as the smoothed RH entity).
+# =============================================================================
+font:
+  - file: "gfonts://Roboto"
+    id: font_lg
+    size: 18          # confirm bottom row (y=44) clears 64 px on the panel
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    id: panel
+    address: 0x3D     # 938 ship default (ADDR open); CONFIRM via i2c scan
+    update_interval: 1s
+    pages:
+      # Page 1 — core trio (rows 0/22/44; deg F converted here only)
+      - id: page_env
+        lambda: |-
+          float t = id(basement_temp).state;
+          if (std::isnan(t)) it.print (6,  0, id(font_lg), "Temp -- F");
+          else          it.printf(6,  0, id(font_lg), "Temp %.1f F", t*9.0f/5.0f+32.0f);
+          float rh = id(basement_rh).state;
+          if (std::isnan(rh)) it.print (6, 22, id(font_lg), "RH -- %");
+          else           it.printf(6, 22, id(font_lg), "RH %.1f %%", rh);
+          float dp = id(basement_dewpoint).state;
+          if (std::isnan(dp)) it.print (6, 44, id(font_lg), "Dew -- F");
+          else           it.printf(6, 44, id(font_lg), "Dew %.1f F", dp*9.0f/5.0f+32.0f);
+
+      # Page 2 — RH vs band (HA thresholds) / spread / health
+      - id: page_status
+        lambda: |-
+          // RH position vs the live HA on/off setpoints. Computed on-node so it
+          // survives HA outages once the thresholds have been received. Shows
+          // position vs setpoints, NOT the latched appliance on/off state.
+          float rh    = id(basement_rh).state;
+          float on_th = id(rh_on_threshold).state;
+          float off_th= id(rh_off_threshold).state;
+          if (std::isnan(rh) || std::isnan(on_th) || std::isnan(off_th))
+            it.print(6, 0, id(font_lg), "RH band --");     // no reading / no HA yet
+          else if (rh >= on_th)
+            it.print(6, 0, id(font_lg), "RH HIGH");         // at/above ON point
+          else if (rh <= off_th)
+            it.print(6, 0, id(font_lg), "RH LOW");          // at/below OFF point
+          else
+            it.print(6, 0, id(font_lg), "RH OK");           // within the band
+          float t = id(basement_temp).state, dp = id(basement_dewpoint).state;
+          if (!std::isnan(t) && !std::isnan(dp))
+            it.printf(6, 22, id(font_lg), "Spread %.1f F", (t-dp)*9.0f/5.0f);
+          it.printf(6, 44, id(font_lg), "Sensor %s", id(i2c_healthy) ? "OK" : "FAULT");
+
+# Display auto-blank. restart mode: each above-threshold lux reading re-arms it.
+script:
+  - id: display_blank_timer
+    mode: restart
+    then:
+      - delay: 3min
+      - lambda: 'id(panel).turn_off();'

@@ -60,7 +60,7 @@ A continuously-sampled ESPHome node resolves both.
                                      │   [ SHT45  0x44  — external, standoffs, PTFE ]
                                      │          │  (2nd QT port)
                                      │          ▼
-                                     │   [ 938 OLED 0x3C — SSD1306, lid/external ]
+                                     │   [ 938 OLED 0x3D — SSD1306, lid/external ]
                                      │          │  (2nd QT port)
                                      │          ▼
                                      │   [ VEML7700 0x10 — right-angle, room-facing ]
@@ -103,7 +103,7 @@ A continuously-sampled ESPHome node resolves both.
 | H1,H2 | Mounting holes, M3, 3.2 mm NPTH | — | Diagonal pair; board mounts on standoffs |
 | — | Enclosure | Zulkit IP65 63×58×35 mm ext. | ABS, waterproof |
 | PCB | Custom 2-layer, 1.6 mm FR4, ENIG | OSH Park | **23 × 38 mm**, 2 mm 45° corner chamfers (Rev C; was 23 × 40) — billed rectangle 1.355 in² → ~$6.77/set-of-3 at $5/in² |
-| — | Adafruit 1.3″ 128×64 OLED, SSD1306, STEMMA QT | Adafruit **938** | Local readout, **off-board**. I²C **0x3C** (128×64 default; 0x3C/0x3D jumper — verify by scan §5); ships default-I²C (J1/J2 closed), auto-reset (RST not needed); ~25–40 mA @ 3.3 V; dual QT ports (daisy-chain) |
+| — | Adafruit 1.3″ 128×64 OLED, SSD1306, STEMMA QT | Adafruit **938** | Local readout, **off-board**. I²C **0x3D** (938 ships ADDR jumper open = 0x3D default; 0x3C needs the jumper bridged — verify by scan §5; shipped firmware uses 0x3D); ships default-I²C (J1/J2 closed), auto-reset (RST not needed); ~25–40 mA @ 3.3 V; dual QT ports (daisy-chain) |
 | — | Adafruit Right-Angle VEML7700 Lux Sensor, STEMMA QT | Adafruit **5378** | Display-blank trigger, **off-board**. I²C **0x10** (fixed, Vishay datasheet); senses **parallel to the PCB** (edge-on) — mount room-facing (§9.3); 4.7 K onboard I²C pull-ups; dual QT ports |
 | — | STEMMA QT ↔ QT cable(s), JST-SH 4-pin | Adafruit **4401** (200 mm) / **5384** (300 mm) | Chain links SHT45→OLED→VEML7700; count/lengths per final routing (§9.3). Note: no 150 mm QT-to-QT exists |
 
@@ -185,10 +185,11 @@ is no boot-mode interference.
 - **Clock:** **100 kHz** (standard mode). 10 K over ~190 mm is fine at 100 kHz; do
   **not** raise to 400 kHz, where rise-time margin on 10 K over that length tightens.
 - **Addresses (three devices after the 2026-07-18 add-on):** SHT45 = **0x44** (fixed);
-  Adafruit 938 OLED (SSD1306) = **0x3C** (128×64 default; 0x3C/0x3D jumper-selectable —
-  **verify by i2c scan**); VEML7700 = **0x10** (fixed, Vishay datasheet). No collisions;
-  the three are well separated. Scan the assembled bus once to confirm before trusting
-  firmware addresses.
+  Adafruit 938 OLED (SSD1306) = **0x3D** (938 ships ADDR jumper open = 0x3D default; 0x3C
+  needs the jumper bridged — **verify by i2c scan**; the shipped firmware and the
+  battery-bank board's 938 both use 0x3D); VEML7700 = **0x10** (fixed, Vishay datasheet).
+  No collisions; the three are well separated. Scan the assembled bus once to confirm
+  before trusting firmware addresses.
 - **Supply to sensor: 3.3 V, not 5 V.** Feeding the breakout VIN at 3.3 V keeps its
   level-shifter and pull-ups referenced to 3.3 V — no 5 V logic reaches the XIAO's
   I²C pins.
@@ -566,23 +567,31 @@ memory: `precision:` exists and defaults to `High`. Two portability fixes applie
 hard error).
 > Re-validate if the deployed ESPHome version differs from 2026.6.4.
 
-### 10.1 Local Display + Auto-Blank (2026-07-18, not yet validated)
+### 10.1 Local Display + Auto-Blank (2026-07-18, validated 2026-07-18)
 
-New firmware for the add-on; **not yet through the `esp-firmware-validation` gate** —
-treat as design intent until compiled. Presentation-only: the OLED and the lux logic
-**must not** appear in any control or stall path (same rule as the smoothed RH entity).
+Merged into `basement-th-node.yaml` and **through the full `esp-firmware-validation`
+gate**: `esphome config` valid; standalone `g++ -std=c++17 -Wall -Wformat` on the new
+lambda bodies clean; real `esphome compile` linked a working ESP32-C3 image
+(`main.cpp.obj`, **0 errors**, full image, RAM 32.3 %, Flash 53.0 %) on esphome 2026.7.0.
+Uses `std::isnan` (matching the node convention), not bare `isnan`. **Re-validate on the
+deployed 2026.6.4** — schema for these components is stable, but the version differs.
+Presentation-only: the OLED and the lux logic **must not** appear in any control or stall
+path (same rule as the smoothed RH entity).
 
 - **Display driver:** ESPHome `ssd1306_i2c`, `model: "SSD1306 128x64"` — **not** SH1106
-  (the 938 is SSD1306; choosing SH1106 gives a shifted/garbled raster). Address `0x3C`
+  (the 938 is SSD1306; choosing SH1106 gives a shifted/garbled raster). Address `0x3D`
   (verify per §5); `reset_pin` omitted (938 auto-resets). I²C stays at 100 kHz.
 - **Light sensor:** ESPHome `veml7700` platform, address `0x10`; publish lux as a sensor
   for thresholding + HA visibility.
 - **Auto-blank (the point of the light sensor):** the OLED sleeps over I²C
   (`display.turn_off` / `turn_on`, the SSD1306 sleep command) — no power switch and no
-  board button (the C3 has no touch peripheral anyway). Gate on lux: wake above X, sleep
-  below Y with **X > Y** (hysteresis) plus a few-second debounce, so it doesn't chatter at
-  dusk. Thresholds set empirically in place (§9.3). The basement is dark/empty most of the
-  time, so duty cycle — and thus OLED wear — drops hard; this dominates panel lifetime.
+  board button (the C3 has no touch peripheral anyway). Implemented as a single **wake
+  ≥ 12 lx** threshold that re-arms a **3-min restart-mode blank timer** each reading (the
+  timeout supplies the hysteresis — no separate low threshold). 12 lx is a **starting**
+  value; tune in place from three readings (lights-on / night-dark / midday daylight-leak,
+  §9.3). If the midday leak rivals the sparse lights-on level, switch to a rate-of-change
+  (switch-flip) trigger. The basement is dark/empty most of the time, so duty cycle — and
+  thus OLED wear — drops hard; this dominates panel lifetime.
 - **Burn-in mitigation (belt-and-suspenders; OLED wear ∝ lit-pixel·hours):**
   1. **Black background, white glyphs** — fewest lit pixels; never invert to a white
      background (that lights the whole panel and is the *worst* case, not a fix).
@@ -593,8 +602,15 @@ treat as design intent until compiled. Presentation-only: the OLED and the lux l
   4. **Pixel-shift** the whole layout a few px every few minutes so glyph edges don't
      sit on fixed pixels.
   Auto-blank (duty cycle) dominates all of these; the rest are cheap insurance.
-- **Content:** the three pages read entities the node already publishes (raw temp, raw
-  RH, `basement_dewpoint`) — display formatting only, no new control math.
+- **Content & layout:** **two 3-row pages**, `font_lg` Roboto **18 px**, left margin x=6,
+  rows y=0/22/44 (top/bottom limits + spacing from the battery-bank v7 layout; confirm the
+  bottom row clears 64 px on the panel). Page 1 = Temp / RH / Dew point in **°F** (converted
+  in-lambda; the sensor path stays °C). Page 2 = RH-vs-band / condensation spread (T−DP) /
+  sensor health. The band is computed **on-node** from the live HA thresholds
+  `input_number.dehumidifier_rh_on/off_threshold` (imported via `platform: homeassistant`),
+  so it keeps working through HA outages once received; shows `RH band --` only before HA
+  first reports. Pages auto-cycle every 15 s (no button). Display formatting only — no new
+  control math.
 
 ---
 
@@ -652,22 +668,24 @@ treat as design intent until compiled. Presentation-only: the OLED and the lux l
 
 **Display + light-sensor add-on (2026-07-18):**
 
-- [ ] i2c-scan the assembled chain: confirm 0x44 (SHT45), 0x3C or 0x3D (OLED), 0x10
-      (VEML7700) — no collision, addresses match firmware (§5).
+- [ ] i2c-scan the assembled chain: confirm 0x44 (SHT45), **0x3D** (OLED, expected — 0x3C
+      only if the ADDR jumper is bridged), 0x10 (VEML7700) — no collision, addresses match
+      firmware (§5).
 - [ ] Confirm the 938 OLED's onboard I²C pull-up value; re-check R_eff if not ~10 K
       (§5 combined-pull-up math assumes ~10 K).
 - [ ] Confirm the 938 SPI/I²C jumpers are left at I²C (ships I²C by default — do not cut).
-- [ ] Set lux wake/sleep thresholds empirically in the final mounted position, with
-      hysteresis + debounce (§10.1); confirm the status LED is out of the VEML7700's
-      field of view (§9.3).
+- [ ] Tune the lux **wake threshold** (12 lx start) in the final mounted position from
+      three readings — lights-on / night-dark / midday leak; the 3-min blank timer supplies
+      the hysteresis (§10.1). Confirm the status LED is out of the VEML7700's field (§9.3).
 - [ ] Resolve OLED mount + window/orientation; keep the ~35 × 35 mm board off the SHT45
       face for thermal separation (§9.3).
 - [ ] Verify chain cable lengths against the physical routes before drilling any added
       penetration (§9.3); QT-to-QT stock 200/300 mm (4401/5384).
 - [ ] Populate the optional 10 µF X7R at C1/PH1 given the OLED switching load
       (§7, §6.1, §12.1 item 5).
-- [ ] Run the new display firmware through the `esp-firmware-validation` gate before any
-      "ready to flash" claim (§10.1).
+- [x] Display firmware through the `esp-firmware-validation` gate — **passed 2026-07-18**
+      (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` linked a
+      full image, `main.cpp.obj` 0 errors, §10.1). Re-run on the deployed 2026.6.4.
 
 ---
 
@@ -689,12 +707,14 @@ treat as design intent until compiled. Presentation-only: the OLED and the lux l
   verification on the wrap-around route (§9.2, §11).
 - **RESOLVED:** ESPHome `sht4x` repeatability exposure — confirmed `precision:` key
   (default High) maps to the 0xFD high-rep command (component source).
-- **Display/light-sensor add-on (2026-07-18) — open:** (a) 938 OLED pull-up value
-  unconfirmed (assumed ~10 K, §5); (b) OLED address 0x3C vs 0x3D to confirm by scan;
-  (c) OLED enclosure mount/window and VEML7700 mount datums not yet dimensioned (§9.3);
-  (d) chain routing/penetrations not yet planned; (e) lux thresholds are
-  empirical-in-place, not yet set; (f) display firmware not yet validated (§10.1). None
-  of these touch the Rev C PCB — the board can fab as-is, independent of the add-on.
+- **Display/light-sensor add-on — RESOLVED (2026-07-18):** OLED address settled on
+  **0x3D** (938 ADDR-open default; shipped firmware uses it; scan still confirms hardware,
+  §5); display firmware **validated** through the full gate (§10.1, checklist §11).
+- **Display/light-sensor add-on — still open:** (a) 938 OLED pull-up value unconfirmed
+  (assumed ~10 K, §5); (c) OLED enclosure mount/window and VEML7700 mount datums not yet
+  dimensioned (§9.3); (d) chain routing/penetrations not yet planned; (e) lux wake
+  threshold is empirical-in-place, 12 lx start not yet tuned (§10.1). None of these touch
+  the Rev C PCB — the board can fab as-is, independent of the add-on.
 
 ### 12.1 Rev C Candidate Changes (logged 2026-07-04 — none justify a respin)
 
@@ -720,6 +740,7 @@ treat as design intent until compiled. Presentation-only: the OLED and the lux l
 
 | Date | Change |
 |---|---|
+| 2026-07-18 | **Reconciliation after the add-on firmware was built + validated.** OLED address corrected **0x3C → 0x3D** throughout (§2 diagram, §3 BOM, §5, §10.1, §11) — the 938 ships ADDR-open = 0x3D and the shipped firmware + the battery-bank board's 938 both use it (0x3C only if the jumper is bridged; scan still confirms). §10.1 marked **validated** (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` → full image, `main.cpp.obj` 0 errors, RAM 32.3 % / Flash 53.0 %); display lambdas use `std::isnan` (node convention), not bare `isnan`; re-validate on deployed 2026.6.4. §10.1 content/auto-blank updated to the shipped design (two 3-row pages, `font_lg` 18 px, rows y=0/22/44; °F on-glass; on-node band from HA `input_number.dehumidifier_rh_on/off_threshold`; wake ≥ 12 lx + 3-min restart-timer blank). §11/§12: address + validation items closed; still open — 938 pull-up value, OLED/VEML7700 mounts, chain routing, 12 lx tuning. |
 | 2026-07-18 | **Display + ambient-light add-on (STEMMA QT daisy-chain), no PCB change.** Added Adafruit 938 1.3″ 128×64 OLED (SSD1306, I²C 0x3C/0x3D, ~25–40 mA, dual-QT) and Adafruit 5378 right-angle VEML7700 lux sensor (I²C 0x10 fixed, verified Vishay datasheet; 4.7 K pull-ups; senses parallel to PCB) onto the existing bus by chaining through each breakout's 2nd QT port (§2 diagram, §3 BOM). §5: three-device address map (no collisions, scan to confirm) + combined pull-up math (10 K ‖ ~10 K ‖ 4.7 K ≈ 2.4 K → stiffer/faster bus, 100 kHz keeps margin). §7: OLED current path + cable-drop (~6.8 mV) + budget (~160–170 mA awake worst case vs 700 mA reg); optional 10 µF now justified. New §9.3 (VEML7700 right-angle, room-facing from a recessed corner — decided; OLED lid/external + thermal separation from SHT45 — open) and §10.1 (SSD1306 not SH1106; `veml7700` platform; lux-gated `display.turn_off/on` with hysteresis/debounce; burn-in mitigations: black bg, dim, page-rotate, pixel-shift). Verified this rev: VEML7700 = 0x10 (Vishay), 938 = SSD1306 / default-I²C / dual-QT / ~25–40 mA. Unconfirmed: 938 pull-up value (assumed ~10 K), 938 address 0x3C vs 0x3D (scan). Display firmware not yet through the validation gate. |
 | 2026-07-02 | Initial design doc. Board revised to 1"×2". Removed ALERT (D3) and DQ (GPIO10) leftovers. Status LED confirmed on D7/GPIO20. No external I²C pull-ups (breakout 10 K). USB-C brick power. |
 | 2026-07-03 | **Rev B layout review (fab-ready).** Board resized to 23 × 40 mm (from 1"×2"); cost ~$7.13/set-of-3. Netlist verified: LED chain (GPIO20→R1→anode, cathode→GND), I²C U1→TB2 with zero vias in signal paths, 3V3 feed U1→C1→TB1. OSH Park compliance verified against **current** rules (0.254 mm drill / 0.127 mm annular — old 13/7 mil figures obsolete): all pass; tightest margin 5.9 mil annular on 2 vias. DRC 0 errors / 0 unconnected / 8 benign warnings. Refdes aligned to board (LED, R1); BOM adds 3V3/GND test points + M3 holes. New §9.1 layout summary; new checklist items (USB overhang direction, pad-row bridge inspection, footprint library commit). |
