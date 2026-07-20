@@ -1,6 +1,24 @@
 # =============================================================================
 # Basement Temp/Humidity Sensor Node  —  XIAO ESP32-C3 + Adafruit SHT45 (PID 6174)
 # -----------------------------------------------------------------------------
+# Rev 2.1  (2026-07-20)
+# Rev 2.1 changes (display resilience + tuning):
+#   * RH band thresholds mirrored into restore_value globals -> page 2 band
+#     readout survives node reboots during WiFi/HA outages (was: NaN each boot)
+#   * Display tuning from HA input_numbers (single source of truth, mirrored
+#     to restore globals with sane firmware defaults): lux wake threshold,
+#     blank minutes, contrast %
+#   * Max-on probe (30 min): display force-blanks, then only GENUINE ambient
+#     light re-wakes it within ~2 s -> OLED self-glow cannot latch the display
+#     on (lux sensor top-mounted; OLED may be the brightest source in the room)
+#   * Contrast dimmed (default 30%) + runtime set_contrast from HA
+#   * Pixel-shift wear-leveling: layout shifts 0-3 px X / 0-1 px Y every 5 min
+#   * Smoothed-RH entity moved to platform: copy (phase-locked to real reads;
+#     was a free-running template timer that could double/skip samples)
+#   * Best-effort I2C bus-clear (9 SCL pulses) before the recovery reboot --
+#     releases a slave stuck holding SDA, which an ESP reboot alone cannot
+#   * Free-heap diagnostic sensor (slow-leak drift visible in HA)
+#   * LED heartbeat blip widened 100 -> 200 ms (100 ms poll could skip blips)
 # Rev 2.0  (2026-07-02)
 # Sensor/control policy:
 #   * SHT45 high-repeatability reads (precision: High -> 0xFD, 0.08 %RH noise)
@@ -24,7 +42,9 @@ esphome:
     priority: -100
     then:
       - output.turn_off: status_led_out
-      - lambda: 'id(panel).turn_off();'   # OLED starts dark; lux gate wakes it
+      - lambda: |-
+          id(panel).turn_off();                              // OLED starts dark; lux gate wakes it
+          id(panel).set_contrast(id(g_contrast_pct) / 100.0f);  // apply restored/default contrast
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -34,6 +54,9 @@ esp32:
 logger:
   level: INFO
   hardware_uart: USB_SERIAL_JTAG
+
+debug:
+  update_interval: 60s   # feeds the free-heap diagnostic sensor
 
 wifi:
   ssid: !secret wifi_ssid
@@ -84,6 +107,41 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # --- RH band thresholds, mirrored from HA + persisted (NVS). Page 2 reads
+  #     THESE, not the homeassistant sensors, so the band readout survives node
+  #     reboots during WiFi/HA outages. NAN until HA has reported once ever.
+  - id: g_rh_on
+    type: float
+    restore_value: yes
+    initial_value: 'NAN'
+  - id: g_rh_off
+    type: float
+    restore_value: yes
+    initial_value: 'NAN'
+  # --- Display tuning, mirrored from HA input_numbers + persisted. Firmware
+  #     defaults apply until HA first reports (and are what a factory-fresh
+  #     flash runs with).
+  - id: g_lux_wake
+    type: float
+    restore_value: yes
+    initial_value: '12.0'     # lx; tune from HA in the mounted position
+  - id: g_blank_min
+    type: float
+    restore_value: yes
+    initial_value: '3.0'      # minutes of no above-threshold lux before blank
+  - id: g_contrast_pct
+    type: float
+    restore_value: yes
+    initial_value: '30.0'     # %; <=15% may clamp on some SSD1306 stacks
+  # --- Display state + wear-leveling (volatile) --------------------------------
+  - id: display_awake
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: g_px
+    type: uint8_t
+    restore_value: no
+    initial_value: '0'
 
 output:
   - platform: gpio
@@ -121,17 +179,13 @@ sensor:
 
   # --- Dashboard-only smoothed humidity: median-5 (cosmetic spike rejection). --
   # Mirrors the RAW entity; NOT to be consumed by control or stall logic.
-  - platform: template
+  # platform: copy is event-driven off each real SHT45 publish (phase-locked);
+  # the previous free-running template timer could double-sample or skip reads.
+  - platform: copy
+    source_id: basement_rh
     name: "Basement Humidity (Smoothed)"
     id: basement_rh_smoothed
-    unit_of_measurement: "%"
-    device_class: humidity
-    state_class: measurement
     accuracy_decimals: 2
-    update_interval: 10s
-    lambda: |-
-      if (std::isnan(id(basement_rh).state)) return {};
-      return id(basement_rh).state;
     filters:
       - median:
           window_size: 5
@@ -154,6 +208,10 @@ sensor:
     name: "Node Uptime"
     update_interval: 60s
     entity_category: diagnostic
+  - platform: debug          # requires the debug: component (below logger)
+    free:
+      name: "Node Free Heap"
+      entity_category: diagnostic
 
   # --- Ambient light (VEML7700 0x10) — gates the OLED wake/blank. ---------------
   # On the STEMMA QT daisy-chain. Auto gain/integration (default); reads a dim
@@ -167,23 +225,66 @@ sensor:
       on_value:
         then:
           - lambda: |-
-              // WAKE threshold — START 12 lx, TUNE in place (dim, sparse-lit room).
-              // Err low: sparse fixtures + shadowed corner keep lights-on modest.
-              if (id(basement_lux).state >= 12.0f) {
-                id(panel).turn_on();
-                id(display_blank_timer).execute();   // restart-mode: re-arms 3-min countdown
+              // WAKE threshold from HA (g_lux_wake, default 12 lx) — tune in the
+              // mounted position via input_number.basement_display_lux_wake.
+              // Self-latch breaker: the OLED sits flush behind the clear cover and
+              // may be the brightest source in the room, so its own glow can hold
+              // lux above threshold. The max-on probe force-blanks after 30 min;
+              // with the panel dark, only GENUINE ambient light re-wakes it on the
+              // next reading (<=2 s blip under real lights, permanent sleep in a
+              // truly dark room). Probe starts only on the off->on transition, so
+              // routine re-arms never reset it.
+              if (id(basement_lux).state >= id(g_lux_wake)) {
+                if (!id(display_awake)) {
+                  id(display_awake) = true;
+                  id(panel).turn_on();
+                  id(max_on_probe).execute();        // single 30-min countdown per wake
+                }
+                id(display_blank_timer).execute();   // restart-mode: re-arms blank countdown
               }
 
   # --- Dehumidifier RH band thresholds, imported from HA (single source of truth).
   # Numeric input_number states; consumed ONLY by the page_status band readout
   # (display, not control). Requires the native api: connection (below). These are
   # id-only (internal) — not re-published to HA.
+  # Each import mirrors into a restore_value global (NVS) so the value survives
+  # node reboots during WiFi/HA outages; consumers read the GLOBALS.
   - platform: homeassistant
     id: rh_on_threshold
     entity_id: input_number.dehumidifier_rh_on_threshold
+    on_value:
+      then:
+        - lambda: 'if (!std::isnan(x)) id(g_rh_on) = x;'
   - platform: homeassistant
     id: rh_off_threshold
     entity_id: input_number.dehumidifier_rh_off_threshold
+    on_value:
+      then:
+        - lambda: 'if (!std::isnan(x)) id(g_rh_off) = x;'
+
+  # --- Display tuning imports (HA = single source of truth; same mirror pattern).
+  - platform: homeassistant
+    id: display_lux_wake_ha
+    entity_id: input_number.basement_display_lux_wake
+    on_value:
+      then:
+        - lambda: 'if (!std::isnan(x) && x > 0.0f) id(g_lux_wake) = x;'
+  - platform: homeassistant
+    id: display_blank_min_ha
+    entity_id: input_number.basement_display_blank_min
+    on_value:
+      then:
+        - lambda: 'if (!std::isnan(x) && x >= 1.0f) id(g_blank_min) = x;'
+  - platform: homeassistant
+    id: display_contrast_ha
+    entity_id: input_number.basement_display_contrast_pct
+    on_value:
+      then:
+        - lambda: |-
+            if (!std::isnan(x) && x >= 5.0f && x <= 100.0f) {
+              id(g_contrast_pct) = x;
+              id(panel).set_contrast(x / 100.0f);   // applies immediately
+            }
 
 binary_sensor:
   - platform: status
@@ -212,7 +313,7 @@ interval:
           uint32_t now = millis();
           bool healthy = id(i2c_healthy);
           uint32_t period = healthy ? 2000 : 200;
-          uint32_t on_ms  = 100;
+          uint32_t on_ms  = healthy ? 200 : 100;   // 200 ms blip: a 100 ms poll can't skip it
           if ((now % period) < on_ms) id(status_led_out).turn_on();
           else                        id(status_led_out).turn_off();
 
@@ -224,7 +325,20 @@ interval:
           if (!id(i2c_healthy) && id(last_read_ms) != 0) {
             if (unhealthy_since == 0) unhealthy_since = millis();
             if ((millis() - unhealthy_since) > 120000) {
-              ESP_LOGW("watchdog", "I2C stalled >120s; rebooting to recover");
+              ESP_LOGW("watchdog", "I2C stalled >120s; bus-clear + reboot to recover");
+              // Best-effort stuck-slave bus-clear: 9 SCL pulses with SDA released
+              // frees a slave stuck mid-byte holding SDA low -- an ESP reboot alone
+              // does NOT (peripherals aren't power-cycled). Pin-matrix state after
+              // this doesn't matter: we reboot immediately.
+              gpio_reset_pin(GPIO_NUM_7);                          // SCL (D5)
+              gpio_set_direction(GPIO_NUM_7, GPIO_MODE_OUTPUT_OD);
+              gpio_set_level(GPIO_NUM_7, 1);
+              for (int i = 0; i < 9; i++) {                        // ~100 kHz clocking
+                gpio_set_level(GPIO_NUM_7, 0);
+                delay_microseconds_safe(5);
+                gpio_set_level(GPIO_NUM_7, 1);
+                delay_microseconds_safe(5);
+              }
               unhealthy_since = 0;
               id(reboot_button).press();
             }
@@ -237,6 +351,13 @@ interval:
   - interval: 15s
     then:
       - display.page.show_next: panel
+
+  # (5) Pixel-shift wear-leveling: walk the whole layout through 8 positions
+  #     (X 0-3 px, Y 0-1 px) every 5 min so glyph edges don't camp on fixed
+  #     pixels. Y capped at +1: bottom row y=44 + 18 px font ends at px 63.
+  - interval: 5min
+    then:
+      - lambda: 'id(g_px) = (id(g_px) + 1) % 8;'
 
 # =============================================================================
 # LOCAL OLED (Adafruit 938, SSD1306 128x64) — presentation-only.
@@ -258,46 +379,71 @@ display:
     id: panel
     address: 0x3D     # 938 ship default (ADDR open); CONFIRM via i2c scan
     update_interval: 1s
+    contrast: 30%     # dim = OLED wear scales hard with luminance; runtime-tunable from HA
     pages:
-      # Page 1 — core trio (rows 0/22/44; deg F converted here only)
+      # Page 1 — core trio (rows 0/22/44 + pixel-shift; deg F converted here only)
       - id: page_env
         lambda: |-
+          const int ox = id(g_px) % 4;          // pixel-shift wear-leveling
+          const int oy = (id(g_px) / 4) % 2;
           float t = id(basement_temp).state;
-          if (std::isnan(t)) it.print (6,  0, id(font_lg), "Temp -- F");
-          else          it.printf(6,  0, id(font_lg), "Temp %.1f F", t*9.0f/5.0f+32.0f);
+          if (std::isnan(t)) it.print (6+ox,  0+oy, id(font_lg), "Temp -- F");
+          else          it.printf(6+ox,  0+oy, id(font_lg), "Temp %.1f F", t*9.0f/5.0f+32.0f);
           float rh = id(basement_rh).state;
-          if (std::isnan(rh)) it.print (6, 22, id(font_lg), "RH -- %");
-          else           it.printf(6, 22, id(font_lg), "RH %.1f %%", rh);
+          if (std::isnan(rh)) it.print (6+ox, 22+oy, id(font_lg), "RH -- %");
+          else           it.printf(6+ox, 22+oy, id(font_lg), "RH %.1f %%", rh);
           float dp = id(basement_dewpoint).state;
-          if (std::isnan(dp)) it.print (6, 44, id(font_lg), "Dew -- F");
-          else           it.printf(6, 44, id(font_lg), "Dew %.1f F", dp*9.0f/5.0f+32.0f);
+          if (std::isnan(dp)) it.print (6+ox, 44+oy, id(font_lg), "Dew -- F");
+          else           it.printf(6+ox, 44+oy, id(font_lg), "Dew %.1f F", dp*9.0f/5.0f+32.0f);
 
-      # Page 2 — RH vs band (HA thresholds) / spread / health
+      # Page 2 — RH vs band (persisted thresholds) / spread / health
       - id: page_status
         lambda: |-
-          // RH position vs the live HA on/off setpoints. Computed on-node so it
-          // survives HA outages once the thresholds have been received. Shows
-          // position vs setpoints, NOT the latched appliance on/off state.
+          // RH position vs the on/off setpoints. Reads the RESTORED GLOBALS, not
+          // the homeassistant sensors, so the band survives node reboots during
+          // WiFi/HA outages (thresholds NaN only before HA has EVER reported).
+          // Shows position vs setpoints, NOT the latched appliance on/off state.
+          const int ox = id(g_px) % 4;          // pixel-shift wear-leveling
+          const int oy = (id(g_px) / 4) % 2;
           float rh    = id(basement_rh).state;
-          float on_th = id(rh_on_threshold).state;
-          float off_th= id(rh_off_threshold).state;
+          float on_th = id(g_rh_on);
+          float off_th= id(g_rh_off);
           if (std::isnan(rh) || std::isnan(on_th) || std::isnan(off_th))
-            it.print(6, 0, id(font_lg), "RH band --");     // no reading / no HA yet
+            it.print(6+ox, 0+oy, id(font_lg), "RH band --");   // no reading / never seen HA
           else if (rh >= on_th)
-            it.print(6, 0, id(font_lg), "RH HIGH");         // at/above ON point
+            it.print(6+ox, 0+oy, id(font_lg), "RH HIGH");       // at/above ON point
           else if (rh <= off_th)
-            it.print(6, 0, id(font_lg), "RH LOW");          // at/below OFF point
+            it.print(6+ox, 0+oy, id(font_lg), "RH LOW");        // at/below OFF point
           else
-            it.print(6, 0, id(font_lg), "RH OK");           // within the band
+            it.print(6+ox, 0+oy, id(font_lg), "RH OK");         // within the band
           float t = id(basement_temp).state, dp = id(basement_dewpoint).state;
           if (!std::isnan(t) && !std::isnan(dp))
-            it.printf(6, 22, id(font_lg), "Spread %.1f F", (t-dp)*9.0f/5.0f);
-          it.printf(6, 44, id(font_lg), "Sensor %s", id(i2c_healthy) ? "OK" : "FAULT");
+            it.printf(6+ox, 22+oy, id(font_lg), "Spread %.1f F", (t-dp)*9.0f/5.0f);
+          it.printf(6+ox, 44+oy, id(font_lg), "Sensor %s", id(i2c_healthy) ? "OK" : "FAULT");
 
 # Display auto-blank. restart mode: each above-threshold lux reading re-arms it.
+# Blank delay is HA-tunable (g_blank_min, default 3 min).
 script:
   - id: display_blank_timer
     mode: restart
     then:
-      - delay: 3min
-      - lambda: 'id(panel).turn_off();'
+      - delay: !lambda 'return (uint32_t)(id(g_blank_min) * 60000.0f);'
+      - lambda: |-
+          id(panel).turn_off();
+          id(display_awake) = false;
+      - script.stop: max_on_probe
+
+  # Max-on probe (self-latch breaker): started ONCE per off->on transition,
+  # never restarted by re-arms. 30 min after wake it force-blanks the panel;
+  # with the OLED dark it emits nothing, so the next lux reading is TRUE
+  # ambient — genuine light re-wakes within ~2 s (a barely visible blip),
+  # OLED self-glow / cover reflection cannot. Makes display-keeps-itself-
+  # awake physically impossible regardless of mounting geometry.
+  - id: max_on_probe
+    mode: restart
+    then:
+      - delay: 30min
+      - lambda: |-
+          id(panel).turn_off();
+          id(display_awake) = false;
+      - script.stop: display_blank_timer
