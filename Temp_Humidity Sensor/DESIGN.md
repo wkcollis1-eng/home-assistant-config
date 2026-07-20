@@ -3,7 +3,9 @@
 **Status:** Pre-fabrication — layout reviewed, fab-ready (Rev C board). The Rev C
 board is **unchanged** by the 2026-07-18 display/light-sensor add-on — that add-on is
 entirely a STEMMA QT bus + firmware + enclosure change (see §2, §5, §9.3, §10.1).
-**Last updated:** 2026-07-18
+Firmware is at **Rev 2.1** (2026-07-20, §10.2): display resilience + HA-tunable
+display parameters; validated on the deployed esphome 2026.6.4.
+**Last updated:** 2026-07-20
 **Target fabricator:** OSH Park (2-layer, 1.6 mm FR4)
 **Author:** wkcollis1
 
@@ -490,22 +492,30 @@ per item.
 Decisions and open items for the daisy-chain add-on. **The Rev C PCB is unchanged**;
 this is purely bus routing + mounting. Confidence flagged per item, per §9.2 style.
 
-- **VEML7700 mount — decided:** external, using the **right-angle** part (5378) so it
-  senses *out into the room*, not up. The node sits on a shelf in a **recessed corner**,
-  where straight-up would see the shelf underside / dead corner; light arrives from the
-  open side, so the sensor is aimed at the open room direction (not at the adjacent
-  corner walls). The near-vertical, side-looking window also sheds settling dust, unlike
-  an up-facing one. Board mounts flat against a vertical face (box front or shelf front
-  edge). *Datums TBD — no dimensioned mount yet.*
+- **VEML7700 mount — decided (updated 2026-07-20): top of the enclosure**, using the
+  **right-angle** part (5378) flat on the top face, so the sensing window sits
+  near-vertical and looks *out into the room* (the part senses parallel to its PCB).
+  The rejected alternative — back of the enclosure looking up — would stare at the dark
+  underside of the shelf above and defeat the whole point. The near-vertical window
+  still sheds settling dust (the argument that ruled out an up-facing mount). The node
+  sits on a shelf in a **recessed corner**; light arrives from the open side, so aim
+  the window at the open room direction. *Datums TBD — no dimensioned mount yet.*
 - **VEML7700 is a threshold, not a photometer:** a shadowed corner lowers absolute lux
   with the lights on but not the on/off *ratio* (off ≈ 0), and the part resolves down
   into the thousandths-of-a-lux range, so "on" still reads clearly. Set the wake
   threshold empirically in place (§10.1); allow dust margin + an annual re-check.
-- **OLED mount — open:** the 938 breakout is ~35 × 35 mm and will **not** fit inside the
-  63 × 58 × 35 mm box beside the XIAO board, so it must be lid-mounted behind a window or
-  external. Exact mount, window, and orientation **TBD**. If placed behind the existing
-  clear cover, keep the **green status LED out of the VEML7700's field** — an in-view LED
-  raises the lux floor and can stop the dark-detect from latching.
+- **OLED mount — decided (2026-07-20): flush on the inside of the existing clear
+  cover** (the 938's ~35 × 35 mm board will not fit beside the XIAO board inside the
+  63 × 58 × 35 mm box, so lid-mount was the surviving option). Window/orientation datums
+  **TBD**. Keep the **green status LED out of the VEML7700's field** — an in-view LED
+  raises the lux floor. **Self-glow, accepted and bounded:** with the panel behind the
+  cover and the lux sensor on top, the OLED may be the *brightest source in the room*,
+  so its own glow/reflections could hold the lux gate above threshold. Rev 2.1's
+  **max-on probe** (§10.2) makes the resulting display-keeps-itself-awake latch
+  physically impossible regardless of geometry — worst case is a forced blank + re-check
+  every 30 min — so the mount does not have to guarantee optical isolation; the tuning
+  procedure (§11) still takes a lights-off/display-on reading to set the threshold
+  above the self-glow floor.
 - **Thermal separation — carry forward §9.2 intent:** the OLED dissipates ~25–40 mA of
   heat; keep it well away from the external SHT45 cluster (different face / the lid) so it
   cannot bias the RH/T the whole design isolates for. The VEML7700's ~0.5 mA is
@@ -523,7 +533,8 @@ this is purely bus routing + mounting. Confidence flagged per item, per §9.2 st
 ## 10. Firmware
 
 - **Platform:** ESPHome (native API; commented MQTT alternative). Deliverable:
-  `basement-th-node.yaml` (Rev 2.0).
+  `basement-th-node.yaml` (**Rev 2.1**, 2026-07-20 — §10.2; Rev 2.0 policy below is
+  unchanged).
 - **I²C:** `sda: GPIO6`, `scl: GPIO7`, `frequency: 100000`, `timeout: 50ms`.
 - **Sensor:** `sht4x` platform, address `0x44`, `precision: High` (→ 0xFD
   high-repeatability read, 0.08 %RH noise), `update_interval: 10s`.
@@ -533,10 +544,13 @@ this is purely bus routing + mounting. Confidence flagged per item, per §9.2 st
   (`id: basement_rh`, name "Basement Humidity") is published with **no smoothing**
   (only `filter_out: nan`). HA's 49/46 band control and the 0.3 %/hr stall detector
   read this entity.
-- **Smoothing is dashboard-only.** A separate template entity
+- **Smoothing is dashboard-only.** A separate entity
   (`id: basement_rh_smoothed`, "Basement Humidity (Smoothed)") mirrors the raw value
   through a **median-5** filter for cosmetic spike rejection. It must **not** be
-  consumed by control or stall logic. (Rationale: median rejects single in-range
+  consumed by control or stall logic. Since Rev 2.1 it is a `platform: copy` sensor
+  (event-driven off each real SHT45 publish — phase-locked); the Rev 2.0 free-running
+  template timer could occasionally double-sample or skip a reading into the median
+  window. (Rationale: median rejects single in-range
   spikes without smearing; a mean would smear. Feeding a sliding average into the
   60-min slope regression would inject autocorrelation and overstate confidence —
   hence raw for the stall detector.)
@@ -568,6 +582,12 @@ hard error).
 > Re-validate if the deployed ESPHome version differs from 2026.6.4.
 
 ### 10.1 Local Display + Auto-Blank (2026-07-18, validated 2026-07-18)
+
+> **Amended by Rev 2.1 (§10.2, 2026-07-20):** the wake threshold, blank delay, and
+> contrast are now HA-tunable (mirrored to persisted globals); burn-in mitigations 2
+> (dim) and 4 (pixel-shift) are implemented; the on-node band now survives node
+> reboots; and a **max-on probe** bounds OLED self-glow latch-up. This section stands
+> as the 2026-07-18 design record.
 
 Merged into `basement-th-node.yaml` and **through the full `esp-firmware-validation`
 gate**: `esphome config` valid; standalone `g++ -std=c++17 -Wall -Wformat` on the new
@@ -612,6 +632,65 @@ path (same rule as the smoothed RH entity).
   first reports. Pages auto-cycle every 15 s (no button). Display formatting only — no new
   control math.
 
+### 10.2 Rev 2.1 — Display Resilience + HA-Tunable Parameters (2026-07-20, validated 2026-07-20)
+
+Motivated by a full-system review: the Rev 2.0 band readout survived *HA-only* outages
+but not the most likely extended outage. Chain: WiFi drops → `reboot_timeout: 15min`
+reboots the node → the `homeassistant`-platform threshold imports re-initialize to NaN
+and cannot repopulate with the API unreachable → page 2 shows `RH band --` from ~15 min
+into the outage until WiFi returns. Rev 2.1 closes that plus the §10.1 mitigations that
+were documented but not implemented. Changes (all presentation/diagnostic path — the
+RAW-RH control policy is untouched):
+
+- **Band persistence:** both RH threshold imports mirror into `restore_value` globals
+  (NVS); page 2 reads the **globals**, so the band readout survives node reboots of any
+  cause (watchdog, OTA, power blip, WiFi-outage reboot cycle). `RH band --` now appears
+  only before HA has *ever* reported. NVS wear is negligible (thresholds change rarely).
+- **HA-tunable display parameters, same mirror pattern** (HA `input_number` = single
+  source of truth → import → persisted global; firmware defaults apply until HA first
+  reports and on a factory-fresh flash): `basement_display_lux_wake` (default 12 lx),
+  `basement_display_blank_min` (default 3 min), `basement_display_contrast_pct`
+  (default 30 %). Threshold tuning is now sliders in the mounted position — no
+  edit → validate → OTA cycle per iteration. HA-side entries ship as
+  `basement-th-node-input-numbers.yaml` (merge into the existing `input_number:` block —
+  a second top-level key silently overwrites).
+- **Max-on probe (self-latch breaker), 30 min:** started once per display off→on
+  transition (never reset by routine re-arms). It force-blanks the panel; with the OLED
+  dark it emits nothing, so the next 2 s lux reading is *true ambient* — genuine light
+  re-wakes the display within ~2 s (a barely visible blip), OLED self-glow/reflection
+  cannot. Makes the display-keeps-itself-awake latch impossible regardless of mounting
+  geometry (§9.3).
+- **Burn-in mitigations implemented:** static `contrast: 30%` + runtime
+  `set_contrast()` from HA (floor 15 % — SSD1306 stacks are reported to clamp below
+  ~15 % with no visible change); **pixel-shift** wear-leveling walks the whole layout
+  through 8 positions (X 0–3 px, Y 0–1 px) every 5 min — Y capped at +1 px because the
+  bottom row (y=44, 18 px font) nominally ends at pixel 63. Note: the bottom-row
+  strings ("Dew …", "Sensor OK/FAULT") contain no descenders; if bottom-row content
+  ever gains g/j/p/q/y, re-check clipping on the glass.
+- **I²C bus-clear before the recovery reboot (best-effort):** 9 SCL pulses
+  (open-drain, ~100 kHz, direct IDF gpio calls) with SDA released, immediately before
+  the watchdog reboot — frees a slave stuck mid-byte holding SDA low, which an ESP
+  reboot alone cannot (peripherals aren't power-cycled). Post-clear pin-matrix state is
+  irrelevant: the node reboots immediately. Does **not** help a truly latched device
+  (e.g. OLED charge pump) — that remains the §12.1 item 3 hardware case, which the
+  three-device chain has made strictly stronger.
+- **Diagnostics + small fixes:** `debug:` free-heap sensor (slow-leak drift visible in
+  HA before it becomes a mystery reboot); heartbeat blip widened 100 → 200 ms (a 100 ms
+  poll could occasionally skip a 100 ms window); smoothed-RH entity moved to
+  `platform: copy` (§10 policy bullet).
+
+**Validation status (Rev 2.1, esphome 2026.6.4 — the deployed version):** passed the
+full `esp-firmware-validation` gate — `esphome config` valid; codegen id-resolution
+confirmed for every new global/script/call; standalone `g++ -std=c++17 -Wall -Wformat`
+on all new/changed lambda bodies clean; real `esphome compile` → `src/main.cpp.o` built
+with **0 errors** and the full link completed (`firmware.elf` + ESP32-C3 image,
+**RAM 13.1 %, Flash 53.3 %**). The direct IDF gpio calls in the bus-clear compiled
+without shims. (RAM reads lower than the 32.3 % recorded on 2026.7.0 in §10.1 —
+attributed to version-to-version accounting differences, cause not investigated.) The
+HA `input_number` snippet passed layered parse validation (YAML parse + duplicate-key
+detection + schema lint, strict) — **parse-clean**; run `hass --script check_config` on
+the HA host before restart, per the HA validator's assurance levels.
+
 ---
 
 ## 11. Pre-Fabrication Checklist
@@ -647,10 +726,13 @@ path (same rule as the smoothed RH entity).
 - [ ] U.FL antenna mated once and secured (Kapton/silicone); antenna mounted on the
       left half of the lid (§9.2).
 - [ ] STEMMA conductors NOT tinned; fold-back or 0.14 mm² ferrules; tug-test (§9.2).
-- [ ] Firmware: confirm the boot-time stale-watchdog hole fix (`last_read_ms == 0`
-      guard) is present in the deployed Rev 2.x build.
-- [ ] Firmware/HA: add `wifi_signal` (RSSI), uptime, and heap diagnostic sensors;
-      baseline RSSI in HA so antenna/connector degradation shows as drift, not as a
+- [x] Firmware: confirm the boot-time stale-watchdog hole fix (`last_read_ms == 0`
+      guard) is present in the deployed Rev 2.x build — **verified present in the
+      Rev 2.1 source (2026-07-20 review)**; the guard also makes the recovery reboot
+      one-shot per failure episode (no boot loop, no safe-mode trip).
+- [x] Firmware: `wifi_signal` (RSSI) + uptime sensors (Rev 2.0) and free-heap
+      diagnostic (**added Rev 2.1**, `debug:` component) all present.
+- [ ] HA: baseline RSSI so antenna/connector degradation shows as drift, not as a
       surprise outage.
 - [ ] Post-assembly inspection: no solder bridges from XIAO pads D8/GPIO20/3V3 onto
       the masked SDA/SCL traces in the pad row (D9/D10 are NPTH — no solder there;
@@ -674,18 +756,29 @@ path (same rule as the smoothed RH entity).
 - [ ] Confirm the 938 OLED's onboard I²C pull-up value; re-check R_eff if not ~10 K
       (§5 combined-pull-up math assumes ~10 K).
 - [ ] Confirm the 938 SPI/I²C jumpers are left at I²C (ships I²C by default — do not cut).
-- [ ] Tune the lux **wake threshold** (12 lx start) in the final mounted position from
-      three readings — lights-on / night-dark / midday leak; the 3-min blank timer supplies
-      the hysteresis (§10.1). Confirm the status LED is out of the VEML7700's field (§9.3).
-- [ ] Resolve OLED mount + window/orientation; keep the ~35 × 35 mm board off the SHT45
-      face for thermal separation (§9.3).
+- [ ] Tune the lux **wake threshold** in the final mounted position — now a slider
+      (`input_number.basement_display_lux_wake`, no reflash; §10.2) — from **four**
+      readings: lights-on / night-dark / midday leak / **lights-off with the display
+      forced on** (sets the threshold above the OLED self-glow floor; the §10.2 max-on
+      probe bounds the worst case even if this is misjudged). The blank timer supplies
+      the hysteresis. Confirm the status LED is out of the VEML7700's field (§9.3).
+- [ ] Execute the decided mounts (§9.3, 2026-07-20): VEML7700 flat on the enclosure
+      **top** (window looking out into the room), OLED **flush inside the clear
+      cover**; dimension the datums/window; keep the OLED off the SHT45 face for
+      thermal separation (§9.3).
+- [ ] HA: merge the three `basement_display_*` entries from
+      `basement-th-node-input-numbers.yaml` into the **existing** `input_number:`
+      block (never as a second top-level key — silent overwrite), then run
+      `hass --script check_config` before restart (§10.2).
 - [ ] Verify chain cable lengths against the physical routes before drilling any added
       penetration (§9.3); QT-to-QT stock 200/300 mm (4401/5384).
 - [ ] Populate the optional 10 µF X7R at C1/PH1 given the OLED switching load
       (§7, §6.1, §12.1 item 5).
 - [x] Display firmware through the `esp-firmware-validation` gate — **passed 2026-07-18**
       (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` linked a
-      full image, `main.cpp.obj` 0 errors, §10.1). Re-run on the deployed 2026.6.4.
+      full image, `main.cpp.obj` 0 errors, §10.1). ~~Re-run on the deployed 2026.6.4.~~
+      **Closed by Rev 2.1 (2026-07-20): full gate passed on the deployed 2026.6.4**
+      (`src/main.cpp.o` 0 errors, full image, RAM 13.1 % / Flash 53.3 %, §10.2).
 
 ---
 
@@ -711,9 +804,11 @@ path (same rule as the smoothed RH entity).
   **0x3D** (938 ADDR-open default; shipped firmware uses it; scan still confirms hardware,
   §5); display firmware **validated** through the full gate (§10.1, checklist §11).
 - **Display/light-sensor add-on — still open:** (a) 938 OLED pull-up value unconfirmed
-  (assumed ~10 K, §5); (c) OLED enclosure mount/window and VEML7700 mount datums not yet
-  dimensioned (§9.3); (d) chain routing/penetrations not yet planned; (e) lux wake
-  threshold is empirical-in-place, 12 lx start not yet tuned (§10.1). None of these touch
+  (assumed ~10 K, §5); (c) mounts **decided 2026-07-20** — VEML7700 on the enclosure top,
+  OLED flush inside the clear cover (§9.3) — but datums/window not yet dimensioned;
+  (d) chain routing/penetrations not yet planned; (e) lux wake threshold now
+  **runtime-tunable from HA** (Rev 2.1, §10.2) but not yet tuned in place (four-reading
+  procedure, §11). None of these touch
   the Rev C PCB — the board can fab as-is, independent of the add-on.
 
 ### 12.1 Rev C Candidate Changes (logged 2026-07-04 — none justify a respin)
@@ -740,6 +835,7 @@ path (same rule as the smoothed RH entity).
 
 | Date | Change |
 |---|---|
+| 2026-07-20 | **Firmware Rev 2.1 (display resilience + HA-tunable parameters) + mount decisions.** New §10.2. Review finding closed: WiFi outage → 15-min reboot cycle → `homeassistant`-imported thresholds NaN → band readout dead for the outage's duration; fixed by mirroring both RH thresholds into `restore_value` globals (page 2 reads the globals — band now survives node reboots of any cause). Display parameters (lux wake / blank min / contrast %) moved to HA `input_number`s (source of truth) mirrored to persisted globals with firmware defaults 12 lx / 3 min / 30 %; HA-side entries in `basement-th-node-input-numbers.yaml` (parse-validated; merge into existing `input_number:` block). §10.1 mitigations implemented: contrast dim (30 % default, runtime `set_contrast`, 15 % floor) + 8-position pixel-shift (Y capped +1 px for the y=44 row). New **30-min max-on probe** bounds OLED self-glow latch-up (§9.3, §10.2). Also: smoothed-RH entity → `platform: copy` (phase-locked); best-effort 9-pulse SCL bus-clear before the recovery reboot; free-heap diagnostic; heartbeat blip 100→200 ms. Validated on the **deployed 2026.6.4**: full gate + full link, `src/main.cpp.o` 0 errors, RAM 13.1 % / Flash 53.3 % (closes the §11 re-validate item). Mounts decided (§9.3): VEML7700 flat on the **enclosure top** (window out into the room; back-mount looking up rejected — dark shelf underside), OLED **flush inside the clear cover**; datums still TBD. §11: stale-watchdog-guard + diagnostics items closed; lux tuning is now a four-reading slider procedure (adds lights-off/display-on self-glow reading). |
 | 2026-07-18 | **Reconciliation after the add-on firmware was built + validated.** OLED address corrected **0x3C → 0x3D** throughout (§2 diagram, §3 BOM, §5, §10.1, §11) — the 938 ships ADDR-open = 0x3D and the shipped firmware + the battery-bank board's 938 both use it (0x3C only if the jumper is bridged; scan still confirms). §10.1 marked **validated** (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` → full image, `main.cpp.obj` 0 errors, RAM 32.3 % / Flash 53.0 %); display lambdas use `std::isnan` (node convention), not bare `isnan`; re-validate on deployed 2026.6.4. §10.1 content/auto-blank updated to the shipped design (two 3-row pages, `font_lg` 18 px, rows y=0/22/44; °F on-glass; on-node band from HA `input_number.dehumidifier_rh_on/off_threshold`; wake ≥ 12 lx + 3-min restart-timer blank). §11/§12: address + validation items closed; still open — 938 pull-up value, OLED/VEML7700 mounts, chain routing, 12 lx tuning. |
 | 2026-07-18 | **Display + ambient-light add-on (STEMMA QT daisy-chain), no PCB change.** Added Adafruit 938 1.3″ 128×64 OLED (SSD1306, I²C 0x3C/0x3D, ~25–40 mA, dual-QT) and Adafruit 5378 right-angle VEML7700 lux sensor (I²C 0x10 fixed, verified Vishay datasheet; 4.7 K pull-ups; senses parallel to PCB) onto the existing bus by chaining through each breakout's 2nd QT port (§2 diagram, §3 BOM). §5: three-device address map (no collisions, scan to confirm) + combined pull-up math (10 K ‖ ~10 K ‖ 4.7 K ≈ 2.4 K → stiffer/faster bus, 100 kHz keeps margin). §7: OLED current path + cable-drop (~6.8 mV) + budget (~160–170 mA awake worst case vs 700 mA reg); optional 10 µF now justified. New §9.3 (VEML7700 right-angle, room-facing from a recessed corner — decided; OLED lid/external + thermal separation from SHT45 — open) and §10.1 (SSD1306 not SH1106; `veml7700` platform; lux-gated `display.turn_off/on` with hysteresis/debounce; burn-in mitigations: black bg, dim, page-rotate, pixel-shift). Verified this rev: VEML7700 = 0x10 (Vishay), 938 = SSD1306 / default-I²C / dual-QT / ~25–40 mA. Unconfirmed: 938 pull-up value (assumed ~10 K), 938 address 0x3C vs 0x3D (scan). Display firmware not yet through the validation gate. |
 | 2026-07-02 | Initial design doc. Board revised to 1"×2". Removed ALERT (D3) and DQ (GPIO10) leftovers. Status LED confirmed on D7/GPIO20. No external I²C pull-ups (breakout 10 K). USB-C brick power. |
