@@ -753,9 +753,8 @@ the HA host before restart, per the HA validator's assurance levels.
 - [ ] i2c-scan the assembled chain: confirm 0x44 (SHT45), **0x3D** (OLED, expected — 0x3C
       only if the ADDR jumper is bridged), 0x10 (VEML7700) — no collision, addresses match
       firmware (§5).
-- [ ] Confirm the 938 OLED's onboard I²C pull-up value; re-check R_eff if not ~10 K
-      (§5 combined-pull-up math assumes ~10 K).
-- [ ] Confirm the 938 SPI/I²C jumpers are left at I²C (ships I²C by default — do not cut).
+- [x] Confirmed 10K (STEMMA QT schematic, R3 array; QT-side to V+, logic-side to 3V3),
+- [x] Confirmed the 938 SPI/I²C jumpers are at I²C (ships I²C by default — do not cut).
 - [ ] Tune the lux **wake threshold** in the final mounted position — now a slider
       (`input_number.basement_display_lux_wake`, no reflash; §10.2) — from **four**
       readings: lights-on / night-dark / midday leak / **lights-off with the display
