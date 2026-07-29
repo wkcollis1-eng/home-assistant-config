@@ -145,7 +145,7 @@ captive_portal:
 
 api:
   encryption:
-    key: !secret api_encryption_key
+    key: iR99+6Anrqa2AprC6sLGPcH0+uulC3gWOvWoEPEpMQM=
   reboot_timeout: 0s
 
 ota:
