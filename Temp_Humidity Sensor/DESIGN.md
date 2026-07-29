@@ -1,11 +1,16 @@
 # Temp/Humidity Sensor PCB — Design Document
 
-**Status:** Pre-fabrication — layout reviewed, fab-ready (Rev C board). The Rev C
-board is **unchanged** by the 2026-07-18 display/light-sensor add-on — that add-on is
-entirely a STEMMA QT bus + firmware + enclosure change (see §2, §5, §9.3, §10.1).
-Firmware is at **Rev 2.1** (2026-07-20, §10.2): display resilience + HA-tunable
-display parameters; validated on the deployed esphome 2026.6.4.
-**Last updated:** 2026-07-20
+**Status:** **Rev C PCB fabricated; assembly 2026-07-27.** The Rev C board is
+**unchanged** by the 2026-07-18 display/light-sensor add-on — that add-on is entirely
+a STEMMA QT bus + firmware + enclosure change (see §2, §5, §9.3, §10.1).
+Firmware is at **Rev 2.3** (2026-07-27, §10.4): review dispositions — bus-clear now
+actually releases SDA, 30-min temperature slope, loop-time diagnostic, project
+name/version. Built on **Rev 2.2** (§10.3): stuck-value detection, on-node RH/AH
+slopes, absolute humidity, display-state entity, self-glow latch counter, lux
+recorder-load reduction. Both validated on the deployed esphome 2026.6.4.
+**C1 is populated as a single 10 µF** (Kemet C324C106K3R5TA) — the 0.1 µF is
+**not** fitted; see §6.1 for why the pair was rejected.
+**Last updated:** 2026-07-27
 **Target fabricator:** OSH Park (2-layer, 1.6 mm FR4)
 **Author:** wkcollis1
 
@@ -62,16 +67,17 @@ A continuously-sampled ESPHome node resolves both.
                                      │   [ SHT45  0x44  — external, standoffs, PTFE ]
                                      │          │  (2nd QT port)
                                      │          ▼
-                                     │   [ 938 OLED 0x3D — SSD1306, lid/external ]
+                                     │   [ VEML7700 0x10 — right-angle, enclosure top ]
                                      │          │  (2nd QT port)
                                      │          ▼
-                                     │   [ VEML7700 0x10 — right-angle, room-facing ]
+                                     │   [ 938 OLED 0x3D — SSD1306, inside clear cover ]
                                      │
                     GPIO20 ── R1 ── [ green status LED ] ── GND
 
   One I²C multi-drop chain @ 100 kHz. VEML7700 lux gates the OLED on/off in
   firmware (lights-on → wake, dark → sleep, §10.1). Chain order is electrically
-  arbitrary; physical routing decides it (§9.3). No PCB change — PH1 unchanged.
+  arbitrary but is now **deliberately fixed** — see §9.3 "Chain order". No PCB
+  change — PH1 unchanged.
 ```
 
 - The **SHT45 breakout is mounted external** to the enclosure on 8–10 mm nylon
@@ -99,7 +105,7 @@ A continuously-sampled ESPHome node resolves both.
 | — | STEMMA QT JST-SH 4-pin cable, 150 mm | Adafruit **4397** | Breakout → PH1; board end cut/stripped and **crimped into a 1×4 0.1″ female housing** (§9.2). Cable lay maps 1:1 to PH1 (§9.1). If the wrap-around route runs short: 200/300 mm QT-to-QT = PID 4401/5384 |
 | LED | Green diffused LED, 3 mm | Lite-On **LTL-4231N** | Status indicator; Vf ≈ 2.1 V. *Board refdes is `LED` (was D1 in earlier doc revs).* |
 | R1 | 1 kΩ, 1/4 W axial | — | **Series** current-limit for the LED (see §6). *Board refdes is `R1` (was R4 in earlier doc revs).* |
-| C1 | 0.1 µF, 50 V X7R | C315C104K5R5TA | Local 3V3 decoupling in the PH1 feed path |
+| C1 | **10 µF, 25 V X7R radial** | Kemet **C324C106K3R5TA** | Local 3V3 decoupling in the PH1 feed path. **Supersedes the original 0.1 µF C315C104K5R5TA, which is not fitted** (§6.1). 2.54 mm lead pitch (same as C315); body 5.08 L × 5.84 H × 4.07 T mm max — larger than the C315, so verify courtyard clearance toward PH1 at assembly |
 | PH1 | 1×4 pin header, 2.54 mm, right-angle | — | Sensor interface, pins overhang left board edge into cavity. Pin order **1=GND, 2=+3V3, 3=SDA, 4=SCL** — matches STEMMA wire lay (black, red, blue, yellow) 1:1. Mates with crimped 1×4 0.1″ female housing |
 | 3V3, GND | Test points, THT pad 2.0 mm / 1.0 mm drill | — | Bench probe access to the 3V3 rail and GND |
 | H1,H2 | Mounting holes, M3, 3.2 mm NPTH | — | Diagonal pair; board mounts on standoffs |
@@ -166,11 +172,12 @@ is no boot-mode interference.
 
 - **Pull-ups after the daisy-chain add-on (2026-07-18):** each added STEMMA QT board
   brings its own pull-ups, so they parallel down. The VEML7700 (5378) carries **4.7 K**
-  per line (Adafruit changed this breakout from 10 K in Dec 2019); the 938 OLED's value
-  is **not confirmed** — assume Adafruit's ~10 K QT default (flag). Combined:
+  per line (Adafruit changed this breakout from 10 K in Dec 2019); the 938 OLED carries
+  **10 K** — **confirmed** from the STEMMA QT schematic (R3 array; QT-side to V+,
+  logic-side to 3V3), 2026-07-18. Combined:
 
   ```
-  1/R = 1/10 000 (SHT45) + 1/10 000 (OLED, assumed) + 1/4 700 (VEML7700)
+  1/R = 1/10 000 (SHT45) + 1/10 000 (OLED, confirmed) + 1/4 700 (VEML7700)
       = 0.0001 + 0.0001 + 0.000213 = 0.000413   →   R_eff ≈ 2.4 K
   I_sink = 3.3 V / 2.4 K = 1.4 mA per line       (comfortable, < 3 mA)
   ```
@@ -243,8 +250,13 @@ were evaluated: a 10 µF added near C1, and "0.1 µF in series with 10 µF."
   entire **1.08–3.6 V** supply window → ~2.2 V of droop headroom from 3.3 V. WiFi TX
   ripple on the shared rail (ESP32-C3 draws its ~350 mA peaks from the same
   regulator output) is bounded by the module's own output caps and lands far inside
-  that window. Sensirion's design-in requirement is 100 nF close to the sensor —
-  present on the breakout (§8) — plus C1 on-board: met twice over.
+  that window. Sensirion's design-in requirement is 100 nF **close to the sensor**.
+
+  > **Correction (2026-07-27).** Earlier revisions of this section claimed the 100 nF
+  > requirement was "met twice over" — breakout plus C1. That is wrong. The SHT45 sits
+  > at the far end of ~190 mm of chain (≈0.29 µH); C1 is not close to the sensor and
+  > never satisfied that requirement. It is met **once**, on the breakout — correctly,
+  > and that is the copy that matters.
 - **Even the on-chip heater case passes without bulk:**
 
   ```
@@ -255,9 +267,66 @@ were evaluated: a 10 µF added near C1, and "0.1 µF in series with 10 µF."
 
   (Rev 2.x firmware does not enable the heater; ESPHome `sht4x` default leaves it
   off — verify in component source if this ever matters.)
-- **Verdict:** no additional capacitor needed. If added anyway as cheap insurance:
-  **10 µF X5R/X7R MLCC in parallel** with C1 or across PH1 — never in series. Only
-  earns its place if the heater is ever enabled (e.g. a decontamination bake).
+- **Verdict (superseded — see disposition below):** no additional capacitor needed.
+  If added anyway as cheap insurance: **10 µF X5R/X7R MLCC in parallel** with C1 or
+  across PH1 — never in series. Only earns its place if the heater is ever enabled
+  (e.g. a decontamination bake).
+
+#### C1 disposition — RESOLVED 2026-07-27 (single 10 µF, no 0.1 µF)
+
+Two proposals were evaluated at assembly time: *replace* C1's 0.1 µF with 10 µF, and
+*add* a second 10 µF across PH1.1/1.2. Both were rejected in favour of **one 10 µF
+(C324C106K3R5TA) alone in the C1 footprint**.
+
+- **C1 and PH1.1/1.2 are the same node, not two decoupling points.** Per §9.1 the 3V3
+  run is U1 → C1 → PH1.2 on 1.0 mm trace, a few mm long — call it ~2 nH over the pour:
+
+  ```
+  Z @ 370 kHz = 2π(3.7e5)(2e-9) = 4.6 mΩ
+  ```
+
+  Two 10 µF parts 5 mm apart are one 20 µF part. The second buys capacitance, not
+  placement.
+
+- **The cable, not the cap, limits what reaches the OLED.** STEMMA VIN/GND are adjacent
+  conductors, ~1 mm pitch, 28 AWG (r ≈ 0.16 mm), ~0.4 m:
+
+  ```
+  L' = (µ0/π)·ln(d/r) = 4e-7 × ln(1.0/0.16) = 4e-7 × 1.83 = 0.73 µH/m
+  L  = 0.73 µH/m × 0.4 m = 0.29 µH
+  Z @ 370 kHz = 2π(3.7e5)(2.9e-7) = 0.67 Ω  (+ R_loop 0.17 Ω) ≈ 0.84 Ω
+  vs 10 µF @ 370 kHz = 1/(2π·3.7e5·1e-5)    = 0.043 Ω
+  ```
+
+  The cap is ~20× lower impedance than the path to the load it would supposedly
+  decouple. That path is **inductance-limited**; adding µF at the board end changes
+  nothing at the OLED.
+
+- **Why the 0.1 µF earns nothing here.** These are leaded radials, so ESL is set by the
+  leads (both parts spec 7 mm min lead length; ~12–14 nH est.) — the small part is
+  **not** in a smaller package, so it has no parasitic advantage. Crossover:
+
+  ```
+  f = 1/(2π√(L·C)) = 1/(2π√(12e-9 × 1e-7)) = 4.6 MHz
+  ```
+
+  Below 4.6 MHz the 10 µF is lower impedance; above it the 0.1 µF wins by ~14 %
+  (12 nH vs 14 nH). Nothing on this node operates there — the I²C knee is
+  2.4 kΩ × 118 pF = 283 ns → ≈1.8 MHz, and the ESP32-C3 decouples itself on-module.
+  The 0.1 µF's advantage band is unoccupied.
+
+- **Reliability.** A piggybacked second cap is a hand-soldered lead-to-lead joint with
+  no pad and no mechanical anchor, inside a box that gets sealed. Adding a weak joint
+  to buy 14 % in an unoccupied band fails this design's own standard.
+
+- **DC bias / aging on the chosen part.** 3.3 V on a 25 V bulk radial is 13 % of rated
+  with far thicker dielectric than a chip MLCC — estimated <10 % loss (Kemet publishes
+  no bias curve for this line — flag). Aging is 3 %/decade-hour:
+  `log₁₀(87,600/1,000) = 1.94 decades × 3 % = 5.8 %` over 10 years, so ~8.5 µF worst
+  case with tolerance. Irrelevant, since §7 shows the value is not the limiting term.
+
+- **Anti-resonance is a non-issue either way.** DF is 10 % on the C324 vs 3.5 % on the
+  C315 case — that ESR damps the parallel resonance hard, and nothing excites 4.6 MHz.
   Caveat flagged before the fact: the XIAO's regulator part number was **not**
   verified from the Seeed schematic re: max output-capacitance limits — negligible
   risk for a ceramic at trace distance, but noted.
@@ -293,9 +362,18 @@ were evaluated: a 10 µF added near C1, and "0.1 µF in series with 10 µF."
 
   Conductor gauge assumed 28 AWG (JST-SH cables vary — flag); even at thinner gauge
   the drop stays single-digit mV, and the on-board 1.0 mm 3V3 trace carries 40 mA
-  trivially. **But** the OLED adds a charge-pump switching load downstream of C1, so
-  the optional **10 µF X7R in parallel** at C1/PH1 (§6.1, §12.1 item 5) now earns its
-  place as cheap insurance — populate it if the add-on is built.
+  trivially.
+
+  > **Correction (2026-07-27).** This section previously argued that the OLED's
+  > charge-pump switching load downstream of C1 is what "earns" a bulk cap. That
+  > reasoning is wrong, and it is what generated both of the rejected C1 proposals in
+  > §6.1. The charge-pump switching content **cannot reach C1**: it is behind (a) the
+  > 938's own onboard 3.3 V regulator and its caps, and (b) ~0.84 Ω of cable impedance
+  > at charge-pump frequency. What does reach the board is the OLED's load *envelope*,
+  > and even that is soft — the SSD1306 datasheet specifies SEG/COM coming on 100 ms
+  > after the display-ON command, a 0.4 A/s ramp the regulator loop tracks trivially.
+  > C1 is now a 10 µF (§6.1) for margin and simplicity, **not** because a diagnosed
+  > ripple problem exists.
 
 - **USB-C cabling caveat:** a USB-C **source** only enables VBUS after detecting the
   sink's CC pull-downs (Rd). The XIAO's CC-resistor population was **not** confirmed
@@ -325,6 +403,8 @@ All figures below were checked against primary/manufacturer sources on 2026-07-0
 | SHT45 T accuracy | ±0.1 °C typ. (0–75 °C) | Sensirion / Adafruit product page |
 | SHT45 long-term drift | < 0.20 %RH / yr | Sensirion SHT4x datasheet / humidity brochure |
 | SHT45 repeatability (high) | 0.08 %RH (3σ) → ~0.027 %RH (1σ) noise | SHT4x datasheet Table 1 |
+| SHT45 RH state resolution | 125/65535 = **0.0019 %RH** per LSB (16-bit conversion) — **not** 0.01; `accuracy_decimals: 2` is a display hint only | Sensirion SHT4x conversion formula |
+| SHT45 T repeatability (high) | 0.04 °C (3σ) → ~0.013 °C (1σ) — **UNVERIFIED this rev**, used for the §10.4 T-slope noise floor; confirm against SHT4x Table 1 | (to verify) |
 | SHT45 hysteresis | ±0.8 %RH at 25 °C (deterministic, not filterable) | SHT4x datasheet Table 1 |
 | SHT45 high-rep measurement duration | 6.9 ms typ (`tMEAS,h`) | SHT4x datasheet Table 5 |
 | SHT45 RH response time | 4 s τ63 @ 1 m/s airflow (longer in still air) | SHT4x datasheet Table 1, fn 9 |
@@ -520,8 +600,39 @@ this is purely bus routing + mounting. Confidence flagged per item, per §9.2 st
   heat; keep it well away from the external SHT45 cluster (different face / the lid) so it
   cannot bias the RH/T the whole design isolates for. The VEML7700's ~0.5 mA is
   thermally irrelevant.
-- **Chain routing & penetration — open:** the bus now has two more legs (SHT45→OLED,
-  OLED→VEML7700 — order electrically arbitrary, set by physical convenience). Each
+- **Chain order — DECIDED 2026-07-27: PH1 → SHT45 → VEML7700 → 938 OLED.**
+  (Supersedes the earlier SHT45→OLED→VEML7700 ordering in the §2 diagram.) Electrically
+  the order is still arbitrary — addresses, pull-ups and bus capacitance are all
+  position-independent. Only supply drop is order-dependent, and it is negligible:
+
+  ```
+  Segment loop R (28 AWG, 0.213 Ω/m, VIN+GND):
+    150 mm (PH1→SHT45):  0.213 × 0.15 × 2 = 0.064 Ω
+    200 mm QT-to-QT:     0.213 × 0.20 × 2 = 0.085 Ω
+  OLED after 2 segments: 0.149 Ω → 40 mA × 0.149 = 6.0 mV
+  OLED after 3 segments: 0.234 Ω → 40 mA × 0.234 = 9.4 mV   (delta 3.4 mV)
+  ```
+
+  The order is chosen for two **mechanical / degradation** reasons instead:
+
+  1. **The OLED is terminal because the cover is removable.** The 938 mounts flush
+     inside the clear cover; putting it last means opening the box breaks one link at
+     the end of the chain. With the OLED mid-chain, lifting the cover would also orphan
+     the VEML7700.
+  2. **The control-path sensor is first.** The SHT45 feeds the 49/46 band and the stall
+     detector. At the head of the chain, both presentation-only devices can be
+     unplugged, removed, or fail open without touching anything control depends on —
+     the degradation ladder expressed in the wiring order: presentation sheds first,
+     control survives last.
+
+  **Limit of that benefit:** ordering does **not** protect against a latched bus. If the
+  OLED's charge pump hangs holding SDA low, the SHT45 dies with it regardless of
+  position. That remains §12.1 item 3 (GPIO-switched sensor power) — the only fix that
+  cuts a stuck device loose — and the three-device chain makes that case stronger, not
+  weaker. Rev 2.3's SDA release (§10.4) improves the bus-clear but does not replace it.
+
+- **Chain routing & penetration — open:** the bus now has two more legs (SHT45→VEML7700,
+  VEML7700→OLED). Physical route is side wall → enclosure top → clear cover. Each
   external board needs its QT cable routed to it; plan the added runs alongside the
   existing single back-panel grommet (§9.2), or add penetrations. Verify reach with the
   physical cable before drilling; 200/300 mm QT-to-QT (4401/5384) are the stock lengths.
@@ -533,8 +644,9 @@ this is purely bus routing + mounting. Confidence flagged per item, per §9.2 st
 ## 10. Firmware
 
 - **Platform:** ESPHome (native API; commented MQTT alternative). Deliverable:
-  `basement-th-node.yaml` (**Rev 2.1**, 2026-07-20 — §10.2; Rev 2.0 policy below is
-  unchanged).
+  `basement-th-node.yaml` (**Rev 2.3**, 2026-07-27 — §10.4, on top of Rev 2.2 §10.3 and
+  Rev 2.1 §10.2; the Rev 2.0 sensor/control-path policy below is unchanged through all
+  of them).
 - **I²C:** `sda: GPIO6`, `scl: GPIO7`, `frequency: 100000`, `timeout: 50ms`.
 - **Sensor:** `sht4x` platform, address `0x44`, `precision: High` (→ 0xFD
   high-repeatability read, 0.08 %RH noise), `update_interval: 10s`.
@@ -691,6 +803,154 @@ HA `input_number` snippet passed layered parse validation (YAML parse + duplicat
 detection + schema lint, strict) — **parse-clean**; run `hass --script check_config` on
 the HA host before restart, per the HA validator's assurance levels.
 
+### 10.3 Rev 2.2 — Diagnostics + Silent-Failure Coverage (2026-07-27, validated 2026-07-27)
+
+Six additions, all on the presentation/diagnostic path. **The RAW-RH control policy in
+§10 is untouched** — none of the new entities may be consumed by the 49/46 band or the
+HA stall detector, same rule as the smoothed-RH entity and the display.
+
+- **Stuck-value detection — closes a genuine silent failure.** The §10 watchdog checks
+  read *staleness* (`last_read_ms`), not value *variation*. A frozen SHT45 keeps
+  answering I²C, so `i2c_healthy` stays true indefinitely while control acts on a dead
+  number. Nothing in Rev 2.1 caught this. Sensor noise makes the test unambiguous:
+
+  ```
+  RH state resolution = 125/65535 = 0.0019 %RH   (§8 — NOT the 0.01 display value)
+  σ = 0.027 %RH  →  σ_diff = 0.038
+  P(two consecutive reads identical) = 0.0019/(0.038·√2π) = 0.0198
+  P(30 identical in a row) = 0.0198²⁹ ≈ 1e-49
+  ```
+
+  30 byte-identical consecutive reads (5 min) sets `rh_stuck`.
+  **Deliberately NOT wired to the recovery reboot.** A stuck sensor still updates
+  `last_read_ms`, so the §10.2 one-shot guard would not hold and the node would
+  boot-loop every 120 s. Stuck drives the fault LED strobe and both fault entities
+  (`Basement Sensor Fault`, plus its own `Basement RH Stuck`) — it is a
+  replace-the-part fault, not a reboot fault.
+
+- **On-node RH slope, least squares, 15 + 30 min.** A real regression, not the
+  endpoint-difference an HA `derivative` reduces to:
+
+  ```
+  σ_regression = σ√12/(T√N)          σ_endpoint = σ√2/T
+    15 min (N=90,  T=0.25 h):  0.0394  vs  0.153   → 3.9× better  → 7.6σ vs 0.3 %/h
+    30 min (N=180, T=0.50 h):  0.0139  vs  0.076   → 5.5× better  → 21σ
+  ```
+
+  Monte-Carlo verified over 4,000 synthetic windows: observed σ 0.0397 / 0.0139 against
+  predicted 0.0394 / 0.0139; noiseless slope recovery exact; both guards
+  (`<3 samples`, `sxx≈0`) return NaN. Timestamps are stored rather than assuming uniform
+  spacing, because `filter_out: nan` silently breaks even spacing on a dropped read.
+  `millis()` rollover (~49.7 d) is detected and drops the window.
+  **This is a floor from sensor noise only** — real air movement exceeds it. Take the
+  operating σ from observed data (dehumidifier off, basement stable) and set any alert
+  limit at 3σ of *that*, per the SPC methodology used elsewhere.
+
+- **Absolute humidity (native `absolute_humidity` platform) + its 30-min slope.**
+  RH alone cannot answer "is the dehumidifier removing water." A stalled unit with a
+  running fan warms the air, and warming alone drops RH:
+
+  ```
+  At constant AH, RH ∝ 1/P_sat(T);  d(ln P_sat)/dT = 17.67×243.5/(T+243.5)²
+  At 18 °C:  4302.6/68,382 = 0.0629 /°C
+  d(RH)/dT = −50 %RH × 0.0629 = −3.15 %RH per °C
+  → only +0.095 °C/hr fakes the 0.3 %/hr stall threshold with zero water removed
+  ```
+
+  d(AH)/dt has no such confound. Sanity check of the platform output: 18 °C / 50 %RH →
+  7.68 g/m³ (expected ~7.7). ✔
+
+- **Display on/off published** as a binary_sensor with `update_interval: never`, pushed
+  at the three real transitions (lux wake, blank timer, max-on probe) plus boot. Polling
+  would badly lag a panel that toggles off 2 s lux readings.
+
+- **Self-glow latch counter — turns §9.3's "accepted and bounded" into a measurement.**
+  After a max-on probe blank, a re-wake within 6 s means the light was genuine ambient
+  (the panel was dark and emitting nothing); no re-wake means the panel had been holding
+  itself on. Counted only when **pre-blank lux was above the wake threshold** — without
+  that gate, a genuine lights-off in the last `blank_min` before the 30-min probe would
+  be miscounted (~10 % false-positive rate). Non-zero and growing = the wake threshold
+  sits below the self-glow floor and must be raised.
+
+- **Lux recorder load.** The raw VEML sensor goes `internal: true` (2 s gating unchanged
+  — filters run *before* `on_value`, so throttling the sensor would have throttled the
+  wake logic). HA instead records per-minute min + max copies: **43,200 → 2,880 rows/day**,
+  and min/max is strictly more useful for the §11 four-reading tuning procedure than a
+  throttled spot sample. Live 2 s values remain visible via `esphome logs`.
+
+**Validation (Rev 2.2, esphome 2026.6.4 — the deployed version):** full
+`esp-firmware-validation` gate. Blast radius 3 changed lines, all intended; LF preserved.
+`esphome config` valid; codegen resolved all 28 new ids; standalone
+`g++ -std=c++17 -Wall -Wextra -Wformat` clean; real `esphome compile` →
+`src/main.cpp.o` **0 errors, 0 warnings**, full link, `firmware.bin` created.
+**RAM 13.1 → 14.3 %, Flash 53.3 → 53.9 %.** NVS `restore_value` globals 5 → 7.
+
+### 10.4 Rev 2.3 — External Review Dispositions (2026-07-27, validated 2026-07-27)
+
+An external review of Rev 2.2 produced ~20 items. Five held up and are implemented here;
+the rest are dispositioned below so they are not re-litigated.
+
+**Implemented:**
+
+- **Bus-clear now actually releases SDA — the one real defect found.** Since Rev 2.1 the
+  comment read "9 SCL pulses with SDA released", but the code only ever touched GPIO7.
+  GPIO6 stayed owned by the IDF I²C peripheral, so if the **master** was mid-transaction
+  driving SDA low, clocking SCL freed nothing — the master was half the problem. Now
+  `gpio_reset_pin(GPIO_NUM_6)` + `GPIO_MODE_INPUT` (high-Z, bus pull-up takes it high)
+  runs *before* the SCL setup. Verified present in executable generated C++, not just the
+  echoed comment.
+- **Temperature slope, 30 min, same regression** (`Basement Temp Rate 30m`). Completes the
+  diagnostic triangle: **dAH ≈ 0 AND dT > 0 AND dRH < 0 = warming, not drying**, identified
+  positively rather than by elimination from the AH slope alone.
+
+  ```
+  Assuming T repeatability 0.04 °C (3σ) → 0.013 °C (1σ)   ← §8, UNVERIFIED, confirm
+  σ_slope = 0.013 × √12/(0.5 × √180) = 0.0067 °C/h
+  → the 0.095 °C/h that fakes 0.3 %RH/h reads at ~14σ
+  ```
+
+- **`loop_time`** on the existing `debug:` component — with three devices on the chain,
+  the right sensor for catching I²C blocking.
+- **`esphome: project:`** (`wkcollis1.basement-th-node` / `2.3`) — auto-published to HA
+  device info, and cannot drift the way a hand-maintained version string does. Plus a
+  `version` text sensor so the **deployed ESPHome version is legible in HA**, which is
+  what makes this document's standing "re-validate if the version differs" rule
+  enforceable without a serial console.
+- **Resolution comment corrected in place.** `accuracy_decimals: 2` is a display hint,
+  not the state resolution; the float carries 125/65535 = 0.0019 %RH. Margin is ~1e-49,
+  not the 1e-24 previously written. Conclusion unchanged, arithmetic fixed — and the
+  comment now records *why* exact `float ==` is correct here (an epsilon above the
+  quantum would start admitting live readings).
+
+**Rejected, with reasons (do not re-open without new evidence):**
+
+| Review item | Disposition |
+|---|---|
+| Ring-buffer precision: subtract t0 | Valid for `float`; the code is `double`. Sum of 180 timestamps maxes at 7.73e11 vs double's exact-integer limit 9.01e15 — 4 orders of margin. Verified exact at millis bases 0, 2³¹ and 4.294e9 |
+| NVS wear from the probe counters | Off by ~2 orders. NVS is log-structured with wear levelling: ~126 entry updates per 4 KB page erase → 17,520 writes/yr ÷ 126 = 139 erases/yr ≈ 700 yr at 100 k cycles. The 17.5 k/yr figure also assumes the probe fires continuously |
+| `display_on_bs` forward reference | Empirically disproven — full compile on 2026.6.4, 0 errors. ESPHome parses the whole config before codegen; YAML order cannot cause this |
+| `on_boot` priority −100 → 600 | Semantics inverted: higher priority runs *earlier*; −100 is `LATE`, after all component setup. The proposed change would **create** the display-init race it was meant to fix |
+| Lux dual threshold / hysteresis | Auto-gain step is ~46 lx, threshold is 12 lx — not adjacent, cannot bounce. The `mode: restart` blank timer already gives 3 min of continuous-below-threshold hysteresis, stronger than a second threshold |
+| Outlier rejection before control | Premise fails: Sensirion wire protocol is CRC-8 per word and ESPHome verifies it (`sensirion_common/i2c_sensirion.cpp` → `ERROR_CRC`, read fails, no publish). A bit flip cannot produce a wrong value. The fix would also insert a filter into the raw control path, which §10 policy forbids |
+| `EPS` instead of exact `float ==` | `EPS = 0.0001f` is below the 0.0019 %RH quantum — bit-identical behaviour, a no-op. Rationale also inverted: an epsilon *above* the quantum is what breaks the detector |
+| Self-glow window 6 s → 10 s | Harmless but unnecessary; the reasoning ("if HA is busy") is wrong — `on_value` fires from the node's own loop. Worst realistic latency 2 s poll + 800 ms integration ≈ 3 s, so 6 s already has 2× margin |
+| `it.fill(COLOR_OFF)` per page | Redundant — `Display::do_update_()` calls `clear()` when `auto_clear_enabled_` is set, which is the default and is not disabled here |
+| 938 address may be 0x3C | Contradicts this document's own investigation (ADDR-open = 0x3D, matching the battery-bank board's 938) with no source offered; `scan: true` settles it on the bench regardless |
+| `esp32_ble_tracker` (twice) | Not applicable — BLE is not enabled, and a component is not added in order to disable it |
+| Native `number` instead of HA import | Legitimate alternative architecture, not a defect. Rev 2.1 deliberately chose HA as source of truth with NVS mirroring; the NaN window it would close is already covered by the firmware defaults on a factory-fresh flash |
+
+**Validation (Rev 2.3, esphome 2026.6.4 — the deployed version):** full gate. Blast radius
+3 changed lines (exactly the corrected resolution comment), everything else additive; LF
+preserved; NVS unchanged at 7. `esphome config` valid; all 7 new ids resolved, SDA release
+confirmed in executable C++; standalone `g++ -Wall -Wextra -Wformat` clean; real
+`esphome compile` → `src/main.cpp.o` **0 errors, 0 warnings**, `[SUCCESS] Took 186.47 s`,
+full program compiled. **RAM 14.3 → 14.9 % (48,748 B), Flash 53.9 → 54.1 %.**
+
+> Process note: the standalone g++ step failed on first run — a **harness** ordering
+> artifact (new stubs appended below the function using them, which does not match
+> generated file-scope order), not a firmware defect. Recorded because a harness
+> artifact reported as a firmware fault is exactly what makes these gates untrustworthy.
+
 ---
 
 ## 11. Pre-Fabrication Checklist
@@ -753,8 +1013,9 @@ the HA host before restart, per the HA validator's assurance levels.
 - [ ] i2c-scan the assembled chain: confirm 0x44 (SHT45), **0x3D** (OLED, expected — 0x3C
       only if the ADDR jumper is bridged), 0x10 (VEML7700) — no collision, addresses match
       firmware (§5).
-- [x] Confirmed 10K (STEMMA QT schematic, R3 array; QT-side to V+, logic-side to 3V3),
-- [x] Confirmed the 938 SPI/I²C jumpers are at I²C (ships I²C by default — do not cut).
+- [ ] Confirm the 938 OLED's onboard I²C pull-up value; re-check R_eff if not ~10 K
+      (§5 combined-pull-up math assumes ~10 K).
+- [ ] Confirm the 938 SPI/I²C jumpers are left at I²C (ships I²C by default — do not cut).
 - [ ] Tune the lux **wake threshold** in the final mounted position — now a slider
       (`input_number.basement_display_lux_wake`, no reflash; §10.2) — from **four**
       readings: lights-on / night-dark / midday leak / **lights-off with the display
@@ -771,13 +1032,42 @@ the HA host before restart, per the HA validator's assurance levels.
       `hass --script check_config` before restart (§10.2).
 - [ ] Verify chain cable lengths against the physical routes before drilling any added
       penetration (§9.3); QT-to-QT stock 200/300 mm (4401/5384).
-- [ ] Populate the optional 10 µF X7R at C1/PH1 given the OLED switching load
-      (§7, §6.1, §12.1 item 5).
+- [x] C1 disposition **RESOLVED 2026-07-27**: single **10 µF C324C106K3R5TA** in the
+      C1 footprint; the 0.1 µF C315C104K5R5TA is **not** fitted, and no second cap is
+      added at PH1 (§6.1). The §7 charge-pump justification that motivated the pair was
+      itself wrong — see the §7 correction.
+- [ ] At assembly: confirm the C324 body (5.08 × 4.07 mm on 2.54 mm lead pitch,
+      1.27 mm overhang per side) clears the C1 courtyard toward PH1 — the footprint was
+      drawn for the smaller C315 case.
 - [x] Display firmware through the `esp-firmware-validation` gate — **passed 2026-07-18**
       (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` linked a
       full image, `main.cpp.obj` 0 errors, §10.1). ~~Re-run on the deployed 2026.6.4.~~
       **Closed by Rev 2.1 (2026-07-20): full gate passed on the deployed 2026.6.4**
       (`src/main.cpp.o` 0 errors, full image, RAM 13.1 % / Flash 53.3 %, §10.2).
+
+**Firmware Rev 2.2 / 2.3 (2026-07-27):**
+
+- [x] Rev 2.2 through the full `esp-firmware-validation` gate on the deployed 2026.6.4 —
+      config valid, 28 ids resolved, g++ clean, `main.cpp.o` 0 errors, full link
+      (RAM 14.3 % / Flash 53.9 %, §10.3).
+- [x] Rev 2.3 through the full gate on the deployed 2026.6.4 — `[SUCCESS]`, full program
+      compiled, `main.cpp.o` 0 errors (RAM 14.9 % / Flash 54.1 %, §10.4).
+- [x] Bus-clear SDA release verified present in **executable** generated C++, ahead of
+      the SCL setup (§10.4).
+- [ ] Verify SHT4x **temperature** repeatability against datasheet Table 1 — §8 records
+      the RH figure but not T, and the §10.4 T-slope noise floor (0.0067 °C/h) assumes
+      0.04 °C (3σ). Conclusion is robust to a factor of 2, but the row should be sourced.
+- [ ] After a week of data: compute the **observed** σ of `Basement RH Rate 30m` with the
+      dehumidifier off and the basement stable; set any diagnostic alert limit at 3σ of
+      that, not at the §10.3 sensor-noise floor.
+- [ ] Watch `Display Self-Glow Latches` vs `Display Max-On Probes`. Non-zero and growing
+      = raise `input_number.basement_display_lux_wake` (§10.3, §9.3).
+- [ ] Confirm the dehumidifier control automation has a **defined behaviour when
+      `sensor.basement_humidity` is `unavailable`** (node offline: WiFi, power, brick).
+      `Basement Sensor Fault` goes unavailable with everything else, so nothing fires.
+      Add an HA alert on `binary_sensor.node_status` off for >5 min.
+- [ ] Baseline `Node Loop Time` and `Node Free Heap` after a week so blocking and slow
+      leaks show as drift rather than as a surprise reboot.
 
 ---
 
@@ -802,13 +1092,24 @@ the HA host before restart, per the HA validator's assurance levels.
 - **Display/light-sensor add-on — RESOLVED (2026-07-18):** OLED address settled on
   **0x3D** (938 ADDR-open default; shipped firmware uses it; scan still confirms hardware,
   §5); display firmware **validated** through the full gate (§10.1, checklist §11).
-- **Display/light-sensor add-on — still open:** (a) 938 OLED pull-up value unconfirmed
-  (assumed ~10 K, §5); (c) mounts **decided 2026-07-20** — VEML7700 on the enclosure top,
-  OLED flush inside the clear cover (§9.3) — but datums/window not yet dimensioned;
-  (d) chain routing/penetrations not yet planned; (e) lux wake threshold now
-  **runtime-tunable from HA** (Rev 2.1, §10.2) but not yet tuned in place (four-reading
-  procedure, §11). None of these touch
-  the Rev C PCB — the board can fab as-is, independent of the add-on.
+- **938 OLED pull-up — RESOLVED:** confirmed **10 K** from the STEMMA QT schematic
+  (R3 array), 2026-07-18. The §5 combined figure (R_eff ≈ 2.4 K) is measured-basis, not
+  assumed.
+- **C1 value — RESOLVED (2026-07-27):** single 10 µF C324C106K3R5TA, no 0.1 µF, no second
+  cap at PH1 (§6.1). The §7 reasoning that motivated a bulk cap was wrong and is corrected
+  in place.
+- **Chain order — RESOLVED (2026-07-27):** PH1 → SHT45 → VEML7700 → OLED, fixed for
+  mechanical/degradation reasons rather than electrical ones (§9.3).
+- **Display/light-sensor add-on — still open:** (c) mounts **decided 2026-07-20** —
+  VEML7700 on the enclosure top, OLED flush inside the clear cover (§9.3) — but
+  datums/window not yet dimensioned; (d) chain routing/penetrations not yet planned;
+  (e) lux wake threshold **runtime-tunable from HA** (Rev 2.1, §10.2) but not yet tuned
+  in place (four-reading procedure, §11). None of these touch the Rev C PCB.
+- **SHT4x T repeatability unsourced** — used for the §10.4 T-slope noise floor; §8 flags
+  it, §11 tracks it.
+- **Control-loop behaviour on node loss is unverified** — the node has no actuator, so a
+  dead node means the dehumidifier control loses its input entirely. What the HA
+  automation does with `unavailable` has not been checked (§11).
 
 ### 12.1 Rev C Candidate Changes (logged 2026-07-04 — none justify a respin)
 
@@ -824,9 +1125,11 @@ the HA host before restart, per the HA validator's assurance levels.
    Largest available I²C robustness gain: an ESP reboot alone does **not** cycle
    the sensor rail.
 4. **Upsize the two 0.6/0.3 mm vias to 0.7/0.3 mm** — annular margin 5.9 → 7.9 mil.
-5. *(Optional)* **10 µF MLCC in parallel at C1/PH1** — see §6.1; earns its place if the
-   SHT45 heater is ever enabled **or** the 938 OLED add-on is built (its charge-pump
-   switching load downstream of C1 makes the bulk cap cheap insurance — §7).
+5. ~~*(Optional)* **10 µF MLCC in parallel at C1/PH1**~~ — **RESOLVED 2026-07-27, and
+   the stated reason was wrong.** C1 is now simply a 10 µF (C324C106K3R5TA) on its own;
+   nothing is added at PH1, because C1 and PH1.1/1.2 are the same node (~2 nH apart).
+   The charge-pump justification does not survive inspection — that switching content is
+   behind the 938's own regulator and ~0.84 Ω of cable and never reaches C1 (§6.1, §7).
 
 ---
 
@@ -834,6 +1137,7 @@ the HA host before restart, per the HA validator's assurance levels.
 
 | Date | Change |
 |---|---|
+| 2026-07-27 | **Rev C PCB fabricated; assembly. Firmware Rev 2.2 + Rev 2.3. Three standing errors corrected.** New §10.3 (Rev 2.2: stuck-value detection with the reboot path deliberately excluded to avoid a boot loop; on-node least-squares RH slopes at 15/30 min, Monte-Carlo verified; native `absolute_humidity` + 30-min slope removing the −3.15 %RH/°C warming confound; display on/off entity pushed at transitions; self-glow latch counter with a pre-blank lux gate; lux recorder load 43,200 → 2,880 rows/day). New §10.4 (Rev 2.3: **bus-clear now actually releases SDA** — the code had never touched GPIO6 despite the comment claiming otherwise since Rev 2.1; 30-min temperature slope completing the dAH/dT/dRH triangle; `loop_time`; `esphome: project:` + `version` text sensor; corrected resolution arithmetic), plus a rejected-items table dispositioning 12 external-review points. Both revs through the full gate on the deployed 2026.6.4 (RAM 14.9 %, Flash 54.1 %). **§6.1 correction:** the 100 nF Sensirion requirement was never "met twice over" — C1 is 190 mm from the sensor and cannot satisfy it; met once, on the breakout. **§7 correction:** the OLED charge-pump load does *not* justify board-side bulk — it is behind the 938's own regulator and ~0.84 Ω of cable. **§8:** RH state resolution corrected to 0.0019 %RH (`accuracy_decimals` is a display hint); T repeatability row added and flagged unsourced. **C1 = single 10 µF C324C106K3R5TA**, 0.1 µF not fitted, no second cap at PH1 (§3 BOM, §6.1 disposition, §12.1 item 5 closed). **Chain order fixed** to PH1 → SHT45 → VEML7700 → OLED for mechanical/degradation reasons (§2 diagram, §9.3). 938 pull-up flag cleared — confirmed 10 K (§5, §12). |
 | 2026-07-20 | **Firmware Rev 2.1 (display resilience + HA-tunable parameters) + mount decisions.** New §10.2. Review finding closed: WiFi outage → 15-min reboot cycle → `homeassistant`-imported thresholds NaN → band readout dead for the outage's duration; fixed by mirroring both RH thresholds into `restore_value` globals (page 2 reads the globals — band now survives node reboots of any cause). Display parameters (lux wake / blank min / contrast %) moved to HA `input_number`s (source of truth) mirrored to persisted globals with firmware defaults 12 lx / 3 min / 30 %; HA-side entries in `basement-th-node-input-numbers.yaml` (parse-validated; merge into existing `input_number:` block). §10.1 mitigations implemented: contrast dim (30 % default, runtime `set_contrast`, 15 % floor) + 8-position pixel-shift (Y capped +1 px for the y=44 row). New **30-min max-on probe** bounds OLED self-glow latch-up (§9.3, §10.2). Also: smoothed-RH entity → `platform: copy` (phase-locked); best-effort 9-pulse SCL bus-clear before the recovery reboot; free-heap diagnostic; heartbeat blip 100→200 ms. Validated on the **deployed 2026.6.4**: full gate + full link, `src/main.cpp.o` 0 errors, RAM 13.1 % / Flash 53.3 % (closes the §11 re-validate item). Mounts decided (§9.3): VEML7700 flat on the **enclosure top** (window out into the room; back-mount looking up rejected — dark shelf underside), OLED **flush inside the clear cover**; datums still TBD. §11: stale-watchdog-guard + diagnostics items closed; lux tuning is now a four-reading slider procedure (adds lights-off/display-on self-glow reading). |
 | 2026-07-18 | **Reconciliation after the add-on firmware was built + validated.** OLED address corrected **0x3C → 0x3D** throughout (§2 diagram, §3 BOM, §5, §10.1, §11) — the 938 ships ADDR-open = 0x3D and the shipped firmware + the battery-bank board's 938 both use it (0x3C only if the jumper is bridged; scan still confirms). §10.1 marked **validated** (esphome 2026.7.0: config valid, g++ lambda check clean, `esphome compile` → full image, `main.cpp.obj` 0 errors, RAM 32.3 % / Flash 53.0 %); display lambdas use `std::isnan` (node convention), not bare `isnan`; re-validate on deployed 2026.6.4. §10.1 content/auto-blank updated to the shipped design (two 3-row pages, `font_lg` 18 px, rows y=0/22/44; °F on-glass; on-node band from HA `input_number.dehumidifier_rh_on/off_threshold`; wake ≥ 12 lx + 3-min restart-timer blank). §11/§12: address + validation items closed; still open — 938 pull-up value, OLED/VEML7700 mounts, chain routing, 12 lx tuning. |
 | 2026-07-18 | **Display + ambient-light add-on (STEMMA QT daisy-chain), no PCB change.** Added Adafruit 938 1.3″ 128×64 OLED (SSD1306, I²C 0x3C/0x3D, ~25–40 mA, dual-QT) and Adafruit 5378 right-angle VEML7700 lux sensor (I²C 0x10 fixed, verified Vishay datasheet; 4.7 K pull-ups; senses parallel to PCB) onto the existing bus by chaining through each breakout's 2nd QT port (§2 diagram, §3 BOM). §5: three-device address map (no collisions, scan to confirm) + combined pull-up math (10 K ‖ ~10 K ‖ 4.7 K ≈ 2.4 K → stiffer/faster bus, 100 kHz keeps margin). §7: OLED current path + cable-drop (~6.8 mV) + budget (~160–170 mA awake worst case vs 700 mA reg); optional 10 µF now justified. New §9.3 (VEML7700 right-angle, room-facing from a recessed corner — decided; OLED lid/external + thermal separation from SHT45 — open) and §10.1 (SSD1306 not SH1106; `veml7700` platform; lux-gated `display.turn_off/on` with hysteresis/debounce; burn-in mitigations: black bg, dim, page-rotate, pixel-shift). Verified this rev: VEML7700 = 0x10 (Vishay), 938 = SSD1306 / default-I²C / dual-QT / ~25–40 mA. Unconfirmed: 938 pull-up value (assumed ~10 K), 938 address 0x3C vs 0x3D (scan). Display firmware not yet through the validation gate. |

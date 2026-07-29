@@ -1,6 +1,68 @@
 # =============================================================================
 # Basement Temp/Humidity Sensor Node  —  XIAO ESP32-C3 + Adafruit SHT45 (PID 6174)
 # -----------------------------------------------------------------------------
+# Rev 2.4  (2026-07-27)
+# Rev 2.4 changes (basement failure modes, not node failure modes):
+#   * DROPPED-READ COUNTER: the staleness watchdog is binary -- healthy or stalled.
+#     An INTERMITTENT fault (corroding STEMMA crimp, marginal connector losing ~5 %
+#     of reads to CRC) never trips the 60 s watchdog and is invisible today. This
+#     counts MISSED READS, giving a continuous degradation metric that rises long
+#     before the bus actually stalls.
+#     NOTE ON MECHANISM: ESPHome's sht4x publishes NOTHING on a failed read --
+#     `sht4x.cpp` calls status_set_warning() and returns, so there is no NaN and
+#     `on_raw_value` never fires. Gap timing against last_read_ms is therefore the
+#     only mechanism available from YAML; we count whole missed intervals rather
+#     than gap events, so the number is a drop RATE, not a fault count.
+#   * RESET REASON: four distinct reboot paths exist (WiFi 15 min, I2C 120 s
+#     recovery, OTA, hardware watchdog) with no way to tell them apart. Uptime says
+#     a reboot happened; this says which one -- and makes the Rev 2.3 SDA fix
+#     measurable (BROWNOUT/WDT vs SOFTWARE distinguishes power from bus).
+#   * DISPLAY PAGE 3 -- the triangle on glass. Three slopes were computed on-node
+#     and shipped only to HA; the node could not be diagnosed standing in front of
+#     it with HA down. Shows the two UNCONFOUNDED rates (dAH, dT) plus the verdict.
+#     dRH is deliberately NOT on glass: it is the confounded number the verdict
+#     exists to disambiguate, and 128 px at 18 px font is ~13 characters.
+# Rev 2.3  (2026-07-27)
+# Rev 2.3 changes (external review dispositions -- the five that held up):
+#   * BUS-CLEAR NOW ACTUALLY RELEASES SDA. Rev 2.1's comment claimed "9 SCL
+#     pulses with SDA released" but the code only ever touched GPIO7. GPIO6 stayed
+#     owned by the IDF I2C peripheral, so if the MASTER was driving SDA low,
+#     clocking SCL freed nothing. gpio_reset_pin(GPIO_NUM_6) + INPUT first.
+#   * TEMPERATURE SLOPE (30 min, same regression): completes the diagnostic
+#     triangle. dAH ~ 0 AND dT > 0 AND dRH < 0 identifies warming-not-drying
+#     positively, instead of inferring it by elimination from the AH slope alone.
+#   * LOOP TIME diagnostic on the existing debug: component -- with three devices
+#     on the I2C chain this is the right sensor for catching bus blocking.
+#   * PROJECT NAME/VERSION via `esphome: project:` (auto-published, cannot drift
+#     from reality the way a hardcoded version string does) + a `version` text
+#     sensor so the DEPLOYED ESPHome version is visible in HA. That directly
+#     supports the "re-validate if the ESPHome version differs" discipline.
+#   * RESOLUTION COMMENT CORRECTED: accuracy_decimals is a DISPLAY hint, not the
+#     state resolution. The float carries the SHT4x conversion quantum,
+#     125/65535 = 0.0019 %RH -- not 0.01. The stuck detector's margin is ~1e-49,
+#     not the 1e-24 previously written. Conclusion unchanged, arithmetic fixed.
+# Rev 2.2  (2026-07-27)
+# Rev 2.2 changes (diagnostics + silent-failure coverage):
+#   * STUCK-VALUE DETECTION: a frozen SHT45 still answers I2C, so the staleness
+#     watchdog stays happy while control acts on a dead number. 30 byte-identical
+#     consecutive reads (5 min) -> rh_stuck. Drives the fault LED + fault entity
+#     but deliberately NOT the recovery reboot (a stuck sensor still updates
+#     last_read_ms, so routing it there would boot-loop).
+#   * ON-NODE RH SLOPE (least squares, 15 + 30 min): a real regression over the
+#     window, ~4-5x quieter than an endpoint-difference derivative at the same
+#     span. Diagnostic only -- does NOT feed control or the HA stall detector.
+#   * ABSOLUTE HUMIDITY (native absolute_humidity platform) + its 30-min slope.
+#     RH alone conflates drying with warming: at 18 C / 50 %RH, dRH/dT is about
+#     -3.15 %RH per degC, so +0.095 degC/hr of fan warming fakes 0.3 %RH/hr with
+#     zero water removed. d(AH)/dt has no such confound.
+#   * LUX RECORDER LOAD: raw VEML sensor -> internal (2 s gating unchanged);
+#     HA gets per-minute min + max copies. 43,200 -> 2,880 rows/day.
+#   * DISPLAY ON/OFF published as a binary_sensor, pushed at the real transitions
+#     (update_interval: never -- no polling lag against 2 s lux readings).
+#   * SELF-GLOW LATCH COUNTER: after a max-on probe blank, a re-wake within 6 s
+#     means the light was ambient; no re-wake (with pre-blank lux above the wake
+#     threshold) means the panel had been holding itself on. Turns the 9.3
+#     "accepted and bounded" assumption into a measured number.
 # Rev 2.1  (2026-07-20)
 # Rev 2.1 changes (display resilience + tuning):
 #   * RH band thresholds mirrored into restore_value globals -> page 2 band
@@ -38,6 +100,12 @@
 esphome:
   name: basement-th-node
   friendly_name: Basement TH Node
+  # Rev 2.3: auto-published to HA device info. Preferred over a hardcoded version
+  # string in a template text_sensor -- that drifts silently the first time it is
+  # not hand-updated; this cannot.
+  project:
+    name: "wkcollis1.basement-th-node"
+    version: "2.3"
   on_boot:
     priority: -100
     then:
@@ -45,6 +113,8 @@ esphome:
       - lambda: |-
           id(panel).turn_off();                              // OLED starts dark; lux gate wakes it
           id(panel).set_contrast(id(g_contrast_pct) / 100.0f);  // apply restored/default contrast
+          id(display_on_bs).publish_state(false);            // Rev 2.2: state is pushed, not polled
+          id(g_probe_pending) = false;                       // Rev 2.2: no probe in flight across a boot
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -142,6 +212,121 @@ globals:
     type: uint8_t
     restore_value: no
     initial_value: '0'
+  # --- Rev 2.2: stuck-value detection (volatile) ------------------------------
+  - id: rh_last_raw
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  - id: rh_same_count
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: rh_stuck
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # --- Rev 2.2: RH + AH ring buffers for on-node least-squares slope ----------
+  #     180 samples @ 10 s = 30 min. Timestamps stored (not assumed uniform):
+  #     filter_out: nan means a dropped read silently breaks even spacing.
+  - id: rh_hist
+    type: float[180]
+    restore_value: no
+  - id: rh_time
+    type: uint32_t[180]
+    restore_value: no
+  - id: rh_idx
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: rh_count
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: rh_last_push
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: ah_hist
+    type: float[180]
+    restore_value: no
+  - id: ah_time
+    type: uint32_t[180]
+    restore_value: no
+  - id: ah_idx
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: ah_count
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: ah_last_push
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: g_rh_slope_15
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  - id: g_rh_slope_30
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  - id: g_ah_slope_30
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  # --- Rev 2.2: self-glow latch instrumentation -------------------------------
+  - id: g_probe_blank_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: g_probe_pending
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: g_probe_lux_pre
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  - id: g_selfglow_latches
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
+  - id: g_probe_count
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
+  # --- Rev 2.3: temperature ring buffer (same 180 x 10 s = 30 min window) ------
+  - id: t_hist
+    type: float[180]
+    restore_value: no
+  - id: t_time
+    type: uint32_t[180]
+    restore_value: no
+  - id: t_idx
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: t_count
+    type: uint16_t
+    restore_value: no
+    initial_value: '0'
+  - id: t_last_push
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: g_t_slope_30
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  # --- Rev 2.4: dropped-read counter (lifetime, persisted) --------------------
+  # Monotonic on purpose: HA windows it (derivative/statistics). Segment across
+  # reboots using uptime + reset reason rather than resetting it here.
+  - id: g_rh_drops
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
 
 output:
   - platform: gpio
@@ -165,6 +350,19 @@ sensor:
       accuracy_decimals: 2
       filters:
         - filter_out: nan
+      on_value:
+        then:
+          - lambda: |-
+              // Rev 2.3: push T into its own ring buffer for the 30-min slope.
+              uint32_t now_ms = millis();
+              if (id(t_count) > 0 && now_ms < id(t_last_push)) {
+                id(t_idx) = 0; id(t_count) = 0;   // millis() rollover: drop window
+              }
+              id(t_last_push) = now_ms;
+              id(t_hist)[id(t_idx)] = x;
+              id(t_time)[id(t_idx)] = now_ms;
+              id(t_idx) = (id(t_idx) + 1) % 180;
+              if (id(t_count) < 180) id(t_count) += 1;
     humidity:
       name: "Basement Humidity"        # RAW — this is the control + stall entity
       id: basement_rh
@@ -174,8 +372,53 @@ sensor:
       on_value:
         then:
           - lambda: |-
-              id(last_read_ms) = millis();
+              uint32_t now_ms = millis();
+              // --- Rev 2.4: count MISSED READS before overwriting last_read_ms ---
+              // Why gap timing and not a failure hook: ESPHome's sht4x publishes
+              // nothing at all on a failed read (status_set_warning() + return, no
+              // NaN), so on_raw_value never fires and there is no publish to catch.
+              // Whole missed intervals are counted, so this is a drop RATE. Only
+              // drops BRACKETED by successful reads are counted -- a run that ends
+              // in the 120 s recovery reboot is the watchdog's case, and the Rev 2.4
+              // reset-reason sensor labels it.
+              if (id(last_read_ms) != 0 && now_ms > id(last_read_ms)) {
+                uint32_t gap = now_ms - id(last_read_ms);
+                if (gap > 15000) {                     // > 1.5x the 10 s update_interval
+                  id(g_rh_drops) += (gap + 5000) / 10000 - 1;   // round to whole intervals
+                }
+              }
+              id(last_read_ms) = now_ms;
               id(i2c_healthy) = true;
+              // --- Rev 2.2: stuck-value detection --------------------------------
+              // The watchdog below checks read STALENESS, not value VARIATION. A
+              // frozen SHT45 keeps answering, so i2c_healthy stays true forever and
+              // the 49/46 band + stall detector act on a dead number. Noise makes
+              // the test unambiguous.
+              // Rev 2.3 CORRECTION: accuracy_decimals: 2 is a DISPLAY hint, not the
+              // state resolution -- the float carries the SHT4x conversion quantum,
+              // 125/65535 = 0.0019 %RH. With sigma = 0.027 %RH (sigma_diff = 0.038):
+              //   P(two consecutive reads identical) = 0.0019/(0.038*sqrt(2*pi)) = 0.0198
+              //   P(30 identical in a row) = 0.0198^29 ~ 1e-49
+              // (previously written as 0.01 %RH / 0.148 / 1e-24 -- the margin is far
+              //  larger than claimed, so exact float == is the right comparison here;
+              //  an epsilon above the quantum would START admitting live readings.)
+              if (!std::isnan(id(rh_last_raw)) && x == id(rh_last_raw)) {
+                if (id(rh_same_count) < 60000) id(rh_same_count) += 1;
+              } else {
+                id(rh_same_count) = 0;
+              }
+              id(rh_last_raw) = x;
+              id(rh_stuck) = (id(rh_same_count) >= 30);   // 30 x 10 s = 5 min
+              // --- Rev 2.2: push RH into the slope ring buffer --------------------
+              // (now_ms declared above by the Rev 2.4 drop counter)
+              if (id(rh_count) > 0 && now_ms < id(rh_last_push)) {
+                id(rh_idx) = 0; id(rh_count) = 0;   // millis() rollover (~49.7 d): drop window
+              }
+              id(rh_last_push) = now_ms;
+              id(rh_hist)[id(rh_idx)] = x;
+              id(rh_time)[id(rh_idx)] = now_ms;
+              id(rh_idx) = (id(rh_idx) + 1) % 180;
+              if (id(rh_count) < 180) id(rh_count) += 1;
 
   # --- Dashboard-only smoothed humidity: median-5 (cosmetic spike rejection). --
   # Mirrors the RAW entity; NOT to be consumed by control or stall logic.
@@ -199,6 +442,100 @@ sensor:
     temperature: basement_temp
     humidity: basement_rh
 
+  # --- Rev 2.2: absolute humidity (native platform, Magnus/Buck internally). ---
+  # RH alone cannot answer "is the dehumidifier removing water": a stalled unit
+  # with a running fan warms the air, and warming alone drops RH. At 18 C / 50 %RH
+  # d(RH)/dT = -50 * (17.67*243.5/(18+243.5)^2) = -3.15 %RH per degC, so only
+  # +0.095 degC/hr is needed to fake the 0.3 %/hr stall threshold with zero water
+  # removed. Absolute humidity has no such confound.
+  - platform: absolute_humidity
+    name: "Basement Absolute Humidity"
+    id: basement_ah
+    temperature: basement_temp
+    humidity: basement_rh
+    accuracy_decimals: 3
+    on_value:
+      then:
+        - lambda: |-
+            uint32_t now_ms = millis();
+            if (id(ah_count) > 0 && now_ms < id(ah_last_push)) {
+              id(ah_idx) = 0; id(ah_count) = 0;   // millis() rollover: drop window
+            }
+            id(ah_last_push) = now_ms;
+            id(ah_hist)[id(ah_idx)] = x;
+            id(ah_time)[id(ah_idx)] = now_ms;
+            id(ah_idx) = (id(ah_idx) + 1) % 180;
+            if (id(ah_count) < 180) id(ah_count) += 1;
+
+  # --- Rev 2.2: on-node least-squares slopes. DIAGNOSTIC ONLY. -----------------
+  # Must NOT feed control or the HA stall detector (same rule as the smoothed RH
+  # entity and the display). Computed in the 60 s interval below; these just
+  # surface the globals.
+  - platform: template
+    name: "Basement RH Rate 15m"
+    id: rh_rate_15
+    unit_of_measurement: "%/h"
+    accuracy_decimals: 3
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return id(g_rh_slope_15);'
+  - platform: template
+    name: "Basement RH Rate 30m"
+    id: rh_rate_30
+    unit_of_measurement: "%/h"
+    accuracy_decimals: 3
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return id(g_rh_slope_30);'
+  - platform: template
+    name: "Basement Moisture Removal Rate 30m"
+    id: ah_rate_30
+    unit_of_measurement: "g/m³/h"
+    accuracy_decimals: 4
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return id(g_ah_slope_30);'
+  # Rev 2.3: the third leg of the triangle. dAH ~ 0 AND dT > 0 AND dRH < 0 =
+  # warming, not drying. Assuming SHT4x high-rep T repeatability 0.04 degC (3 sigma)
+  # -> 0.013 degC 1 sigma, the 30-min regression floor is
+  # 0.013*sqrt(12)/(0.5*sqrt(180)) = 0.0067 degC/h, so the 0.095 degC/h of warming
+  # that would fake the 0.3 %RH/h stall threshold reads at ~14 sigma.
+  - platform: template
+    name: "Basement Temp Rate 30m"
+    id: t_rate_30
+    unit_of_measurement: "°C/h"
+    accuracy_decimals: 4
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return id(g_t_slope_30);'
+  # Rev 2.4: lifetime dropped-read count. Flat = healthy. A slow steady climb is
+  # a degrading connection (corroding crimp, marginal QT seat) reporting itself
+  # long before the 60 s staleness watchdog would ever fire. Take the rate in HA.
+  - platform: template
+    name: "Basement Dropped Reads"
+    id: rh_drops
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    state_class: total_increasing
+    update_interval: 60s
+    lambda: 'return (float) id(g_rh_drops);'
+
+  # --- Rev 2.2: self-glow latch instrumentation (display tuning evidence). -----
+  - platform: template
+    name: "Display Self-Glow Latches"
+    id: selfglow_latches
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return (float) id(g_selfglow_latches);'
+  - platform: template
+    name: "Display Max-On Probes"
+    id: probe_count
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: 'return (float) id(g_probe_count);'
+
   # --- Diagnostics ------------------------------------------------------------
   - platform: wifi_signal
     name: "Node WiFi Signal"
@@ -212,6 +549,9 @@ sensor:
     free:
       name: "Node Free Heap"
       entity_category: diagnostic
+    loop_time:                 # Rev 2.3: three devices on the I2C chain now --
+      name: "Node Loop Time"   # this is what surfaces bus blocking.
+      entity_category: diagnostic
 
   # --- Ambient light (VEML7700 0x10) — gates the OLED wake/blank. ---------------
   # On the STEMMA QT daisy-chain. Auto gain/integration (default); reads a dim
@@ -222,6 +562,11 @@ sensor:
     ambient_light:
       name: "Basement Lux"
       id: basement_lux
+      internal: true          # Rev 2.2: 2 s gating kept, but 43,200 rows/day is
+                              # recorder bloat. HA gets the per-minute min/max
+                              # copies below (2,880/day) -- strictly more useful
+                              # for threshold tuning than a throttled spot sample.
+                              # Live 2 s values remain visible via `esphome logs`.
       on_value:
         then:
           - lambda: |-
@@ -234,14 +579,52 @@ sensor:
               // next reading (<=2 s blip under real lights, permanent sleep in a
               // truly dark room). Probe starts only on the off->on transition, so
               // routine re-arms never reset it.
+              // Rev 2.2: a re-wake within 6 s of a probe blank proves the light
+              // was GENUINE ambient (the panel was dark and emitting nothing).
+              // Clearing the pending flag here is what keeps it out of the
+              // self-glow tally closed by interval (6).
+              if (id(g_probe_pending) &&
+                  (millis() - id(g_probe_blank_ms)) < 6000 &&
+                  id(basement_lux).state >= id(g_lux_wake)) {
+                id(g_probe_pending) = false;
+              }
               if (id(basement_lux).state >= id(g_lux_wake)) {
                 if (!id(display_awake)) {
                   id(display_awake) = true;
                   id(panel).turn_on();
+                  id(display_on_bs).publish_state(true);   // Rev 2.2
                   id(max_on_probe).execute();        // single 30-min countdown per wake
                 }
                 id(display_blank_timer).execute();   // restart-mode: re-arms blank countdown
               }
+
+  # --- Rev 2.2: per-minute lux min/max for HA (30 samples x 2 s = 60 s). -------
+  # Recorded instead of the raw 2 s stream. min = the dark floor, max = the peak
+  # -- exactly the readings the 11 four-reading wake-threshold procedure wants.
+  - platform: copy
+    source_id: basement_lux
+    name: "Basement Lux Min 1m"
+    id: basement_lux_min
+    unit_of_measurement: "lx"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    filters:
+      - min:
+          window_size: 30
+          send_every: 30
+          send_first_at: 30
+  - platform: copy
+    source_id: basement_lux
+    name: "Basement Lux Max 1m"
+    id: basement_lux_max
+    unit_of_measurement: "lx"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    filters:
+      - max:
+          window_size: 30
+          send_every: 30
+          send_first_at: 30
 
   # --- Dehumidifier RH band thresholds, imported from HA (single source of truth).
   # Numeric input_number states; consumed ONLY by the page_status band readout
@@ -286,6 +669,24 @@ sensor:
               id(panel).set_contrast(x / 100.0f);   // applies immediately
             }
 
+text_sensor:
+  # Rev 2.3: makes the DEPLOYED ESPHome version visible in HA. The design doc's
+  # standing rule is "re-validate if the deployed version differs from the one
+  # that passed the gate" -- that rule needs the deployed version to be legible
+  # without opening a serial console.
+  - platform: version
+    name: "Node ESPHome Version"
+    entity_category: diagnostic
+  # Rev 2.4: four reboot paths exist (WiFi reboot_timeout 15 min, I2C recovery at
+  # 120 s, OTA, hardware watchdog). Uptime says a reboot happened; this says which.
+  # Also the readout that makes brownout worth having at all -- ESP-IDF enables
+  # brownout detection by default, so a failing brick or regulator shows up here as
+  # BROWNOUT instead of being misdiagnosed as a bus fault.
+  - platform: debug
+    reset_reason:
+      name: "Node Reset Reason"
+      entity_category: diagnostic
+
 binary_sensor:
   - platform: status
     name: "Node Status"
@@ -294,7 +695,23 @@ binary_sensor:
     device_class: problem
     entity_category: diagnostic
     lambda: |-
-      return !id(i2c_healthy);
+      return !id(i2c_healthy) || id(rh_stuck);   // Rev 2.2: stuck counts as a fault
+  # --- Rev 2.2 --------------------------------------------------------------
+  # Stuck gets its own entity so it is distinguishable from a bus stall in HA.
+  - platform: template
+    name: "Basement RH Stuck"
+    id: rh_stuck_bs
+    device_class: problem
+    entity_category: diagnostic
+    lambda: |-
+      return id(rh_stuck);
+  # Display state is PUSHED at the three real transitions (wake / blank timer /
+  # max-on probe) -- no lambda, no polling. A 60 s poll would badly lag a panel
+  # that toggles off 2 s lux readings.
+  - platform: template
+    name: "Basement Display On"
+    id: display_on_bs
+    entity_category: diagnostic
 
 interval:
   # (1) Stale-data watchdog: no successful read in 60 s -> mark unhealthy.
@@ -311,7 +728,11 @@ interval:
     then:
       - lambda: |-
           uint32_t now = millis();
-          bool healthy = id(i2c_healthy);
+          // Rev 2.2: the LED strobes on a stuck sensor too. The recovery reboot in
+          // interval (3) deliberately does NOT -- a stuck sensor keeps updating
+          // last_read_ms, so the one-shot guard there would not hold and the node
+          // would boot-loop. Stuck is a replace-the-part fault, not a reboot fault.
+          bool healthy = id(i2c_healthy) && !id(rh_stuck);
           uint32_t period = healthy ? 2000 : 200;
           uint32_t on_ms  = healthy ? 200 : 100;   // 200 ms blip: a 100 ms poll can't skip it
           if ((now % period) < on_ms) id(status_led_out).turn_on();
@@ -330,6 +751,16 @@ interval:
               // frees a slave stuck mid-byte holding SDA low -- an ESP reboot alone
               // does NOT (peripherals aren't power-cycled). Pin-matrix state after
               // this doesn't matter: we reboot immediately.
+              //
+              // Rev 2.3 FIX: release SDA FIRST. Through Rev 2.2 this comment claimed
+              // SDA was released but the code never touched GPIO6 -- it stayed owned
+              // by the IDF I2C peripheral. If the MASTER was mid-transaction driving
+              // SDA low, clocking SCL freed nothing, because the master was half the
+              // problem. gpio_reset_pin detaches the pin from the peripheral; INPUT
+              // leaves it high-Z so the bus pull-up can take it high and the slave
+              // can actually release.
+              gpio_reset_pin(GPIO_NUM_6);                          // SDA (D4)
+              gpio_set_direction(GPIO_NUM_6, GPIO_MODE_INPUT);     // high-Z
               gpio_reset_pin(GPIO_NUM_7);                          // SCL (D5)
               gpio_set_direction(GPIO_NUM_7, GPIO_MODE_OUTPUT_OD);
               gpio_set_level(GPIO_NUM_7, 1);
@@ -352,7 +783,66 @@ interval:
     then:
       - display.page.show_next: panel
 
-  # (5) Pixel-shift wear-leveling: walk the whole layout through 8 positions
+  # (5a) Rev 2.2 -- least-squares slopes over the ring buffers.
+  #      sigma_slope = sigma*sqrt(12)/(T*sqrt(N)) for a regression, vs sigma*sqrt(2)/T
+  #      for an endpoint difference. At sigma = 0.027 %RH, 10 s sampling:
+  #        15 min (N=90):  0.0394 %/h   (endpoint-difference equivalent: 0.153)
+  #        30 min (N=180): 0.0139 %/h   (endpoint-difference equivalent: 0.076)
+  #      vs the 0.3 %/h stall threshold -> 7.6 sigma and 21 sigma respectively.
+  #      Sensor noise only; real air movement will exceed it. Take the operating
+  #      sigma from observed data (dehumidifier off, basement stable) and set any
+  #      alert limit at 3 sigma of THAT.
+  - interval: 60s
+    then:
+      - lambda: |-
+          auto slope_hr = [](float *yv, uint32_t *tv, uint16_t idx,
+                             uint16_t count, uint16_t k) -> float {
+            const uint16_t cap = 180;
+            if (k > count) k = count;
+            if (k < 3) return NAN;
+            double sx = 0.0, sy = 0.0;
+            for (uint16_t j = 0; j < k; j++) {
+              uint16_t p = (uint16_t)((idx + cap - 1 - j) % cap);
+              sx += (double) tv[p];
+              sy += (double) yv[p];
+            }
+            double mx = sx / (double) k, my = sy / (double) k;
+            double sxx = 0.0, sxy = 0.0;
+            for (uint16_t j = 0; j < k; j++) {
+              uint16_t p = (uint16_t)((idx + cap - 1 - j) % cap);
+              double dx = (double) tv[p] - mx;
+              double dy = (double) yv[p] - my;
+              sxx += dx * dx;
+              sxy += dx * dy;
+            }
+            if (sxx < 1.0e-6) return NAN;
+            return (float) ((sxy / sxx) * 3600000.0);   // per ms -> per hour
+          };
+          id(g_rh_slope_15) = slope_hr(id(rh_hist), id(rh_time), id(rh_idx), id(rh_count), 90);
+          id(g_rh_slope_30) = slope_hr(id(rh_hist), id(rh_time), id(rh_idx), id(rh_count), 180);
+          id(g_ah_slope_30) = slope_hr(id(ah_hist), id(ah_time), id(ah_idx), id(ah_count), 180);
+          id(g_t_slope_30)  = slope_hr(id(t_hist),  id(t_time),  id(t_idx),  id(t_count),  180);
+
+  # (5b) Rev 2.2 -- close out a max-on probe. If nothing re-woke the panel within
+  #      6 s AND the pre-blank lux was above the wake threshold, that light was
+  #      not ambient: the display had been holding itself on. The pre-blank test
+  #      is what stops a genuine lights-off in the last blank_min minutes before
+  #      the probe from being miscounted as self-glow.
+  - interval: 2s
+    then:
+      - lambda: |-
+          if (id(g_probe_pending) && (millis() - id(g_probe_blank_ms)) > 6000) {
+            id(g_probe_pending) = false;
+            if (!std::isnan(id(g_probe_lux_pre)) &&
+                id(g_probe_lux_pre) >= id(g_lux_wake)) {
+              id(g_selfglow_latches) += 1;
+              ESP_LOGW("display", "self-glow latch #%u (pre-blank lux %.2f >= wake %.2f)",
+                       (unsigned) id(g_selfglow_latches),
+                       id(g_probe_lux_pre), id(g_lux_wake));
+            }
+          }
+
+  # (6) Pixel-shift wear-leveling: walk the whole layout through 8 positions
   #     (X 0-3 px, Y 0-1 px) every 5 min so glyph edges don't camp on fixed
   #     pixels. Y capped at +1: bottom row y=44 + 18 px font ends at px 63.
   - interval: 5min
@@ -421,6 +911,41 @@ display:
             it.printf(6+ox, 22+oy, id(font_lg), "Spread %.1f F", (t-dp)*9.0f/5.0f);
           it.printf(6+ox, 44+oy, id(font_lg), "Sensor %s", id(i2c_healthy) ? "OK" : "FAULT");
 
+      # Page 3 — the drying triangle, on glass (Rev 2.4). PRESENTATION ONLY.
+      # Shows dAH and dT (the two UNCONFOUNDED rates) plus a verdict. dRH is
+      # deliberately absent: it is the confounded number -- warming alone drops RH
+      # at -3.15 %RH/degC, so -0.3 %/h can mean drying OR just a running fan -- and
+      # it is exactly what the verdict exists to disambiguate. It stays in HA.
+      # Deadbands are ~3 sigma of each regression's noise floor:
+      #   dAH: sigma ~ 0.0037 g/m3/h  (RH and T noise propagated through AH) -> 0.012
+      #   dT : sigma ~ 0.0067 degC/h                                        -> 0.020
+      #   dRH: sigma ~ 0.0139 %/h                                           -> 0.050
+      # Re-derive all three from OBSERVED sigma after a week of quiet data, same as
+      # the stall-detector limit -- these are sensor-noise floors, not field values.
+      - id: page_rates
+        lambda: |-
+          const int ox = id(g_px) % 4;          // pixel-shift wear-leveling
+          const int oy = (id(g_px) / 4) % 2;
+          const float AH_DB = 0.012f, T_DB = 0.020f, RH_DB = 0.050f;
+          float ah = id(g_ah_slope_30);
+          float tr = id(g_t_slope_30);
+          float rr = id(g_rh_slope_30);
+          if (std::isnan(ah)) it.print (6+ox,  0+oy, id(font_lg), "AH --");
+          else           it.printf(6+ox,  0+oy, id(font_lg), "AH %+.3f", ah);
+          if (std::isnan(tr)) it.print (6+ox, 22+oy, id(font_lg), "T  --");
+          else           it.printf(6+ox, 22+oy, id(font_lg), "T  %+.2f", tr);
+          // Verdict. NaN for the first 30 min after boot while the ring buffers fill.
+          if (std::isnan(ah) || std::isnan(tr) || std::isnan(rr))
+            it.print(6+ox, 44+oy, id(font_lg), "Rates --");
+          else if (ah < -AH_DB)
+            it.print(6+ox, 44+oy, id(font_lg), "DRYING");      // water actually leaving
+          else if (ah > AH_DB)
+            it.print(6+ox, 44+oy, id(font_lg), "WETTING");     // water coming in
+          else if (tr > T_DB && rr < -RH_DB)
+            it.print(6+ox, 44+oy, id(font_lg), "WARMING");     // RH falling, AH flat
+          else
+            it.print(6+ox, 44+oy, id(font_lg), "STEADY");
+
 # Display auto-blank. restart mode: each above-threshold lux reading re-arms it.
 # Blank delay is HA-tunable (g_blank_min, default 3 min).
 script:
@@ -431,6 +956,7 @@ script:
       - lambda: |-
           id(panel).turn_off();
           id(display_awake) = false;
+          id(display_on_bs).publish_state(false);   // Rev 2.2
       - script.stop: max_on_probe
 
   # Max-on probe (self-latch breaker): started ONCE per off->on transition,
@@ -444,6 +970,14 @@ script:
     then:
       - delay: 30min
       - lambda: |-
+          // Rev 2.2: capture lux BEFORE blanking -- that reading still contains
+          // any OLED self-glow, and comparing it to the wake threshold is what
+          // makes the latch tally trustworthy (see interval 5b).
+          id(g_probe_lux_pre) = id(basement_lux).state;
           id(panel).turn_off();
           id(display_awake) = false;
+          id(display_on_bs).publish_state(false);
+          id(g_probe_blank_ms) = millis();
+          id(g_probe_pending) = true;
+          id(g_probe_count) += 1;
       - script.stop: display_blank_timer
