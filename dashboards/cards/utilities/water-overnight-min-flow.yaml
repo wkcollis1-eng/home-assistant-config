@@ -1,0 +1,208 @@
+# Water — Overnight Minimum Flow
+# ==============================================================================
+# Dashboard: SDR Meters. Source of truth: packages/utility_meters.yaml.
+#
+# WHAT THIS INSTRUMENT IS. The minimum consumption across five hourly bins
+# between 00:00 and 05:00 local. Nobody is drawing water on purpose, so a
+# leak-free house reads 0.00-0.02 gal/h. A RISING MINIMUM is the leak signal —
+# not any single value — which is why the 7-night mean is on the chart and why
+# the bars matter less than their slope.
+#
+# WHY MINIMUM AND NOT TOTAL: the softener regenerates ~monthly at ~02:00 and
+# draws tens of gallons. It lands in one or two of five bins; the minimum comes
+# from a clean one. The maximum from the same capture is the regen detector.
+#
+# ------------------------------------------------------------------------------
+# THE ONE INVERSION — READ BEFORE EDITING THE JS.
+# Every other slot-buffer chart in this config treats 0 as "no valid subgroup
+# that day" and draws a gap for it. THIS BUFFER IS THE OPPOSITE: 0.00 gal/h is a
+# PERFECT night and must be plotted. The "no night recorded" sentinel is -1.
+# Test on `v >= 0`, never `v > 0`. Copying the SPC test would silently hide
+# every clean night and bias the chart toward looking leaky — the same inversion
+# already caught once in sensor.water_overnight_min_mean_7d.
+# ------------------------------------------------------------------------------
+#
+# X-AXIS IS SUBGROUP ORDER, NOT A DATE — same reasoning as
+# apexcharts/spc-running-watts-control-chart.yaml. day_1 is the most recent
+# captured night and the slots rotate only on a successful capture, so slot
+# index is not calendar age. Dates are suppressed so nothing on the chart
+# asserts one; the real capture stamp is in the detail rows below.
+#
+# RESERVED IDENTIFIERS in data_generator: the body is wrapped as
+#   AsyncFunction('entity','start','end','hass','moment', "'use strict'; "+body)
+# so declaring `const start`/`const end` is a SyntaxError that leaves the card
+# spinning on "loading" forever with no error. This file uses t0/t1.
+type: vertical-stack
+cards:
+  # --- loud only when it matters ------------------------------------------
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.water_overnight_leak_suspected
+        state: "on"
+    card:
+      type: markdown
+      title: ⚠ Overnight minimum flow is above threshold
+      content: >
+        Last night's minimum hourly bin was
+        **{{ states('sensor.water_overnight_min_flow') }} gal/h** over
+        {{ states('sensor.water_overnight_bins') }} valid bins, against a
+        threshold of
+        {{ states('input_number.water_overnight_leak_threshold') }} gal/h.
+
+
+        With nobody drawing water, that is
+        {{ (states('sensor.water_overnight_min_flow') | float(0) * 24) | round(1) }}
+        gal/day. Check toilets first — a flapper seep is the usual cause at this
+        magnitude. The 7-night mean is
+        {{ states('sensor.water_overnight_min_mean_7d') }} gal/h; a RISING mean
+        is the real signal.
+
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.water_overnight_capture_stale
+        state: "on"
+    card:
+      type: markdown
+      title: Overnight capture has not run
+      content: >
+        No usable night since
+        {{ states('input_datetime.water_overnight_capture_last_ok') }}.
+        A night needs {{ states('input_number.water_overnight_min_bins') }} of 5
+        clean hourly bins; last night closed
+        {{ states('sensor.water_overnight_bins') }}. The bars below are older
+        than they look — the slots rotate only on a successful capture.
+
+  # --- the trend, which is the actual instrument --------------------------
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Water — Overnight Minimum Flow
+      show_states: true
+      colorize_states: true
+    # 8d window over 7 nightly slots, laid out on the last 7 day-slots so the
+    # chart is always full regardless of capture staleness.
+    graph_span: 8d
+    span:
+      end: day
+    yaxis:
+      - id: flow
+        decimals: 3
+        min: 0
+        apex_config:
+          title:
+            text: gal/h (minimum hourly bin, 00:00-05:00)
+    apex_config:
+      chart:
+        height: 260
+      legend:
+        show: true
+        position: bottom
+      tooltip:
+        shared: true
+        x:
+          show: false
+      xaxis:
+        labels:
+          show: false
+        axisTicks:
+          show: false
+        title:
+          text: last 7 captured nights — oldest to newest
+    series:
+      - entity: input_number.water_overnight_min_day_1
+        name: Overnight min (gal/h)
+        type: column
+        color: "#1A89F5"
+        yaxis_id: flow
+        float_precision: 3
+        data_generator: |
+          // day_1 is the most recent captured night, day_7 the oldest. Laid out
+          // on the last 7 day-slots of the window; axis dates are suppressed so
+          // no date is asserted. See the file header.
+          const today = new Date();
+          today.setHours(12, 0, 0, 0);
+          const out = [];
+          for (let i = 0; i < 7; i++) {
+            const slot = hass.states['input_number.water_overnight_min_day_' + (i + 1)];
+            const v = slot ? parseFloat(slot.state) : NaN;
+            const t = new Date(today);
+            t.setDate(t.getDate() - i);
+            // >= 0, NOT > 0. Zero is a PERFECT night here and must be plotted;
+            // -1 is the "no night recorded" sentinel and draws a gap. This is
+            // inverted from every SPC buffer chart in this config — see header.
+            out.push([t.getTime(), (isFinite(v) && v >= 0) ? v : null]);
+          }
+          return out.reverse();
+
+      - entity: sensor.water_overnight_min_mean_7d
+        name: 7-night mean — watch the SLOPE
+        type: line
+        color: "#2e7d32"
+        stroke_width: 2
+        curve: straight
+        yaxis_id: flow
+        float_precision: 3
+        data_generator: |
+          // Flat reference from the CURRENT value, not recorder history: it
+          // applies to the whole 7-night window, and reading history made the
+          // line vanish on any day the sensor was unavailable.
+          const m = hass.states['sensor.water_overnight_min_mean_7d'];
+          const v = m ? parseFloat(m.state) : NaN;
+          if (!isFinite(v)) { return []; }   // below 2 valid nights -> no line
+          // t0/t1, not start/end — reserved params, see file header.
+          const t1 = new Date();
+          t1.setHours(12, 0, 0, 0);
+          const t0 = new Date(t1);
+          t0.setDate(t0.getDate() - 6);
+          return [[t0.getTime(), v], [t1.getTime(), v]];
+
+      - entity: input_number.water_overnight_leak_threshold
+        name: Leak threshold
+        type: line
+        color: "#c0504d"
+        stroke_width: 1
+        curve: straight
+        yaxis_id: flow
+        float_precision: 2
+        data_generator: |
+          const th = hass.states['input_number.water_overnight_leak_threshold'];
+          const v = th ? parseFloat(th.state) : NaN;
+          if (!isFinite(v)) { return []; }
+          const t1 = new Date();
+          t1.setHours(12, 0, 0, 0);
+          const t0 = new Date(t1);
+          t0.setDate(t0.getDate() - 6);
+          return [[t0.getTime(), v], [t1.getTime(), v]];
+
+  # --- the numbers the chart deliberately does not assert ------------------
+  - type: entities
+    title: Last night
+    show_header_toggle: false
+    state_color: true
+    entities:
+      - entity: sensor.water_overnight_min_flow
+        name: Minimum hourly bin
+      - entity: sensor.water_overnight_min_mean_7d
+        name: 7-night mean
+      - entity: sensor.water_overnight_bins
+        name: Valid bins (need 3 of 5)
+      - entity: input_datetime.water_overnight_capture_last_ok
+        name: Captured
+      - type: divider
+      - type: section
+        label: The busiest bin — this is the softener
+      - entity: sensor.water_overnight_max_flow
+        name: Maximum hourly bin
+      - entity: binary_sensor.water_softener_regen_last_night
+        name: Regen detected
+      - type: divider
+      - entity: binary_sensor.water_overnight_leak_suspected
+        name: Leak suspected
+      - entity: input_number.water_overnight_leak_threshold
+        name: Leak threshold (gal/h)
+      - entity: input_number.water_regen_threshold_gal
+        name: Regen threshold (gal)
+      - entity: input_number.water_overnight_min_bins
+        name: Minimum bins for a usable night

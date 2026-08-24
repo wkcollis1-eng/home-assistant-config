@@ -1,0 +1,90 @@
+# Water Meter (Neptune R900) - status and decode health
+# Dashboard: Energy Performance - Utilities view
+#
+# Reads the R900 status fields that arrive as attributes on
+# sensor.water_meter_reading and are surfaced as entities in
+# packages/utility_meters.yaml (R900 STATUS FIELDS block).
+#
+# Leak vs Leak Now is the whole point of the top two rows, so they are labelled
+# with what each field actually answers rather than both saying "leak":
+#   Leak      4 bits, day bins over 35 days -> "has seen a leak recently"
+#   Leak Now  2 bits, past 24 h hi/lo       -> "water is running now"
+# Field widths and meanings are from bemasher/rtlamr r900/r900.go, the decoder
+# that produces these attributes.
+type: vertical-stack
+cards:
+  # --- headline: is there a leak right now -------------------------------
+  - type: custom:mushroom-template-card
+    primary: >-
+      {% set now = states('sensor.water_meter_leak_now') | int(0) %}
+      {% if now > 0 %}LEAK NOW ({{ now }}/3)
+      {% else %}No current leak{% endif %}
+    secondary: >-
+      {% set d = states('sensor.water_meter_leak') | int(0) %}
+      {% if d > 0 %}{{ d }} leak day-bin{{ 's' if d != 1 else '' }} in the last 35 d
+      {% else %}No leak days in the last 35 d{% endif %}
+    icon: >-
+      {{ 'mdi:water-alert' if states('sensor.water_meter_leak_now') | int(0) > 0
+         else 'mdi:water-check' }}
+    icon_color: >-
+      {% if states('sensor.water_meter_leak_now') | int(0) > 0 %}red
+      {% elif states('sensor.water_meter_leak') | int(0) > 0 %}orange
+      {% else %}green{% endif %}
+    tap_action:
+      action: more-info
+    entity: sensor.water_meter_leak_now
+    multiline_secondary: true
+
+  # --- decode health: a stale meter is not a quiet meter -------------------
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.water_meter_stale
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: Water meter decode is stale
+      secondary: >-
+        Last frame {{ states('sensor.water_meter_age') | float(0) | round(0) }}
+        min ago. Leak fields below are that old - check the rtlamr2mqtt add-on
+        log, then the dongle.
+      icon: mdi:radio-tower
+      icon_color: amber
+      multiline_secondary: true
+      entity: binary_sensor.water_meter_stale
+
+  # --- the raw decode, values and provenance ------------------------------
+  - type: entities
+    title: R900 decode
+    show_header_toggle: false
+    entities:
+      - entity: sensor.water_meter_leak
+        name: Leak (day bins / 35 d)
+      - entity: sensor.water_meter_leak_now
+        name: Leak now (past 24 h, 0-3)
+      - entity: sensor.water_meter_backflow
+        name: Backflow (past 35 d, 0-3)
+      - type: section
+        label: Diagnostic - encoding unconfirmed
+      - entity: sensor.water_meter_no_use
+        name: No use (day bins)
+      - type: section
+        label: Meter
+      - entity: sensor.water_meter_volume
+        name: Lifetime volume
+      - entity: sensor.water_daily
+        name: Today
+      - entity: sensor.water_monthly
+        name: This month
+      - entity: sensor.water_meter_age
+        name: Last decode
+      - entity: input_number.water_meter_scale
+        name: Scale (gal/count)
+      - type: section
+        label: Alerting
+      - entity: automation.sdr_water_meter_leak_flag_set
+        name: Leak alarm
+      - entity: input_boolean.sdr_alerts_enabled
+        name: SDR alerts master
+      - entity: input_number.sdr_leak_hold_hours
+        name: Leak hold before alerting (h)

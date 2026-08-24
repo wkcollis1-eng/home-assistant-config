@@ -18,6 +18,10 @@ def get_climate_norms_today():
     """Look up today's climate norms from CSV."""
     today = datetime.now()
     day_of_year = today.timetuple().tm_yday
+    # Leap-year clamp (2026-07-03): the norms CSV has 365 rows; Dec 31 of a
+    # leap year is day 366 and previously returned {"status": "error"} for the
+    # whole day (next occurrence 2028-12-31). Dec 31 uses the day-365 norms.
+    day_of_year = min(day_of_year, 365)
 
     try:
         with open(CSV_PATH, 'r') as f:
@@ -55,7 +59,7 @@ def get_climate_norms_today():
 def get_smoothed_hdd(window=3):
     """Get smoothed HDD mean using a rolling window around today."""
     today = datetime.now()
-    day_of_year = today.timetuple().tm_yday
+    day_of_year = min(today.timetuple().tm_yday, 365)  # leap-year clamp (see above)
 
     # Calculate days to average (centered window)
     half_window = window // 2

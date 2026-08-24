@@ -1,0 +1,1889 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3000 },
+              { "color": "red", "value": 5000 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Total Power",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_whole_home_power' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Total Power",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "kwatth"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Energy",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_whole_home_energy' AND $timeFilter",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Energy (Time Range)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "kwatth"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Energy 24h",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_whole_home_energy' AND time >= now() - 24h",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Energy (Last 24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "purple", "value": null }]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Cost",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_whole_home_energy' AND time >= now() - 24h",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Cost (Last 24h)",
+      "description": "Estimated at $0.29/kWh",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "id": 20,
+      "panels": [],
+      "title": "Circuit Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 8, "x": 0, "y": 5 },
+      "id": 30,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["percent", "value"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["mean"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "$tag_entity_id",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE (\"entity_id\" = 'sem_ac_power' OR \"entity_id\" = 'sem_furnace_power' OR \"entity_id\" = 'sem_fridge_power' OR \"entity_id\" = 'sem_dryer_power' OR \"entity_id\" = 'sem_washer_power' OR \"entity_id\" = 'sem_dishwasher_power' OR \"entity_id\" = 'sem_microwave_power' OR \"entity_id\" = 'sem_garage_power' OR \"entity_id\" = 'sem_bedroom_office_power' OR \"entity_id\" = 'sem_family_room_power' OR \"entity_id\" = 'sem_master_suite_power' OR \"entity_id\" = 'sem_laundry_bedroom_power' OR \"entity_id\" = 'sem_dining_kitchen_lights_power' OR \"entity_id\" = 'sem_counter_1_power' OR \"entity_id\" = 'sem_counter_2_power' OR \"entity_id\" = 'dehumidifier_current_consumption') AND $timeFilter GROUP BY \"entity_id\"",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Other_Raw",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_other_power' AND $timeFilter",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'dehumidifier_current_consumption' AND $timeFilter",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "Time",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": {
+              "left": "_Other_Raw",
+              "operator": "-",
+              "right": "_Dehum_Raw"
+            },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_Other_Raw": true,
+              "_Dehum_Raw": true
+            }
+          }
+        }
+      ],
+      "title": "Circuit Power Breakdown",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 8, "y": 5 },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": { "hideZeros": true, "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE (\"entity_id\" = 'sem_ac_power' OR \"entity_id\" = 'sem_furnace_power' OR \"entity_id\" = 'sem_fridge_power' OR \"entity_id\" = 'sem_dryer_power' OR \"entity_id\" = 'sem_washer_power' OR \"entity_id\" = 'sem_dishwasher_power' OR \"entity_id\" = 'sem_microwave_power' OR \"entity_id\" = 'sem_garage_power' OR \"entity_id\" = 'sem_bedroom_office_power' OR \"entity_id\" = 'sem_family_room_power' OR \"entity_id\" = 'sem_master_suite_power' OR \"entity_id\" = 'sem_laundry_bedroom_power' OR \"entity_id\" = 'sem_dining_kitchen_lights_power' OR \"entity_id\" = 'sem_counter_1_power' OR \"entity_id\" = 'sem_counter_2_power' OR \"entity_id\" = 'dehumidifier_current_consumption') AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Other_Raw",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_other_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'dehumidifier_current_consumption' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "Time",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": {
+              "left": "_Other_Raw",
+              "operator": "-",
+              "right": "_Dehum_Raw"
+            },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_Other_Raw": true,
+              "_Dehum_Raw": true
+            }
+          }
+        }
+      ],
+      "title": "SEM Circuits",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 40,
+      "panels": [],
+      "title": "Daily Energy & Cost",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "kWh",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.8,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "kwatth"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 16 },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Total",
+          "sortDesc": true
+        },
+        "tooltip": { "hideZeros": true, "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "AC",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Furnace",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Fridge",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_fridge_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dryer",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dryer_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Washer",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_washer_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dishwasher",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dishwasher_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Microwave",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_microwave_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Garage",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_garage_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Bedroom/Office",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_bedroom_office_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Family Room",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_family_room_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Master Suite",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_master_suite_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "K",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Laundry/Bedroom",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_laundry_bedroom_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "L",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Kitchen Lights",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dining_kitchen_lights_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "M",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Counter 1",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_counter_1_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "N",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Counter 2",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_counter_2_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "O",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dehumidifier",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "Q",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other_Raw",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_other_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "R",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "S",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": { "left": "_SEM_Other_Raw", "operator": "-", "right": "_Dehum_Raw" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other_Raw": true, "_Dehum_Raw": true }
+          }
+        }
+      ],
+      "title": "Daily Energy by Circuit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 16 },
+      "id": 32,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["percent", "value"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "HVAC",
+          "query": "SELECT (SPREAD(\"value\")) * 0.29 FROM \"kWh\" WHERE (\"entity_id\" = 'sem_ac_energy' OR \"entity_id\" = 'sem_furnace_energy') AND $timeFilter GROUP BY time(1d), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Fridge",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_fridge_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dishwasher",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dishwasher_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Microwave",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_microwave_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Kitchen Counters",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE (\"entity_id\" = 'sem_counter_1_energy' OR \"entity_id\" = 'sem_counter_2_energy') AND $timeFilter GROUP BY time(1d), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dining/Kitchen Lights",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dining_kitchen_lights_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dryer",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dryer_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Washer",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_washer_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Bedroom/Office",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_bedroom_office_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Family Room",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_family_room_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Master Suite",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_master_suite_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "K",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Laundry/Bedroom",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_laundry_bedroom_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "L",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dehumidifier",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "M",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Garage",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_garage_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "N",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other_Raw",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_other_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "O",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND $timeFilter GROUP BY time(1d) fill(null)",
+          "rawQuery": true,
+          "refId": "P",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": { "left": "_SEM_Other_Raw", "operator": "-", "right": "_Dehum_Raw" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other_Raw": true, "_Dehum_Raw": true }
+          }
+        }
+      ],
+      "title": "Cost by Circuit",
+      "description": "Estimated at $0.29/kWh",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "id": 80,
+      "panels": [],
+      "title": "Today's Energy",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "kWh",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.8,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "kwatth"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 27 },
+      "id": 81,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Total",
+          "sortDesc": true
+        },
+        "tooltip": { "hideZeros": true, "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "AC",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Furnace",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Fridge",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_fridge_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dryer",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dryer_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Washer",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_washer_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dishwasher",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dishwasher_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Microwave",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_microwave_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Garage",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_garage_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Bedroom/Office",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_bedroom_office_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Family Room",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_family_room_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Master Suite",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_master_suite_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "K",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Laundry/Bedroom",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_laundry_bedroom_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "L",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Kitchen Lights",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_dining_kitchen_lights_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "M",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Counter 1",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_counter_1_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "N",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Counter 2",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_counter_2_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "O",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dehumidifier",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "Q",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other_Raw",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_other_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "R",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT SPREAD(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "S",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": { "left": "_SEM_Other_Raw", "operator": "-", "right": "_Dehum_Raw" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other_Raw": true, "_Dehum_Raw": true }
+          }
+        }
+      ],
+      "title": "Today's Energy by Circuit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 27 },
+      "id": 82,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["percent", "value"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "HVAC",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE (\"entity_id\" = 'sem_ac_energy' OR \"entity_id\" = 'sem_furnace_energy') AND time > now() - 1d GROUP BY \"entity_id\"",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Fridge",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_fridge_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dishwasher",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dishwasher_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Microwave",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_microwave_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Kitchen Counters",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE (\"entity_id\" = 'sem_counter_1_energy' OR \"entity_id\" = 'sem_counter_2_energy') AND time > now() - 1d GROUP BY \"entity_id\"",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dining/Kitchen Lights",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dining_kitchen_lights_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dryer",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_dryer_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Washer",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_washer_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Bedroom/Office",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_bedroom_office_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Family Room",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_family_room_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Master Suite",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_master_suite_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "K",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Laundry/Bedroom",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_laundry_bedroom_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "L",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Dehumidifier",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "M",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Garage",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_garage_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "N",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other_Raw",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'sem_other_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "O",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum_Raw",
+          "query": "SELECT SPREAD(\"value\") * 0.29 FROM \"kWh\" WHERE \"entity_id\" = 'dehumidifier_today_energy' AND time > now() - 1d",
+          "rawQuery": true,
+          "refId": "P",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Other (Remaining)",
+            "binary": { "left": "_SEM_Other_Raw", "operator": "-", "right": "_Dehum_Raw" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other_Raw": true, "_Dehum_Raw": true }
+          }
+        }
+      ],
+      "title": "Cost by Circuit (Today)",
+      "description": "Estimated at $0.29/kWh",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 37 },
+      "id": 90,
+      "panels": [],
+      "title": "Conservation Check (QA)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 100 },
+              { "color": "orange", "value": 200 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 38 },
+      "id": 91,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["mean"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_other_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'dehumidifier_current_consumption' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "True Unaccounted",
+            "binary": { "left": "_SEM_Other", "operator": "-", "right": "_Dehum" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other": true, "_Dehum": true }
+          }
+        }
+      ],
+      "title": "True Unaccounted Power",
+      "description": "sem_other minus dehumidifier (Kasa). Should be ~0-100W baseline. Negative = wiring/CT error. >200W = unmeasured load.",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line+area" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "transparent", "value": 0 },
+              { "color": "yellow", "value": 150 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 38 },
+      "id": 92,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "min", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_other_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'dehumidifier_current_consumption' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "True Unaccounted",
+            "binary": { "left": "_SEM_Other", "operator": "-", "right": "_Dehum" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other": true, "_Dehum": true }
+          }
+        }
+      ],
+      "title": "Conservation Balance Over Time",
+      "description": "sem_other minus dehumidifier. Red zone (<0) = CT or wiring error. Yellow zone (>150W) = unmeasured load. Healthy: 0-100W.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 0, "y": 43 },
+      "id": 93,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["min"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_SEM_Other",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_other_power' AND $timeFilter GROUP BY time(1m) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "_Dehum",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'dehumidifier_current_consumption' AND $timeFilter GROUP BY time(1m) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "Time", "mode": "outer" }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "True Unaccounted",
+            "binary": { "left": "_SEM_Other", "operator": "-", "right": "_Dehum" },
+            "mode": "binary"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "_SEM_Other": true, "_Dehum": true }
+          }
+        }
+      ],
+      "title": "Min (Alert if <0)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 },
+      "id": 50,
+      "panels": [],
+      "title": "HVAC Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Power (W)",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "watt"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Outdoor Temp" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.axisLabel", "value": "Temp (°F)" },
+              { "id": "unit", "value": "fahrenheit" },
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+              { "id": "custom.fillOpacity", "value": 0 },
+              { "id": "custom.lineWidth", "value": 3 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 47 },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "AC Power",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_ac_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Furnace Power",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_furnace_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Outdoor Temp",
+          "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'outdoor_temp_live' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "HVAC Power vs Outdoor Temperature",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
+      "id": 60,
+      "panels": [],
+      "title": "Peak Demand",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 8000 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 58 },
+      "id": 34,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["max"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Peak Demand",
+          "query": "SELECT max(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_whole_home_power' AND $timeFilter",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Peak Demand",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 5000 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 18, "x": 6, "y": 58 },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Total Power",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_whole_home_power' AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Total Power with Peak Threshold",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1000 },
+              { "color": "red", "value": 2000 }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 63 },
+      "id": 36,
+      "options": {
+        "displayMode": "lcd",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["max"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "$tag_entity_id",
+          "query": "SELECT max(\"value\") FROM \"W\" WHERE (\"entity_id\" = 'sem_ac_power' OR \"entity_id\" = 'sem_dryer_power' OR \"entity_id\" = 'sem_furnace_power' OR \"entity_id\" = 'sem_fridge_power' OR \"entity_id\" = 'dehumidifier_current_consumption') AND $timeFilter GROUP BY \"entity_id\"",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Top Peak Contributors",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 68 },
+      "id": 70,
+      "panels": [],
+      "title": "Usage Patterns",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-GrYlRd" },
+          "custom": {
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false }
+          },
+          "mappings": [],
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 69 },
+      "id": 37,
+      "options": {
+        "calculate": true,
+        "calculation": { "xBuckets": { "mode": "size", "value": "1h" } },
+        "cellGap": 1,
+        "cellValues": {},
+        "color": { "exponent": 0.5, "fill": "#b4ff00", "mode": "scheme", "reverse": false, "scale": "exponential", "scheme": "Oranges", "steps": 64 },
+        "exemplars": { "color": "rgba(255,0,255,0.7)" },
+        "filterValues": { "le": 0 },
+        "legend": { "show": true },
+        "rowsFrame": { "layout": "auto" },
+        "showValue": "never",
+        "tooltip": { "mode": "single", "showColorScale": true, "yHistogram": false },
+        "yAxis": { "axisPlacement": "left", "reverse": false }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Whole Home",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_whole_home_power' AND $timeFilter GROUP BY time(1h) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Hourly Power Heatmap",
+      "type": "heatmap"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 69 },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": { "hideZeros": true, "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE (\"entity_id\" =~ /.*_current_consumption$/) AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Kasa Plugs",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 79 },
+      "id": 22,
+      "panels": [],
+      "title": "Total Power Trend",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 80 },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "hideZeros": false, "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "alias": "Total Power",
+          "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'sem_whole_home_power' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Total Power",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": ["energy", "sem", "kasa"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "America/New_York",
+  "title": "Energy",
+  "uid": "energy",
+  "version": 2
+}

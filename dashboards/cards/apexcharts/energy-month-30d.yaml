@@ -7,7 +7,7 @@ header:
   title: Energy This Month (30 Days)
   show_states: true
   colorize_states: true
-graph_span: 30d
+graph_span: 14d   # was 30d; recorder purge_keep_days is 14, so 16d could only ever be blank (2026-08-22)
 yaxis:
   - id: energy
     min: 0
