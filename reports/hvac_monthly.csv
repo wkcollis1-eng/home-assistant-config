@@ -1,1 +1,8 @@
-month,days,mean_outdoor_temp,total_hdd65,furnace_runtime_hours,avg_runtime_per_hdd,heating_efficiency_ccf_per_1k_hdd,actual_runtime,expected_runtime,efficiency_deviation_pct,gas_usage_ccf,gas_cost,electric_kwh
+"month","days","mean_outdoor_temp","total_hdd65","total_cdd65","furnace_runtime_hours","avg_runtime_per_hdd","heating_efficiency_ccf_per_1k_hdd","actual_runtime","expected_runtime","efficiency_deviation_pct","gas_usage_ccf","gas_cost","electric_kwh","avg_runtime_per_cdd","ac_runtime_hours","ac_cycles_total","ac_mpc_mean","furnace_mpc_mean","furnace_mpc_sigma","furnace_short_cycle_pct","furnace_cycles_total","chaining_index_mean","dehumidifier_kwh"
+"2026-01","8","11.8","397.0","0","63.7","9.6","","63.7","","","","","","0","0","","","","","","","",""
+"2026-02","28","27.6","1062.6","0","158.2","8.9","91.5","158.19","156.94","0.8","175","274.7","404","0","0","","","","","","","",""
+"2026-03","31","40.4","767.6","0","81.4","6.4","65.2","81.37","96.37","-15.6","111","191.46","374","0","0","","","","","","","",""
+"2026-04","30","49.3","472.3","","38.4","4.9","82.4","38.35","48.25","-20.5","59","117.77","285","0","0","","","","","","","",""
+"2026-05","24","56.7","216.0","3.8","11.8","3.3","55.5","11.8","9.65","22.3","39","85.79","311","50.8","3.2","","","","","","","",""
+"2026-06","30","70.1","13.4","150.6","0.0","0.0","0.0","0.0","0.48","-100.0","17","50.74","505","33.7","84.5","","","","","","","","70.93"
+"2026-07","31","73.3","2.4","253.3","0.0","0.0","0.0","0.0","0.0","0.0","13.0","44.3","966.0","28.8","121.6","","","","","","","","131.93"

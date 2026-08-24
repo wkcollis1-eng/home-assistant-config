@@ -1,0 +1,552 @@
+{
+  "generated": "2026-07-28T09:23:08.551623-04:00",
+  "results": {
+    "fridge": [
+      {
+        "day": "2026-07-27",
+        "watts": 114.7,
+        "samples": 23601
+      },
+      {
+        "day": "2026-07-26",
+        "watts": 124.8,
+        "samples": 24746
+      },
+      {
+        "day": "2026-07-25",
+        "watts": 114.9,
+        "samples": 25290
+      },
+      {
+        "day": "2026-07-24",
+        "watts": 123.7,
+        "samples": 23268
+      },
+      {
+        "day": "2026-07-23",
+        "watts": 114.3,
+        "samples": 23494
+      },
+      {
+        "day": "2026-07-22",
+        "watts": 123.7,
+        "samples": 22086
+      },
+      {
+        "day": "2026-07-21",
+        "watts": 114.8,
+        "samples": 22172
+      }
+    ],
+    "furnace": [
+      {
+        "day": "2026-07-27",
+        "watts": 767.4,
+        "samples": 5723
+      },
+      {
+        "day": "2026-07-26",
+        "watts": 766.8,
+        "samples": 3561
+      },
+      {
+        "day": "2026-07-25",
+        "watts": 770.7,
+        "samples": 4498
+      },
+      {
+        "day": "2026-07-24",
+        "watts": 776.7,
+        "samples": 4681
+      },
+      {
+        "day": "2026-07-23",
+        "watts": 776.1,
+        "samples": 3300
+      },
+      {
+        "day": "2026-07-22",
+        "watts": 766.6,
+        "samples": 5211
+      },
+      {
+        "day": "2026-07-21",
+        "watts": 762.4,
+        "samples": 1191
+      }
+    ],
+    "ac": [
+      {
+        "day": "2026-07-27",
+        "watts": 2554.0,
+        "samples": 5663
+      },
+      {
+        "day": "2026-07-26",
+        "watts": 2364.5,
+        "samples": 3532
+      },
+      {
+        "day": "2026-07-25",
+        "watts": 2486.1,
+        "samples": 4465
+      },
+      {
+        "day": "2026-07-24",
+        "watts": 2485.6,
+        "samples": 4637
+      },
+      {
+        "day": "2026-07-23",
+        "watts": 2388.2,
+        "samples": 3260
+      },
+      {
+        "day": "2026-07-22",
+        "watts": 2524.8,
+        "samples": 5154
+      },
+      {
+        "day": "2026-07-21",
+        "watts": 2406.2,
+        "samples": 1178
+      }
+    ],
+    "hwh_recirc": [
+      {
+        "day": "2026-07-27",
+        "watts": 105.0,
+        "samples": 455
+      },
+      {
+        "day": "2026-07-26",
+        "watts": 106.7,
+        "samples": 372
+      },
+      {
+        "day": "2026-07-25",
+        "watts": 105.8,
+        "samples": 569
+      },
+      {
+        "day": "2026-07-24",
+        "watts": 105.0,
+        "samples": 425
+      },
+      {
+        "day": "2026-07-23",
+        "watts": 105.8,
+        "samples": 453
+      },
+      {
+        "day": "2026-07-22",
+        "watts": 104.1,
+        "samples": 448
+      },
+      {
+        "day": "2026-07-21",
+        "watts": 107.3,
+        "samples": 483
+      }
+    ],
+    "dehumidifier": [
+      {
+        "day": "2026-07-27",
+        "watts": 585.4,
+        "samples": 4226
+      },
+      {
+        "day": "2026-07-26",
+        "watts": 591.5,
+        "samples": 4328
+      },
+      {
+        "day": "2026-07-25",
+        "watts": 590.3,
+        "samples": 5913
+      },
+      {
+        "day": "2026-07-24",
+        "watts": 587.2,
+        "samples": 4015
+      },
+      {
+        "day": "2026-07-23",
+        "watts": 591.6,
+        "samples": 4910
+      },
+      {
+        "day": "2026-07-22",
+        "watts": 587.7,
+        "samples": 6106
+      },
+      {
+        "day": "2026-07-21",
+        "watts": 592.6,
+        "samples": 7022
+      }
+    ]
+  },
+  "service_calls": [
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_1"
+      },
+      "data": {
+        "value": 114.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_2"
+      },
+      "data": {
+        "value": 124.8
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_3"
+      },
+      "data": {
+        "value": 114.9
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_4"
+      },
+      "data": {
+        "value": 123.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_5"
+      },
+      "data": {
+        "value": 114.3
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_6"
+      },
+      "data": {
+        "value": 123.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.fridge_running_watts_day_7"
+      },
+      "data": {
+        "value": 114.8
+      }
+    },
+    {
+      "service": "input_datetime.set_datetime",
+      "target": {
+        "entity_id": "input_datetime.fridge_spc_last_capture"
+      },
+      "data": {
+        "date": "2026-07-28"
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_1"
+      },
+      "data": {
+        "value": 767.4
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_2"
+      },
+      "data": {
+        "value": 766.8
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_3"
+      },
+      "data": {
+        "value": 770.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_4"
+      },
+      "data": {
+        "value": 776.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_5"
+      },
+      "data": {
+        "value": 776.1
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_6"
+      },
+      "data": {
+        "value": 766.6
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.furnace_running_watts_day_7"
+      },
+      "data": {
+        "value": 762.4
+      }
+    },
+    {
+      "service": "input_datetime.set_datetime",
+      "target": {
+        "entity_id": "input_datetime.furnace_spc_last_capture"
+      },
+      "data": {
+        "date": "2026-07-28"
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_1"
+      },
+      "data": {
+        "value": 2554.0
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_2"
+      },
+      "data": {
+        "value": 2364.5
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_3"
+      },
+      "data": {
+        "value": 2486.1
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_4"
+      },
+      "data": {
+        "value": 2485.6
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_5"
+      },
+      "data": {
+        "value": 2388.2
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_6"
+      },
+      "data": {
+        "value": 2524.8
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.ac_running_watts_day_7"
+      },
+      "data": {
+        "value": 2406.2
+      }
+    },
+    {
+      "service": "input_datetime.set_datetime",
+      "target": {
+        "entity_id": "input_datetime.ac_spc_last_capture"
+      },
+      "data": {
+        "date": "2026-07-28"
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_1"
+      },
+      "data": {
+        "value": 105.0
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_2"
+      },
+      "data": {
+        "value": 106.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_3"
+      },
+      "data": {
+        "value": 105.8
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_4"
+      },
+      "data": {
+        "value": 105.0
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_5"
+      },
+      "data": {
+        "value": 105.8
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_6"
+      },
+      "data": {
+        "value": 104.1
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.hwh_recirc_running_watts_day_7"
+      },
+      "data": {
+        "value": 107.3
+      }
+    },
+    {
+      "service": "input_datetime.set_datetime",
+      "target": {
+        "entity_id": "input_datetime.hwh_recirc_spc_last_capture"
+      },
+      "data": {
+        "date": "2026-07-28"
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_1"
+      },
+      "data": {
+        "value": 585.4
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_2"
+      },
+      "data": {
+        "value": 591.5
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_3"
+      },
+      "data": {
+        "value": 590.3
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_4"
+      },
+      "data": {
+        "value": 587.2
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_5"
+      },
+      "data": {
+        "value": 591.6
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_6"
+      },
+      "data": {
+        "value": 587.7
+      }
+    },
+    {
+      "service": "input_number.set_value",
+      "target": {
+        "entity_id": "input_number.dehumidifier_running_watts_day_7"
+      },
+      "data": {
+        "value": 592.6
+      }
+    },
+    {
+      "service": "input_datetime.set_datetime",
+      "target": {
+        "entity_id": "input_datetime.dehumidifier_spc_last_capture"
+      },
+      "data": {
+        "date": "2026-07-28"
+      }
+    }
+  ]
+}

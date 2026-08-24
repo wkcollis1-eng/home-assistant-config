@@ -1,0 +1,243 @@
+# SPC Seed Results - Generated 2026-07-28T09:23:08.552453-04:00
+# Copy each block to Developer Tools -> Services
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_1
+data:
+  value: 114.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_2
+data:
+  value: 124.8
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_3
+data:
+  value: 114.9
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_4
+data:
+  value: 123.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_5
+data:
+  value: 114.3
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_6
+data:
+  value: 123.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.fridge_running_watts_day_7
+data:
+  value: 114.8
+
+service: input_datetime.set_datetime
+target:
+  entity_id: input_datetime.fridge_spc_last_capture
+data:
+  date: "2026-07-28"
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_1
+data:
+  value: 767.4
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_2
+data:
+  value: 766.8
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_3
+data:
+  value: 770.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_4
+data:
+  value: 776.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_5
+data:
+  value: 776.1
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_6
+data:
+  value: 766.6
+
+service: input_number.set_value
+target:
+  entity_id: input_number.furnace_running_watts_day_7
+data:
+  value: 762.4
+
+service: input_datetime.set_datetime
+target:
+  entity_id: input_datetime.furnace_spc_last_capture
+data:
+  date: "2026-07-28"
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_1
+data:
+  value: 2554.0
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_2
+data:
+  value: 2364.5
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_3
+data:
+  value: 2486.1
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_4
+data:
+  value: 2485.6
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_5
+data:
+  value: 2388.2
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_6
+data:
+  value: 2524.8
+
+service: input_number.set_value
+target:
+  entity_id: input_number.ac_running_watts_day_7
+data:
+  value: 2406.2
+
+service: input_datetime.set_datetime
+target:
+  entity_id: input_datetime.ac_spc_last_capture
+data:
+  date: "2026-07-28"
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_1
+data:
+  value: 105.0
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_2
+data:
+  value: 106.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_3
+data:
+  value: 105.8
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_4
+data:
+  value: 105.0
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_5
+data:
+  value: 105.8
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_6
+data:
+  value: 104.1
+
+service: input_number.set_value
+target:
+  entity_id: input_number.hwh_recirc_running_watts_day_7
+data:
+  value: 107.3
+
+service: input_datetime.set_datetime
+target:
+  entity_id: input_datetime.hwh_recirc_spc_last_capture
+data:
+  date: "2026-07-28"
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_1
+data:
+  value: 585.4
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_2
+data:
+  value: 591.5
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_3
+data:
+  value: 590.3
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_4
+data:
+  value: 587.2
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_5
+data:
+  value: 591.6
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_6
+data:
+  value: 587.7
+
+service: input_number.set_value
+target:
+  entity_id: input_number.dehumidifier_running_watts_day_7
+data:
+  value: 592.6
+
+service: input_datetime.set_datetime
+target:
+  entity_id: input_datetime.dehumidifier_spc_last_capture
+data:
+  date: "2026-07-28"
+
