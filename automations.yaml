@@ -1,7 +1,7 @@
 # ===============================================================
 # COMPLETE AUTOMATIONS.YAML - ENERGY MONITORING
 # ===============================================================
-# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders
+# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders + Santa Fe Dehumidifier
 # ===============================================================
 
 # ===============================================================
@@ -43,6 +43,7 @@
                   data:
                     message: "Outdoor temp daily high was corrupt (-50), initialized to {{ current_temp | round(1) }}°F"
                     level: warning
+      default: []
     - choose:
         # Update low if: new low OR low was corrupt/uninitialized
         - conditions:
@@ -62,15 +63,42 @@
                   data:
                     message: "Outdoor temp daily low was corrupt (150), initialized to {{ current_temp | round(1) }}°F"
                     level: warning
+      default: []
 
 - id: reset_outdoor_temp_daily_high_low
   alias: "Reset Outdoor Temp Daily High/Low"
-  description: "Resets daily high/low at midnight for new day"
+  description: "Resets daily high/low at midnight, with startup catch-up if HA was down over midnight"
   mode: single
   trigger:
     - platform: time
       at: "00:00:30"
+      id: scheduled
+    # Startup catch-up (2026-07-03): initial: was removed from the daily
+    # high/low input_numbers so mid-day restarts RESTORE the day's extremes.
+    # That leaves the restart-over-midnight case to this trigger: reset only
+    # if the last-reset stamp is from a previous day.
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% if trigger.id == 'scheduled' %}
+          true
+        {% else %}
+          {% set last = states('input_datetime.outdoor_temp_last_reset') %}
+          {% if last in ['unknown', 'unavailable'] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {{ last[:10] != now().strftime('%Y-%m-%d') }}
+          {% endif %}
+        {% endif %}
   action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.outdoor_temp_last_reset
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - variables:
         current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
         sensor_valid: "{{ current_temp is not none and current_temp > -40 and current_temp < 120 }}"
@@ -122,6 +150,8 @@
     - platform: time
       at: "23:55:00"
   action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - choose:
         - conditions:
             - condition: template
@@ -143,8 +173,8 @@
                 {{ upstream_ok and values_ok and delta_ok }}
           sequence:
             - variables:
-                todays_hdd: "{{ states('sensor.hvac_hdd65_today')|float }}"
-                todays_cdd: "{{ states('sensor.hvac_cdd65_today')|float }}"
+                todays_hdd: "{{ states('sensor.hvac_hdd65_today')| float(0) }}"
+                todays_cdd: "{{ states('sensor.hvac_cdd65_today')| float(0) }}"
                 d1: "{{ states('input_number.hdd_day_1')|float(0) }}"
                 d2: "{{ states('input_number.hdd_day_2')|float(0) }}"
                 d3: "{{ states('input_number.hdd_day_3')|float(0) }}"
@@ -192,7 +222,7 @@
               target:
                 entity_id: input_datetime.hdd_capture_last_ok
               data:
-                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+                datetime: "{{ capture_stamp }}"
       default:
         - service: system_log.write
           data:
@@ -203,6 +233,84 @@
               CDD={{ states('sensor.hvac_cdd65_today') }},
               Cum_Month={{ states('input_number.hdd_cumulative_month_auto') }},
               Cum_Year={{ states('input_number.hdd_cumulative_year_auto') }}
+
+# AUTO CDD TRACKING - Daily capture at 11:55:15 PM (mirrors capture_daily_hdd)
+# ===============================================================
+- id: capture_daily_cdd
+  alias: "Capture Daily CDD"
+  description: "Shifts 7-day CDD sliding window and captures today's CDD value"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:55:15"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        todays_cdd: "{{ states('sensor.hvac_cdd65_today') | float(-1) }}"
+        proxy_ok: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ proxy_ok and todays_cdd >= 0 and todays_cdd <= 50 }}"
+          sequence:
+            - variables:
+                d1: "{{ states('input_number.cdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.cdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.cdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.cdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.cdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.cdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_day_1
+              data:
+                value: "{{ todays_cdd }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.cdd_capture_last_ok
+              data:
+                datetime: "{{ capture_stamp }}"
+            - service: system_log.write
+              data:
+                message: "CDD sliding window captured: today={{ todays_cdd }}"
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              CDD capture skipped - proxy_ok={{ proxy_ok }},
+              CDD={{ todays_cdd }}
 
 # ===============================================================
 # RUNTIME PER HDD TRACKING - Daily capture at 11:56 PM (HARDENED)
@@ -215,6 +323,8 @@
     - platform: time
       at: "23:56:00"
   action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - choose:
         - conditions:
             - condition: template
@@ -231,7 +341,7 @@
                 {{ upstream_ok and values_ok }}
           sequence:
             - variables:
-                todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')|float }}"
+                todays_runtime_per_hdd: "{{ states('sensor.hvac_total_runtime_per_hdd_today')| float(0) }}"
                 d1: "{{ states('input_number.runtime_per_hdd_day_1')|float(0) }}"
                 d2: "{{ states('input_number.runtime_per_hdd_day_2')|float(0) }}"
                 d3: "{{ states('input_number.runtime_per_hdd_day_3')|float(0) }}"
@@ -277,7 +387,7 @@
               target:
                 entity_id: input_datetime.runtime_per_hdd_capture_last_ok
               data:
-                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+                datetime: "{{ capture_stamp }}"
       default:
         - service: input_datetime.set_datetime
           target:
@@ -303,6 +413,8 @@
     - platform: time
       at: "23:56:15"
   action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - choose:
         - conditions:
             - condition: template
@@ -318,7 +430,7 @@
                 {{ cycles_ok and values_ok }}
           sequence:
             - variables:
-                todays_min_per_cycle: "{{ states('sensor.hvac_furnace_min_per_cycle') | float }}"
+                todays_min_per_cycle: "{{ states('sensor.hvac_furnace_min_per_cycle') | float(0) }}"
                 d1: "{{ states('input_number.furnace_min_per_cycle_day_1') | float(0) }}"
                 d2: "{{ states('input_number.furnace_min_per_cycle_day_2') | float(0) }}"
                 d3: "{{ states('input_number.furnace_min_per_cycle_day_3') | float(0) }}"
@@ -364,8 +476,50 @@
               target:
                 entity_id: input_datetime.furnace_cycle_capture_last_ok
               data:
-                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+                datetime: "{{ capture_stamp }}"
       default:
+        - variables:
+            d1: "{{ states('input_number.furnace_min_per_cycle_day_1') | float(0) }}"
+            d2: "{{ states('input_number.furnace_min_per_cycle_day_2') | float(0) }}"
+            d3: "{{ states('input_number.furnace_min_per_cycle_day_3') | float(0) }}"
+            d4: "{{ states('input_number.furnace_min_per_cycle_day_4') | float(0) }}"
+            d5: "{{ states('input_number.furnace_min_per_cycle_day_5') | float(0) }}"
+            d6: "{{ states('input_number.furnace_min_per_cycle_day_6') | float(0) }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_7
+          data:
+            value: "{{ d6 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_6
+          data:
+            value: "{{ d5 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_5
+          data:
+            value: "{{ d4 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_4
+          data:
+            value: "{{ d3 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_3
+          data:
+            value: "{{ d2 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_2
+          data:
+            value: "{{ d1 }}"
+        - service: input_number.set_value
+          target:
+            entity_id: input_number.furnace_min_per_cycle_day_1
+          data:
+            value: 0
         - service: input_datetime.set_datetime
           target:
             entity_id: input_datetime.furnace_cycle_capture_last_ok
@@ -375,8 +529,8 @@
           data:
             level: info
             message: >
-              Furnace min/cycle capture skipped - Cycles={{ states('sensor.hvac_furnace_cycles_today') }},
-              Min_per_cycle={{ states('sensor.hvac_furnace_min_per_cycle') }}
+              Furnace min/cycle capture skipped — Cycles={{ states('sensor.hvac_furnace_cycles_today') }},
+              Min_per_cycle={{ states('sensor.hvac_furnace_min_per_cycle') }}. Zero written to shift window.
 
 # ===============================================================
 # MONTHLY REPORT TRACKING - Daily capture at 11:56:30 PM
@@ -389,6 +543,8 @@
     - platform: time
       at: "23:56:30"
   action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     # Snapshot ALL daily values before any updates (atomic capture)
     - variables:
         todays_high: "{{ states('input_number.outdoor_temp_daily_high') | float(0) }}"
@@ -419,96 +575,259 @@
         zone_2f_runtime_acc: "{{ states('input_number.zone_2f_runtime_month_acc') | float(0) }}"
         zone_1f_cycles_acc: "{{ states('input_number.zone_1f_cycles_month_acc') | int(0) }}"
         zone_2f_cycles_acc: "{{ states('input_number.zone_2f_cycles_month_acc') | int(0) }}"
-    - condition: template
-      value_template: >
-        {{ todays_high > -49 and todays_low < 149 and
-           is_number(todays_hdd) and is_number(todays_cdd) and
-           0 <= todays_hdd <= 65 and 0 <= todays_cdd <= 50 }}
-    # ── TIMESTAMP FIRST ──────────────────────────────────────────
-    # Set before ANY accumulator updates so captured_today flips
-    # atomically for all month sensors (HDD + runtime + cycles).
-    # Brief dip (accumulators missing today) affects numerator and
-    # denominator equally, keeping the efficiency ratio stable.
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.monthly_tracking_capture_last_ok
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    # ── HDD/CDD accumulators (moved from capture_daily_hdd) ─────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hdd_cumulative_month_auto
-      data:
-        value: "{{ (hdd_month_acc + todays_hdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.cdd_cumulative_month_auto
-      data:
-        value: "{{ (cdd_month_acc + todays_cdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.hdd_cumulative_year_auto
-      data:
-        value: "{{ (hdd_year_acc + todays_hdd) | round(1) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.cdd_cumulative_year_auto
-      data:
-        value: "{{ (cdd_year_acc + todays_cdd) | round(1) }}"
-    # ── Outdoor temp tracking ────────────────────────────────────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_sum_month
-      data:
-        value: "{{ current_temp_sum + todays_mean }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.outdoor_temp_days_month
-      data:
-        value: "{{ current_days + 1 }}"
-    # ── Furnace/zone accumulators (immune to recorder purge) ─────
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_runtime_month_acc
-      data:
-        value: "{{ (furnace_runtime_acc + furnace_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_cycles_month_acc
-      data:
-        value: "{{ furnace_cycles_acc + furnace_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_runtime_month_acc
-      data:
-        value: "{{ (zone_1f_runtime_acc + zone_1f_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_runtime_month_acc
-      data:
-        value: "{{ (zone_2f_runtime_acc + zone_2f_runtime_today) | round(2) }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_cycles_month_acc
-      data:
-        value: "{{ zone_1f_cycles_acc + zone_1f_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_cycles_month_acc
-      data:
-        value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.expected_runtime_sum_month
-      data:
-        value: "{{ current_expected_sum + todays_expected }}"
-    - service: system_log.write
-      data:
-        message: >
-          Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
-          mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
-          expected={{ todays_expected }}h
-        level: info
+        # AC cooling daily values
+        ac_runtime_today: "{{ states('sensor.hvac_ac_runtime_today') | float(0) }}"
+        ac_cycles_today: "{{ states('sensor.hvac_ac_cycles_today') | int(0) }}"
+        zone_1f_cool_runtime_today: "{{ states('sensor.hvac_1f_cool_runtime_today') | float(0) }}"
+        zone_2f_cool_runtime_today: "{{ states('sensor.hvac_2f_cool_runtime_today') | float(0) }}"
+        zone_1f_cool_cycles_today: "{{ states('sensor.hvac_1f_cool_cycles_today') | int(0) }}"
+        zone_2f_cool_cycles_today: "{{ states('sensor.hvac_2f_cool_cycles_today') | int(0) }}"
+        # AC cooling accumulators
+        ac_runtime_acc: "{{ states('input_number.ac_runtime_month_acc') | float(0) }}"
+        ac_cycles_acc: "{{ states('input_number.ac_cycles_month_acc') | int(0) }}"
+        zone_1f_cool_runtime_acc: "{{ states('input_number.zone_1f_cool_runtime_month_acc') | float(0) }}"
+        zone_2f_cool_runtime_acc: "{{ states('input_number.zone_2f_cool_runtime_month_acc') | float(0) }}"
+        zone_1f_cool_cycles_acc: "{{ states('input_number.zone_1f_cool_cycles_month_acc') | int(0) }}"
+        zone_2f_cool_cycles_acc: "{{ states('input_number.zone_2f_cool_cycles_month_acc') | int(0) }}"
+        # AC cooling yearly accumulators
+        ac_runtime_year_acc: "{{ states('input_number.ac_runtime_year_acc') | float(0) }}"
+        ac_cycles_year_acc: "{{ states('input_number.ac_cycles_year_acc') | int(0) }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ todays_high > -49 and todays_low < 149 and
+                   is_number(todays_hdd) and is_number(todays_cdd) and
+                   0 <= todays_hdd <= 65 and 0 <= todays_cdd <= 50 }}
+          sequence:
+            # ── TIMESTAMP FIRST ──────────────────────────────────────────
+            # Set before ANY accumulator updates so captured_today flips
+            # atomically for all month sensors (HDD + runtime + cycles).
+            # Brief dip (accumulators missing today) affects numerator and
+            # denominator equally, keeping the efficiency ratio stable.
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.monthly_tracking_capture_last_ok
+              data:
+                datetime: "{{ capture_stamp }}"
+            # ── HDD/CDD accumulators (moved from capture_daily_hdd) ─────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_month_auto
+              data:
+                value: "{{ (hdd_month_acc + todays_hdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_month_auto
+              data:
+                value: "{{ (cdd_month_acc + todays_cdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.hdd_cumulative_year_auto
+              data:
+                value: "{{ (hdd_year_acc + todays_hdd) | round(1) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.cdd_cumulative_year_auto
+              data:
+                value: "{{ (cdd_year_acc + todays_cdd) | round(1) }}"
+            # ── Outdoor temp tracking ────────────────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_sum_month
+              data:
+                value: "{{ current_temp_sum + todays_mean }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.outdoor_temp_days_month
+              data:
+                value: "{{ current_days + 1 }}"
+            # ── Furnace/zone accumulators (immune to recorder purge) ─────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_runtime_month_acc
+              data:
+                value: "{{ (furnace_runtime_acc + furnace_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.furnace_cycles_month_acc
+              data:
+                value: "{{ furnace_cycles_acc + furnace_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_runtime_month_acc
+              data:
+                value: "{{ (zone_1f_runtime_acc + zone_1f_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_runtime_month_acc
+              data:
+                value: "{{ (zone_2f_runtime_acc + zone_2f_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cycles_month_acc
+              data:
+                value: "{{ zone_1f_cycles_acc + zone_1f_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cycles_month_acc
+              data:
+                value: "{{ zone_2f_cycles_acc + zone_2f_cycles_today }}"
+            # ── AC cooling accumulators ──────────────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_runtime_month_acc
+              data:
+                value: "{{ (ac_runtime_acc + ac_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_cycles_month_acc
+              data:
+                value: "{{ ac_cycles_acc + ac_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cool_runtime_month_acc
+              data:
+                value: "{{ (zone_1f_cool_runtime_acc + zone_1f_cool_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cool_runtime_month_acc
+              data:
+                value: "{{ (zone_2f_cool_runtime_acc + zone_2f_cool_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_1f_cool_cycles_month_acc
+              data:
+                value: "{{ zone_1f_cool_cycles_acc + zone_1f_cool_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.zone_2f_cool_cycles_month_acc
+              data:
+                value: "{{ zone_2f_cool_cycles_acc + zone_2f_cool_cycles_today }}"
+            # ── AC cooling yearly accumulators ───────────────────────────
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_runtime_year_acc
+              data:
+                value: "{{ (ac_runtime_year_acc + ac_runtime_today) | round(2) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_cycles_year_acc
+              data:
+                value: "{{ ac_cycles_year_acc + ac_cycles_today }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.expected_runtime_sum_month
+              data:
+                value: "{{ current_expected_sum + todays_expected }}"
+            - service: system_log.write
+              data:
+                message: >
+                  Monthly tracking captured: HDD={{ todays_hdd }}, CDD={{ todays_cdd }},
+                  mean={{ todays_mean }}°F, furnace={{ furnace_runtime_today }}h,
+                  expected={{ todays_expected }}h, AC={{ ac_runtime_today }}h
+                level: info
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Monthly tracking SKIPPED - invalid temp or degree-day data.
+              high={{ todays_high }}, low={{ todays_low }},
+              HDD={{ todays_hdd }}, CDD={{ todays_cdd }}.
+              Accumulators NOT updated. Check outdoor proxy sensor.
+
+# RUNTIME PER CDD TRACKING - Daily capture at 11:56:45 PM
+# ===============================================================
+- id: capture_daily_runtime_per_cdd
+  alias: "Capture Daily Runtime per CDD"
+  description: "Shifts 7-day runtime/CDD sliding window for cooling efficiency tracking"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:56:45"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        ac_runtime: "{{ states('sensor.hvac_ac_runtime_today') }}"
+        todays_cdd: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+        upstream_ok: "{{ ac_runtime not in ['unknown', 'unavailable'] and
+                         todays_cdd > 0 }}"
+        todays_ratio: >
+          {% if upstream_ok %}
+            {% set rt_min = ac_runtime | float(0) * 60 %}
+            {{ (rt_min / todays_cdd) | round(1) }}
+          {% else %}
+            -1
+          {% endif %}
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ upstream_ok and todays_ratio >= 0 }}"
+          sequence:
+            - variables:
+                d1: "{{ states('input_number.runtime_per_cdd_day_1')|float(0) }}"
+                d2: "{{ states('input_number.runtime_per_cdd_day_2')|float(0) }}"
+                d3: "{{ states('input_number.runtime_per_cdd_day_3')|float(0) }}"
+                d4: "{{ states('input_number.runtime_per_cdd_day_4')|float(0) }}"
+                d5: "{{ states('input_number.runtime_per_cdd_day_5')|float(0) }}"
+                d6: "{{ states('input_number.runtime_per_cdd_day_6')|float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.runtime_per_cdd_day_1
+              data:
+                value: "{{ todays_ratio }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.runtime_per_cdd_capture_last_ok
+              data:
+                datetime: "{{ capture_stamp }}"
+            - service: system_log.write
+              data:
+                message: "Runtime/CDD sliding window captured: ratio={{ todays_ratio }} min/CDD"
+                level: info
+      default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.runtime_per_cdd_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
+        - service: system_log.write
+          data:
+            level: warning
+            message: >
+              Runtime/CDD capture skipped - AC_runtime={{ ac_runtime }},
+              CDD={{ todays_cdd }}
 
 # ===============================================================
 # MONTHLY/YEARLY RESETS - With startup catch-up
@@ -527,24 +846,32 @@
   condition:
     - condition: template
       value_template: >
-        {% set last_ok = states('input_datetime.hdd_capture_last_ok') %}
-        {% set month_val = states('input_number.hdd_cumulative_month_auto')|float(0) %}
+        {# Guard keyed to a dedicated reset stamp (gas-season pattern), NOT to
+           hdd_cumulative_month_auto == 0 — that value is legitimately 0 at the
+           end of July (Jul 2025 archived 0.0 HDD), which silently skipped the
+           Aug 1 reset of all 17 accumulators. Fixed 2026-07-03.
+           Semantics: on day 1 (scheduled 00:01 or startup catch-up any hour),
+           reset iff the stamp is absent or from a different month/year. The
+           stamp is written FIRST in the action, so a re-trigger after a
+           partial run cannot double-reset (values are already 0; idempotent),
+           and a completed run cannot repeat. #}
+        {% set last = states('input_datetime.monthly_reset_last_ok') %}
         {% if now().day != 1 %}
           false
-        {% elif month_val == 0 %}
-          {# Already reset, don't reset again #}
-          false
-        {% elif now().hour < 3 %}
-          {# Normal window: always reset #}
+        {% elif last in ['unknown', 'unavailable'] or last[:4] == '1970' %}
           true
-        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
-          {# Late startup: only reset if last capture was previous month #}
-          {% set last_capture = last_ok | as_datetime | as_local %}
-          {{ last_capture.month != now().month }}
         {% else %}
-          false
+          {% set lr = last | as_datetime | as_local %}
+          {{ not (lr.year == now().year and lr.month == now().month) }}
         {% endif %}
   action:
+    # Stamp FIRST — the guard above keys on this, making the reset once-per-month
+    # regardless of how the accumulators happen to look.
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.monthly_reset_last_ok
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - service: input_number.set_value
       target:
         entity_id: input_number.hdd_cumulative_month_auto
@@ -601,9 +928,65 @@
         entity_id: input_number.zone_2f_cycles_month_acc
       data:
         value: 0
+    # Reset AC cooling monthly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_runtime_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_1f_cool_cycles_month_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.zone_2f_cool_cycles_month_acc
+      data:
+        value: 0
+    # Archive closing month's MPC stats before reset
+    # Month index used to select the right archive slot
+    - variables:
+        closing_month: "{{ (now() - timedelta(days=1)).strftime('%b') | lower }}"
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_mpc_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_cycle_mean_7d') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_mpc_sigma_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_cycle_sigma_7d') | float(0) }}
+    - service: input_number.set_value
+      target:
+        entity_id: >
+          input_number.furnace_short_cycle_archive_{{ closing_month }}
+      data:
+        value: >
+          {{ states('sensor.hvac_furnace_short_cycle_pct_7d') | float(0) }}
     - service: system_log.write
       data:
-        message: "Monthly HDD/CDD and furnace accumulators reset completed (trigger: {{ trigger.id }})"
+        message: "Monthly HDD/CDD, furnace, and AC cooling accumulators reset completed (trigger: {{ trigger.id }})"
         level: info
 
 - id: reset_yearly_hdd
@@ -648,6 +1031,17 @@
         entity_id: input_number.cdd_cumulative_year_auto
       data:
         value: 0
+    # Reset AC cooling yearly accumulators
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_runtime_year_acc
+      data:
+        value: 0
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.ac_cycles_year_acc
+      data:
+        value: 0
     - service: system_log.write
       data:
         message: "Yearly HDD/CDD reset completed (trigger: {{ trigger.id }})"
@@ -662,7 +1056,7 @@
   mode: single
   trigger:
     - platform: time
-      at: "23:58:00"
+      at: "23:58:15"
   condition:
     # Only run on last day of month
     - condition: template
@@ -671,6 +1065,7 @@
         {{ tomorrow.day == 1 }}
   action:
     - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
         # Note: hdd_cumulative_month_auto already includes today's HDD (added at 23:56:30)
         month_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) }}"
         month_name: >
@@ -687,8 +1082,52 @@
         level: info
 
 # ===============================================================
+# MONTHLY CDD ARCHIVE (mirrors HDD archive for cooling season analysis)
+# ===============================================================
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.hdd_archive_last_ok
+      data:
+        datetime: "{{ capture_stamp }}"
+- id: archive_monthly_cdd
+  alias: "Archive Monthly CDD"
+  description: "Archives month's total CDD to rolling 12-month archive on last day of month"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:58:30"
+  condition:
+    # Only run on last day of month
+    - condition: template
+      value_template: >
+        {% set tomorrow = now() + timedelta(days=1) %}
+        {{ tomorrow.day == 1 }}
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        # Note: cdd_cumulative_month_auto already includes today's CDD (added at 23:56:30)
+        month_cdd: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) }}"
+        month_name: >
+          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
+          {{ months[now().month - 1] }}
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.cdd_archive_{{ month_name }}"
+      data:
+        value: "{{ month_cdd | round(1) }}"
+    - service: system_log.write
+      data:
+        message: "Monthly CDD archived: {{ month_name | upper }} = {{ month_cdd | round(1) }} CDD"
+        level: info
+
+# ===============================================================
 # BILL SAVE AUTOMATIONS
 # ===============================================================
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.cdd_archive_last_ok
+      data:
+        datetime: "{{ capture_stamp }}"
 - id: save_electric_bill_button
   alias: "Save Electric Bill - Button Press"
   trigger:
@@ -699,12 +1138,12 @@
         bill_month: >
           {% set dt = states('input_datetime.electricity_bill_date') %}
           {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
-        current_amount: "{{ states('input_number.electricity_bill_amount') | float }}"
-        current_kwh: "{{ states('input_number.electricity_bill_kwh') | float }}"
-        current_days: "{{ states('input_number.electricity_bill_days') | float }}"
+        current_amount: "{{ states('input_number.electricity_bill_amount') | float(0) }}"
+        current_kwh: "{{ states('input_number.electricity_bill_kwh') | float(0) }}"
+        current_days: "{{ states('input_number.electricity_bill_days') | float(0) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(bill_month | int) - 1] }}
+          {{ months[(bill_month | int(0)) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -762,12 +1201,12 @@
         bill_month: >
           {% set dt = states('input_datetime.gas_bill_date') %}
           {{ (dt | as_datetime).month if dt not in ['unknown', 'unavailable', 'none'] else now().month }}
-        current_amount: "{{ states('input_number.gas_bill_amount') | float }}"
-        current_ccf: "{{ states('input_number.gas_bill_ccf') | float }}"
-        current_days: "{{ states('input_number.gas_bill_days') | float }}"
+        current_amount: "{{ states('input_number.gas_bill_amount') | float(0) }}"
+        current_ccf: "{{ states('input_number.gas_bill_ccf') | float(0) }}"
+        current_days: "{{ states('input_number.gas_bill_days') | float(0) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(bill_month | int) - 1] }}
+          {{ months[(bill_month | int(0)) - 1] }}
         prev_month_name: >
           {% set prev_map = {1: 'dec', 2: 'jan', 3: 'feb', 4: 'mar', 5: 'apr', 6: 'may', 7: 'jun', 8: 'jul', 9: 'aug', 10: 'sep', 11: 'oct', 12: 'nov'} %}
           {{ prev_map[bill_month] }}
@@ -834,7 +1273,7 @@
         current_dhw: "{{ (input_thm * 0.9643) | round(2) }}"
         month_name: >
           {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[(prev_month | int) - 1] }}
+          {{ months[(prev_month | int(0)) - 1] }}
         prev_dhw: "{{ states('input_number.dhw_archive_' ~ month_name) | float(0) }}"
     - condition: template
       value_template: "{{ input_thm > 0 }}"
@@ -843,6 +1282,16 @@
         entity_id: "input_number.dhw_archive_{{ month_name | trim }}"
       data:
         value: "{{ current_dhw }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.dhw_op_hrs_archive_{{ month_name | trim }}"
+      data:
+        value: "{{ states('input_number.dhw_op_hrs_bill') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: "input_number.dhw_recirc_hrs_archive_{{ month_name | trim }}"
+      data:
+        value: "{{ states('input_number.dhw_recirc_hrs_bill') | float(0) }}"
     - service: persistent_notification.create
       data:
         title: "✅ DHW Archived"
@@ -880,14 +1329,22 @@
       at: "22:00:00"
   condition:
     - condition: template
-      value_template: "{{ states('sensor.hvac_hdd65_today') | float(0) > 0 }}"
+      value_template: >
+        {{ states('sensor.hvac_hdd65_today') | float(0) > 0 or
+           states('sensor.hvac_cdd65_today') | float(0) > 0 }}
   action:
     - service: persistent_notification.create
       data:
         title: "📊 Daily HVAC Summary"
         message: >
-          HDD: {{ states('sensor.hvac_hdd65_today') }}
-          Runtime: {{ states('sensor.hvac_total_heat_runtime_today') }}h
+          {% if states('sensor.hvac_hdd65_today') | float(0) > 0 %}
+          🔥 Heating: HDD={{ states('sensor.hvac_hdd65_today') }}
+          Runtime={{ states('sensor.hvac_total_heat_runtime_today') }}h
+          {% endif %}
+          {% if states('sensor.hvac_cdd65_today') | float(0) > 0 %}
+          ❄️ Cooling: CDD={{ states('sensor.hvac_cdd65_today') }}
+          AC Runtime={{ states('sensor.hvac_ac_runtime_today') }}h
+          {% endif %}
           Zone Balance: {{ states('sensor.hvac_zone_balance_ratio_today') }}%
 
 # ===============================================================
@@ -895,19 +1352,68 @@
 # ===============================================================
 - id: dehumidifier_auto_on
   alias: "Dehumidifier Auto On"
-  description: "Turn on dehumidifier when dew point exceeds threshold"
+  description: >-
+    Start the unit when binary_sensor.dehumidifier_should_run goes true (RH
+    above the ON threshold AND basement at or above min temp), subject to the
+    min-off lockout. Controlled variable returned to RH on 2026-08-03; the
+    dew-point era ran 2026-07-30 to 2026-08-03.
+  mode: single
   trigger:
     - platform: state
       entity_id: binary_sensor.dehumidifier_should_run
       to: "on"
+    # Periodic re-check (2026-07-30) — THE SETPOINT BUG.
+    #
+    # This is the identical defect class already found and fixed in
+    # dehumidifier_force_on_backstop on 2026-07-03, but never applied here,
+    # to the PRIMARY control path. A state trigger fires only on the
+    # TRANSITION to "on". If that transition lands inside the min-off
+    # lockout the condition fails, the trigger is consumed, and because
+    # should_run STAYS "on" (RH is still above rh_on) it never re-fires.
+    #
+    # Consequence: after almost every cycle, auto_on was dead. The only
+    # thing that actually restarted the unit was the force-on backstop's own
+    # /15 re-check at the CEILING — which is why min-off appeared to
+    # quantise to 10-25 min (avg ~17.5) and why the band never behaved like
+    # a band. The ceiling had quietly become the real ON setpoint.
+    #
+    # This mattered less when the ceiling sat ~1 point above rh_on (50 vs
+    # 49). At the 2026-07-30 band (55/52, ceiling 60) the gap is 5 points,
+    # so leaving this unfixed would have parked the true ON setpoint at 60.
+    - platform: time_pattern
+      minutes: "/15"
   condition:
+    # LOCAL-CONTROL GATE (commissioning mode, 2026-08-03). While
+    # input_boolean.dehumidifier_local_control is ON, HA does not stop or
+    # start the unit - the E080's onboard humidistat does. Placed FIRST so
+    # it short-circuits before any sensor is read.
+    #
+    # Written as a template rather than `condition: state ... state: "off"`
+    # so the failure direction is CHOSEN rather than inherited. A state
+    # condition testing for "off" is also false when the entity is missing
+    # or unknown, which would silently and permanently disable HA control
+    # if the helper were ever deleted or failed to load. This form is false
+    # ONLY when the boolean is explicitly "on", so anything unreadable
+    # degrades back to normal HA control - the designed behaviour, and the
+    # one you would notice.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
     - condition: state
       entity_id: switch.dehumidifier
       state: "off"
+    # Explicit should_run condition: required now that the periodic trigger
+    # exists — the state trigger implied it, time_pattern does not.
+    # Node-loss-safe: an unavailable binary_sensor is not "on", so this
+    # gates false and stays false.
+    - condition: state
+      entity_id: binary_sensor.dehumidifier_should_run
+      state: "on"
     - condition: template
       value_template: >
-        {% set last_off = state_attr('automation.dehumidifier_auto_off', 'last_triggered') %}
-        {{ last_off is none or (now() - last_off).total_seconds() > 1800 }}
+        {% set lo = states('input_datetime.dehumidifier_last_off_time') %}
+        {% set min_off = states('input_number.dehumidifier_min_off_minutes') | float(30) * 60 %}
+        {{ lo in ['unknown', 'unavailable'] or lo[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(lo, 0)) > min_off }}
   action:
     - service: switch.turn_on
       target:
@@ -915,42 +1421,521 @@
 
 - id: dehumidifier_auto_off
   alias: "Dehumidifier Auto Off"
-  description: "Turn off dehumidifier after 4 hours or when conditions clear"
+  description: >-
+    Stop the unit when RH clears the OFF threshold, subject to the min-run
+    guard and the condensation veto. Max runtime is handled by
+    dehumidifier_max_runtime_backstop; stall by dehumidifier_rh_stall_shutdown;
+    sensor loss by dehumidifier_sensor_loss_shutdown. None of those three is
+    gated by min-run. Controlled variable returned to RH 2026-08-03.
+  mode: single
   trigger:
-    - platform: state
-      entity_id: binary_sensor.dehumidifier_should_run
-      to: "off"
+    # Periodic re-check: a template trigger fires only on the false->true
+    # edge. If RH is already below rh_off when the unit starts - which the
+    # condensation limb of the force-on backstop can cause (dry air, cold
+    # surface) - the edge has already passed and auto_off would never fire,
+    # running the cycle all the way to the max-runtime backstop.
+    #
+    # This /15 cadence is ALSO the min-run release mechanism: when min-run
+    # blocks a stop the trigger is consumed, and only this periodic
+    # re-check brings it back. Consequence to accept: the actual minimum
+    # run is min_run rounded UP to the next /15 boundary, so a 30-min
+    # setting yields 30-45 min in practice. This is the same quantisation
+    # that made min_off behave as 10-25 min in the 2026-07-30
+    # investigation. Documented rather than fixed: a finer cadence costs
+    # more re-evaluations than the precision is worth here.
+    - platform: time_pattern
+      minutes: "/15"
+    - platform: template
       id: conditions_cleared
-    - platform: state
-      entity_id: switch.dehumidifier
-      to: "on"
-      for:
-        hours: 4
-      id: max_runtime
+      # CONTROL VARIABLE RH as of 2026-08-03. is_number() gates first, so
+      # sensor loss makes this false and KEEPS it false (no spurious
+      # off-pulse on recovery either); dehumidifier_sensor_loss_shutdown
+      # handles the real shutdown with a named stop reason.
+      value_template: >
+        {% set rh = states('sensor.basement_th_node_basement_humidity') %}
+        {% set rh_off = states('input_number.dehumidifier_rh_off_threshold') | float(53) %}
+        {{ is_number(rh) and (rh | float(999)) < rh_off }}
   condition:
+    # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+    # False only when the boolean is explicitly "on"; anything unreadable
+    # degrades back to normal HA control.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
     - condition: state
       entity_id: switch.dehumidifier
       state: "on"
+    # Explicit RH condition: the template trigger implied it, the periodic
+    # trigger does not. float(999) on failure means an unreadable RH is
+    # never 'below the off threshold', so sensor loss cannot masquerade as
+    # a satisfied cycle.
+    - condition: template
+      value_template: >
+        {% set rh = states('sensor.basement_th_node_basement_humidity') %}
+        {% set rh_off = states('input_number.dehumidifier_rh_off_threshold') | float(53) %}
+        {{ is_number(rh) and (rh | float(999)) < rh_off }}
+    # MIN-RUN GUARD (added 2026-08-03, REBASED 2026-08-05).
+    #
+    # Basis is dehumidifier_cycle_start_time - the COMPRESSOR-start stamp
+    # written by dehumidifier_cycle_start_capture on every
+    # binary_sensor.dehumidifier_compressor_active off->on transition.
+    #
+    # WAS dehumidifier_last_on_time (the switch-ON stamp). That shared one
+    # clock with two other guards, and dehumidifier_local_control_exit
+    # deliberately re-stamps it to now() so the max-runtime backstop does
+    # not fire on handback. Consequence: exiting local control armed a
+    # fresh min-run clock and auto_off could not fire for min_run minutes -
+    # 30-45 min in practice with the /15 release cadence - so the plug
+    # stayed on after handing control back to HA. Observed 2026-08-05.
+    # last_on_time now serves only the max-runtime backstop and the stall
+    # gate, both of which genuinely DO want a fresh clock on handback.
+    #
+    # This is also the semantically correct basis: min-run exists to stop
+    # unproductively short COMPRESSOR runs, and every HA 'on' carries an
+    # 80 s to 3 min E080 blower lead-in before the compressor engages
+    # (measured from the plug power trace 2026-08-04). Counting from
+    # switch-on charged that dead time against min-run.
+    #
+    # Single-writer rule still satisfied: cycle_start_capture is the only
+    # writer of this stamp and it fires on EVERY compressor start -
+    # HA-commanded, manual, force-on, or the unit's own humidistat during
+    # local control (that automation is not local-control gated, which is
+    # exactly why the stamp stays current through a commissioning window).
+    #
+    # FAILS OPEN by design, three ways: an unset/1970 stamp passes, a
+    # missing input_number defaults to 0, and a stale stamp from a previous
+    # cycle also passes. A missing timer must never be able to strand the
+    # compressor on. Cost of failing open is one short cycle; cost of
+    # failing closed is an unattended runaway. The stale-stamp window - the
+    # blower lead-in, before compressor_active goes on - is harmless: the
+    # RH condition above still has to hold, and HA only just started the
+    # unit because RH was above rh_on.
+    - condition: template
+      value_template: >
+        {% set cs = states('input_datetime.dehumidifier_cycle_start_time') %}
+        {% set min_run = states('input_number.dehumidifier_min_run_minutes') | float(0) * 60 %}
+        {{ cs in ['unknown', 'unavailable'] or cs[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(cs, 0)) >= min_run }}
+    # MOLD VETO. Under RH control this is no longer a control-conflict
+    # guard (rh < rh_off and rh > ceiling cannot both hold when the band
+    # is ordered below the ceiling). Retained as a CONFIGURATION-ERROR
+    # catch: if rh_off is ever set above the ceiling, this stops the unit
+    # from switching off while the mold limit is breached.
+    # Fails OPEN: unreadable RH or ceiling lifts the veto.
+    - condition: template
+      value_template: >
+        {% set rh = states('sensor.basement_th_node_basement_humidity') %}
+        {% set ceiling = states('input_number.dehumidifier_rh_force_on') %}
+        {{ not (is_number(rh) and is_number(ceiling)
+                and (rh | float(0)) > (ceiling | float(60))) }}
+    # CONDENSATION VETO - unchanged, and deliberately still in dew-point
+    # units. Condensation is a dew-point-versus-surface phenomenon; RH
+    # cannot express it without knowing the surface temperature. This is
+    # the one place where the DP machinery is not merely diagnostic.
+    #
+    # For scale: with the bank surface at air temperature and an 8 degF
+    # margin, the condensation limit corresponds to roughly 75-76 % RH
+    # across 62-72 degF - far above the 60 % mold ceiling, so mold binds
+    # first. The surface has to run about 6.5 degF colder than the air
+    # before this veto becomes the binding constraint. That is what it is
+    # watching for.
+    #
+    # Fails OPEN: if the margin sensor or its setpoint is unreadable the
+    # inner test is false, the veto does not apply, and normal RH control
+    # continues. A missing guard must not strand the compressor on.
+    - condition: template
+      value_template: >
+        {% set margin = states('sensor.basement_condensation_margin') %}
+        {% set margin_min = states('input_number.basement_dp_margin_min') %}
+        {{ not (is_number(margin) and is_number(margin_min)
+                and (margin | float(99)) < (margin_min | float(8))) }}
   action:
     - service: input_select.select_option
       target:
         entity_id: input_select.dehumidifier_last_stop_reason
       data:
-        option: "{{ trigger.id }}"
+        option: "{{ trigger.id | default('conditions_cleared', true) }}"
     - service: switch.turn_off
       target:
         entity_id: switch.dehumidifier
 
-# ===============================================================
-# DEHUMIDIFIER PERFORMANCE TRACKING
-# ===============================================================
-- id: dehumidifier_cycle_start_capture
-  alias: "Dehumidifier Cycle Start Capture"
-  description: "Capture dew point and timestamp when dehumidifier turns on"
+- id: dehumidifier_stamp_last_off
+  alias: "Dehumidifier Stamp Last Off Time"
+  description: "Record every dehumidifier OFF for the reboot-proof anti-short-cycle lockout (covers conditions_cleared, max_runtime, rh_stall, and manual offs)"
   mode: single
   trigger:
     - platform: state
       entity_id: switch.dehumidifier
+      to: "off"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_last_off_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: dehumidifier_stamp_last_on
+  alias: "Dehumidifier Stamp Last On Time"
+  description: "Companion to the OFF stamp: records every switch ON as the dip-proof, restart-proof basis for the max-runtime backstop (added 2026-07-03)"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: switch.dehumidifier
+      to: "on"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_last_on_time
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: dehumidifier_max_runtime_backstop
+  alias: "Dehumidifier Max Runtime Backstop"
+  description: >-
+    Dip-proof max runtime cap (configurable via input_number.dehumidifier_max_runtime_hours).
+    The existing max_runtime trigger in Dehumidifier Auto Off requires compressor_active
+    to stay 'on' UNINTERRUPTED; any power dip > the 10 s delay_off (defrost, thermal
+    protection) resets that clock. This backstop keys on the switch-ON wall clock
+    instead, which nothing resets.
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/15"
+  condition:
+    # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+    # False only when the boolean is explicitly "on"; anything unreadable
+    # degrades back to normal HA control.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "on"
+    # 2026-08-24: fallback was `| float(4)` against a helper holding 2.0, so an
+    # unreadable helper DOUBLED the runaway cap - on the one automation whose
+    # entire job is to stop a compressor nobody is watching. Unlike the stall
+    # detector this must never be gated off by is_number(): a guard that
+    # disables itself when an input is missing is not a backstop. So it keeps a
+    # literal fallback, deliberately set to the CONSERVATIVE end. This is not a
+    # copy of the helper and must not be kept in step with it - if the helper
+    # rises above 2 h, this stays at 2 h on purpose, because the only job of
+    # the fallback is to bound a run when the configured bound is unreadable.
+    - condition: template
+      value_template: >
+        {% set lo = states('input_datetime.dehumidifier_last_on_time') %}
+        {% set max_hrs = states('input_number.dehumidifier_max_runtime_hours') | float(2) %}
+        {{ lo not in ['unknown', 'unavailable'] and lo[:4] != '1970'
+           and (as_timestamp(now()) - as_timestamp(lo, 0)) > (max_hrs * 3600) }}
+  action:
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: max_runtime
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+    - service: system_log.write
+      data:
+        level: warning
+        message: >-
+          Dehumidifier max-runtime BACKSTOP fired: switch has been on
+          {{ ((as_timestamp(now()) - as_timestamp(states('input_datetime.dehumidifier_last_on_time'), 0)) / 60) | round(0) }}
+          min (wall clock since last ON, limit {{ states('input_number.dehumidifier_max_runtime_hours') | float(4) }} hrs).
+          The compressor-active trigger did not fire — likely reset by a power dip (defrost/thermal cycle).
+          RH {{ states('sensor.basement_th_node_basement_humidity') }}%.
+
+- id: dehumidifier_force_on_backstop
+  alias: "Dehumidifier Force On Backstop"
+  description: "Envelope override (retargeted 2026-07-30): runs the unit when EITHER air RH exceeds the mold ceiling OR basement dew point closes on the coldest measured surface. Kept as one automation, not two, so there is a single writer and a single /15 re-check - a second periodic force-on would compound the min-off quantisation already observed. Envelope protection outranks short-cycle protection only when genuinely at a limit."
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.basement_th_node_basement_humidity
+      above: input_number.dehumidifier_rh_force_on
+    # Condensation limb (2026-07-30). Dew point closing on the coldest
+    # measured surface is the only mechanism that can wet the bare copper
+    # bus bars, so it belongs in this guard rather than in the RH band.
+    - platform: numeric_state
+      entity_id: sensor.basement_condensation_margin
+      below: input_number.basement_dp_margin_min
+    # Periodic re-check (2026-07-03): numeric_state fires only on the CROSSING.
+    # If the crossing lands inside the 10-min lockout the trigger is consumed
+    # and, with RH parked above the ceiling, never re-fires. This makes the
+    # corrosion ceiling a guarantee: conditions below gate everything, so when
+    # RH is below the ceiling it is a no-op.
+    - platform: time_pattern
+      minutes: "/15"
+  condition:
+    # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+    # False only when the boolean is explicitly "on"; anything unreadable
+    # degrades back to normal HA control.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "off"
+    # Explicit envelope condition (2026-07-03, widened 2026-07-30): required
+    # because the periodic trigger implies nothing. Either limb qualifies.
+    #
+    # Written as an OR template rather than two numeric_state conditions
+    # because condition lists are ANDed - two numeric_state entries would
+    # require BOTH limits to be violated at once, which is exactly the
+    # opposite of the intent and would silently disable the guard.
+    #
+    # is_number() gates each limb first, so a dead node or a missing
+    # input_number makes that limb false and KEEPS it false. Node-loss-safe
+    # by construction: forcing a compressor on from a sensor you cannot read
+    # is worse than briefly not forcing it.
+    - condition: template
+      value_template: >
+        {% set rh = states('sensor.basement_th_node_basement_humidity') %}
+        {% set ceiling = states('input_number.dehumidifier_rh_force_on') %}
+        {% set margin = states('sensor.basement_condensation_margin') %}
+        {% set margin_min = states('input_number.basement_dp_margin_min') %}
+        {% set rh_hit = is_number(rh) and is_number(ceiling)
+                        and (rh | float(0)) > (ceiling | float(60)) %}
+        {% set dp_hit = is_number(margin) and is_number(margin_min)
+                        and (margin | float(99)) < (margin_min | float(8)) %}
+        {{ rh_hit or dp_hit }}
+    - condition: template
+      value_template: >
+        {{ is_number(states('sensor.basement_th_node_basement_temperature')) and
+           states('sensor.basement_th_node_basement_temperature') | float(0)
+           >= states('input_number.dehumidifier_min_temp') | float(60) }}
+    - condition: template
+      value_template: >
+        {% set lo = states('input_datetime.dehumidifier_last_off_time') %}
+        {{ lo in ['unknown', 'unavailable'] or lo[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(lo, 0)) > 600 }}
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.dehumidifier
+
+# ===============================================================
+# LOCAL (UNIT) CONTROL - COMMISSIONING MODE (2026-08-03)
+#
+# Three automations, one job: while the mode is on, guarantee the unit
+# has power and stay out of its way. Every other dehumidifier
+# automation is gated off by the local-control condition.
+#
+# SINGLE WRITER: dehumidifier_local_control_power_hold is the ONLY
+# automation permitted to touch switch.dehumidifier during local mode,
+# and it is on-only. Nothing in HA can switch the unit off while the
+# mode is active, including a manual toggle - the hold will simply put
+# it back within 5 minutes.
+# ===============================================================
+- id: dehumidifier_local_control_enter
+  alias: "Dehumidifier Local Control - Enter"
+  description: >-
+    Stamp the entry time, mark the stop reason so the dashboard badge stops
+    reporting a stale HA stop, and raise a standing notification. Does NOT
+    write the switch - power is handled by the hold automation, so there is
+    exactly one writer.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_boolean.dehumidifier_local_control
+      to: "on"
+  action:
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_local_control_since
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: local_control
+    - service: system_log.write
+      data:
+        level: warning
+        message: >-
+          Dehumidifier LOCAL CONTROL enabled. HA will hold the plug powered and
+          will not switch it off. auto_on, auto_off, force_on_backstop,
+          max_runtime_backstop, rh_stall_shutdown and sensor_loss_shutdown are
+          all suspended. The E080 onboard humidistat is now the only controller.
+          Basement {{ states('sensor.basement_th_node_basement_temperature') }} F,
+          RH {{ states('sensor.basement_th_node_basement_humidity') }} %,
+          DP {{ states('sensor.basement_dew_point') }} F.
+    - service: persistent_notification.create
+      data:
+        notification_id: dehumidifier_local_control
+        title: "🔧 Dehumidifier on LOCAL (unit) control"
+        message: >
+          HA is in monitoring mode. The E080 is running on its own onboard
+          humidistat and HA will not switch it off - every HA-side stop is
+          suspended, including the mold ceiling, the condensation guard, the
+          runtime cap and the dead-sensor cut-out.
+
+
+          Logging, the SHT45 node, the Shelly cross-check, compressor/power
+          capture, duty, cost and the watchdog all keep running. This is the
+          window in which to capture the native power trace and retune
+          input_number.dehumidifier_power_threshold.
+
+
+          Turn the toggle off to hand control back to HA.
+
+- id: dehumidifier_local_control_power_hold
+  alias: "Dehumidifier Local Control - Hold Power On"
+  description: >-
+    Keep switch.dehumidifier energised for the whole local-control window so
+    the unit's own humidistat can govern. On-only writer. Re-asserts every
+    5 min, so a manual off, a power blip or an HA restart cannot silently
+    leave the unit dead during a commissioning run.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_boolean.dehumidifier_local_control
+      to: "on"
+    - platform: time_pattern
+      minutes: "/5"
+  condition:
+    - condition: state
+      entity_id: input_boolean.dehumidifier_local_control
+      state: "on"
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "off"
+    # MIN-OFF IS STILL HONOURED, and this is not negotiable. The compressor
+    # is PSC - no start capacitor or relay - so it cannot start against
+    # unequalised head pressure; an early restart stalls the rotor and trips
+    # the overload. Entering local mode two minutes after an HA stop must not
+    # slam power back on. Worst case the unit powers up min_off after the
+    # last stop, which for commissioning is a rounding error.
+    #
+    # Fails OPEN (allows power-up) on an unset/1970 stamp: at that point
+    # there is no evidence of a recent stop, and leaving the unit unpowered
+    # for a whole commissioning window is the worse outcome.
+    - condition: template
+      value_template: >
+        {% set lo = states('input_datetime.dehumidifier_last_off_time') %}
+        {% set min_off = states('input_number.dehumidifier_min_off_minutes') | float(30) * 60 %}
+        {{ lo in ['unknown', 'unavailable'] or lo[:4] == '1970'
+           or (as_timestamp(now()) - as_timestamp(lo, 0)) > min_off }}
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.dehumidifier
+
+- id: dehumidifier_local_control_exit
+  alias: "Dehumidifier Local Control - Exit"
+  description: >-
+    Hand control back to HA cleanly. The important part is the re-stamp: see
+    the comment on the action.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_boolean.dehumidifier_local_control
+      to: "off"
+  action:
+    # RE-STAMP THE ON CLOCK. During local mode the switch has been
+    # continuously on - possibly for 24 h - so dehumidifier_last_on_time is
+    # stale by exactly that much. Without this, dehumidifier_max_runtime_
+    # backstop evaluates (now - last_on) > max_runtime on its very next /15
+    # tick and cuts the unit off within 15 minutes of handing back, logging
+    # a max_runtime stop that never happened. That would look like a
+    # mystery shutdown and would be hard to attribute.
+    #
+    # This clock is a control timer, not a data record: runtime, duty, kWh
+    # and cost all derive from compressor_active and are untouched.
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: switch.dehumidifier
+              state: "on"
+          sequence:
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.dehumidifier_last_on_time
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      default: []
+    - service: persistent_notification.dismiss
+      data:
+        notification_id: dehumidifier_local_control
+    - service: persistent_notification.dismiss
+      data:
+        notification_id: dehumidifier_local_control_overdue
+    - service: system_log.write
+      data:
+        level: warning
+        message: >-
+          Dehumidifier LOCAL CONTROL disabled; HA control resumed. On-clock
+          re-stamped to now so the max-runtime backstop starts a fresh cycle.
+          Basement {{ states('sensor.basement_th_node_basement_temperature') }} F,
+          RH {{ states('sensor.basement_th_node_basement_humidity') }} %,
+          band {{ states('input_number.dehumidifier_rh_on_threshold') }} /
+          {{ states('input_number.dehumidifier_rh_off_threshold') }} %.
+
+- id: dehumidifier_local_control_reminder
+  alias: "Dehumidifier Local Control - Left On Reminder"
+  description: >-
+    Nag hourly once local control has been on longer than
+    input_number.dehumidifier_local_control_max_hours. There is deliberately
+    NO auto-revert: silently taking control back partway through a
+    commissioning run would corrupt the very measurement the mode exists to
+    make, and the residual risk is soft - the E080's own humidistat holds
+    ~50 % RH, below the 60 % mold ceiling, so what is actually being lost is
+    the envelope logic and the energy, not an acute limit.
+  mode: single
+  trigger:
+    - platform: time_pattern
+      hours: "/1"
+      minutes: 0
+  condition:
+    - condition: state
+      entity_id: input_boolean.dehumidifier_local_control
+      state: "on"
+    - condition: template
+      value_template: >
+        {% set s = states('input_datetime.dehumidifier_local_control_since') %}
+        {% set lim = states('input_number.dehumidifier_local_control_max_hours') | float(36) * 3600 %}
+        {{ s not in ['unknown', 'unavailable'] and s[:4] != '1970'
+           and (as_timestamp(now()) - as_timestamp(s, 0)) > lim }}
+  action:
+    - service: persistent_notification.create
+      data:
+        notification_id: dehumidifier_local_control_overdue
+        title: "⚠️ Dehumidifier still on LOCAL control"
+        message: >
+          Local (unit) control has been on for
+          {{ ((as_timestamp(now()) - as_timestamp(states('input_datetime.dehumidifier_local_control_since'), 0)) / 3600) | round(1) }}
+          hours, past the
+          {{ states('input_number.dehumidifier_local_control_max_hours') }} h limit.
+
+
+          Every HA-side stop is still suspended: mold ceiling, condensation
+          guard, runtime cap, stall cut-out and dead-sensor cut-out. Basement
+          is {{ states('sensor.basement_th_node_basement_humidity') }} % RH at
+          {{ states('sensor.basement_th_node_basement_temperature') }} F.
+
+
+          Turn the toggle off to resume HA control, or raise the limit if the
+          run is meant to be this long.
+    - service: system_log.write
+      data:
+        level: warning
+        message: >-
+          Dehumidifier local control has been active
+          {{ ((as_timestamp(now()) - as_timestamp(states('input_datetime.dehumidifier_local_control_since'), 0)) / 3600) | round(1) }} h,
+          past the {{ states('input_number.dehumidifier_local_control_max_hours') }} h limit.
+          All HA-side stops remain suspended.
+
+
+# ===============================================================
+# DEHUMIDIFIER PERFORMANCE TRACKING (Santa Fe Classic Tuned)
+# Triggers on compressor_active (power-gated), not switch state.
+# Control automations (auto_on / auto_off) are unchanged above.
+# ===============================================================
+- id: dehumidifier_cycle_start_capture
+  alias: "Dehumidifier Cycle Start Capture"
+  description: "Capture dew point and timestamp when compressor turns on"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.dehumidifier_compressor_active
       from: "off"
       to: "on"
   condition:
@@ -995,11 +1980,11 @@
 
 - id: dehumidifier_cycle_end_capture
   alias: "Dehumidifier Cycle End Capture"
-  description: "Calculate pull-down rate and cycle duration when dehumidifier turns off"
+  description: "Calculate pull-down rate and cycle duration when compressor turns off"
   mode: single
   trigger:
     - platform: state
-      entity_id: switch.dehumidifier
+      entity_id: binary_sensor.dehumidifier_compressor_active
       from: "on"
       to: "off"
   condition:
@@ -1021,19 +2006,19 @@
       target:
         entity_id: input_number.dehumidifier_last_cycle_minutes
       data:
-        value: "{{ [[cycle_minutes | float, 0] | max, 300] | min }}"
+        value: "{{ [[cycle_minutes | float(0), 0] | max, 300] | min }}"
     # Only calculate pull-down rate for cycles >= 10 minutes (short cycle guard)
     - if:
         - condition: template
-          value_template: "{{ cycle_minutes | float >= 10 }}"
+          value_template: "{{ cycle_minutes | float(0) >= 10 }}"
       then:
         - service: input_number.set_value
           target:
             entity_id: input_number.dehumidifier_last_pull_down_rate
           data:
             value: >
-              {% set delta_dp = start_dp | float - current_dp | float %}
-              {% set hours = cycle_minutes | float / 60 %}
+              {% set delta_dp = start_dp | float(0) - current_dp | float(0) %}
+              {% set hours = cycle_minutes | float(0) / 60 %}
               {% set rate = delta_dp / hours if hours > 0 else 0 %}
               {{ [[rate | round(1), -10] | max, 20] | min }}
       else:
@@ -1060,6 +2045,142 @@
         entity_id: counter.dehumidifier_cycles_today
 
 # ===============================================================
+# DEHUMIDIFIER STALL DETECTION (RH-based, tuned from 2026 data)
+# ---------------------------------------------------------------
+# Fires every 30 min while compressor is active and runtime > 90 min.
+# Stops the unit early when RH has improved < 0.3 %/hr over the
+# prior 60 min — the measured stall signature (5 of 8 cycles stall
+# at hr 3-4).  Uses RH directly (6-min median updates, 7.5× better
+# SNR than DP at 0.051°F/step).
+#
+# 2026-08-07: reads sensor.basement_dp_rate (platform: derivative,
+# 30-min time_window, unit_time h). NEGATIVE = dew point falling.
+# input_number.dehumidifier_dp_stall_threshold stays a POSITIVE
+# magnitude; the test is rate > -threshold.
+#
+# KNOWN INERT: the 5400 s (90 min) runtime gate below cannot be reached
+# — measured E080 runs are 15.6 to 30.3 min. This automation therefore
+# never fires today. Lowering the gate alone is NOT enough: a 30-min
+# rolling window is comparable to a whole run and would straddle the
+# preceding off period. The structurally correct replacement is a
+# per-cycle check at compressor-off, (AH_start - AH_end)/run_hours
+# against about -1.0 g/m3/h vs -1.74 to -2.23 measured healthy.
+#
+# SEASONAL NOTE: In July–Aug the unit pulls hard all cycle; this
+# automation will not fire (drop rate stays > 0.3%/hr). In June and
+# September it captures the stall pattern observed in the data.
+# ===============================================================
+- id: dehumidifier_rh_stall_shutdown
+  alias: "Dehumidifier Stall Shutdown (dew point)"
+  description: "Stop the unit early when DEW-POINT improvement has stalled. Retargeted from RH 2026-07-30: RH falls whenever the compressor heats the room, so an RH-based stall detector reported healthy progress exactly when no water was being removed. Automation id kept so history and the last_triggered guards stay continuous."
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/30"
+  condition:
+    # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+    # False only when the boolean is explicitly "on"; anything unreadable
+    # degrades back to normal HA control.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
+    # Compressor must be actively running
+    - condition: state
+      entity_id: binary_sensor.dehumidifier_compressor_active
+      state: "on"
+    # Must have been running > 40 min (skip compressor warmup and early-cycle noise)
+    #
+    # Gate rebased 2026-07-03: last_changed of compressor_active resets on any
+    # >10 s power dip AND on every HA restart, delaying stall detection each
+    # time. The switch-ON stamp is immune to both.
+    #
+    # REBASED AGAIN 2026-08-24, 90 -> 40 min. The 90 min was sized for the Santa
+    # Fe, which ran ~6.9 h/day. The E080 does not run that long: over 151
+    # completed cycles from 2026-08-05 (first settled day after install) to
+    # 2026-08-24 the distribution is p50 15.2, p95 21.1, p99 30.0, max 30.4 min.
+    # A 90-min gate is therefore UNREACHABLE in this regime - the detector had
+    # been structurally incapable of firing since the changeover, which is the
+    # R7 failure mode: a rule that cannot fire looks exactly like a rule with
+    # nothing to report.
+    #
+    # 40 min: 0 of 151 healthy cycles reach it, 32 % clear of the observed max
+    # and 1.3x the p99, and well past the 10-14 min steady window the SPC
+    # capture uses. It is a WARMUP SKIP, not the discriminator - the DP-rate
+    # test below is what separates stalled from drying, and a healthy run at
+    # -3.9 to -5.4 degF/h stays two orders clear of the 0.05 threshold even if
+    # it did reach the gate.
+    #
+    # DETECTION LATENCY. The trigger is a /30 time pattern, so the first
+    # eligible evaluation lands 40-70 min into a run depending on where the
+    # start falls relative to :00 and :30. Against the 120 min max-runtime
+    # backstop that buys 50-80 min of earlier detection, where the old gate
+    # bought none. Tighten the trigger to /10 if that is not enough.
+    - condition: template
+      value_template: >
+        {% set lo = states('input_datetime.dehumidifier_last_on_time') %}
+        {{ lo not in ['unknown', 'unavailable'] and lo[:4] != '1970'
+           and (as_timestamp(now()) - as_timestamp(lo, 0)) > 2400 }}
+    # DP must not be falling fast enough.
+    #
+    # 2026-08-07 SIGN CONVENTION CHANGE. Source moved from
+    # sensor.dehumidifier_dp_drop_rate_60min (RETIRED; positive meant
+    # "DP falling") to sensor.basement_dp_rate, which is a signed
+    # derivative where NEGATIVE means "DP falling".
+    #
+    # The threshold input_number is UNCHANGED and stays a positive
+    # MAGNITUDE, so its 0.05-1.0 range is still valid and no value
+    # needs re-entering. The comparison is what flips:
+    #
+    #   old:  drop_rate <  thr     e.g.  +0.03 <  +0.05  -> stalled
+    #   new:  rate      > -thr     e.g.  -0.03 >  -0.05  -> stalled
+    #
+    # Both say the same thing: DP is improving by less than `thr` degF
+    # per hour. A healthy run measures -3.9 to -5.4 degF/h, comfortably
+    # below the threshold, so it does not trip.
+    #
+    # THE THRESHOLD IS THE HELPER'S, NOT A NUMBER WRITTEN HERE. It reads
+    # 0.05 as of 2026-08-24; the examples above are illustrative and go
+    # stale the moment you retune it, which is why nothing downstream
+    # keys on the literal. The old comment quoted 0.15 against a helper
+    # that had already moved to 0.05.
+    #
+    # FAIL-SAFE DIRECTION PRESERVED, BOTH INPUTS. is_number() now gates
+    # the THRESHOLD as well as the rate. Until 2026-08-24 an unreadable
+    # helper fell through to `| float(0.15)` and silently ran a 3x
+    # threshold; now it makes the condition FALSE and no shutdown occurs.
+    # Both float(-99) defaults are unreachable behind those gates: the
+    # rate default reads "drying hard", and the threshold default makes
+    # the test `rate > 99`, i.e. never stalled. Not stopping is the safe
+    # direction here because dehumidifier_max_runtime_backstop still
+    # caps the run independently.
+    #
+    # mode: single prevents re-entry so one stall reading won't double-fire.
+    - condition: template
+      value_template: >
+        {% set rate = states('sensor.basement_dp_rate') %}
+        {% set thr = states('input_number.dehumidifier_dp_stall_threshold') %}
+        {{ is_number(rate) and is_number(thr)
+           and (rate | float(-99)) > (0 - (thr | float(-99))) }}
+  action:
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: "dp_stall"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+    - service: system_log.write
+      data:
+        level: info
+        message: >
+          Dehumidifier stall shutdown: DP rate {{ states('sensor.basement_dp_rate') | float(0) | round(3) }} degF/hr
+          (needed <= -{{ states('input_number.dehumidifier_dp_stall_threshold') }} degF/hr,
+          runtime {{ ((now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() / 60) | round(0) | int(0) }} min).
+          DP {{ states('sensor.basement_dew_point') }}F,
+          AH rate {{ states('sensor.basement_ah_rate') }} g/m3/h,
+          RH {{ states('sensor.basement_th_node_basement_humidity') }}%.
+
+# ===============================================================
 # FILTER TRACKING AUTOMATIONS (HARDENED)
 # ===============================================================
 - id: accumulate_filter_runtime
@@ -1074,8 +2195,10 @@
         - conditions:
             - condition: template
               value_template: >
-                {{ is_number(states('sensor.hvac_total_heat_runtime_today')) and
-                   (states('sensor.hvac_total_heat_runtime_today')|float) >= 0 }}
+                {{ (is_number(states('sensor.hvac_total_heat_runtime_today')) and
+                    states('sensor.hvac_total_heat_runtime_today')| float(0) >= 0) or
+                   (is_number(states('sensor.hvac_ac_runtime_today')) and
+                    states('sensor.hvac_ac_runtime_today')| float(0) >= 0) }}
           sequence:
             - service: input_number.set_value
               target:
@@ -1083,7 +2206,8 @@
               data:
                 value: >
                   {{ (states('input_number.hvac_filter_runtime_hours')|float(0) +
-                      states('sensor.hvac_total_heat_runtime_today')|float)|round(2) }}
+                      states('sensor.hvac_total_heat_runtime_today')|float(0) +
+                      states('sensor.hvac_ac_runtime_today')|float(0))|round(2) }}
       default:
         - service: system_log.write
           data:
@@ -1136,7 +2260,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      entity_id: climate.main_floor
       attribute: temperature
       for:
         seconds: 5
@@ -1180,7 +2304,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      entity_id: climate.upstairs
       attribute: temperature
       for:
         seconds: 5
@@ -1224,7 +2348,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      entity_id: climate.main_floor
       attribute: temperature
       for:
         seconds: 5
@@ -1249,7 +2373,7 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      entity_id: climate.upstairs
       attribute: temperature
       for:
         seconds: 5
@@ -1280,9 +2404,9 @@
       value_template: >
         {% set active = is_state('input_boolean.hvac_1f_setback_active', 'on') %}
         {% set not_rec = is_state('input_boolean.hvac_1f_recovering', 'off') %}
-        {% set live = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+        {% set live = state_attr('climate.main_floor', 'temperature') | float(0) %}
         {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set current = states('sensor.main_floor_current_temperature') | float(0) %}
         {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
   action:
     - service: input_boolean.turn_on
@@ -1298,7 +2422,7 @@
         entity_id: input_number.hvac_1f_recovery_start_temp
       data:
         value: >
-          {{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat',
+          {{ state_attr('climate.main_floor',
              'current_temperature') | float(65) }}
 
 # --- RECOVERY START (2F) ---
@@ -1310,9 +2434,9 @@
       value_template: >
         {% set active = is_state('input_boolean.hvac_2f_setback_active', 'on') %}
         {% set not_rec = is_state('input_boolean.hvac_2f_recovering', 'off') %}
-        {% set live = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'temperature') | float(0) %}
+        {% set live = state_attr('climate.upstairs', 'temperature') | float(0) %}
         {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set current = states('sensor.upstairs_current_temperature') | float(0) %}
         {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
   action:
     - service: input_boolean.turn_on
@@ -1328,7 +2452,7 @@
         entity_id: input_number.hvac_2f_recovery_start_temp
       data:
         value: >
-          {{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat',
+          {{ state_attr('climate.upstairs',
              'current_temperature') | float(65) }}
 
 # --- RECOVERY END (1F) ---
@@ -1341,7 +2465,7 @@
     - platform: template
       value_template: >
         {% set recovering = is_state('input_boolean.hvac_1f_recovering', 'on') %}
-        {% set current = state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set current = states('sensor.main_floor_current_temperature') | float(0) %}
         {% set target = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
         {{ recovering and target > 50 and current >= (target - 1.0) }}
       for:
@@ -1356,9 +2480,13 @@
   action:
     - variables:
         recovery_minutes: >
+          {# minus 5: the trigger's for: 5min debounce means now() is 5 min
+             after the zone actually reached hold-1.0degF; without the
+             correction every recovery read ~5 min long (8-17% on min/degF).
+             Floored at 0. Fixed 2026-07-03. #}
           {% set start = states('input_datetime.hvac_1f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ [(((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 5) | round(1), 0] | max }}
           {% else %}0{% endif %}
         degrees_to_recover: >
           {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
@@ -1368,14 +2496,30 @@
       target:
         entity_id: input_number.hvac_1f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
+        value: "{{ [recovery_minutes | float(0), 300] | min }}"
     - choose:
+        # ha_maintenance_mode FIRST: choose: runs the first option whose
+        # conditions all pass, so this pre-empts the append. Kept as its own
+        # branch rather than folded into the validity template below, because
+        # a maintenance skip is NOT a data fault and must not be logged as
+        # one. It is still a permanent hole - no retry, no stale detector -
+        # so it logs at warning, not info.
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+              - service: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    1F setback CSV append SKIPPED - ha_maintenance_mode is on. This recovery is not recorded and will not retry.
         - conditions:
             - condition: template
               value_template: >
-                {{ recovery_minutes | float > 0 and
-                   recovery_minutes | float <= 300 and
-                   degrees_to_recover | float >= 0.5 }}
+                {{ recovery_minutes | float(0) > 0 and
+                   recovery_minutes | float(0) <= 300 and
+                   degrees_to_recover | float(0) >= 0.5 }}
           sequence:
             - service: shell_command.appendsetbacklog_1f
       default:
@@ -1401,7 +2545,7 @@
     - platform: template
       value_template: >
         {% set recovering = is_state('input_boolean.hvac_2f_recovering', 'on') %}
-        {% set current = state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') | float(0) %}
+        {% set current = states('sensor.upstairs_current_temperature') | float(0) %}
         {% set target = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
         {{ recovering and target > 50 and current >= (target - 1.25) }}
       for:
@@ -1416,9 +2560,10 @@
   action:
     - variables:
         recovery_minutes: >
+          {# minus 5: see 1F note — corrects the for: 5min debounce bias. #}
           {% set start = states('input_datetime.hvac_2f_recovery_start') %}
           {% if start not in ['unknown', 'unavailable'] %}
-            {{ ((now() - (start | as_datetime | as_local)).total_seconds() / 60) | round(1) }}
+            {{ [(((now() - (start | as_datetime | as_local)).total_seconds() / 60) - 5) | round(1), 0] | max }}
           {% else %}0{% endif %}
         degrees_to_recover: >
           {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
@@ -1428,14 +2573,30 @@
       target:
         entity_id: input_number.hvac_2f_last_recovery_minutes
       data:
-        value: "{{ [recovery_minutes | float, 300] | min }}"
+        value: "{{ [recovery_minutes | float(0), 300] | min }}"
     - choose:
+        # ha_maintenance_mode FIRST: choose: runs the first option whose
+        # conditions all pass, so this pre-empts the append. Kept as its own
+        # branch rather than folded into the validity template below, because
+        # a maintenance skip is NOT a data fault and must not be logged as
+        # one. It is still a permanent hole - no retry, no stale detector -
+        # so it logs at warning, not info.
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+              - service: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    2F setback CSV append SKIPPED - ha_maintenance_mode is on. This recovery is not recorded and will not retry.
         - conditions:
             - condition: template
               value_template: >
-                {{ recovery_minutes | float > 0 and
-                   recovery_minutes | float <= 300 and
-                   degrees_to_recover | float >= 0.5 }}
+                {{ recovery_minutes | float(0) > 0 and
+                   recovery_minutes | float(0) <= 300 and
+                   degrees_to_recover | float(0) >= 0.5 }}
           sequence:
             - service: shell_command.appendsetbacklog_2f
       default:
@@ -1516,7 +2677,7 @@
           1F recovery stuck 4h — force cleared.
           start_temp={{ states('input_number.hvac_1f_recovery_start_temp') }},
           hold={{ states('input_number.hvac_1f_hold_setpoint') }},
-          current={{ state_attr('climate.tstat_2d884c_lyric_t6_pro_thermostat', 'current_temperature') }}
+          current={{ states('sensor.main_floor_current_temperature') }}
     - service: input_boolean.turn_off
       target:
         entity_id: input_boolean.hvac_1f_recovering
@@ -1540,7 +2701,7 @@
           2F recovery stuck 4h — force cleared.
           start_temp={{ states('input_number.hvac_2f_recovery_start_temp') }},
           hold={{ states('input_number.hvac_2f_hold_setpoint') }},
-          current={{ state_attr('climate.tstat_2d8878_lyric_t6_pro_thermostat', 'current_temperature') }}
+          current={{ states('sensor.upstairs_current_temperature') }}
     - service: input_boolean.turn_off
       target:
         entity_id: input_boolean.hvac_2f_recovering
@@ -1564,20 +2725,37 @@
           entity_id: input_boolean.hvac_2f_recovering
           state: "on"
   action:
-    - service: input_boolean.turn_off
-      target:
-        entity_id:
-          - input_boolean.hvac_1f_recovering
-          - input_boolean.hvac_2f_recovering
-          - input_boolean.hvac_1f_setback_active
-          - input_boolean.hvac_2f_setback_active
+    # Per-zone (2026-07-03): the old blanket clear wiped BOTH zones'
+    # setback_active even when only one was stuck recovering — the healthy
+    # zone (in normal overnight setback) then lost its morning recovery log.
+    - variables:
+        stuck_1f: "{{ is_state('input_boolean.hvac_1f_recovering', 'on') }}"
+        stuck_2f: "{{ is_state('input_boolean.hvac_2f_recovering', 'on') }}"
+    - if:
+        - condition: template
+          value_template: "{{ stuck_1f }}"
+      then:
+        - service: input_boolean.turn_off
+          target:
+            entity_id:
+              - input_boolean.hvac_1f_recovering
+              - input_boolean.hvac_1f_setback_active
+    - if:
+        - condition: template
+          value_template: "{{ stuck_2f }}"
+      then:
+        - service: input_boolean.turn_off
+          target:
+            entity_id:
+              - input_boolean.hvac_2f_recovering
+              - input_boolean.hvac_2f_setback_active
     - service: system_log.write
       data:
         level: warning
         message: >
-          Midnight audit: cleared recovering latches still active at 1 AM.
-          1F_recovering={{ states('input_boolean.hvac_1f_recovering') }},
-          2F_recovering={{ states('input_boolean.hvac_2f_recovering') }}
+          Midnight audit: cleared stuck recovery latch(es) at 1 AM.
+          1F stuck={{ stuck_1f }}, 2F stuck={{ stuck_2f }} (only stuck zones
+          cleared; the other zone's overnight setback state is preserved).
 
 # ===============================================================
 # EFFICIENCY ALERTS
@@ -1593,8 +2771,8 @@
       data:
         title: "HVAC Efficiency Warning"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
-          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound') }} = mean + 2σ).
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          which exceeds upper bound ({{ states('sensor.hvac_runtime_per_hdd_upper_bound_1s') }} = mean + 2σ).
           Check for air leaks, filter condition, or thermostat issues.
 
 - id: notify_runtime_per_hdd_low
@@ -1608,9 +2786,109 @@
       data:
         title: "HVAC Efficiency Notice"
         message: >
-          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day_2') }} min/HDD,
-          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound') }} = mean - 2σ).
+          Runtime per HDD is {{ states('sensor.hvac_runtime_per_hdd_7_day') }} min/HDD,
+          which is below lower bound ({{ states('sensor.hvac_runtime_per_hdd_lower_bound_1s') }} = mean - 2σ).
           System running more efficiently than expected.
+
+- id: notify_ac_short_cycling
+  alias: "Notify AC Short Cycling"
+  description: "Alert when AC compressor is short cycling (<8 min/cycle)"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_ac_short_cycling_alert
+      to: "on"
+      for:
+        minutes: 15
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "AC Short Cycling Alert"
+        message: >
+          AC compressor is short cycling: {{ states('sensor.hvac_ac_min_per_cycle') }} min/cycle
+          (threshold: 8 min). Cycles today: {{ states('sensor.hvac_ac_cycles_today') }}.
+          Check refrigerant charge, filter, and thermostat settings.
+        notification_id: ac_short_cycling
+
+- id: notify_runtime_per_cdd_high
+  alias: "Notify Runtime per CDD High"
+  description: "Alert when runtime/CDD 7-day ratio exceeds mean+2σ upper bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_high_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD High Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          exceeds upper bound {{ states('sensor.hvac_runtime_per_cdd_upper_bound') }} (mean + 2σ).
+          Possible causes: dirty filter, low refrigerant, high humidity load, or degraded equipment.
+        notification_id: runtime_per_cdd_high
+
+- id: notify_runtime_per_cdd_low
+  alias: "Notify Runtime per CDD Low"
+  description: "Alert when runtime/CDD 7-day ratio falls below mean-2σ lower bound"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hvac_runtime_per_cdd_low_alert
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD Low Alert"
+        message: >
+          AC runtime/CDD ratio {{ states('sensor.hvac_runtime_per_cdd_7_day') }} min/CDD
+          is below lower bound {{ states('sensor.hvac_runtime_per_cdd_lower_bound') }} (mean - 2σ).
+          Possible causes: very low humidity, sensor fault, or unusually efficient conditions.
+        notification_id: runtime_per_cdd_low
+
+- id: notify_cdd_capture_stale
+  alias: "Notify CDD Capture Stale"
+  description: "Alert when CDD sliding window capture has not succeeded in 26+ hours"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.cdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "CDD Capture Stale"
+        message: >
+          CDD capture has not succeeded in over 26 hours.
+          Last OK: {{ states('input_datetime.cdd_capture_last_ok') }}.
+          Check outdoor proxy sensor and capture_daily_cdd automation.
+        notification_id: cdd_capture_stale
+
+- id: notify_runtime_per_cdd_capture_stale
+  alias: "Notify Runtime per CDD Capture Stale"
+  description: "Alert when runtime/CDD sliding window capture has not succeeded in 26+ hours"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.runtime_per_cdd_capture_stale
+      to: "on"
+      for:
+        hours: 2
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Runtime/CDD Capture Stale"
+        message: >
+          Runtime/CDD capture has not succeeded in over 26 hours.
+          Last OK: {{ states('input_datetime.runtime_per_cdd_capture_last_ok') }}.
+          Check AC runtime sensor and capture_daily_runtime_per_cdd automation.
+        notification_id: runtime_per_cdd_capture_stale
 
 # ===============================================================
 # DATABASE MAINTENANCE
@@ -1626,13 +2904,18 @@
       weekday:
         - sun
   action:
+    # Repack rewrites the entire DB file (~800 MB of eMMC writes per pass) and
+    # reclaims little at a steady-state 14-day retention. Changed 2026-07-03:
+    # purge stays weekly; repack only on the FIRST Sunday of the month
+    # (~42 GB/yr -> ~10 GB/yr of repack writes).
     - service: recorder.purge
       data:
         keep_days: 14
-        repack: true
+        repack: "{{ now().day <= 7 }}"
     - service: system_log.write
       data:
-        message: "Weekly database maintenance completed - purged and repacked"
+        message: >-
+          Weekly database maintenance completed - purged{{ ' and repacked (first Sunday of month)' if now().day <= 7 else ' (repack deferred to first Sunday)' }}
         level: info
 
 # ===============================================================
@@ -1651,6 +2934,22 @@
         hdd_today: "{{ states('sensor.hvac_hdd65_today') | float(-1) }}"
         runtime_today_min: "{{ (states('sensor.hvac_furnace_runtime_today') | float(-1)) * 60 }}"
     - choose:
+        # ha_maintenance_mode FIRST: choose: runs the first option whose
+        # conditions all pass, so this pre-empts the append. Kept as its own
+        # branch rather than folded into the validity template below, because
+        # a maintenance skip is NOT a data fault and must not be logged as
+        # one. It is still a permanent hole - no retry, no stale detector -
+        # so it logs at warning, not info.
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+              - service: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    Daily CSV append SKIPPED - ha_maintenance_mode is on. One row lost, no retry, no stale detector. Re-run shell_command.appenddailycsv by hand once maintenance is over.
         - conditions:
             - condition: template
               value_template: >
@@ -1675,10 +2974,10 @@
 
 - id: csv_monthly_report
   alias: "CSV Monthly Report"
-  description: "Append monthly HVAC data to CSV on last day of month at 23:58:30"
+  description: "Append monthly HVAC data to CSV on last day of month at 23:58:45"
   trigger:
     - platform: time
-      at: "23:58:30"
+      at: "23:58:45"
   condition:
     - condition: template
       value_template: "{{ (now() + timedelta(days=1)).day == 1 }}"
@@ -1694,6 +2993,22 @@
           {{ dt not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] and
              dt[:10] == now().strftime('%Y-%m-%d') }}
     - choose:
+        # ha_maintenance_mode FIRST: choose: runs the first option whose
+        # conditions all pass, so this pre-empts the append. Kept as its own
+        # branch rather than folded into the validity template below, because
+        # a maintenance skip is NOT a data fault and must not be logged as
+        # one. It is still a permanent hole - no retry, no stale detector -
+        # so it logs at warning, not info.
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+              - service: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    Monthly CSV append SKIPPED - ha_maintenance_mode is on. This fires only on the last day of the month; it will not retry. Re-run shell_command.appendmonthlycsv by hand once maintenance is over.
         - conditions:
             - condition: template
               value_template: >
@@ -1728,11 +3043,29 @@
     - condition: template
       value_template: "{{ now().month == 1 and now().day == 1 }}"
   action:
-    - service: shell_command.rotatedailycsv
-    - service: system_log.write
-      data:
-        message: "Daily CSV rotated for new year"
-        level: info
+    # Guarded 2026-08-22. This is a ROTATION, not an append, and it gets exactly
+    # one chance a year (Jan 1, 00:03). A bare condition: on the automation
+    # would skip it silently and the daily CSV would never roll over, so the
+    # guard lives in a choose: whose default: does the real work.
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+            - service: system_log.write
+              data:
+                level: warning
+                message: >
+                  Daily CSV yearly rotation SKIPPED - ha_maintenance_mode is on
+                  at 00:03 on Jan 1. It will NOT retry until next year. Run
+                  shell_command.rotatedailycsv by hand once maintenance is over.
+      default:
+        - service: shell_command.rotatedailycsv
+        - service: system_log.write
+          data:
+            message: "Daily CSV rotated for new year"
+            level: info
 
 # ===============================================================
 # WATCHDOG & ROBUSTNESS AUTOMATIONS
@@ -1888,6 +3221,7 @@
 
                   Please verify and manually correct if needed.
                   Reasonable values: Year < 8000, Month < 2500
+      default: []
     - choose:
         # Check for corrupt filter runtime
         - conditions:
@@ -1907,6 +3241,7 @@
                 message: >
                   Filter runtime value appears corrupt: {{ states('input_number.hvac_filter_runtime_hours') }} hours
                   Expected range: 0-1500 hours
+      default: []
     - choose:
         # Check outdoor temp trackers initialization
         - conditions:
@@ -1919,6 +3254,105 @@
               data:
                 message: "INFO: Outdoor temp daily high/low at initial values - will auto-correct when sensor available"
                 level: info
+      default: []
+    - choose:
+        # Check CDD cumulative values
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.cdd_cumulative_year_auto') | float(0) > 2500 or
+                   states('input_number.cdd_cumulative_month_auto') | float(0) > 500 or
+                   states('input_number.cdd_cumulative_year_auto') | float(0) < 0 or
+                   states('input_number.cdd_cumulative_month_auto') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: CDD cumulative values appear corrupt.
+                  Year: {{ states('input_number.cdd_cumulative_year_auto') }},
+                  Month: {{ states('input_number.cdd_cumulative_month_auto') }}
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ CDD Data Validation Warning"
+                message: >
+                  CDD cumulative values may be corrupt:
+                  - Year-to-date: {{ states('input_number.cdd_cumulative_year_auto') }} CDD
+                  - Month-to-date: {{ states('input_number.cdd_cumulative_month_auto') }} CDD
+
+                  Reasonable values: Year < 2500, Month < 500
+      default: []
+    - choose:
+        # Check AC runtime accumulators for corrupt values
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ states('input_number.ac_runtime_year_acc') | float(0) > 5000 or
+                   states('input_number.ac_runtime_month_acc') | float(0) > 750 or
+                   states('input_number.ac_runtime_year_acc') | float(0) < 0 or
+                   states('input_number.ac_runtime_month_acc') | float(0) < 0 }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: AC runtime accumulators appear corrupt.
+                  Year: {{ states('input_number.ac_runtime_year_acc') }}h,
+                  Month: {{ states('input_number.ac_runtime_month_acc') }}h
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ AC Runtime Accumulator Warning"
+                message: >
+                  AC runtime accumulator values may be corrupt:
+                  - Year-to-date: {{ states('input_number.ac_runtime_year_acc') }}h
+                  - Month-to-date: {{ states('input_number.ac_runtime_month_acc') }}h
+
+                  Reasonable values: Year < 5000h, Month < 750h
+      default: []
+    - choose:
+        # Check 7-day sliding window slots for negative values (sign corruption)
+        - conditions:
+            - condition: template
+              value_template: >
+                {% set hdd_slots = [
+                  states('input_number.hdd_day_1') | float(0),
+                  states('input_number.hdd_day_2') | float(0),
+                  states('input_number.hdd_day_3') | float(0),
+                  states('input_number.hdd_day_4') | float(0),
+                  states('input_number.hdd_day_5') | float(0),
+                  states('input_number.hdd_day_6') | float(0),
+                  states('input_number.hdd_day_7') | float(0)
+                ] %}
+                {% set cdd_slots = [
+                  states('input_number.cdd_day_1') | float(0),
+                  states('input_number.cdd_day_2') | float(0),
+                  states('input_number.cdd_day_3') | float(0),
+                  states('input_number.cdd_day_4') | float(0),
+                  states('input_number.cdd_day_5') | float(0),
+                  states('input_number.cdd_day_6') | float(0),
+                  states('input_number.cdd_day_7') | float(0)
+                ] %}
+                {{ (hdd_slots | select('<', 0) | list | count > 0) or
+                   (hdd_slots | select('>', 65) | list | count > 0) or
+                   (cdd_slots | select('<', 0) | list | count > 0) or
+                   (cdd_slots | select('>', 50) | list | count > 0) }}
+          sequence:
+            - service: system_log.write
+              data:
+                message: >
+                  WARNING: HDD or CDD 7-day sliding window slots contain out-of-range values.
+                  HDD slots: {{ [states('input_number.hdd_day_1')|float(0), states('input_number.hdd_day_2')|float(0), states('input_number.hdd_day_3')|float(0), states('input_number.hdd_day_4')|float(0), states('input_number.hdd_day_5')|float(0), states('input_number.hdd_day_6')|float(0), states('input_number.hdd_day_7')|float(0)] }},
+                  CDD slots: {{ [states('input_number.cdd_day_1')|float(0), states('input_number.cdd_day_2')|float(0), states('input_number.cdd_day_3')|float(0), states('input_number.cdd_day_4')|float(0), states('input_number.cdd_day_5')|float(0), states('input_number.cdd_day_6')|float(0), states('input_number.cdd_day_7')|float(0)] }}
+                level: warning
+            - service: persistent_notification.create
+              data:
+                title: "⚠️ Degree-Day Window Corruption"
+                message: >
+                  One or more HDD/CDD 7-day sliding window slots contain out-of-range
+                  values (negative or > physical maximum). SPC calculations may be skewed.
+                  Check Developer Tools → input_number.hdd_day_1 through hdd_day_7
+                  and cdd_day_1 through cdd_day_7.
+      default: []
 
 # CLIMATE NORMS SCRIPT FAILURE HANDLER
 - id: notify_climate_norms_failure
@@ -1983,13 +3417,13 @@
   description: "Alert if either thermostat goes unavailable"
   trigger:
     - platform: state
-      entity_id: climate.tstat_2d884c_lyric_t6_pro_thermostat
+      entity_id: climate.main_floor
       to: "unavailable"
       for:
         minutes: 15
       id: "1f"
     - platform: state
-      entity_id: climate.tstat_2d8878_lyric_t6_pro_thermostat
+      entity_id: climate.upstairs
       to: "unavailable"
       for:
         minutes: 15
@@ -2026,25 +3460,14 @@
 # DATA BACKUP & ROTATION
 # ===============================================================
 
-# Weekly backup of critical input_number values to CSV
-- id: backup_input_numbers_weekly
-  alias: "Backup Input Numbers Weekly"
-  description: "Backs up accumulated input_number values every Sunday at 4 AM"
-  trigger:
-    - platform: time
-      at: "04:00:00"
-  condition:
-    - condition: time
-      weekday:
-        - sun
-  action:
-    - service: shell_command.backup_input_numbers
-    - service: system_log.write
-      data:
-        message: "Weekly input_number backup completed"
-        level: info
+# backup_input_numbers_weekly REMOVED 2026-08-23. It backed up 54 of the 128
+# buffer entities every Sunday; automation.nightly_rolling_buffer_backup does all
+# 128 every night at 00:20 via scripts/spc_buffer_export.py, so this was a strict
+# subset running less often. CLAUDE.md's retirement criterion - "once the
+# manifest-driven backup has a few nights of history" - was met with three nights
+# (08-21..08-23, 570 rows in www/spc/buffer_backup_master.csv).
+# reports/input_number_backup.csv is kept as history and is NOT deleted.
 
-# Yearly rotation for setback log (runs Jan 1st)
 - id: rotate_setback_log_yearly
   alias: "Rotate Setback Log Yearly"
   description: "Archives previous year setback data and starts fresh log"
@@ -2055,11 +3478,28 @@
     - condition: template
       value_template: "{{ now().month == 1 and now().day == 1 }}"
   action:
-    - service: shell_command.rotate_setback_log
-    - service: system_log.write
-      data:
-        message: "Setback log rotated for new year"
-        level: info
+    # Guarded 2026-08-22 — same reasoning as csv_yearly_rotation, and this one
+    # is the sharpest of the set: one shot a year at 00:05 on Jan 1.
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.ha_maintenance_mode
+              state: "on"
+          sequence:
+            - service: system_log.write
+              data:
+                level: warning
+                message: >
+                  Setback log yearly rotation SKIPPED - ha_maintenance_mode is
+                  on at 00:05 on Jan 1. It will NOT retry until next year. Run
+                  shell_command.rotate_setback_log by hand once maintenance is
+                  over, before the new year's rows accumulate.
+      default:
+        - service: shell_command.rotate_setback_log
+        - service: system_log.write
+          data:
+            message: "Setback log rotated for new year"
+            level: info
 
 # ===============================================================
 # PIRATE WEATHER DATA FRESHNESS CHECK
@@ -2078,7 +3518,7 @@
       data:
         title: "⚠️ Pirate Weather Stale"
         message: >
-          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int }} minutes old.
+          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int(0) }} minutes old.
           Check API key and integration status.
 
 # ===============================================================
@@ -2118,7 +3558,7 @@
           **Error:** {{ trigger.event.data.message | default('No message') }}
 
           **Time:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
-        notification_id: "automation_failure_{{ now().timestamp() | int }}"
+        notification_id: "automation_failure_{{ now().timestamp() | int(0) }}"
 
 - id: reset_automation_failure_counter
   alias: "Reset Automation Failure Counter"
@@ -2134,3 +3574,859 @@
         entity_id: input_text.last_automation_failure
       data:
         value: ""
+
+
+# ===============================================================
+# AC MIN/CYCLE TRACKING - Daily capture at 11:55:30 PM
+# Mirrors capture_daily_furnace_min_per_cycle exactly.
+# Gate: requires >= 2 AC cycles (same as furnace gate) and
+#       value in valid range 0 < val <= 120 min/cycle.
+# Fires at 23:55:30 — after CDD capture (23:55:15),
+#   before runtime/HDD capture (23:56:00). No conflicts.
+# ===============================================================
+- id: capture_daily_ac_min_per_cycle
+  alias: "Capture Daily AC Min/Cycle"
+  description: "Records daily AC min/cycle for 7-day std dev calculation"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:55:30"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {% set min_per_cycle = states('sensor.hvac_ac_min_per_cycle') %}
+                {% set ac_cycles = states('sensor.hvac_ac_cycles_today') %}
+                {% set val = min_per_cycle | float(-1) %}
+                {# Upstream validation: need at least 2 cycles for meaningful average #}
+                {% set cycles_ok = ac_cycles | int(0) >= 2 %}
+                {# Value validation: min/cycle must be in valid range #}
+                {% set values_ok = is_number(min_per_cycle) and 0 < val <= 120 %}
+                {{ cycles_ok and values_ok }}
+          sequence:
+            - variables:
+                todays_min_per_cycle: "{{ states('sensor.hvac_ac_min_per_cycle') | float(0) }}"
+                d1: "{{ states('input_number.ac_min_per_cycle_day_1') | float(0) }}"
+                d2: "{{ states('input_number.ac_min_per_cycle_day_2') | float(0) }}"
+                d3: "{{ states('input_number.ac_min_per_cycle_day_3') | float(0) }}"
+                d4: "{{ states('input_number.ac_min_per_cycle_day_4') | float(0) }}"
+                d5: "{{ states('input_number.ac_min_per_cycle_day_5') | float(0) }}"
+                d6: "{{ states('input_number.ac_min_per_cycle_day_6') | float(0) }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_7
+              data:
+                value: "{{ d6 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_6
+              data:
+                value: "{{ d5 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_5
+              data:
+                value: "{{ d4 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_4
+              data:
+                value: "{{ d3 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_3
+              data:
+                value: "{{ d2 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_2
+              data:
+                value: "{{ d1 }}"
+            - service: input_number.set_value
+              target:
+                entity_id: input_number.ac_min_per_cycle_day_1
+              data:
+                value: "{{ todays_min_per_cycle }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.ac_min_per_cycle_capture_last_ok
+              data:
+                datetime: "{{ capture_stamp }}"
+            - service: system_log.write
+              data:
+                level: info
+                message: >
+                  AC min/cycle captured: {{ todays_min_per_cycle }} min/cycle
+                  ({{ states('sensor.hvac_ac_cycles_today') }} cycles today)
+      default:
+        - service: input_datetime.set_datetime
+          target:
+            entity_id: input_datetime.ac_min_per_cycle_capture_last_ok
+          data:
+            datetime: "1970-01-01 00:00:00"
+        - service: system_log.write
+          data:
+            level: info
+            message: >
+              AC min/cycle capture skipped — Cycles={{ states('sensor.hvac_ac_cycles_today') }},
+              Min_per_cycle={{ states('sensor.hvac_ac_min_per_cycle') }}
+              (requires >= 2 cycles and 0 < val <= 120)
+
+# ===============================================================
+# DIY LiFePO4 UPS — BATTERY MONITORING & SHUTDOWN (v3 ESP32/INA260)
+# ===============================================================
+# Layered event-driven controller using ESPHome binary sensors.
+# Source device: ups-monitor (XIAO ESP32-C3 + INA260 + DS18B20)
+#
+# Hardware context:
+#   XIAO ESP32-C3 + INA260   — voltage/current/power/Ah telemetry (I2C)
+#   DS18B20                  — battery temperature (1-Wire)
+#   Victron BP-65            — hardware LVD at 11.80V (always active)
+#   HA Green                 — executes software shutdown
+#
+# Binary sensor → automation map:
+#   ups_monitor_on_battery        ON  → Auto 1: outage start notify
+#   ups_monitor_voltage_warning   ON  → Auto 2: warning + runtime notify
+#                                            → Auto 3: graceful shutdown (secondary)
+#   ups_monitor_cliff_imminent          ON  → Auto 3: graceful shutdown (PRIMARY)
+#   ups_monitor_runtime_remaining_minutes < 8 → Auto 3: graceful shutdown (structural backup)
+#   ups_monitor_voltage_critical  ON  → Auto 4: hard fallback shutdown
+#   ups_monitor_on_battery        OFF → Auto 5: AC restored notify
+#
+# Protection layers:
+#   Layer A — ESPHome binary sensor: debounced in firmware, no raw ADC noise
+#   Layer B — mode: single prevents re-entry on threshold bounce
+#   Layer C — on_battery condition guards against false triggers at boot
+#   Layer D — 30s delay + revalidation before graceful shutdown command
+#   Hardware backstop: BP-65 cuts at 11.80V regardless of software state
+#
+# Validated phase durations — INA260 coulomb-counted, May 2026 outage test:
+#   Settling : ~5 min   (OCV relaxation, >13.00V)
+#   Plateau  : ~142 min (12.65–13.00V, bulk LFP discharge — flat curve)
+#   Knee     : ~49 min  (12.40–12.65V, accelerating decline)
+#   Cliff    : ~17 min  (< 12.40V, −30 to −58 mV/min)
+#   Total to LVD: ~213 min at 1.18A / 15.0W average (INA260 coulomb-counted, May 2026)
+#
+# Shutdown timing — May 6 2026 outage validation (Rev 2):
+#   v3 graceful shutdown VALIDATED via cliff_imminent (slope-based) path, NOT voltage_critical.
+#   cliff_imminent fired at V=12.431V / 13:39:41 UTC; hassio.host_shutdown called at 13:40:11;
+#   last HA sample 13:40:17. voltage_critical (12.20V) not crossed until 13:48:07 — 8 min
+#   after HA was already down. Auto 4 was not exercised and remains as structural backstop.
+#   cliff_imminent at ~12.43V provides ~17 min to BP-65 LVD — sufficient for ~15 min HA shutdown.
+# ===============================================================
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 1 OF 5 — Outage Start Notification
+# ---------------------------------------------------------------
+# Trigger: on_battery transitions OFF → ON (grid power lost).
+# Debounce is handled inside ESPHome (delayed_on filter on the
+# binary sensor) — no additional HA-side delay is required here.
+# Condition: sensor not in unknown/unavailable guards against a
+# spurious state-change event during HA restart or OTA.
+# ---------------------------------------------------------------
+- id: ups_outage_start_v3
+  alias: "UPS: Outage Start — On Battery"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      # from: guard (2026-07-03): without it, unavailable->on after an ESPHome
+      # reconnect (XB7 VAP-cycling dropouts) fires a false outage alert.
+      from: "off"
+      to: "on"
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "🔴 Power Outage — On Battery"
+        message: >
+          Grid power lost. UPS running on battery.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V
+          at {{ now().strftime('%H:%M:%S') }}.
+          Outage #{{ states('sensor.ups_monitor_total_outages') | int(0) }}.
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 2 OF 5 — Voltage Warning Notification
+# ---------------------------------------------------------------
+# Trigger: voltage_warning transitions OFF → ON (V < 12.40V / Cliff entry).
+# NOTE: voltage_warning also triggers Auto 3 (graceful shutdown) as
+# secondary path. cliff_imminent is the primary and typically fires
+# ~3 min earlier. This notification fires concurrently — it is
+# informational only and does not block the shutdown sequence.
+#
+# ESPHome threshold: warning_voltage = 12.40V.
+# Runtime estimate included when available; gracefully degraded
+# when sensor.ups_monitor_runtime_remaining_minutes is 'unknown'.
+# Condition: on_battery must be ON to suppress spurious firing
+# during startup voltage settling on a fully-charged battery.
+# ---------------------------------------------------------------
+- id: ups_voltage_warning_v3
+  alias: "UPS: Voltage Warning — Cliff Entry"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_voltage_warning
+      to: "on"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      state: "on"
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "⚠️ UPS Battery Warning — Cliff Entry (12.40V)"
+        message: >
+          Battery voltage below 12.40V — entering Cliff phase.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
+          {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
+          {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
+          Runtime remaining: ~{{ rt | float(0) | round(0) | int(0) }} min.
+          {% else %}
+          Runtime: estimating…
+          {% endif %}
+          Validated cliff duration: ~17 min at 1.18A load.
+          Graceful shutdown initiating.
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 3 OF 5 — Graceful Shutdown
+# ---------------------------------------------------------------
+# Fires on WHICHEVER trigger arrives first:
+#   • cliff_imminent  → ON  (EMA slope < −10 mV/min sustained 60s — PRIMARY, validated May 2026)
+#   • voltage_warning → ON  (V ≤ 12.40V — Cliff entry; secondary, fires ~3 min after cliff_imminent)
+#   • runtime_remaining_minutes < 8   (coulomb-counter derived estimate — structural backup only)
+#
+# Validated cliff timing (INA260, May 2026):
+#   Cliff phase: ~17 min from 12.40V to BP-65 LVD (11.80V).
+#   Slope: −30 mV/min at cliff entry, accelerating to −58 mV/min at LVD.
+#   HA Green shutdown sequence: ~15 min observed.
+#   cliff_imminent fired at ~12.43V with ~17 min to LVD — sufficient margin.
+#
+# Why cliff_imminent is the primary trigger (validated May 2026):
+#   cliff_imminent fired at 13:39:41 UTC (V=12.431), ~3 min before voltage_warning
+#   would have fired at ~13:42:22 UTC. Runtime estimator was 2.7× optimistic at
+#   trigger (reported 50.8 min; actual ~19 min remaining) — runtime path alone
+#   would not have provided adequate warning. voltage_critical (Auto 4) was not
+#   exercised; V did not cross 12.20V until 8 min after HA was already down.
+#
+# Runtime estimator note:
+#   Linear formula is 2.7× optimistic at cliff trigger (Section 3.5, May 2026 report).
+#   < 8 min estimated ≈ ~3 min actual at that factor. This path is a structural
+#   last-resort backup, not a reliable standalone trigger. cliff_imminent is primary.
+#
+# Four-layer protection chain:
+#   Layer A — ESPHome binary sensor: debounced (30s delayed_on in firmware)
+#   Layer B — on_battery condition: prevents boot-time spurious firing
+#   Layer C — 30s stability delay + dual revalidation before shutdown:
+#             (a) on_battery still ON, (b) at least one trigger still active
+#   Layer D — mode: single: only one graceful-shutdown attempt allowed;
+#             voltage_critical (Auto 4) is the backstop if this fires and
+#             shutdown fails or takes longer than expected
+# Hardware backstop: BP-65 LVD at 11.80V is always active.
+# ---------------------------------------------------------------
+- id: ups_graceful_shutdown_v3
+  alias: "UPS: Graceful Shutdown — Warning, Cliff, or < 8 min Runtime"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_voltage_warning
+      to: "on"
+      id: warning_trigger
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_cliff_imminent
+      to: "on"
+      id: cliff_trigger
+    - platform: numeric_state
+      entity_id: sensor.ups_monitor_runtime_remaining_minutes
+      below: 8
+      id: runtime_trigger
+    # Belt (2026-07-03): the three triggers above are edge-based. If a run
+    # aborts at the 30 s recheck (e.g. a momentary on_battery blip) while
+    # warning/cliff/runtime are already latched, no new edge ever fires. This
+    # periodic trigger re-evaluates the same conditions once a minute; when
+    # not on battery it is a no-op.
+    - platform: time_pattern
+      minutes: "/1"
+      id: periodic_check
+  condition:
+    - condition: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      state: "on"
+    - condition: template
+      value_template: >
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
+    # Gate for the periodic belt: only proceed when a shutdown condition
+    # actually holds (edge triggers imply their own condition; the belt must
+    # check explicitly or it would notify every minute on battery).
+    - condition: template
+      value_template: >
+        {% if trigger.id != 'periodic_check' %}
+          true
+        {% else %}
+          {% set warning = states('binary_sensor.ups_monitor_voltage_warning') %}
+          {% set cliff = states('binary_sensor.ups_monitor_cliff_imminent') %}
+          {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') | float(-1) %}
+          {{ warning == 'on' or cliff == 'on' or (rt > 0 and rt < 8) }}
+        {% endif %}
+  action:
+    # Notify immediately — record exists even if shutdown follows in 30 s.
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "🔴 UPS: Graceful Shutdown Initiating"
+        message: >
+          {% if trigger.id == 'warning_trigger' %}
+          Cliff entry threshold reached (12.40V). ~17 min to BP-65 LVD.
+          {% elif trigger.id == 'cliff_trigger' %}
+          Cliff imminent — slope below −10 mV/min.
+          {% else %}
+          Runtime below 8 minutes.
+          {% endif %}
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
+          {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') %}
+          {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
+          Runtime remaining: ~{{ rt | float(0) | round(0) | int(0) }} min.
+          {% endif %}
+          HA Green shutting down in 30 s.
+
+    # 30s stability buffer.
+    # At ~12.43V with a ~17 min cliff, 30s costs <3% of available shutdown window.
+    # A brief recovery bounce will abort shutdown at the revalidation step.
+    - delay: "00:00:30"
+
+    # Revalidation (a): if on_battery cleared during delay, grid restored — abort.
+    - condition: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      state: "on"
+
+    # Revalidation (b): at least one trigger condition must still be active.
+    # Includes voltage_warning so a brief cliff bounce does not abort a valid
+    # warning-triggered shutdown.
+    - condition: template
+      value_template: >
+        {% set warning = states('binary_sensor.ups_monitor_voltage_warning') %}
+        {% set cliff   = states('binary_sensor.ups_monitor_cliff_imminent') %}
+        {% set rt      = states('sensor.ups_monitor_runtime_remaining_minutes') | float(-1) %}
+        {{ warning == 'on' or cliff == 'on' or (rt > 0 and rt < 8) }}
+
+    # Full OS shutdown — clean cold boot on power restore.
+    - service: hassio.host_shutdown
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 4 OF 5 — Hard Fallback Shutdown (voltage_critical)
+# ---------------------------------------------------------------
+# Fires if voltage_critical → ON and graceful shutdown (Auto 3)
+# has not yet completed (e.g. the 30s delay is still running,
+# hassio.host_shutdown call failed, or HA is unresponsive).
+#
+# This is the final HA software safety net above BP-65 hardware LVD.
+# ESPHome threshold: critical_voltage = 12.20V.
+# At 12.20V: ~10 min to BP-65 LVD.
+# May 6 measured: V<12.20 at 13:48:07 → BP-65 trip ~13:58:30 = ~10.4 min.
+# (Slope steepens −34→−58 mV/min through this window; linear projection overstates the time.)
+#
+# No stability delay — at 12.20V every second counts.
+# Hardware backstop: BP-65 cuts at 11.80V with 0.40V margin below SW cutoff.
+#
+# May 2026 validation: This automation was NOT exercised — V did not cross
+# 12.20V until 13:48:07, 8 min after HA was already down via the cliff_imminent
+# path. Remains unvalidated by deliberate test; see Section 7.1 recommendations.
+# ---------------------------------------------------------------
+- id: ups_critical_shutdown_v3
+  alias: "UPS: Hard Fallback Shutdown — Voltage Critical"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_voltage_critical
+      to: "on"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      state: "on"
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "🔴 UPS CRITICAL — Emergency Shutdown"
+        message: >
+          Voltage critical threshold (12.20V) reached. ~10 min to BP-65 LVD.
+          Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
+          HA Green performing emergency shutdown NOW.
+          BP-65 hardware LVD at 11.80V is the final backstop.
+
+    # Immediate shutdown — no delay at this voltage level.
+    - service: hassio.host_shutdown
+
+# ---------------------------------------------------------------
+# UPS AUTOMATION 5 OF 5 — AC Restored Notification
+# ---------------------------------------------------------------
+# Trigger: on_battery transitions ON → OFF (grid power restored).
+# Reports last-outage statistics from ESPHome flash-persisted sensors
+# written by ESPHome at the moment on_battery goes OFF.
+#
+# New sensors available from INA260 upgrade (May 2026):
+#   last_outage_min_voltage    — lowest voltage reached (replaces log hunting)
+#   last_outage_start_voltage  — confirms full float vs partial SOC at outage start
+#   last_recharge_peak_current — PSU CC-limit health indicator
+#   total_outages              — persistent event counter
+#
+# Condition: sensor not in unknown/unavailable guards against spurious
+# state-change during HA restart while battery is at float.
+# ---------------------------------------------------------------
+- id: ups_ac_restored_v3
+  alias: "UPS: AC Restored — Grid Power Returned"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.ups_monitor_on_battery
+      # from: guard (2026-07-03): unavailable->off on every ESPHome reconnect
+      # previously fired a spurious "AC Restored" with garbage outage stats.
+      from: "on"
+      to: "off"
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('binary_sensor.ups_monitor_on_battery') not in ['unknown', 'unavailable'] }}
+  action:
+    - service: notify.mobile_app_bills_iphone
+      data:
+        title: "✅ AC Restored — Grid Power Returned"
+        message: >
+          Grid power restored at {{ now().strftime('%H:%M:%S') }}.
+
+          Outage #{{ states('sensor.ups_monitor_total_outages') | int(0) }}
+          Duration: {{ states('sensor.ups_monitor_last_outage_duration') | int(0) }} min
+          Ah delivered: {{ states('sensor.ups_monitor_last_outage_ah') | float(0) | round(3) }} Ah
+          Wh delivered: {{ states('sensor.ups_monitor_last_outage_wh') | float(0) | round(2) }} Wh
+          Capacity used: {{ states('sensor.ups_monitor_last_outage_capacity_used') | float(0) | round(1) }}%
+          Start voltage: {{ states('sensor.ups_monitor_last_outage_start_voltage') | float(0) | round(3) }}V
+          Min voltage: {{ states('sensor.ups_monitor_last_outage_min_voltage') | float(0) | round(3) }}V
+          Peak recharge: {{ states('sensor.ups_monitor_last_recharge_peak_current') | float(0) | round(2) }}A
+          Battery now: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V
+
+# ===============================================================
+# DEHUMIDIFIER OPERATING COST — daily EOD accumulation
+# Fires 23:59:30 (after watts capture 23:59:00, before 00:00 resets).
+# That 23:59:00 capture is capture_daily_dehumidifier_running_watts in
+# packages/dehumidifier_spc.yaml, added 2026-08-07. Until then this
+# comment referred to an automation that had never been written, which
+# is why the Running Watts SPC chart plotted four non-existent entities.
+# Adds today's cost (sensor.dehumidifier_daily_cost, already rate-aware)
+# to the year-to-date accumulator and stamps the capture time so the
+# live YTD sensor stops double-counting today.
+# ===============================================================
+- id: capture_daily_dehumidifier_duty_kwh
+  alias: "Capture Daily Dehumidifier Duty & kWh"
+  description: "EOD 23:59:30 shift of the 7-day duty% and kWh buffers. Captured EVERY day (incl. 0-run days) for purge-immune duty/energy tracking."
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:30"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        duty_today: >-
+          {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
+          {{ (rt / 24 * 100) | round(1) }}
+        kwh_today: "{{ states('sensor.dehumidifier_energy_daily') | float(0) | round(3) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_7
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_6') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_6
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_5') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_5
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_4') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_4
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_3') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_3
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_2') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_2
+      data:
+        value: "{{ states('input_number.dehumidifier_duty_day_1') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_duty_day_1
+      data:
+        value: "{{ duty_today }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_7
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_6') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_6
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_5') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_5
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_4') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_4
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_3') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_3
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_2') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_2
+      data:
+        value: "{{ states('input_number.dehumidifier_kwh_day_1') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.dehumidifier_kwh_day_1
+      data:
+        value: "{{ kwh_today }}"
+    - service: logbook.log
+      data:
+        name: "Dehumidifier Duty/kWh"
+        message: "Captured duty {{ duty_today }}%, energy {{ kwh_today }} kWh"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.dehumidifier_duty_kwh_capture_last_ok
+      data:
+        datetime: "{{ capture_stamp }}"
+- id: capture_daily_dehumidifier_cost
+  alias: "Capture Daily Dehumidifier Cost"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:30"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        today_cost: "{{ states('sensor.dehumidifier_daily_cost') | float(0) }}"
+        acc: "{{ states('input_number.dehumidifier_cost_year_acc') | float(0) }}"
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_year_acc}
+      data: {value: "{{ (acc + today_cost) | round(2) }}"}
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.dehumidifier_cost_capture_last_ok}
+      data: {datetime: "{{ capture_stamp }}"}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Dehumidifier cost captured: +${{ today_cost }} -> YTD ${{ (acc + today_cost) | round(2) }}"
+
+# ===============================================================
+# DEHUMIDIFIER OPERATING COST — yearly reset (mirrors reset_yearly_hdd)
+# On Jan 1: snapshot the season total into prev-year (for comparison),
+# then zero the YTD accumulator. Scheduled + startup catch-up so a reboot
+# across midnight Jan 1 still resets exactly once.
+# ===============================================================
+- id: reset_yearly_dehumidifier_cost
+  alias: "Reset Yearly Dehumidifier Cost"
+  description: "Snapshot prior-year cost then zero YTD on Jan 1, with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:04:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.dehumidifier_cost_capture_last_ok') %}
+        {% set year_val = states('input_number.dehumidifier_cost_year_acc') | float(0) %}
+        {% if not (now().month == 1 and now().day == 1) %}
+          false
+        {% elif year_val == 0 %}
+          false
+        {% elif now().hour < 3 %}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.year != now().year }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_prev_year}
+      data: {value: "{{ states('input_number.dehumidifier_cost_year_acc') | float(0) | round(2) }}"}
+    - service: input_number.set_value
+      target: {entity_id: input_number.dehumidifier_cost_year_acc}
+      data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Dehumidifier cost yearly reset: prev-year snapshot taken, YTD zeroed (trigger: {{ trigger.id }})"
+
+# ===============================================================
+# AC OPERATING COST — daily EOD accumulation
+# Fires 23:59:45 (after dehumidifier cost 23:59:30, before 00:00 resets).
+# Locks today's AC cost at today's rate into the YTD accumulator.
+# ===============================================================
+- id: capture_daily_ac_cost
+  alias: "Capture Daily AC Cost"
+  mode: single
+  trigger:
+    - platform: time
+      at: "23:59:45"
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        today_cost: "{{ states('sensor.hvac_ac_daily_cost') | float(0) }}"
+        acc: "{{ states('input_number.ac_cost_year_acc') | float(0) }}"
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_year_acc}
+      data: {value: "{{ (acc + today_cost) | round(2) }}"}
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.ac_cost_capture_last_ok}
+      data: {datetime: "{{ capture_stamp }}"}
+    - service: system_log.write
+      data:
+        level: info
+        message: "AC cost captured: +${{ today_cost }} -> YTD ${{ (acc + today_cost) | round(2) }}"
+
+# ===============================================================
+# AC OPERATING COST — yearly reset (mirrors reset_yearly_dehumidifier_cost)
+# On Jan 1: snapshot season total to prev-year, then zero YTD. Scheduled +
+# startup catch-up so a reboot across midnight Jan 1 still resets exactly once.
+# ===============================================================
+- id: reset_yearly_ac_cost
+  alias: "Reset Yearly AC Cost"
+  description: "Snapshot prior-year AC cost then zero YTD on Jan 1, with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:06:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last_ok = states('input_datetime.ac_cost_capture_last_ok') %}
+        {% set year_val = states('input_number.ac_cost_year_acc') | float(0) %}
+        {% if not (now().month == 1 and now().day == 1) %}
+          false
+        {% elif year_val == 0 %}
+          false
+        {% elif now().hour < 3 %}
+          true
+        {% elif last_ok not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          {% set last_capture = last_ok | as_datetime | as_local %}
+          {{ last_capture.year != now().year }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_prev_year}
+      data: {value: "{{ states('input_number.ac_cost_year_acc') | float(0) | round(2) }}"}
+    - service: input_number.set_value
+      target: {entity_id: input_number.ac_cost_year_acc}
+      data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "AC cost yearly reset: prev-year snapshot taken, YTD zeroed (trigger: {{ trigger.id }})"
+
+# ===============================================================
+# GAS HEATING COST — monthly capture into season store
+# On Save Gas Bill: write that bill's DHW-corrected heating cost into the
+# current-season slot (1=Jul .. 12=Jun), keyed off the bill date to stay
+# consistent with the gas_archive month keying.
+# ===============================================================
+- id: archive_monthly_gas_heat_cost
+  alias: "Archive Monthly Gas Heating Cost (season store)"
+  description: "On Save Gas Bill, write gas_heating_cost_month into the current-season slot keyed off the bill date"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_button.save_gas_bill
+  action:
+    - variables:
+        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        bill_dt: "{{ states('input_datetime.gas_bill_date') }}"
+        bill_year: "{{ (bill_dt | as_datetime).year if bill_dt not in ['unknown', 'unavailable', 'none'] else now().year }}"
+        bill_month: "{{ (bill_dt | as_datetime).month if bill_dt not in ['unknown', 'unavailable', 'none'] else now().month }}"
+        slot: "{{ (((bill_month | int(0)) - 7) % 12) + 1 }}"
+        bill_season: "{{ (bill_year | int(0)) if (bill_month | int(0)) >= 7 else (bill_year | int(0)) - 1 }}"
+        cur_season: "{{ now().year if now().month >= 7 else now().year - 1 }}"
+        arr: >
+          {% set d = (cur_season | int(0)) - (bill_season | int(0)) %}
+          {{ 'cs' if d == 0 else 'ls' if d == 1 else 'ls2' if d == 2 else 'none' }}
+        cost: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
+    - choose:
+        - conditions: "{{ arr != 'none' }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.gas_heat_{{ arr }}_{{ slot }}"
+              data:
+                value: "{{ cost }}"
+            - service: system_log.write
+              data:
+                level: info
+                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}) = ${{ cost }}"
+      default:
+        - service: system_log.write
+          data:
+            level: warning
+            message: "Gas heating cost NOT archived: bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }} is older than the 3-season store"
+
+# ===============================================================
+# GAS HEATING SEASON — July 1 rollover
+# Roll the season store (ls2<-ls<-cs) then zero current season. Stamp-first
+# guard fires once per year; startup catch-up covers a reboot across Jul 1.
+# Stamp is written BEFORE the shift so a partial failure cannot re-fire and
+# double-shift (which would destroy a season of data).
+# ===============================================================
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.gas_heat_cost_archive_last_ok
+      data:
+        datetime: "{{ capture_stamp }}"
+- id: reset_season_gas_heat_cost
+  alias: "Reset Gas Heating Season (Jul 1)"
+  description: "On Jul 1 roll season store ls2<-ls<-cs and zero current season, once per year with startup catch-up"
+  mode: single
+  trigger:
+    - platform: time
+      at: "00:08:00"
+      id: scheduled
+    - platform: homeassistant
+      event: start
+      id: startup
+  condition:
+    - condition: template
+      value_template: >
+        {% set last = states('input_datetime.gas_heat_season_last_reset') %}
+        {% if not (now().month == 7 and now().day == 1) %}
+          false
+        {% elif last in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
+          true
+        {% else %}
+          {{ (last | as_datetime | as_local).year != now().year }}
+        {% endif %}
+  action:
+    - service: input_datetime.set_datetime
+      target: {entity_id: input_datetime.gas_heat_season_last_reset}
+      data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}
+    - repeat:
+        for_each: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        sequence:
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_ls2_{{ repeat.item }}"}
+            data: {value: "{{ states('input_number.gas_heat_ls_' ~ repeat.item) | float(0) }}"}
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_ls_{{ repeat.item }}"}
+            data: {value: "{{ states('input_number.gas_heat_cs_' ~ repeat.item) | float(0) }}"}
+          - service: input_number.set_value
+            target: {entity_id: "input_number.gas_heat_cs_{{ repeat.item }}"}
+            data: {value: 0}
+    - service: system_log.write
+      data:
+        level: info
+        message: "Gas heating season rolled over on Jul 1 (ls2<-ls<-cs, cs zeroed; trigger: {{ trigger.id }})"
+
+# ===============================================================
+# DEHUMIDIFIER CONTROL-SENSOR LOSS
+# ===============================================================
+# Closes the control half of DESIGN.md §12's open item: "the node has no
+# actuator, so a dead node means the dehumidifier control loses its input
+# entirely. What the HA automation does with `unavailable` has not been
+# checked." It is checked now, and this is the answer.
+#
+# Design question: what should happen at the unattended moment when the
+# control sensor dies mid-cycle?
+#   - keep running blind: no feedback, no stall detection, and the RH band
+#     is unenforceable. The unit runs to the backstop on every cycle and
+#     the log looks normal.
+#   - stop immediately: a 30-second WiFi blip or an OTA reboot short-cycles
+#     the compressor.
+# So: stop, but only after 10 minutes. That is long enough to ride out an
+# OTA (~30 s) and a WiFi reassociation, short enough that a genuinely dead
+# node never leaves the compressor running unsupervised for an hour.
+#
+# auto_on needs no equivalent: binary_sensor.dehumidifier_should_run has an
+# is_number availability template, so it goes `unavailable` and a
+# `to: "on"` state trigger cannot fire out of unavailable.
+#
+# The stop reason is its own input_select option (sensor_loss) rather than
+# being folded into max_runtime, so it cannot be mistaken for a capacity
+# problem in the cycle-history analysis.
+# ===============================================================
+- id: dehumidifier_sensor_loss_shutdown
+  alias: "Dehumidifier Control Sensor Loss Shutdown"
+  description: "Stop the dehumidifier when the SHT45 control RH has been unreadable for 10 min. Running a compressor against a sensor you cannot read is not control."
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: sensor.basement_th_node_basement_humidity
+      to: "unavailable"
+      for:
+        minutes: 10
+    - platform: state
+      entity_id: sensor.basement_th_node_basement_humidity
+      to: "unknown"
+      for:
+        minutes: 10
+  condition:
+    # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+    # False only when the boolean is explicitly "on"; anything unreadable
+    # degrades back to normal HA control.
+    - condition: template
+      value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
+    - condition: state
+      entity_id: switch.dehumidifier
+      state: "on"
+  action:
+    - service: input_select.select_option
+      target:
+        entity_id: input_select.dehumidifier_last_stop_reason
+      data:
+        option: sensor_loss
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dehumidifier
+    - service: system_log.write
+      data:
+        level: warning
+        message: >-
+          Dehumidifier stopped: control RH (sensor.basement_th_node_basement_humidity)
+          unreadable for 10 min. Node status
+          {{ states('binary_sensor.basement_th_node_node_status') }}.
+          Shelly validation channel reads
+          {{ states('sensor.shelly_temperature_humidity_humidity') }} %RH.
+    - service: persistent_notification.create
+      data:
+        notification_id: dehumidifier_sensor_loss
+        title: "⚠️ Dehumidifier stopped — control sensor lost"
+        message: >
+          The SHT45 control RH has been unreadable for 10+ min, so the
+          dehumidifier was stopped rather than left running blind.
+          The Shelly is still reporting
+          {{ states('sensor.shelly_temperature_humidity_humidity') }} %RH — it is a
+          validation channel only and will NOT take over control on its own.
+          Control resumes automatically when the node returns.
