@@ -1,0 +1,3609 @@
+# ============================================================================
+# packages/spc.yaml
+# Statistical Process Control (XmR-style) monitoring for major appliances.
+#
+# STARTUP SEEDING: On HA restart, automation.spc_seed_on_startup seeds day_1
+# INLINE from the live latched mean — it does NOT call scripts/spc_seed.py, and
+# has not since the 2026-08-21 rewrite. (Corrected 2026-08-22; the old wording
+# here sent a reader to a script that was wired to nothing.) spc_seed.py is now
+# a manual CLI backfill tool, manifest-driven, run from a shell — see the
+# shell_command section near the bottom of this file.
+# Idempotent — only seeds appliances with empty/stale slots.
+# Pattern mirrors the proven Dehumidifier Running-Watts SPC implementation
+# in configuration.yaml (mean/sigma/upper/lower on a 7-day rolling buffer of
+# CALENDAR-DAY, non-overlapping subgroups — not a trailing window sampled
+# once a day, which autocorrelates and flattens the chart).
+#
+# STATUS: Fridge, Furnace, and AC all implemented, identical section
+# structure. AC deliberately uses the SAME basic (temperature-blind) pattern
+# for now, per instruction — see AC LIMITATION note below before trusting an
+# "out of control" flag from it.
+#
+# To add another appliance, copy one whole section and swap:
+#   - the source power entity (sensor.sem_<x>_power)
+#   - the existing daily-energy entity (sensor.sem_<x>_daily)
+#   - the threshold input_number default
+#   - the day_1..7 input_number names
+#   - the automation id
+#
+# FIX 2026-07-20 (charts: Furnace Daily unavailable, HWH Recirc Daily flat):
+#   1. Threshold input_numbers now carry initial: values. A never-set
+#      input_number sits at its YAML min (0 W here); at 0 W the "running"
+#      gates count standby + low-mode time, inflating runtime_today and
+#      dragging the computed daily mean below the capture guard band — the
+#      EOD capture then skips every night. A skipped capture used to be
+#      INVISIBLE: the "<X> Running Watts Daily" sensor kept re-reporting the
+#      stale day_1 slot — a flat chart that looks like data (the HWH 144.5 W
+#      symptom) or, if day_1 was never written at all, a permanently
+#      unavailable sensor (the Furnace symptom).
+#   2. Each capture automation now stamps input_datetime.<x>_spc_last_capture
+#      on SUCCESS only; the Daily sensor's availability requires the stamp to
+#      be from today or yesterday, so skip days now render as chart gaps
+#      instead of phantom repeats (subgroup independence preserved).
+#   3. Skip log lines now include the live threshold and the computed mean W,
+#      so the failing guard is identifiable from one log line the next
+#      morning (Settings -> System -> Logs, search "SPC skipped").
+#   Deployment notes: expect a one-night gap on the healthy charts (stamps
+#   start unset; only a real 23:59 capture sets them — or seed the three
+#   healthy stamps to today via Developer Tools). Do NOT manually run the
+#   capture automations mid-day to backfill: partial-day runtime against a
+#   full-day energy counter (Kasa "today") writes an inflated point — that
+#   mismatch is the most plausible origin of the frozen 144.5 W value.
+#
+# FIX 2026-07-20 part 2 (HWH energy basis — why the guard could never pass):
+#   sensor.hwh_today_s_consumption read 0.195 kWh at ~16:45, i.e. ~11.6 W
+#   continuous-equivalent on a plug whose calibrated recirc signal is only
+#   ~0.078 kWh/FULL day. The residual (~8 W continuous, ~0.2 kWh/day) is
+#   sub-threshold draw (controller/aquastat standby) that the old netting
+#   design never subtracted — it only netted a fixed 0.003 kWh condensate
+#   estimate. Projected capture math: (0.28 - 0.003)*1000/0.75 h ~= 370 W,
+#   permanently outside the 80-200 W band -> nightly skip -> frozen day_1.
+#   Fix: energy is now GATED AT SOURCE — hwh_recirc_gated_power reports plug
+#   watts only above the 70 W threshold (else 0), a left-Riemann integration
+#   accumulates it, and a daily utility_meter provides the calendar-day
+#   recirc-only kWh. Standby AND condensate contribute exactly zero by
+#   construction, so hwh_condensate_daily_kwh_estimate is retired (removed)
+#   and the capture needs no netting estimates at all. The plug's own daily
+#   counter stays in the skip log as plug_day_kwh: plug_day_kwh minus
+#   recirc_kwh ~= standby+condensate energy, a free drift diagnostic.
+#   Deploy note: on deployment day the integrator starts mid-day while
+#   runtime_today has full-day history, so the first 23:59 capture will
+#   likely log a low computed_w and skip — expected; clean from day 2.
+#   Edge bias note (left method vs Kasa ~5-12 s polling): trailing on->off
+#   edges overcount by up to one poll at ~104 W (~0.3 Wh/cycle), leading
+#   edges undercount similarly; net daily bias is small vs the 78 Wh signal.
+#
+# PLACEHOLDER VALUES — status per appliance:
+#   Fridge:  threshold/seeds now grounded in a real ~10h sample (see below),
+#            barely differ from the original guesses.
+#   Furnace: CONFIRMED to share one circuit between two distinct blower
+#            speeds — a scheduled 15min/hr (2x7.5min) low-speed recirc mode
+#            (~115-130W) and a high-speed AC-call mode (~778W, sigma ~11W).
+#            Threshold raised to 300W to isolate high-speed only; the recirc
+#            energy contribution is netted out of the daily capture calc
+#            (see furnace_recirc_daily_kwh_estimate below) so it doesn't
+#            inflate the high-speed mean. Real-data-calibrated, still only a
+#            single 10h sample — expect the 7-day buffer to refine this.
+#   AC:      still fully placeholder, untouched — no real data pulled yet.
+#
+# OPEN QUESTION — shared blower: CONFIRMED (user-provided) that furnace and
+# AC share one blower motor, with a scheduled 15min/hr recirc mode layered
+# on top. The recirc contamination is handled (see above); still worth
+# confirming the ~778W cluster really is the AC-call speed once real AC
+# power data is cross-referenced in time.
+#
+# SEASONAL CARRYOVER: both Furnace (heating season only) and AC (cooling
+# season only) will have long stretches where the capture guard never fires
+# (zero qualifying runtime). The 7-day buffer just goes stale during the
+# off-season rather than resetting — so the first few "in-season" days each
+# year compare against last season's tail end, not a clean start. Not fixed
+# here; flagging so a stale-looking mean/sigma at season start isn't a
+# surprise.
+#
+# AC LIMITATION (not solved here, per instruction — basic version first):
+# compressor watts rise with outdoor condensing temperature (documented
+# elsewhere as ~10.7 W/°F for this class of equipment), so raw watts conflate
+# compressor health with outdoor weather. This version does NOT normalize
+# for that — an "out of control" flag on a 95°F day may just mean it was
+# 95°F, not a compressor problem. Revisit with temperature correlation once
+# there's enough real data to see whether that confound actually matters in
+# practice for your specific setup.
+# E080 RETUNE 2026-08-07 (dehumidifier section only):
+#   The Santa Fe Classic was replaced by an Aprilaire E080. Every
+#   dehumidifier constant in this file described the old machine:
+#     - capture guard rt >= 0.5 h    -> 0.2 h  (E080 runs 1.70 h/day, not 6.9)
+#     - capture guard 300 < w        -> 150 <  (a failing unit draws LESS;
+#                                               a 300 W floor hides the signal)
+#     - mean/sigma fallbacks 570/12  -> 459/3.9 (STEADY-STATE, 17 runs)
+#       then -> 459/2.1 on 2026-08-07 third pass, when the steady gate became a
+#       FIXED WINDOW (minutes 10-14 of each run) instead of an open-ended tail.
+#       CLEAR THE 7 DAY SLOTS when deploying this: the stored days were built
+#       from the open-ended statistic (mean 456.6, sd 3.75) and mixing them with
+#       fixed-window days (mean 458.9, sd 2.09) puts a 2.3 W step in the middle
+#       of the chart and inflates sigma for a week.
+#     - seed "typical" 570 W         -> 459 W
+#     - reset-script 7x ~589 W days  -> cleared to 0 (see note there)
+#     - statistics sampling_size 2000 -> 4000 (2000 = 2.78 h of run time at
+#       the ~5 s Kasa cadence, which truncated 2026-08-05 and biased it
+#       -0.56 W — a duty-dependent artefact)
+#   RESOLVED 2026-08-07 with the basement temperature series: the apparent
+#   456.6 -> 452.6 -> 448.6 W decline was NOT the machine and NOT ambient. It
+#   was the compressor START RAMP growing as HA plug control lengthened off
+#   periods. The SPC metric therefore moved from the full-run mean to a
+#   WARM-UP-EXCLUDED steady-state mean, which is flat over the same window
+#   (-0.014 +/- 0.066 W/h, r2 0.003). Full detail on the
+#   dehumidifier_power_when_on_steady sensor below.
+# ============================================================================
+
+input_number:
+  # --- Fridge SPC: gating threshold (tune once real data is seen) ---
+  fridge_power_threshold:
+    name: "Fridge Power Threshold"
+    min: 0
+    max: 300
+    step: 1
+    # initial added 2026-07-20: without it a never-touched input_number sits
+    # at its YAML min (0 W), the running/compressor gate then passes on
+    # standby/low-mode power, and the EOD capture guard band is never met.
+    # NOTE initial semantics: value RESETS to this on every HA restart — UI
+    # tuning does not survive a reboot; make permanent changes here in YAML.
+    initial: 50
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:tune
+
+  # --- Fridge Running-Watts SPC: 7-day rolling calendar-day slots ---
+  fridge_running_watts_day_1:
+    name: "Fridge Running W Day 1 (Yesterday)"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_2:
+    name: "Fridge Running W Day 2"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_3:
+    name: "Fridge Running W Day 3"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_4:
+    name: "Fridge Running W Day 4"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_5:
+    name: "Fridge Running W Day 5"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_6:
+    name: "Fridge Running W Day 6"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  fridge_running_watts_day_7:
+    name: "Fridge Running W Day 7 (Oldest)"
+    min: 0
+    max: 400
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- Furnace SPC: gating threshold (tune once real data is seen) ---
+  furnace_power_threshold:
+    name: "Furnace Power Threshold"
+    min: 0
+    max: 300
+    step: 1
+    # initial added 2026-07-20: without it a never-touched input_number sits
+    # at its YAML min (0 W), the running/compressor gate then passes on
+    # standby/low-mode power, and the EOD capture guard band is never met.
+    # NOTE initial semantics: value RESETS to this on every HA restart — UI
+    # tuning does not survive a reboot; make permanent changes here in YAML.
+    initial: 300
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:tune
+
+  # Estimated daily energy from the 15min/hr (2x7.5min) recirc cycles, netted
+  # out of sem_furnace_daily before computing high-speed mean watts — since
+  # sem_furnace_daily totals the WHOLE circuit but furnace_runtime_today (see
+  # below) only counts time above the 300W high-speed gate. Without this,
+  # recirc's energy would get misattributed onto high-speed-only runtime and
+  # inflate the calculated wattage. Seeded at 6h/day x ~120W = 0.72 kWh,
+  # from the observed mid-cluster mean — assumes recirc runs all 24 hours at
+  # a constant rate; revisit if that's not actually the case.
+  furnace_recirc_daily_kwh_estimate:
+    name: "Furnace Recirc Daily kWh Estimate"
+    min: 0
+    max: 3
+    step: 0.01
+    initial: 0.72
+    unit_of_measurement: "kWh"
+    mode: box
+    icon: mdi:calculator
+
+  # --- Furnace Running-Watts SPC: 7-day rolling calendar-day slots ---
+  furnace_running_watts_day_1:
+    name: "Furnace Running W Day 1 (Yesterday)"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_2:
+    name: "Furnace Running W Day 2"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_3:
+    name: "Furnace Running W Day 3"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_4:
+    name: "Furnace Running W Day 4"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_5:
+    name: "Furnace Running W Day 5"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_6:
+    name: "Furnace Running W Day 6"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  furnace_running_watts_day_7:
+    name: "Furnace Running W Day 7 (Oldest)"
+    min: 0
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- AC SPC: gating threshold (tune once real data is seen) ---
+  ac_power_threshold:
+    name: "AC Power Threshold"
+    min: 0
+    max: 1000
+    step: 1
+    # initial added 2026-07-20: without it a never-touched input_number sits
+    # at its YAML min (0 W), the running/compressor gate then passes on
+    # standby/low-mode power, and the EOD capture guard band is never met.
+    # NOTE initial semantics: value RESETS to this on every HA restart — UI
+    # tuning does not survive a reboot; make permanent changes here in YAML.
+    initial: 300
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:tune
+
+  # --- AC Running-Watts SPC: 7-day rolling calendar-day slots ---
+  ac_running_watts_day_1:
+    name: "AC Running W Day 1 (Yesterday)"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_2:
+    name: "AC Running W Day 2"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_3:
+    name: "AC Running W Day 3"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_4:
+    name: "AC Running W Day 4"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_5:
+    name: "AC Running W Day 5"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_6:
+    name: "AC Running W Day 6"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+  ac_running_watts_day_7:
+    name: "AC Running W Day 7 (Oldest)"
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- HWH (DHW) Recirc Pump SPC: gating threshold ---
+  # Real-data calibrated (2-week history export): recirc cluster 90-150W
+  # (mean 104.4W, sigma 6.2W), condensate-pump cluster 15-50W (mean 23.5W,
+  # sigma 5.0W), clean near-empty gap 50-90W between them. 70W sits centered
+  # in that gap. The condensate pump's much shorter cycles (median 15s, vs
+  # recirc's median 130s) put it below Kasa's polling resolution for reliable
+  # runtime capture — NOT built as its own SPC population for that reason.
+  hwh_recirc_power_threshold:
+    name: "HWH Recirc Power Threshold"
+    min: 0
+    max: 200
+    step: 1
+    # initial added 2026-07-20: without it a never-touched input_number sits
+    # at its YAML min (0 W), the running/compressor gate then passes on
+    # standby/low-mode power, and the EOD capture guard band is never met.
+    # NOTE initial semantics: value RESETS to this on every HA restart — UI
+    # tuning does not survive a reboot; make permanent changes here in YAML.
+    initial: 70
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:tune
+
+  # RETIRED 2026-07-20: hwh_condensate_daily_kwh_estimate removed. The
+  # recirc daily energy is now gated at source (see hwh_recirc_gated_power /
+  # hwh_recirc_energy_daily), so condensate and standby contribute zero by
+  # construction and no netting estimate is needed.
+
+  # --- HWH Recirc Running-Watts SPC: 7-day rolling calendar-day slots ---
+  hwh_recirc_running_watts_day_1:
+    name: "HWH Recirc Running W Day 1 (Yesterday)"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_2:
+    name: "HWH Recirc Running W Day 2"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_3:
+    name: "HWH Recirc Running W Day 3"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_4:
+    name: "HWH Recirc Running W Day 4"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_5:
+    name: "HWH Recirc Running W Day 5"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_6:
+    name: "HWH Recirc Running W Day 6"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  hwh_recirc_running_watts_day_7:
+    name: "HWH Recirc Running W Day 7 (Oldest)"
+    min: 0
+    max: 200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- Dehumidifier Running-Watts SPC: 7-day rolling slots ---
+  # Moved from configuration.yaml — the original, longest-running population
+  # in this file. dehumidifier_power_threshold stays in configuration.yaml
+  # (shared with binary_sensor.dehumidifier_compressor_active, not part of
+  # this move).
+  # --- Dehumidifier SPC: compressor warm-up exclusion (added 2026-08-07) ---
+  # Samples taken before the compressor has been running this long are NOT
+  # counted toward the SPC mean. See the long note on
+  # sensor.dehumidifier_power_when_on_steady for why this exists.
+  # initial semantics per the 2026-07-20 note above: value RESETS on every
+  # HA restart, so make permanent changes here in YAML, not in the UI.
+  # 12 -> 10 (2026-08-07, second pass). Setpoints move to 55.5/52, which
+  # shortens runs from ~17.5 min to ~15 min. At a 12-min exclusion a 15-min
+  # run yields only 3 min of steady samples; at 10 min it yields 5 - a 67 %
+  # gain in usable samples. Cost is a small known bias: from the fitted
+  # plug-cut ramp W(t) = 464.0 - 44.8*exp(-t/5.90), minute 10 sits 8.2 W
+  # below asymptote vs 5.9 W at minute 12. That bias is CONSTANT across days
+  # at a fixed setpoint, so it shifts the centre line, not the trend - which
+  # is what this chart is for. Re-baseline the centre line after the change.
+  dehumidifier_spc_warmup_minutes:
+    name: "Dehumidifier SPC Window Start"
+    min: 0
+    max: 30
+    step: 1
+    initial: 10
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer-sand
+
+  # --- SPC WINDOW END (added 2026-08-07, third pass) ---
+  # Turns the steady-state gate from an OPEN-ENDED tail into a FIXED WINDOW.
+  # Measured on the 8 plug-cut runs available (14.6-30.3 min), dispersion of
+  # the candidate daily statistic:
+  #     minutes 12..end   mean 456.63  sd 3.75
+  #     minutes 10..end   mean 456.95  sd 3.19
+  #     minutes 10..14    mean 458.87  sd 2.09   <-- chosen
+  #     minutes 10..13    mean 458.56  sd 2.15
+  #     minutes  8..14    mean 457.77  sd 1.99   (rejected: minute 8 is still
+  #                                               ~12 W into the ramp)
+  # A 44 % cut in the process sigma, which tightens the control limits by the
+  # same factor and lets the chart resolve a drift 44 % smaller. NOTE the
+  # mechanism is NOT a run-length correction - regressing every candidate
+  # against run length gives p > 0.93 in all cases. It is that an open-ended
+  # tail averages in minutes 15-30 of the LONG runs, where entering air is
+  # much drier and the operating point is simply different. A fixed window
+  # compares like with like.
+  #
+  # CONSEQUENCE TO ACCEPT: a run shorter than the window end contributes
+  # nothing. At the 55.5/52 band runs measure 14.6-15.3 min, so 14 fits with
+  # little margin. If run lengths fall further, lower this to 13 (sd 2.15,
+  # barely worse) rather than widening it back open.
+  dehumidifier_spc_window_end_minutes:
+    name: "Dehumidifier SPC Window End"
+    min: 5
+    max: 60
+    step: 1
+    initial: 14
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer-sand-complete
+
+  dehumidifier_running_watts_day_1:
+    name: "Dehum Running W Day 1 (Yesterday)"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_2:
+    name: "Dehum Running W Day 2"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_3:
+    name: "Dehum Running W Day 3"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_4:
+    name: "Dehum Running W Day 4"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_5:
+    name: "Dehum Running W Day 5"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_6:
+    name: "Dehum Running W Day 6"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+  dehumidifier_running_watts_day_7:
+    name: "Dehum Running W Day 7 (Oldest)"
+    min: 0
+    max: 800
+    step: 0.1
+    mode: box
+    unit_of_measurement: "W"
+
+  # --- Cooling Efficiency (kWh/CDD) SPC: 7-day rolling slots ---
+  # Daily AC energy normalized by CDD — captures cooling system efficiency.
+  # Only captured when CDD >= 0.5 (meaningful cooling demand). Expected range
+  # ~0.5–3.0 kWh/CDD for typical residential split system.
+  cooling_kwh_cdd_day_1:
+    name: "Cooling kWh/CDD Day 1 (Yesterday)"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_2:
+    name: "Cooling kWh/CDD Day 2"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_3:
+    name: "Cooling kWh/CDD Day 3"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_4:
+    name: "Cooling kWh/CDD Day 4"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_5:
+    name: "Cooling kWh/CDD Day 5"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_6:
+    name: "Cooling kWh/CDD Day 6"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+  cooling_kwh_cdd_day_7:
+    name: "Cooling kWh/CDD Day 7 (Oldest)"
+    min: 0
+    max: 10
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh/CDD"
+
+input_datetime:
+  # Last successful EOD capture date per SPC population. Stamped by each
+  # capture automation on SUCCESS only (single writer), read by the matching
+  # "<X> Running Watts Daily" availability gate below — a skipped capture now
+  # makes the Daily sensor unavailable (a visible chart gap) instead of
+  # silently replaying yesterday's day_1 as if it were a fresh subgroup.
+  # input_datetime, not automation last_triggered: it survives restarts, and
+  # last_triggered fires on skip nights too, so it cannot distinguish
+  # captured from skipped.
+  fridge_spc_last_capture:
+    name: "Fridge SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+  furnace_spc_last_capture:
+    name: "Furnace SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+  ac_spc_last_capture:
+    name: "AC SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+  hwh_recirc_spc_last_capture:
+    name: "HWH Recirc SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+  dehumidifier_spc_last_capture:
+    name: "Dehumidifier SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+  # --- SPC seed stamps (2026-08-21) ---------------------------------------
+  # Separate from the *_spc_last_capture stamps ON PURPOSE. The seeder used to
+  # write the capture stamp, so nothing downstream could tell a MEASURED day
+  # from a seeded one — a fabricated value was indistinguishable from data.
+  # The dehumidifier's three identical 459.0 W slots were exactly that, and
+  # they were dated 2026-08-08 as if captured. Capture stamps now mean
+  # measurement and nothing else; seeding records itself here.
+  fridge_spc_last_seed:
+    name: "Fridge SPC Last Seed"
+    has_date: true
+    has_time: false
+  furnace_spc_last_seed:
+    name: "Furnace SPC Last Seed"
+    has_date: true
+    has_time: false
+  ac_spc_last_seed:
+    name: "AC SPC Last Seed"
+    has_date: true
+    has_time: false
+  hwh_recirc_spc_last_seed:
+    name: "HWH Recirc SPC Last Seed"
+    has_date: true
+    has_time: false
+  dehumidifier_spc_last_seed:
+    name: "Dehumidifier SPC Last Seed"
+    has_date: true
+    has_time: false
+  cooling_kwh_cdd_spc_last_capture:
+    name: "Cooling kWh/CDD SPC Last Capture"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+
+template:
+  - binary_sensor:
+      # Clean on/off state (not just availability-gating) so history_stats
+      # below has a proper state to measure time-in-"on" against.
+      - name: "Fridge Compressor Running"
+        unique_id: fridge_compressor_running
+        device_class: running
+        state: >
+          {% set p = states('sensor.sem_fridge_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.fridge_power_threshold') | float(50) }}
+
+      - name: "Furnace Blower Running"
+        unique_id: furnace_blower_running
+        device_class: running
+        state: >
+          {% set p = states('sensor.sem_furnace_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.furnace_power_threshold') | float(300) }}
+
+      - name: "AC Compressor Running"
+        unique_id: ac_compressor_running
+        device_class: running
+        state: >
+          {% set p = states('sensor.sem_ac_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.ac_power_threshold') | float(300) }}
+
+      # Moved here from `sensor:` — device_class: problem is a binary_sensor
+      # device class, not a valid sensor one (confirmed by HA rejecting this
+      # exact pattern at runtime). The dehumidifier's own equivalent sensor
+      # almost certainly has the same defect — worth checking its logs too.
+      - name: "Fridge Watts Out Of Control"
+        unique_id: fridge_watts_out_of_control
+        device_class: problem
+        state: >
+          {% set w = states('sensor.fridge_running_watts_latched') | float(-1) %}
+          {% set u = states('sensor.fridge_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.fridge_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.fridge_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
+
+      - name: "Furnace Watts Out Of Control"
+        unique_id: furnace_watts_out_of_control
+        device_class: problem
+        state: >
+          {% set w = states('sensor.furnace_running_watts_latched') | float(-1) %}
+          {% set u = states('sensor.furnace_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.furnace_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.furnace_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
+
+      - name: "AC Watts Out Of Control"
+        unique_id: ac_watts_out_of_control
+        device_class: problem
+        state: >
+          {% set w = states('sensor.ac_running_watts_latched') | float(-1) %}
+          {% set u = states('sensor.ac_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.ac_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.ac_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
+
+      - name: "HWH Recirc Pump Running"
+        unique_id: hwh_recirc_pump_running
+        device_class: running
+        state: >
+          {% set p = states('sensor.hwh_current_consumption') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.hwh_recirc_power_threshold') | float(70) }}
+
+      - name: "HWH Recirc Watts Out Of Control"
+        unique_id: hwh_recirc_watts_out_of_control
+        device_class: problem
+        state: >
+          {% set w = states('sensor.hwh_recirc_running_watts_latched') | float(-1) %}
+          {% set u = states('sensor.hwh_recirc_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.hwh_recirc_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.hwh_recirc_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
+
+      # Moved from configuration.yaml + fixed: was device_class: problem
+      # under sensor:, which HA rejects (problem is a binary_sensor device
+      # class only). Same defect as sensor.automation_failures_active,
+      # left as-is elsewhere in configuration.yaml, out of scope here.
+      - name: "Dehumidifier Watts Out Of Control"
+        unique_id: dehumidifier_watts_out_of_control
+        device_class: problem
+        state: >
+          {% set w = states('sensor.dehumidifier_running_watts_latched') | float(-1) %}
+          {% set u = states('sensor.dehumidifier_running_watts_upper') | float(0) %}
+          {% set l = states('sensor.dehumidifier_running_watts_lower') | float(0) %}
+          {% set n = states('input_number.dehumidifier_running_watts_day_3') | float(-1) %}
+          {{ w > 0 and u > 0 and n >= 0 and (w > u or w < l) }}
+
+      - name: "Cooling kWh/CDD Out Of Control"
+        unique_id: cooling_kwh_cdd_out_of_control
+        device_class: problem
+        # Only fires when we have valid 7-day data (day_3 seeded) and today's
+        # kWh/CDD exceeds upper limit. Lower bound not checked — low kWh/CDD
+        # means efficient or low usage, not a problem.
+        state: >
+          {% set cdd = states('sensor.hvac_cdd65_today') | float(0) %}
+          {% set ac = states('sensor.sem_ac_daily') | float(0) %}
+          {% set u = states('sensor.cooling_kwh_cdd_upper') | float(0) %}
+          {% set n = states('input_number.cooling_kwh_cdd_day_3') | float(-1) %}
+          {% if cdd >= 0.5 and ac > 0.1 and u > 0 and n >= 0 %}
+            {{ (ac / cdd) > u }}
+          {% else %}
+            false
+          {% endif %}
+
+
+      # =================================================================
+      # SPC CAPTURE WATCHDOG (2026-08-21)
+      #
+      # WHY THIS EXISTS. On 2026-08-21 an audit of stale-detector coverage
+      # found 6 of 10 non-SPC pipelines had one (hdd, cdd, runtime_per_hdd,
+      # runtime_per_cdd, furnace_cycle, monthly_tracking) and 0 of 6 SPC
+      # pipelines did. That is the only reason the dehumidifier could stop
+      # capturing on 2026-08-07 and HWH recirc on 2026-08-01 and go 14 and 20
+      # days without a sound. The house was instrumented; the instruments
+      # were not. These follow binary_sensor.runtime_per_hdd_capture_stale
+      # in configuration.yaml, with one addition described below.
+      #
+      # THE OPPORTUNITY GATE. A bare "last capture is old" test is wrong for
+      # this data: furnace (heating) and AC (cooling) legitimately go MONTHS
+      # without capturing every off-season, and an alarm that cries all summer
+      # is an alarm you switch off. So each detector asks the sharper
+      # question — did this pipeline have the OPPORTUNITY to capture and fail
+      # to take it? Opportunity is any qualifying activity today, the same
+      # quantity the capture guard reads. Out of season it is zero and the
+      # detector stays quiet with no calendar heuristic to maintain.
+      #
+      # Deliberately gated on activity > 0 rather than on the guard's own
+      # threshold. If an appliance runs for three days and never once clears
+      # its guard band, that IS the fault worth surfacing — it means the guard
+      # no longer matches the machine. This system has had that exact failure
+      # twice: the Santa Fe -> E080 swap left every dehumidifier constant
+      # describing a machine that was gone, and the 300 W furnace floor hid
+      # the low-speed recirc mode.
+      #
+      # NO availability: BLOCK, on purpose. Every other template sensor in
+      # this file carries one; a watchdog must not. A watchdog that can go
+      # unavailable fails in exactly the direction that hides the fault, which
+      # is the whole class of bug this was built to catch.
+      #
+      # Threshold is 2 days, not 1: a single missed night is legitimate
+      # (the guard band rejects thin or nonsense days by design). Two
+      # consecutive misses while the appliance is running is a real signal.
+      #
+      # "Never captured" (1970 stamp, i.e. after script.spc_reset_*) plus
+      # live activity reports stale. That is intended, not a false positive:
+      # the buffer is empty and the chart is blank, and you want to be told
+      # if the first capture does not land.
+      # =================================================================
+      - name: "Fridge SPC Capture Stale"
+        unique_id: fridge_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.fridge_spc_last_capture') %}
+          {% set act = states('sensor.fridge_runtime_today') | float(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.fridge_spc_last_capture') }}"
+          activity_today: "{{ states('sensor.fridge_runtime_today') }}"
+          capture_guard: "runtime >= 1.0 h"
+
+      - name: "Furnace SPC Capture Stale"
+        unique_id: furnace_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.furnace_spc_last_capture') %}
+          {% set act = states('sensor.furnace_runtime_today') | float(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.furnace_spc_last_capture') }}"
+          activity_today: "{{ states('sensor.furnace_runtime_today') }}"
+          capture_guard: "runtime >= 1.0 h"
+
+      - name: "AC SPC Capture Stale"
+        unique_id: ac_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.ac_spc_last_capture') %}
+          {% set act = states('sensor.ac_runtime_today') | float(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.ac_spc_last_capture') }}"
+          activity_today: "{{ states('sensor.ac_runtime_today') }}"
+          capture_guard: "runtime >= 0.5 h"
+
+      - name: "HWH Recirc SPC Capture Stale"
+        unique_id: hwh_recirc_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.hwh_recirc_spc_last_capture') %}
+          {% set act = states('sensor.hwh_recirc_runtime_today') | float(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.hwh_recirc_spc_last_capture') }}"
+          activity_today: "{{ states('sensor.hwh_recirc_runtime_today') }}"
+          capture_guard: "runtime >= 0.1 h"
+
+      - name: "Dehumidifier SPC Capture Stale"
+        unique_id: dehumidifier_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.dehumidifier_spc_last_capture') %}
+          {% set act = states('counter.dehumidifier_cycles_today') | int(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.dehumidifier_spc_last_capture') }}"
+          activity_today: "{{ states('counter.dehumidifier_cycles_today') }}"
+          capture_guard: "cycles >= 2"
+
+      - name: "Cooling kWh/CDD SPC Capture Stale"
+        unique_id: cooling_kwh_cdd_spc_capture_stale
+        device_class: problem
+        state: >
+          {% set last = states('input_datetime.cooling_kwh_cdd_spc_last_capture') %}
+          {% set act = states('sensor.hvac_cdd65_today') | float(0) %}
+          {% if act <= 0 %}
+            false
+          {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
+            true
+          {% else %}
+            {% set dt = last | as_datetime %}
+            {% if dt is none %}
+              {# Stamp present but unparseable. Report stale: a watchdog must
+                 never fail quiet, which is the direction that hides the very
+                 fault it exists to catch. #}
+              true
+            {% else %}
+              {{ (now().date() - dt.date()).days > 2 }}
+            {% endif %}
+          {% endif %}
+        attributes:
+          last_capture: "{{ states('input_datetime.cooling_kwh_cdd_spc_last_capture') }}"
+          activity_today: "{{ states('sensor.hvac_cdd65_today') }}"
+          capture_guard: "CDD >= 0.5 and AC > 0.1 kWh"
+
+      # Single signal for "some SPC pipeline has stopped measuring". This is
+      # the one to put on a dashboard and hang a notification off; the six
+      # above are the detail view.
+      - name: "SPC Capture Stale (Any)"
+        unique_id: spc_capture_stale_any
+        device_class: problem
+        state: >
+          {% set ns = namespace(bad=[]) %}
+          {% for label, e in [
+            ('Fridge', 'binary_sensor.fridge_spc_capture_stale'),
+            ('Furnace', 'binary_sensor.furnace_spc_capture_stale'),
+            ('AC', 'binary_sensor.ac_spc_capture_stale'),
+            ('HWH Recirc', 'binary_sensor.hwh_recirc_spc_capture_stale'),
+            ('Dehumidifier', 'binary_sensor.dehumidifier_spc_capture_stale'),
+            ('Cooling kWh/CDD', 'binary_sensor.cooling_kwh_cdd_spc_capture_stale')
+          ] %}
+            {% if is_state(e, 'on') %}{% set ns.bad = ns.bad + [label] %}{% endif %}
+          {% endfor %}
+          {{ ns.bad | length > 0 }}
+        attributes:
+          stale_populations: >
+            {% set ns = namespace(bad=[]) %}
+            {% for label, e in [
+              ('Fridge', 'binary_sensor.fridge_spc_capture_stale'),
+              ('Furnace', 'binary_sensor.furnace_spc_capture_stale'),
+              ('AC', 'binary_sensor.ac_spc_capture_stale'),
+              ('HWH Recirc', 'binary_sensor.hwh_recirc_spc_capture_stale'),
+              ('Dehumidifier', 'binary_sensor.dehumidifier_spc_capture_stale'),
+              ('Cooling kWh/CDD', 'binary_sensor.cooling_kwh_cdd_spc_capture_stale')
+            ] %}
+              {% if is_state(e, 'on') %}{% set ns.bad = ns.bad + [label] %}{% endif %}
+            {% endfor %}
+            {{ ns.bad | join(', ') if ns.bad else 'none' }}
+
+  - sensor:
+      # ===============================================================
+      # FRIDGE RUNNING-WATTS SPC (compressor health)
+      # Gates on power > threshold directly, same pattern as the
+      # dehumidifier: keeps the ~0W off-cycle samples out of the mean.
+      # ===============================================================
+      - name: "Fridge Power When On"
+        unique_id: fridge_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.sem_fridge_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.fridge_power_threshold') | float(50) }}
+        state: "{{ states('sensor.sem_fridge_power') | float(0) }}"
+
+      - name: "Fridge Running Watts Daily"
+        unique_id: fridge_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        # Mirrors the most recent gated daily capture (input_number day_1).
+        # Steps once nightly at 23:59, so ApexCharts draws one dated column
+        # per day — same gated day_1..7 source as the SPC limits.
+        availability: >
+          {% set stamp = states('input_datetime.fridge_spc_last_capture') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.fridge_running_watts_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.fridge_running_watts_day_1') | float(0) | round(1) }}"
+
+      - name: "Fridge Running Watts Mean 7d"
+        unique_id: fridge_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.fridge_running_watts_day_1') | float(-1),
+            states('input_number.fridge_running_watts_day_2') | float(-1),
+            states('input_number.fridge_running_watts_day_3') | float(-1),
+            states('input_number.fridge_running_watts_day_4') | float(-1),
+            states('input_number.fridge_running_watts_day_5') | float(-1),
+            states('input_number.fridge_running_watts_day_6') | float(-1),
+            states('input_number.fridge_running_watts_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 400) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.fridge_running_watts_day_1') | float(-1),
+            states('input_number.fridge_running_watts_day_2') | float(-1),
+            states('input_number.fridge_running_watts_day_3') | float(-1),
+            states('input_number.fridge_running_watts_day_4') | float(-1),
+            states('input_number.fridge_running_watts_day_5') | float(-1),
+            states('input_number.fridge_running_watts_day_6') | float(-1),
+            states('input_number.fridge_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 400) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            120
+          {% endif %}
+
+      - name: "Fridge Running Watts Sigma 7d"
+        unique_id: fridge_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.fridge_running_watts_day_1') | float(-1),
+            states('input_number.fridge_running_watts_day_2') | float(-1),
+            states('input_number.fridge_running_watts_day_3') | float(-1),
+            states('input_number.fridge_running_watts_day_4') | float(-1),
+            states('input_number.fridge_running_watts_day_5') | float(-1),
+            states('input_number.fridge_running_watts_day_6') | float(-1),
+            states('input_number.fridge_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 400) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.05 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 8 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.05 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.fridge_running_watts_day_1') | float(-1),
+            states('input_number.fridge_running_watts_day_2') | float(-1),
+            states('input_number.fridge_running_watts_day_3') | float(-1),
+            states('input_number.fridge_running_watts_day_4') | float(-1),
+            states('input_number.fridge_running_watts_day_5') | float(-1),
+            states('input_number.fridge_running_watts_day_6') | float(-1),
+            states('input_number.fridge_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 400) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(1) }}
+          {% else %}
+            8
+          {% endif %}
+
+      - name: "Fridge Running Watts Upper"
+        unique_id: fridge_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.fridge_running_watts_mean_7d'))
+             and is_number(states('sensor.fridge_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.fridge_running_watts_mean_7d') | float(120) %}
+          {% set s = states('sensor.fridge_running_watts_sigma_7d') | float(8) %}
+          {{ (m + 2 * s) | round(1) }}
+
+      - name: "Fridge Running Watts Lower"
+        unique_id: fridge_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.fridge_running_watts_mean_7d'))
+             and is_number(states('sensor.fridge_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.fridge_running_watts_mean_7d') | float(120) %}
+          {% set s = states('sensor.fridge_running_watts_sigma_7d') | float(8) %}
+          {{ (m - 2 * s) | round(1) }}
+
+      # ===============================================================
+      # FURNACE RUNNING-WATTS SPC (blower motor health)
+      # ===============================================================
+      - name: "Furnace Power When On"
+        unique_id: furnace_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.sem_furnace_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.furnace_power_threshold') | float(300) }}
+        state: "{{ states('sensor.sem_furnace_power') | float(0) }}"
+
+      - name: "Furnace Running Watts Daily"
+        unique_id: furnace_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        availability: >
+          {% set stamp = states('input_datetime.furnace_spc_last_capture') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.furnace_running_watts_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.furnace_running_watts_day_1') | float(0) | round(1) }}"
+
+      - name: "Furnace Running Watts Mean 7d"
+        unique_id: furnace_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.furnace_running_watts_day_1') | float(-1),
+            states('input_number.furnace_running_watts_day_2') | float(-1),
+            states('input_number.furnace_running_watts_day_3') | float(-1),
+            states('input_number.furnace_running_watts_day_4') | float(-1),
+            states('input_number.furnace_running_watts_day_5') | float(-1),
+            states('input_number.furnace_running_watts_day_6') | float(-1),
+            states('input_number.furnace_running_watts_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 1000) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.furnace_running_watts_day_1') | float(-1),
+            states('input_number.furnace_running_watts_day_2') | float(-1),
+            states('input_number.furnace_running_watts_day_3') | float(-1),
+            states('input_number.furnace_running_watts_day_4') | float(-1),
+            states('input_number.furnace_running_watts_day_5') | float(-1),
+            states('input_number.furnace_running_watts_day_6') | float(-1),
+            states('input_number.furnace_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 1000) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            778
+          {% endif %}
+
+      - name: "Furnace Running Watts Sigma 7d"
+        unique_id: furnace_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.furnace_running_watts_day_1') | float(-1),
+            states('input_number.furnace_running_watts_day_2') | float(-1),
+            states('input_number.furnace_running_watts_day_3') | float(-1),
+            states('input_number.furnace_running_watts_day_4') | float(-1),
+            states('input_number.furnace_running_watts_day_5') | float(-1),
+            states('input_number.furnace_running_watts_day_6') | float(-1),
+            states('input_number.furnace_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 1000) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.05 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 15 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.05 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.furnace_running_watts_day_1') | float(-1),
+            states('input_number.furnace_running_watts_day_2') | float(-1),
+            states('input_number.furnace_running_watts_day_3') | float(-1),
+            states('input_number.furnace_running_watts_day_4') | float(-1),
+            states('input_number.furnace_running_watts_day_5') | float(-1),
+            states('input_number.furnace_running_watts_day_6') | float(-1),
+            states('input_number.furnace_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 1000) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(1) }}
+          {% else %}
+            15
+          {% endif %}
+
+      - name: "Furnace Running Watts Upper"
+        unique_id: furnace_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.furnace_running_watts_mean_7d'))
+             and is_number(states('sensor.furnace_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.furnace_running_watts_mean_7d') | float(778) %}
+          {% set s = states('sensor.furnace_running_watts_sigma_7d') | float(15) %}
+          {{ (m + 2 * s) | round(1) }}
+
+      - name: "Furnace Running Watts Lower"
+        unique_id: furnace_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.furnace_running_watts_mean_7d'))
+             and is_number(states('sensor.furnace_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.furnace_running_watts_mean_7d') | float(778) %}
+          {% set s = states('sensor.furnace_running_watts_sigma_7d') | float(15) %}
+          {{ (m - 2 * s) | round(1) }}
+
+      # ===============================================================
+      # AC RUNNING-WATTS SPC (compressor health) — basic version, no
+      # temperature normalization yet. See AC LIMITATION note at top.
+      # ===============================================================
+      - name: "AC Power When On"
+        unique_id: ac_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.sem_ac_power') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.ac_power_threshold') | float(300) }}
+        state: "{{ states('sensor.sem_ac_power') | float(0) }}"
+
+      - name: "AC Running Watts Daily"
+        unique_id: ac_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        availability: >
+          {% set d1 = states('input_number.ac_running_watts_day_1') %}
+          {{ d1 not in ['unknown', 'unavailable', 'none', '']
+             and d1 | float(0) > 0 }}
+        state: "{{ states('input_number.ac_running_watts_day_1') | float(0) | round(1) }}"
+
+      - name: "AC Running Watts Mean 7d"
+        unique_id: ac_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.ac_running_watts_day_1') | float(-1),
+            states('input_number.ac_running_watts_day_2') | float(-1),
+            states('input_number.ac_running_watts_day_3') | float(-1),
+            states('input_number.ac_running_watts_day_4') | float(-1),
+            states('input_number.ac_running_watts_day_5') | float(-1),
+            states('input_number.ac_running_watts_day_6') | float(-1),
+            states('input_number.ac_running_watts_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 5000) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.ac_running_watts_day_1') | float(-1),
+            states('input_number.ac_running_watts_day_2') | float(-1),
+            states('input_number.ac_running_watts_day_3') | float(-1),
+            states('input_number.ac_running_watts_day_4') | float(-1),
+            states('input_number.ac_running_watts_day_5') | float(-1),
+            states('input_number.ac_running_watts_day_6') | float(-1),
+            states('input_number.ac_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 5000) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            2500
+          {% endif %}
+
+      - name: "AC Running Watts Sigma 7d"
+        unique_id: ac_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.ac_running_watts_day_1') | float(-1),
+            states('input_number.ac_running_watts_day_2') | float(-1),
+            states('input_number.ac_running_watts_day_3') | float(-1),
+            states('input_number.ac_running_watts_day_4') | float(-1),
+            states('input_number.ac_running_watts_day_5') | float(-1),
+            states('input_number.ac_running_watts_day_6') | float(-1),
+            states('input_number.ac_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 5000) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.05 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 200 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.05 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.ac_running_watts_day_1') | float(-1),
+            states('input_number.ac_running_watts_day_2') | float(-1),
+            states('input_number.ac_running_watts_day_3') | float(-1),
+            states('input_number.ac_running_watts_day_4') | float(-1),
+            states('input_number.ac_running_watts_day_5') | float(-1),
+            states('input_number.ac_running_watts_day_6') | float(-1),
+            states('input_number.ac_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 5000) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(1) }}
+          {% else %}
+            200
+          {% endif %}
+
+      - name: "AC Running Watts Upper"
+        unique_id: ac_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.ac_running_watts_mean_7d'))
+             and is_number(states('sensor.ac_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.ac_running_watts_mean_7d') | float(2500) %}
+          {% set s = states('sensor.ac_running_watts_sigma_7d') | float(200) %}
+          {{ (m + 2 * s) | round(1) }}
+
+      - name: "AC Running Watts Lower"
+        unique_id: ac_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.ac_running_watts_mean_7d'))
+             and is_number(states('sensor.ac_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.ac_running_watts_mean_7d') | float(2500) %}
+          {% set s = states('sensor.ac_running_watts_sigma_7d') | float(200) %}
+          {{ (m - 2 * s) | round(1) }}
+
+      # ===============================================================
+      # HWH RECIRC PUMP RUNNING-WATTS SPC
+      # Kasa plug also carries the condensate pump (15-50 W) and a
+      # continuous sub-threshold standby draw (~8 W measured 2026-07-20).
+      # Both are excluded from the daily energy AT SOURCE by the 70 W gate
+      # (hwh_recirc_gated_power -> integration -> daily utility_meter), so
+      # the capture divides recirc-only kWh by recirc-only runtime with no
+      # netting estimates.
+      # ===============================================================
+      - name: "HWH Recirc Power When On"
+        unique_id: hwh_recirc_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.hwh_current_consumption') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.hwh_recirc_power_threshold') | float(70) }}
+        state: "{{ states('sensor.hwh_current_consumption') | float(0) }}"
+
+      - name: "HWH Recirc Gated Power"
+        unique_id: hwh_recirc_gated_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:pump
+        # Always-available 0-or-P signal for the Riemann integrator below.
+        # Deliberately NOT hwh_recirc_power_when_on: that one goes
+        # unavailable below threshold (correct for the statistics mean,
+        # poison for an integrator). Reporting 0 between cycles makes the
+        # left-method integral exclude standby and condensate energy at
+        # source — no netting estimates needed downstream.
+        state: >
+          {% set p = states('sensor.hwh_current_consumption') | float(0) %}
+          {% if p > states('input_number.hwh_recirc_power_threshold') | float(70) %}
+            {{ p }}
+          {% else %}
+            0
+          {% endif %}
+
+      - name: "HWH Recirc Running Watts Daily"
+        unique_id: hwh_recirc_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        availability: >
+          {% set stamp = states('input_datetime.hwh_recirc_spc_last_capture') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.hwh_recirc_running_watts_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.hwh_recirc_running_watts_day_1') | float(0) | round(1) }}"
+
+      - name: "HWH Recirc Running Watts Mean 7d"
+        unique_id: hwh_recirc_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.hwh_recirc_running_watts_day_1') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_2') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_3') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_4') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_5') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_6') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 200) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.hwh_recirc_running_watts_day_1') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_2') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_3') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_4') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_5') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_6') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 200) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            104
+          {% endif %}
+
+      - name: "HWH Recirc Running Watts Sigma 7d"
+        unique_id: hwh_recirc_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.hwh_recirc_running_watts_day_1') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_2') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_3') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_4') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_5') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_6') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 200) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.05 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 7 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.05 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.hwh_recirc_running_watts_day_1') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_2') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_3') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_4') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_5') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_6') | float(-1),
+            states('input_number.hwh_recirc_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 200) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(1) }}
+          {% else %}
+            7
+          {% endif %}
+
+      - name: "HWH Recirc Running Watts Upper"
+        unique_id: hwh_recirc_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.hwh_recirc_running_watts_mean_7d'))
+             and is_number(states('sensor.hwh_recirc_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.hwh_recirc_running_watts_mean_7d') | float(104) %}
+          {% set s = states('sensor.hwh_recirc_running_watts_sigma_7d') | float(7) %}
+          {{ (m + 2 * s) | round(1) }}
+
+      - name: "HWH Recirc Running Watts Lower"
+        unique_id: hwh_recirc_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.hwh_recirc_running_watts_mean_7d'))
+             and is_number(states('sensor.hwh_recirc_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.hwh_recirc_running_watts_mean_7d') | float(104) %}
+          {% set s = states('sensor.hwh_recirc_running_watts_sigma_7d') | float(7) %}
+          {{ (m - 2 * s) | round(1) }}
+
+      # ===============================================================
+      # DEHUMIDIFIER RUNNING-WATTS SPC (compressor health)
+      # Moved from configuration.yaml, unchanged logic/seeds — this is the
+      # original, most-mature population (570W/12W are real validated
+      # values, not placeholders like the other four). Still gates on
+      # power > threshold directly (not compressor_active) to keep the
+      # delay_off tail of ~0W samples out of the mean. Threshold itself
+      # (input_number.dehumidifier_power_threshold) stays in
+      # configuration.yaml — shared with compressor_active, not moved.
+      # ===============================================================
+      - name: "Dehumidifier Power When On"
+        unique_id: dehumidifier_power_when_on
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {% set p = states('sensor.dehumidifier_current_consumption') %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.dehumidifier_power_threshold') | float(250) }}
+        state: "{{ states('sensor.dehumidifier_current_consumption') | float(0) }}"
+
+      # === STEADY-STATE GATE (2026-08-07) — this is what SPC now uses ====
+      # WHY: the full-run mean is contaminated by the compressor start ramp,
+      # and the size of that ramp is set by CONTROL SETTINGS, not by machine
+      # health. Measured across 17 runs / 53.9 h against the basement
+      # temperature series:
+      #
+      #   full-run mean vs time   -0.233 +/- 0.048 W/h,  r2 0.615  (-12.3 W)
+      #   steady-state  vs time   -0.014 +/- 0.066 W/h,  r2 0.003  ( -0.8 W)
+      #
+      # So the alarming "-2.6 % in three days" lived entirely in the ramp.
+      # The machine did not move.
+      #
+      # MECHANISM, measured: time for the compressor to reach 455 W after it
+      # starts is 0.08-0.25 min when the preceding off period was the E080s
+      # own 63-min standby with the plug LEFT POWERED, but 7.4-11.6 min after
+      # a long HA plug-cut off period.
+      #
+      # CORRECTED 2026-08-07 (86 h, all four control regimes, node RH now
+      # logged alongside power). The "deficit tracks preceding off-minutes at
+      # r2 0.866" claim above was an ARTEFACT: that regression pooled both
+      # control modes, and off-duration is collinear with plug-cut status.
+      # WITHIN plug-cut runs only (n=7) the slope is +0.0061 W/min, r 0.344,
+      # p 0.45 - no duration effect at all (9.77 W deficit after a 165-min off,
+      # 4.82 W after 303 min). The mechanism is DE-ENERGISATION, not duration.
+      # Practical consequence: the deficit is a flat ~7 W on the run mean
+      # whatever the cycle length, so it does NOT argue for longer runs.
+      #
+      # AND THE RAMP IS NOT A CAPACITY LOSS - it is the most efficient part of
+      # the cycle. Marginal g/kWh by 5-min slice, plug-cut: 5-10 min 4794 at
+      # 454 W; 10-15 4187; 15-20 3864; 20-25 2615; 25-30 2609. The compressor
+      # draws 30-40 W LESS during minutes 2-8 while removing at full rate.
+      # Steady watts are also identical between control modes at matched
+      # entering RH (E080 457.52 +/- 0.35 vs plug-cut 456.67 +/- 4.94 over the
+      # 50-53 % overlap, t = -0.17). Excluding the warm-up is still right for
+      # DRIFT DETECTION - it removes a control-mode signature from the trend -
+      # but nothing here should be read as an efficiency penalty to minimise.
+      #
+      # Basement temperature is NOT the explanation and that was checked, not
+      # assumed: T vs time is only -0.0058 degF/h, and the multiple regression
+      # W ~ T + hours gives T = +0.89 +/- 3.58 W/degF. Temperature accounts
+      # for -0.27 W of a -12.1 W move. NB this does NOT confirm or refute the
+      # ~10.7 W/degF figure in the project notes — mean T across runs spans
+      # only 0.78 degF, far too narrow a lever arm to fit a slope.
+      #
+      # RESIDUAL, honest: steady-state still shows non-trend structure (~10 W
+      # spread, 451.96-464.06) which may be entering-air condition. Node RH IS
+      # now logged with power (2026-08-07) and the cross-mode test came back
+      # null - but WITHIN a run, RH and elapsed time are perfectly collinear,
+      # so "drier entering air" still cannot be separated from "later in the
+      # run". Not a monotonic drift (r2 on time = 0.003), so it does not
+      # defeat drift detection. Still open.
+      - name: "Dehumidifier Power When On Steady"
+        unique_id: dehumidifier_power_when_on_steady
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:heart-pulse
+        # Fails CLOSED on a bad stamp: if cycle_start_time is unset or 1970
+        # the sensor goes unavailable and contributes nothing. That is the
+        # right direction for a health metric — a missing sample is a chart
+        # gap, a wrong sample is a false alarm.
+        availability: >
+          {% set p  = states('sensor.dehumidifier_current_consumption') %}
+          {% set cs = states('input_datetime.dehumidifier_cycle_start_time') %}
+          {% set wu = states('input_number.dehumidifier_spc_warmup_minutes') | float(10) %}
+          {% set we = states('input_number.dehumidifier_spc_window_end_minutes') | float(14) %}
+          {% set el = as_timestamp(now()) - as_timestamp(cs, 0) %}
+          {{ p not in ['unknown', 'unavailable']
+             and p | float(0) > states('input_number.dehumidifier_power_threshold') | float(250)
+             and cs not in ['unknown', 'unavailable'] and cs[:4] != '1970'
+             and el > (wu * 60) and el <= (we * 60) }}
+        state: "{{ states('sensor.dehumidifier_current_consumption') | float(0) }}"
+
+      # ALWAYS-AVAILABLE companion (added 2026-08-08). The gated sensor above
+      # is unavailable whenever the compressor is off OR the run is outside the
+      # window, which makes it useless for diagnosing WHY nothing is being
+      # captured. This one never goes unavailable: it reads 0 when the
+      # compressor is off and otherwise reports minutes into the current run,
+      # so a dashboard row can show the window opening and closing live.
+      # now() forces a re-render each minute.
+      - name: "Dehumidifier Run Elapsed"
+        unique_id: dehumidifier_run_elapsed
+        unit_of_measurement: "min"
+        state_class: measurement
+        icon: mdi:timer-play-outline
+        state: >
+          {% set cs = states('input_datetime.dehumidifier_cycle_start_time') %}
+          {% set p  = states('sensor.dehumidifier_current_consumption') | float(0) %}
+          {% set th = states('input_number.dehumidifier_power_threshold') | float(250) %}
+          {% if cs in ['unknown', 'unavailable'] or cs[:4] == '1970' or p <= th %}
+            0
+          {% else %}
+            {{ ((as_timestamp(now()) - as_timestamp(cs, 0)) / 60) | round(1) }}
+          {% endif %}
+
+      # The gap between the two is a CONTROL-MODE SIGNATURE, not a penalty.
+      # Read it as: ~0 W when the plug stayed powered (E080's own humidistat),
+      # ~7 W whenever the plug was cut, independent of how long it was cut for.
+      # It is NOT reduced-capacity compressor minutes - see the correction on
+      # dehumidifier_power_when_on_steady above; those minutes are the most
+      # efficient in the cycle. Useful as an alarm only if it climbs well past
+      # ~10 W on plug-cut runs, which would be new information.
+      - name: "Dehumidifier Startup Deficit"
+        unique_id: dehumidifier_startup_deficit
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:transfer-up
+        availability: >
+          {{ is_number(states('sensor.dehumidifier_running_watts_steady_24h'))
+             and is_number(states('sensor.dehumidifier_running_watts_24h')) }}
+        state: >
+          {% set s = states('sensor.dehumidifier_running_watts_steady_24h') | float(0) %}
+          {% set f = states('sensor.dehumidifier_running_watts_24h') | float(0) %}
+          {{ (s - f) | round(2) }}
+
+      - name: "Dehumidifier Running Watts Daily"
+        unique_id: dehumidifier_running_watts_daily
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bar
+        availability: >
+          {% set stamp = states('input_datetime.dehumidifier_spc_last_capture') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.dehumidifier_running_watts_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) | round(1) }}"
+
+      - name: "Dehumidifier Running Watts Mean 7d"
+        unique_id: dehumidifier_running_watts_mean_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 800) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 800) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(1) }}
+          {% else %}
+            459
+          {% endif %}
+
+      - name: "Dehumidifier Running Watts Sigma 7d"
+        unique_id: dehumidifier_running_watts_sigma_7d
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 800) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.05 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 2.1 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.05 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.dehumidifier_running_watts_day_1') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_2') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_3') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_4') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_5') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_6') | float(-1),
+            states('input_number.dehumidifier_running_watts_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 800) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(1) }}
+          {% else %}
+            2.1
+          {% endif %}
+
+      - name: "Dehumidifier Running Watts Upper"
+        unique_id: dehumidifier_running_watts_upper
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.dehumidifier_running_watts_mean_7d'))
+             and is_number(states('sensor.dehumidifier_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(459) %}
+          {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(2.1) %}
+          {{ (m + 2 * s) | round(1) }}
+
+      - name: "Dehumidifier Running Watts Lower"
+        unique_id: dehumidifier_running_watts_lower
+        unit_of_measurement: "W"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.dehumidifier_running_watts_mean_7d'))
+             and is_number(states('sensor.dehumidifier_running_watts_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.dehumidifier_running_watts_mean_7d') | float(459) %}
+          {% set s = states('sensor.dehumidifier_running_watts_sigma_7d') | float(2.1) %}
+          {{ (m - 2 * s) | round(1) }}
+
+      # ===============================================================
+      # COOLING EFFICIENCY (kWh/CDD) SPC
+      # Daily AC energy normalized by Cooling Degree Days. Detects
+      # efficiency degradation (refrigerant loss, dirty coils, duct
+      # leaks) independent of weather. Only valid on cooling days
+      # (CDD >= 0.5).
+      # ===============================================================
+      - name: "Cooling kWh/CDD Daily"
+        unique_id: cooling_kwh_cdd_daily
+        unit_of_measurement: "kWh/CDD"
+        state_class: measurement
+        icon: mdi:chart-bar
+        availability: >
+          {% set stamp = states('input_datetime.cooling_kwh_cdd_spc_last_capture') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.cooling_kwh_cdd_day_1') | float(0) > 0 }}
+        state: "{{ states('input_number.cooling_kwh_cdd_day_1') | float(0) | round(2) }}"
+
+      - name: "Cooling kWh/CDD Mean 7d"
+        unique_id: cooling_kwh_cdd_mean_7d
+        unit_of_measurement: "kWh/CDD"
+        state_class: measurement
+        icon: mdi:chart-bell-curve
+        # 2026-08-21: below 2 valid slots there is no defensible centre
+        # line, and the hard-coded fallback below drew a control band around
+        # a number no measurement supports. Unavailable is the honest state —
+        # the chart then draws no limits, and the out-of-control binary stays
+        # quiet because it reads the limits through | float(0) and requires
+        # u > 0. A 0 slot means "no valid subgroup that day" (cleared, or a
+        # skipped capture) and is excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.cooling_kwh_cdd_day_1') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_2') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_3') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_4') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_5') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_6') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_7') | float(-1)
+          ] %}
+          {{ days | select('>', 0) | select('<=', 10) | list | length > 1 }}
+        state: >
+          {% set days = [
+            states('input_number.cooling_kwh_cdd_day_1') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_2') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_3') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_4') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_5') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_6') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 10) | list %}
+          {% if valid | length > 0 %}
+            {{ (valid | sum / valid | length) | round(2) }}
+          {% else %}
+            1.14
+          {% endif %}
+
+      - name: "Cooling kWh/CDD Sigma 7d"
+        unique_id: cooling_kwh_cdd_sigma_7d
+        unit_of_measurement: "kWh/CDD"
+        state_class: measurement
+        icon: mdi:sigma
+        # 2026-08-21: two gates, both meaning "this is not a sample".
+        #   (a) fewer than 2 valid slots — nothing to compute a spread from;
+        #   (b) sd = 0 across the valid slots — a repeated value, not a
+        #       process (see the note further down).
+        # Either way unavailable is the honest state: the chart draws no
+        # limits, and the out-of-control binary stays quiet because it reads
+        # the limits through | float(0) and requires u > 0. A 0 slot means
+        # "no valid subgroup that day" (cleared, or a skipped capture) and is
+        # excluded here exactly as it is below.
+        availability: >
+          {% set days = [
+            states('input_number.cooling_kwh_cdd_day_1') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_2') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_3') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_4') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_5') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_6') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 10) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {# 2026-08-21 second pass. sd = 0 across two or more
+               subgroups is the signature of a REPEATED value, not of
+               a perfect process: at 0.005 (half the slot
+               resolution) genuine day-to-day variation always clears
+               it. The first pass substituted the 0.2 fallback
+               here, which drew a plausible-looking control band around
+               a centre line nobody measured — worse than the collapse
+               it replaced. Unavailable is the honest state; upper and
+               lower follow via their is_number() guards. #}
+            {{ ((variance.sum / (valid | length - 1)) ** 0.5) >= 0.005 }}
+          {% else %}
+            false
+          {% endif %}
+        state: >
+          {% set days = [
+            states('input_number.cooling_kwh_cdd_day_1') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_2') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_3') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_4') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_5') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_6') | float(-1),
+            states('input_number.cooling_kwh_cdd_day_7') | float(-1)
+          ] %}
+          {% set valid = days | select('>', 0) | select('<=', 10) | list %}
+          {% if valid | length > 1 %}
+            {% set mean = valid | sum / valid | length %}
+            {% set variance = namespace(sum=0) %}
+            {% for v in valid %}
+              {% set variance.sum = variance.sum + ((v - mean) ** 2) %}
+            {% endfor %}
+            {% set sd = (variance.sum / (valid | length - 1)) ** 0.5 %}
+            {# sd is published as measured. The degenerate case
+               (identical slots -> sd = 0) is handled in availability
+               above, not by substituting a number here. #}
+            {{ sd | round(2) }}
+          {% else %}
+            0.2
+          {% endif %}
+
+      - name: "Cooling kWh/CDD Upper"
+        unique_id: cooling_kwh_cdd_upper
+        unit_of_measurement: "kWh/CDD"
+        state_class: measurement
+        icon: mdi:arrow-up-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.cooling_kwh_cdd_mean_7d'))
+             and is_number(states('sensor.cooling_kwh_cdd_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.cooling_kwh_cdd_mean_7d') | float(1.14) %}
+          {% set s = states('sensor.cooling_kwh_cdd_sigma_7d') | float(0.2) %}
+          {{ (m + 2 * s) | round(2) }}
+
+      - name: "Cooling kWh/CDD Lower"
+        unique_id: cooling_kwh_cdd_lower
+        unit_of_measurement: "kWh/CDD"
+        state_class: measurement
+        icon: mdi:arrow-down-bold
+        # 2026-08-21: follows the centre line and sigma. Without this the
+        # limit still published a number built from the | float() fallbacks
+        # even when neither input existed.
+        availability: >
+          {{ is_number(states('sensor.cooling_kwh_cdd_mean_7d'))
+             and is_number(states('sensor.cooling_kwh_cdd_sigma_7d')) }}
+        state: >
+          {% set m = states('sensor.cooling_kwh_cdd_mean_7d') | float(1.14) %}
+          {% set s = states('sensor.cooling_kwh_cdd_sigma_7d') | float(0.2) %}
+          {% set lower = m - 2 * s %}
+          {{ [lower, 0] | max | round(2) }}
+
+
+  # =====================================================================
+  # 24h-MEAN LATCHES (2026-08-21) — why the nightly captures were skipping
+  #
+  # Every *_running_watts_24h sensor is the `statistics` platform applied to
+  # a *_power_when_on sensor, and those sources are availability-gated to
+  # "appliance is above threshold right now". HA 2026.8.2,
+  # components/statistics/sensor.py::_add_state_to_queue:
+  #
+  #     self._attr_available = new_state.state != STATE_UNAVAILABLE
+  #     if new_state.state == STATE_UNAVAILABLE:
+  #         self._attr_extra_state_attributes[STAT_SOURCE_VALUE_VALID] = None
+  #         return
+  #
+  # The availability assignment runs BEFORE the early return and nothing
+  # overrides it, so the statistics sensor is unavailable for exactly as long
+  # as its source is. The sample buffer is untouched — only the flag flips.
+  #
+  # The captures fire at a fixed 23:59:00, so they read that flag at a moment
+  # that has nothing to do with the appliance's duty cycle:
+  #     {% set w = states('sensor.<x>_running_watts_24h') | float(-1) %}
+  #     {{ w > 0 and ... }}          ->  w = -1, skip.
+  # Capture therefore succeeded only if the appliance happened to be running
+  # at 23:59:00. Measured source-available fractions:
+  #     dehumidifier steady window   4 min x ~6-10 cycles/day  ~1.7-2.9 %
+  #     HWH recirc pump              ~0.75 h/day               ~3.1 %
+  #     fridge / AC / furnace        compressor duty           tens of %
+  # which is exactly the observed pattern: dehumidifier dead since 2026-08-07
+  # (the day capture moved to the steady series), HWH dead since 2026-08-01
+  # (four nights after the 2026-07-28 switch to *_running_watts_24h), and
+  # fridge/AC/furnace capturing intermittently — AC and furnace captured
+  # 08-19 and skipped 08-20.
+  #
+  # SECOND DEFECT, same cause: the nights that DID capture were not a random
+  # sample. A subgroup was recorded only when the appliance was running at
+  # 23:59:00, which correlates with load, so the centre lines were drawn from
+  # busy nights only. The AC chart is the one most likely to be biased warm.
+  #
+  # The latch below holds the last NUMERIC value of each statistics mean.
+  # Trigger-based template sensors write their state only when the trigger
+  # fires (components/template/trigger_entity.py) and restore it across a
+  # restart via async_restore_last_state(), so the value survives both the
+  # source going unavailable and a reboot.
+  #
+  # Staleness is still handled by the capture guards, not here: they each
+  # require same-day activity (cycles_today >= 2 for the dehumidifier,
+  # runtime_today thresholds elsewhere), so a dead appliance still skips
+  # rather than re-capturing yesterday's number into a new slot.
+  # =====================================================================
+  - trigger:
+      - platform: state
+        entity_id: sensor.fridge_running_watts_24h
+    condition:
+      # Only a numeric reading may overwrite the latch. Without this the
+      # `unavailable` transition itself would clobber the held value, which
+      # is the whole failure being fixed.
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "Fridge Running Watts Latched"
+        unique_id: fridge_running_watts_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        # Kept because every template sensor in this file carries one.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.furnace_running_watts_24h
+    condition:
+      # Only a numeric reading may overwrite the latch. Without this the
+      # `unavailable` transition itself would clobber the held value, which
+      # is the whole failure being fixed.
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "Furnace Running Watts Latched"
+        unique_id: furnace_running_watts_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        # Kept because every template sensor in this file carries one.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.ac_running_watts_24h
+    condition:
+      # Only a numeric reading may overwrite the latch. Without this the
+      # `unavailable` transition itself would clobber the held value, which
+      # is the whole failure being fixed.
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "AC Running Watts Latched"
+        unique_id: ac_running_watts_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        # Kept because every template sensor in this file carries one.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.hwh_recirc_running_watts_24h
+    condition:
+      # Only a numeric reading may overwrite the latch. Without this the
+      # `unavailable` transition itself would clobber the held value, which
+      # is the whole failure being fixed.
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "HWH Recirc Running Watts Latched"
+        unique_id: hwh_recirc_running_watts_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        # Kept because every template sensor in this file carries one.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.dehumidifier_running_watts_steady_24h
+    condition:
+      # Only a numeric reading may overwrite the latch. Without this the
+      # `unavailable` transition itself would clobber the held value, which
+      # is the whole failure being fixed.
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "Dehumidifier Running Watts Latched"
+        # DO NOT "fix" this unique_id to match the name. The entity_id comes
+        # from name: -> sensor.dehumidifier_running_watts_latched, and that is
+        # the id already in the registry against this unique_id; changing
+        # unique_id orphans the registry entry, mints a fresh entity and drops
+        # both the restore_state latch and the InfluxDB series. The mismatch
+        # is inert. What was NOT inert: every consumer was written against
+        # sensor.dehumidifier_running_watts_STEADY_latched, an entity that has
+        # never existed, so the 23:59 capture guard read `unavailable` ->
+        # float(-1) -> skip, every night from 2026-08-07 to 2026-08-22.
+        # 15 nights, silent. Fixed 2026-08-22 by pointing the four consumers
+        # at the entity that exists; ha_audit.py rule_entities_resolve was
+        # synthesising sensor.<unique_id> and so could never see it.
+        unique_id: dehumidifier_running_watts_steady_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        # Kept because every template sensor in this file carries one.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
+sensor:
+  # Calendar-day runtime tracker — resets naturally at midnight because the
+  # window start is anchored to today_at('00:00'), not a trailing duration.
+  - platform: history_stats
+    name: "Fridge Runtime Today"
+    unique_id: fridge_runtime_today
+    entity_id: binary_sensor.fridge_compressor_running
+    state: "on"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  # Trailing-24h mean of compressor-on watts — feeds ONLY the live
+  # out-of-control check above, never the nightly calendar-day capture.
+  - platform: statistics
+    name: "Fridge Running Watts 24h"
+    unique_id: fridge_running_watts_24h
+    entity_id: sensor.fridge_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 33000
+    precision: 1
+
+  - platform: history_stats
+    name: "Furnace Runtime Today"
+    unique_id: furnace_runtime_today
+    entity_id: binary_sensor.furnace_blower_running
+    state: "on"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: statistics
+    name: "Furnace Running Watts 24h"
+    unique_id: furnace_running_watts_24h
+    entity_id: sensor.furnace_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 14000
+    precision: 1
+
+  - platform: history_stats
+    name: "AC Runtime Today"
+    unique_id: ac_runtime_today
+    entity_id: binary_sensor.ac_compressor_running
+    state: "on"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: statistics
+    name: "AC Running Watts 24h"
+    unique_id: ac_running_watts_24h
+    entity_id: sensor.ac_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 14000
+    precision: 1
+
+  # 130s median cycle length comfortably exceeds Kasa's ~5-12s polling gaps,
+  # so this should reasonably reflect true on/off timing (unlike the
+  # condensate pump's 15s cycles, which is why that one isn't built here).
+  - platform: history_stats
+    name: "HWH Recirc Runtime Today"
+    unique_id: hwh_recirc_runtime_today
+    entity_id: binary_sensor.hwh_recirc_pump_running
+    state: "on"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: statistics
+    name: "HWH Recirc Running Watts 24h"
+    unique_id: hwh_recirc_running_watts_24h
+    entity_id: sensor.hwh_recirc_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 2000
+    precision: 1
+
+  # Left-Riemann integral of the gated (above-threshold-only) plug power.
+  # method: left is required for step signals — the trapezoidal default
+  # averages across on/off edges and miscounts (documented HA behavior).
+  # max_sub_interval deliberately OMITTED: the gated signal sits at exactly
+  # 0 between cycles (integral of 0 needs no periodic updates) and
+  # max_sub_interval has an open core issue (#133292) double-counting when
+  # combined with value-triggered updates.
+  - platform: integration
+    name: "HWH Recirc Energy Total"
+    unique_id: hwh_recirc_energy_total
+    source: sensor.hwh_recirc_gated_power
+    unit_prefix: k
+    round: 3
+    method: left
+
+  # Trailing-24h mean of compressor-on watts. NOTE this is not merely a
+  # live readout — capture_daily_dehumidifier_watts reads THIS sensor at
+  # 23:59, so it IS the daily SPC value. Sampled once a day at 23:59 a
+  # trailing 24 h window is calendar-aligned to within a minute, so the
+  # non-overlapping-subgroup rule in the header is satisfied.
+  #
+  # SIZING RETUNED 2026-08-07. sampling_size is a HARD CAP on the buffer:
+  # whichever of max_age and sampling_size binds first wins. The Kasa
+  # publishes ~5 s during a run = ~720 samples per RUNNING hour, so 2000
+  # samples is only 2.78 h of run time. Measured effect on 2026-08-05
+  # (3.80 h of running, 2387 samples): the buffer truncated to the last
+  # 2000 and the mean read 455.85 W instead of the true full-day 456.41 W,
+  # a -0.56 W bias. Small, but it appears ONLY on high-duty days — a
+  # duty-dependent artefact on a chart whose whole job is to separate a
+  # real drift from an artefact.
+  # 4000 covers 5.5 h/day of running, so max_age governs in all normal
+  # operation. The old comment "~1.5 cycles of on-time" was Santa Fe-era;
+  # E080 cycles are ~20 min, so 4000 samples is roughly 16 of them.
+  - platform: statistics
+    name: "Dehumidifier Running Watts 24h"
+    unique_id: dehumidifier_running_watts_24h
+    entity_id: sensor.dehumidifier_power_when_on
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 17000
+    precision: 1
+
+  # SPC SERIES (2026-08-07). Same construction, but sourced from the
+  # warm-up-excluded sensor. Steady samples are roughly 40-60 % of run time
+  # at current run lengths, so ~1,400 samples on a 3.8 h day at the ~5 s Kasa
+  # cadence; 3000 keeps max_age governing.
+  - platform: statistics
+    name: "Dehumidifier Running Watts Steady 24h"
+    unique_id: dehumidifier_running_watts_steady_24h
+    entity_id: sensor.dehumidifier_power_when_on_steady
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 3000
+    precision: 1
+
+  # DIAGNOSTIC (2026-08-07 second pass). How many steady samples the daily
+  # mean above was actually built from. Not a gate - the gate is cycle count,
+  # which is what governs the standard error - but this is what tells you WHY
+  # a day was thin, and it is the number to watch if run lengths ever fall
+  # toward the warm-up exclusion. Rule of thumb at the ~5 s Kasa cadence:
+  # SE_within ~= 12.85 / sqrt(n) W, so n=60 -> 1.7 W, n=360 -> 0.7 W.
+  - platform: statistics
+    name: "Dehumidifier Steady Sample Count 24h"
+    unique_id: dehumidifier_steady_sample_count_24h
+    entity_id: sensor.dehumidifier_power_when_on_steady
+    state_characteristic: count
+    max_age:
+      hours: 24
+    sampling_size: 3000
+
+utility_meter:
+  # Calendar-day recirc-only energy (resets at midnight). Source is the
+  # gated integral above, so this is the numerator of the EOD capture —
+  # recirc kWh with standby/condensate already excluded. Current value
+  # survives restarts via restore_state (recorder history not required),
+  # same property relied on for the excluded sem_*_daily meters.
+  hwh_recirc_energy_daily:
+    unique_id: hwh_recirc_energy_daily
+    name: "HWH Recirc Energy Daily"
+    source: sensor.hwh_recirc_energy_total
+    cycle: daily
+
+automation:
+  # ===============================================================
+  # FRIDGE RUNNING-WATTS SPC — EOD capture
+  # Fires 23:59:00. Shifts the 7-day window and writes today's
+  # mean running watts from sensor.fridge_running_watts_24h, which
+  # uses statistics platform on fridge_power_when_on (samples > 50W).
+  # Matches Grafana CQ: MEAN(power) WHERE power > threshold.
+  # Guarded so no-run / barely-run days never poison a slot.
+  # ===============================================================
+  - id: capture_daily_fridge_watts
+    alias: "Capture Daily Fridge Running Watts"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {% set w = states('sensor.fridge_running_watts_latched') | float(-1) %}
+                  {% set rt = states('sensor.fridge_runtime_today') | float(0) %}
+                  {{ w > 0 and rt >= 1.0 and 50 < w <= 400 }}
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_w: "{{ states('sensor.fridge_running_watts_latched') | float(0) | round(1) }}"
+                  d1: "{{ states('input_number.fridge_running_watts_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.fridge_running_watts_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.fridge_running_watts_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.fridge_running_watts_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.fridge_running_watts_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.fridge_running_watts_day_6') | float(0) }}"
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_7}
+                data: {value: "{{ d6 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_6}
+                data: {value: "{{ d5 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_5}
+                data: {value: "{{ d4 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_4}
+                data: {value: "{{ d3 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_3}
+                data: {value: "{{ d2 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_2}
+                data: {value: "{{ d1 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_1}
+                data: {value: "{{ today_w }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.fridge_spc_last_capture}
+                data: {date: "{{ capture_date }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "Fridge SPC: captured day_1 = {{ today_w }} W"
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                {% set w = states('sensor.fridge_running_watts_24h') %}
+                {% set lw = states('sensor.fridge_running_watts_latched') %}
+                {% set rt = states('sensor.fridge_runtime_today') | float(0) %}
+                Fridge SPC skipped — runtime={{ rt }} h,
+                running_watts_latched={{ lw }} (what the guard reads),
+                live 24h statistic={{ w }} (`unavailable` here is NORMAL —
+                the statistics sensor mirrors its source's availability;
+                that is why the latch exists),
+                threshold={{ states('input_number.fridge_power_threshold') }} W
+                (needs runtime >= 1.0 h and 50 < running_watts_24h <= 400).
+
+  # ===============================================================
+  # FURNACE RUNNING-WATTS SPC — EOD capture
+  # Uses sensor.furnace_running_watts_24h — statistics on power > 300W.
+  # Matches Grafana CQ; recirc (~120W) excluded by threshold gate.
+  # ===============================================================
+  - id: capture_daily_furnace_watts
+    alias: "Capture Daily Furnace Running Watts"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {% set w = states('sensor.furnace_running_watts_latched') | float(-1) %}
+                  {% set rt = states('sensor.furnace_runtime_today') | float(0) %}
+                  {{ w > 0 and rt >= 1.0 and 300 < w <= 1000 }}
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_w: "{{ states('sensor.furnace_running_watts_latched') | float(0) | round(1) }}"
+                  d1: "{{ states('input_number.furnace_running_watts_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.furnace_running_watts_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.furnace_running_watts_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.furnace_running_watts_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.furnace_running_watts_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.furnace_running_watts_day_6') | float(0) }}"
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_7}
+                data: {value: "{{ d6 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_6}
+                data: {value: "{{ d5 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_5}
+                data: {value: "{{ d4 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_4}
+                data: {value: "{{ d3 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_3}
+                data: {value: "{{ d2 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_2}
+                data: {value: "{{ d1 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_1}
+                data: {value: "{{ today_w }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.furnace_spc_last_capture}
+                data: {date: "{{ capture_date }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "Furnace SPC: captured day_1 = {{ today_w }} W"
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                {% set w = states('sensor.furnace_running_watts_24h') %}
+                {% set lw = states('sensor.furnace_running_watts_latched') %}
+                {% set rt = states('sensor.furnace_runtime_today') | float(0) %}
+                Furnace SPC skipped — runtime={{ rt }} h,
+                running_watts_latched={{ lw }} (what the guard reads),
+                live 24h statistic={{ w }},
+                threshold={{ states('input_number.furnace_power_threshold') }} W
+                (needs runtime >= 1.0 h and 300 < running_watts_24h <= 1000).
+
+  # ===============================================================
+  # AC RUNNING-WATTS SPC — EOD capture
+  # Uses sensor.ac_running_watts_24h — statistics on power > 300W.
+  # Matches Grafana CQ. NOT temperature-normalized.
+  # ===============================================================
+  - id: capture_daily_ac_watts
+    alias: "Capture Daily AC Running Watts"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {% set w = states('sensor.ac_running_watts_latched') | float(-1) %}
+                  {% set rt = states('sensor.ac_runtime_today') | float(0) %}
+                  {{ w > 0 and rt >= 0.5 and 500 < w <= 5000 }}
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_w: "{{ states('sensor.ac_running_watts_latched') | float(0) | round(1) }}"
+                  d1: "{{ states('input_number.ac_running_watts_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.ac_running_watts_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.ac_running_watts_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.ac_running_watts_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.ac_running_watts_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.ac_running_watts_day_6') | float(0) }}"
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_7}
+                data: {value: "{{ d6 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_6}
+                data: {value: "{{ d5 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_5}
+                data: {value: "{{ d4 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_4}
+                data: {value: "{{ d3 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_3}
+                data: {value: "{{ d2 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_2}
+                data: {value: "{{ d1 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_1}
+                data: {value: "{{ today_w }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.ac_spc_last_capture}
+                data: {date: "{{ capture_date }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "AC SPC: captured day_1 = {{ today_w }} W"
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                {% set w = states('sensor.ac_running_watts_24h') %}
+                {% set lw = states('sensor.ac_running_watts_latched') %}
+                {% set rt = states('sensor.ac_runtime_today') | float(0) %}
+                AC SPC skipped — runtime={{ rt }} h,
+                running_watts_latched={{ lw }} (what the guard reads),
+                live 24h statistic={{ w }},
+                threshold={{ states('input_number.ac_power_threshold') }} W
+                (needs runtime >= 0.5 h and 500 < running_watts_24h <= 5000).
+
+  # ===============================================================
+  # HWH RECIRC PUMP RUNNING-WATTS SPC — EOD capture
+  # Uses sensor.hwh_recirc_running_watts_24h — statistics on power > 70W.
+  # Matches Grafana CQ.
+  # ===============================================================
+  - id: capture_daily_hwh_recirc_watts
+    alias: "Capture Daily HWH Recirc Running Watts"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {% set w = states('sensor.hwh_recirc_running_watts_latched') | float(-1) %}
+                  {% set rt = states('sensor.hwh_recirc_runtime_today') | float(0) %}
+                  {{ w > 0 and rt >= 0.1 and 80 < w <= 200 }}
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_w: "{{ states('sensor.hwh_recirc_running_watts_latched') | float(0) | round(1) }}"
+                  d1: "{{ states('input_number.hwh_recirc_running_watts_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.hwh_recirc_running_watts_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.hwh_recirc_running_watts_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.hwh_recirc_running_watts_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.hwh_recirc_running_watts_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.hwh_recirc_running_watts_day_6') | float(0) }}"
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_7}
+                data: {value: "{{ d6 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_6}
+                data: {value: "{{ d5 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_5}
+                data: {value: "{{ d4 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_4}
+                data: {value: "{{ d3 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_3}
+                data: {value: "{{ d2 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_2}
+                data: {value: "{{ d1 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_1}
+                data: {value: "{{ today_w }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.hwh_recirc_spc_last_capture}
+                data: {date: "{{ capture_date }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "HWH Recirc SPC: captured day_1 = {{ today_w }} W"
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                {% set w = states('sensor.hwh_recirc_running_watts_24h') %}
+                {% set lw = states('sensor.hwh_recirc_running_watts_latched') %}
+                {% set rt = states('sensor.hwh_recirc_runtime_today') | float(0) %}
+                HWH Recirc SPC skipped — runtime={{ rt }} h,
+                running_watts_latched={{ lw }} (what the guard reads),
+                live 24h statistic={{ w }},
+                threshold={{ states('input_number.hwh_recirc_power_threshold') }} W
+                (needs runtime >= 0.1 h and 80 < running_watts_24h <= 200).
+
+  # ===============================================================
+  # DEHUMIDIFIER RUNNING-WATTS SPC — EOD capture
+  # Uses sensor.dehumidifier_running_watts_24h — statistics on power > 250W.
+  # Matches Grafana CQ.
+  # ===============================================================
+  - id: capture_daily_dehumidifier_watts
+    alias: "Capture Daily Dehumidifier Running Watts"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {# E080 RETUNE 2026-08-07 — both guards were sized for the
+                     Santa Fe, which ran ~6.9 h/day at ~585 W.
+                     rt 0.5 -> 0.2 h: the E080 runs 1.70 h/day measured and
+                     falling as the slab dries. 0.5 h was 7 % of a Santa Fe
+                     day but is 29 % of an E080 day, and in shoulder season it
+                     would skip outright. 0.2 h sits just under one complete
+                     cycle (runs measured 15.6-30.3 min = 0.26-0.51 h), so any
+                     day with at least one full cycle now captures.
+                     300 -> 150 W: this is the dangerous one. The failure this
+                     chart exists to catch — refrigerant loss, the exact way
+                     the Santa Fe died — makes watts FALL. A 300 W floor
+                     against a 455 W machine silently SKIPS capture once the
+                     unit is 34 % down, hiding the signal at precisely the
+                     moment it matters. 150 W is still 2.6x the 57.8 W blower,
+                     so fan-only can never be mistaken for a run. Let the SPC
+                     limits judge; the guard only rejects nonsense. #}
+                  {# 2026-08-07: reads the STEADY series, not the full-run one. #}
+                  {# 2026-08-07 SECOND PASS — the runtime-hours guard was the wrong
+                     VARIABLE, not merely the wrong number, so raising/lowering it
+                     could not fix this. What sets the uncertainty of a daily point
+                     is the number of COMPRESSOR CYCLES it averages, because
+                     run-to-run variation dominates within-run scatter (12.85 W
+                     over ~48 samples -> ~1.9 W SE). With the fixed 10-14 min
+                     window that run-to-run sigma is 2.09 W, so a one-cycle day
+                     carries ~2.1 W against a 2.1 W process sigma; two cycles
+                     ~1.5 W; six ~0.9 W.
+                     Capturing one-cycle days mixes subgroup sizes on one chart,
+                     which inflates the limits and manufactures false signals - the
+                     classic variable-subgroup-size defect.
+                     So gate on counter.dehumidifier_cycles_today >= 2, which is a
+                     direct statement about subgroup size and is INVARIANT to
+                     setpoint changes. Runtime hours were not: 0.5 -> 0.2 -> 0.35 h
+                     were three attempts to encode "enough cycles" in a proxy that
+                     moves every time rh_on/rh_off/min_run move.
+                     The counter is incremented by dehumidifier_cycle_start_capture
+                     on each compressor start and reset at 00:00:00, so it is intact
+                     at this 23:59 capture. A skipped day is a gap, not a bad point. #}
+                  {% set w = states('sensor.dehumidifier_running_watts_latched') | float(-1) %}
+                  {% set n = states('counter.dehumidifier_cycles_today') | int(0) %}
+                  {{ w > 0 and n >= 2 and 150 < w <= 800 }}
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_w: "{{ states('sensor.dehumidifier_running_watts_latched') | float(0) | round(1) }}"
+                  d1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.dehumidifier_running_watts_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.dehumidifier_running_watts_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.dehumidifier_running_watts_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.dehumidifier_running_watts_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.dehumidifier_running_watts_day_6') | float(0) }}"
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_7}
+                data: {value: "{{ d6 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_6}
+                data: {value: "{{ d5 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_5}
+                data: {value: "{{ d4 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_4}
+                data: {value: "{{ d3 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_3}
+                data: {value: "{{ d2 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_2}
+                data: {value: "{{ d1 }}"}
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_1}
+                data: {value: "{{ today_w }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.dehumidifier_spc_last_capture}
+                data: {date: "{{ capture_date }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "Dehumidifier SPC: captured day_1 = {{ today_w }} W"
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                {% set w = states('sensor.dehumidifier_running_watts_steady_24h') %}
+                {% set lw = states('sensor.dehumidifier_running_watts_latched') %}
+                {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
+                {% set n = states('counter.dehumidifier_cycles_today') | int(0) %}
+                Dehumidifier SPC skipped — cycles={{ n }}, runtime={{ rt }} h,
+                steady_watts_latched={{ lw }} (what the guard reads),
+                live steady 24h statistic={{ w }} (full-run
+                {{ states('sensor.dehumidifier_running_watts_24h') }}),
+                steady_samples={{ states('sensor.dehumidifier_steady_sample_count_24h') }},
+                threshold={{ states('input_number.dehumidifier_power_threshold') }} W
+                (needs cycles >= 2 and 150 < steady_watts_24h <= 800).
+
+  # ===============================================================
+  # COOLING EFFICIENCY (kWh/CDD) SPC — EOD capture
+  # Computes daily kWh/CDD from sem_ac_daily / hvac_cdd65_today.
+  # Only captures on meaningful cooling days (CDD >= 0.5, AC > 0.1 kWh).
+  # ===============================================================
+  - id: capture_daily_cooling_kwh_cdd
+    alias: "Capture Daily Cooling kWh/CDD"
+    mode: single
+    trigger:
+      - platform: time
+        at: "23:59:00"
+    action:
+      - variables:
+          cdd: "{{ states('sensor.hvac_cdd65_today') | float(0) }}"
+          ac_kwh: "{{ states('sensor.sem_ac_daily') | float(0) }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ cdd >= 0.5 and ac_kwh > 0.1 }}"
+            sequence:
+              - variables:
+                  # Snapshot the calendar date alongside the values.
+                  # CLAUDE.md requires EOD captures to snapshot at trigger time to
+                  # avoid midnight-boundary re-evaluation; the VALUES obeyed that but
+                  # the stamp did not - it was written as {{ now().date() }} at
+                  # execution time. Six captures fire together at 23:59:00, so if one
+                  # ever slipped past midnight it would stamp TOMORROW against data
+                  # from today, and the staleness detectors read that stamp.
+                  capture_date: "{{ now().date() }}"
+                  today_kwh_cdd: "{{ (ac_kwh / cdd) | round(2) }}"
+                  d1: "{{ states('input_number.cooling_kwh_cdd_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.cooling_kwh_cdd_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.cooling_kwh_cdd_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.cooling_kwh_cdd_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.cooling_kwh_cdd_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.cooling_kwh_cdd_day_6') | float(0) }}"
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ 0.1 < today_kwh_cdd <= 10 }}"
+                    sequence:
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_7}
+                        data: {value: "{{ d6 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_6}
+                        data: {value: "{{ d5 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_5}
+                        data: {value: "{{ d4 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_4}
+                        data: {value: "{{ d3 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_3}
+                        data: {value: "{{ d2 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_2}
+                        data: {value: "{{ d1 }}"}
+                      - service: input_number.set_value
+                        target: {entity_id: input_number.cooling_kwh_cdd_day_1}
+                        data: {value: "{{ today_kwh_cdd }}"}
+                      - service: input_datetime.set_datetime
+                        target: {entity_id: input_datetime.cooling_kwh_cdd_spc_last_capture}
+                        data: {date: "{{ capture_date }}"}
+                      - service: system_log.write
+                        data:
+                          level: info
+                          message: "Cooling kWh/CDD SPC: captured day_1 = {{ today_kwh_cdd }} ({{ ac_kwh }} kWh / {{ cdd }} CDD)"
+                default:
+                  - service: system_log.write
+                    data:
+                      level: info
+                      message: >
+                        Cooling kWh/CDD SPC skipped — value {{ today_kwh_cdd }} out of range
+                        (needs 0.1 < kWh/CDD <= 10).
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                Cooling kWh/CDD SPC skipped — CDD={{ cdd }}, AC={{ ac_kwh }} kWh
+                (needs CDD >= 0.5 and AC > 0.1 kWh).
+
+  # ===============================================================
+  # SPC STARTUP SEEDING — auto-seed day slots on HA start
+  # Uses 24h statistics if in valid range, else documented typical values.
+  # Only seeds if day_1 is 0 (empty). Safe to re-run.
+  # ===============================================================
+  # ===============================================================
+  # ROLLING-BUFFER BACKUP (2026-08-21)
+  #
+  # Every 7-day buffer, capture stamp and monthly accumulator in this system
+  # exists in exactly one place: .storage/core.restore_state. That file is
+  # gitignored (auth tokens), on the "never edit" list, and had no backup.
+  # Losing it loses every buffer at once with nothing to rebuild from - the
+  # recorder purges at 14 days and the InfluxDB CQs compute a different
+  # statistic than the capture guards do. This was the "no help coming" hole
+  # in the data layer.
+  #
+  # 00:20 is deliberate. restore_state is flushed every 15 minutes and on
+  # clean shutdown, so a value written by the 23:59 captures is on disk by
+  # 00:14 at the latest. 00:20 is late enough to be certain and clear of the
+  # 00:15 energy export. The script reports STALE-FLUSH if a slot's
+  # last_changed still predates its capture stamp, rather than quietly
+  # backing up a value that had not landed.
+  #
+  # Restore: python3 /config/scripts/spc_buffer_export.py --restore LATEST
+  # prints a reviewable replay plan; nothing is written back automatically.
+  # ===============================================================
+  - id: nightly_buffer_backup
+    alias: "Nightly Rolling-Buffer Backup"
+    description: "Append every buffer slot and capture stamp to an append-only CSV"
+    mode: single
+    trigger:
+      - platform: time
+        at: "00:20:00"
+    condition:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard.
+      - condition: state
+        entity_id: input_boolean.ha_maintenance_mode
+        state: "off"
+    action:
+      - service: shell_command.spc_buffer_export
+
+  # ===============================================================
+  # SPC CAPTURE WATCHDOG — notification
+  # Mirrors notify_runtime_per_hdd_capture_stale in automations.yaml,
+  # including the 2-hour debounce: the opportunity gate is computed from
+  # today's running activity, so it can flip during the morning as an
+  # appliance starts up. Two hours of continuous "on" means it is real.
+  # ===============================================================
+  - id: notify_spc_capture_stale
+    alias: "Notify SPC Capture Stale"
+    description: "Alert when an SPC pipeline has had the chance to capture and has not"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.spc_capture_stale_any
+        to: "on"
+        for:
+          hours: 2
+    action:
+      - service: persistent_notification.create
+        data:
+          notification_id: spc_capture_stale
+          title: "\u26a0\ufe0f SPC Capture Stale"
+          message: >
+            These SPC pipelines have run recently but have not captured a
+            subgroup in over 2 days:
+            {{ state_attr('binary_sensor.spc_capture_stale_any', 'stale_populations') }}
+
+
+            Their control charts are drawing stale data or nothing at all.
+            The nightly skip reason is logged at 23:59 — Settings > System >
+            Logs, search "SPC skipped". Each line prints the latched value the
+            guard read, the live 24h statistic, and the guard band.
+
+
+            Last captures:
+            {% for label, stem in [('Fridge', 'fridge'), ('Furnace', 'furnace'),
+                                   ('AC', 'ac'), ('HWH Recirc', 'hwh_recirc'),
+                                   ('Dehumidifier', 'dehumidifier'),
+                                   ('Cooling kWh/CDD', 'cooling_kwh_cdd')] %}
+            {#- format(), not 'input_datetime.' ~ stem: a bare domain literal is
+                indistinguishable from a real entity id to any static checker, and
+                scripts/validate_ha.py flags it. Building the whole id in one format
+                string states the intent and is identical at runtime. -#}
+            {% set eid = 'input_datetime.%s_spc_last_capture' | format(stem) %}
+            {{ label }}: {{ states(eid) }}
+            {% endfor %}
+
+  - id: spc_seed_on_startup
+    alias: "SPC Seed Slots on Startup"
+    mode: single
+    trigger:
+      - platform: homeassistant
+        event: start
+    action:
+      - delay: "00:00:30"  # Let entities initialize
+      - service: automation.trigger
+        target:
+          entity_id: automation.spc_seed_slots_manual_trigger
+
+  - id: spc_seed_slots_manual
+    alias: "SPC Seed Slots (Manual Trigger)"
+    mode: single
+    trigger: []  # Manual trigger or called by startup automation
+    # REWRITTEN 2026-08-21 — this automation used to manufacture data.
+    #
+    # For each population it wrote ONE value into day_1, day_2 AND day_3, and
+    # that value fell back to a hard-coded "typical" constant whenever the live
+    # 24h mean was out of band (which includes the very common case of the
+    # source sensor being unavailable at startup -> float(0) -> out of band).
+    # It then stamped *_spc_last_capture with today's date.
+    #
+    # Three defects followed, all of them observed on the dehumidifier on
+    # 2026-08-21 (day_1..day_3 = 459.0, 459.0, 459.0, stamped 2026-08-08):
+    #   1. A control chart contained points nobody measured.
+    #   2. Three identical slots make sd = 0 BY CONSTRUCTION, which collapses
+    #      UCL and LCL onto the centre line — the seeder, not the process, is
+    #      what emptied the control band.
+    #   3. The capture stamp could not distinguish measurement from seed, so
+    #      the staleness banner under-reported a real measurement drought.
+    #
+    # Now: seed only from a MEASURED in-band mean, only into day_1 (one seed
+    # event is one subgroup, not three), and stamp *_spc_last_seed. If there is
+    # no valid measurement the slots are left at 0 and nothing is invented —
+    # 0 renders as a chart gap and the limit sensors go unavailable below 2
+    # valid slots, so an unseeded population is now self-evident rather than
+    # disguised. See packages/spc.yaml limit sensors and
+    # dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml.
+    action:
+      # --- Fridge: seed day_1 from a measured mean, or not at all ---
+      - variables:
+          fridge_24h: "{{ states('sensor.fridge_running_watts_24h') | float(0) }}"
+          fridge_ok: "{{ fridge_24h > 50 and fridge_24h < 400 }}"
+          fridge_day1: "{{ states('input_number.fridge_running_watts_day_1') | float(0) }}"
+      - choose:
+          - conditions: "{{ fridge_day1 == 0 and fridge_ok }}"
+            sequence:
+              - service: input_number.set_value
+                target: {entity_id: input_number.fridge_running_watts_day_1}
+                data: {value: "{{ fridge_24h | round(1) }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.fridge_spc_last_seed}
+                data: {date: "{{ now().date() }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Fridge day_1 seeded with {{ fridge_24h | round(1) }}
+                    (measured 24h mean). day_2..day_7 left untouched; the
+                    capture stamp is NOT set — this is a seed, not a capture.
+          - conditions: "{{ fridge_day1 == 0 and not fridge_ok }}"
+            sequence:
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Fridge NOT seeded — no measured mean in band
+                    (sensor.fridge_running_watts_24h = {{ states('sensor.fridge_running_watts_24h') }}, needs 50 < w < 400).
+                    Slots stay 0; the chart shows a gap and the limits stay
+                    unavailable. Nothing is invented.
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: "SPC seed: Fridge already has data ({{ fridge_day1 }}), skipping"
+
+      # --- Furnace: seed day_1 from a measured mean, or not at all ---
+      - variables:
+          furnace_24h: "{{ states('sensor.furnace_running_watts_24h') | float(0) }}"
+          furnace_ok: "{{ furnace_24h > 300 and furnace_24h < 1000 }}"
+          furnace_day1: "{{ states('input_number.furnace_running_watts_day_1') | float(0) }}"
+      - choose:
+          - conditions: "{{ furnace_day1 == 0 and furnace_ok }}"
+            sequence:
+              - service: input_number.set_value
+                target: {entity_id: input_number.furnace_running_watts_day_1}
+                data: {value: "{{ furnace_24h | round(1) }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.furnace_spc_last_seed}
+                data: {date: "{{ now().date() }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Furnace day_1 seeded with {{ furnace_24h | round(1) }}
+                    (measured 24h mean). day_2..day_7 left untouched; the
+                    capture stamp is NOT set — this is a seed, not a capture.
+          - conditions: "{{ furnace_day1 == 0 and not furnace_ok }}"
+            sequence:
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Furnace NOT seeded — no measured mean in band
+                    (sensor.furnace_running_watts_24h = {{ states('sensor.furnace_running_watts_24h') }}, needs 300 < w < 1000).
+                    Slots stay 0; the chart shows a gap and the limits stay
+                    unavailable. Nothing is invented.
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: "SPC seed: Furnace already has data ({{ furnace_day1 }}), skipping"
+
+      # --- AC: seed day_1 from a measured mean, or not at all ---
+      - variables:
+          ac_24h: "{{ states('sensor.ac_running_watts_24h') | float(0) }}"
+          ac_ok: "{{ ac_24h > 500 and ac_24h < 5000 }}"
+          ac_day1: "{{ states('input_number.ac_running_watts_day_1') | float(0) }}"
+      - choose:
+          - conditions: "{{ ac_day1 == 0 and ac_ok }}"
+            sequence:
+              - service: input_number.set_value
+                target: {entity_id: input_number.ac_running_watts_day_1}
+                data: {value: "{{ ac_24h | round(1) }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.ac_spc_last_seed}
+                data: {date: "{{ now().date() }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: AC day_1 seeded with {{ ac_24h | round(1) }}
+                    (measured 24h mean). day_2..day_7 left untouched; the
+                    capture stamp is NOT set — this is a seed, not a capture.
+          - conditions: "{{ ac_day1 == 0 and not ac_ok }}"
+            sequence:
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: AC NOT seeded — no measured mean in band
+                    (sensor.ac_running_watts_24h = {{ states('sensor.ac_running_watts_24h') }}, needs 500 < w < 5000).
+                    Slots stay 0; the chart shows a gap and the limits stay
+                    unavailable. Nothing is invented.
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: "SPC seed: AC already has data ({{ ac_day1 }}), skipping"
+
+      # --- HWH Recirc: seed day_1 from a measured mean, or not at all ---
+      - variables:
+          hwh_24h: "{{ states('sensor.hwh_recirc_running_watts_24h') | float(0) }}"
+          hwh_ok: "{{ hwh_24h > 80 and hwh_24h < 200 }}"
+          hwh_day1: "{{ states('input_number.hwh_recirc_running_watts_day_1') | float(0) }}"
+      - choose:
+          - conditions: "{{ hwh_day1 == 0 and hwh_ok }}"
+            sequence:
+              - service: input_number.set_value
+                target: {entity_id: input_number.hwh_recirc_running_watts_day_1}
+                data: {value: "{{ hwh_24h | round(1) }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.hwh_recirc_spc_last_seed}
+                data: {date: "{{ now().date() }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: HWH Recirc day_1 seeded with {{ hwh_24h | round(1) }}
+                    (measured 24h mean). day_2..day_7 left untouched; the
+                    capture stamp is NOT set — this is a seed, not a capture.
+          - conditions: "{{ hwh_day1 == 0 and not hwh_ok }}"
+            sequence:
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: HWH Recirc NOT seeded — no measured mean in band
+                    (sensor.hwh_recirc_running_watts_24h = {{ states('sensor.hwh_recirc_running_watts_24h') }}, needs 80 < w < 200).
+                    Slots stay 0; the chart shows a gap and the limits stay
+                    unavailable. Nothing is invented.
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: "SPC seed: HWH Recirc already has data ({{ hwh_day1 }}), skipping"
+
+      # --- Dehumidifier: seed day_1 from a measured mean, or not at all ---
+      - variables:
+          dehum_24h: "{{ states('sensor.dehumidifier_running_watts_steady_24h') | float(0) }}"
+          dehum_ok: "{{ dehum_24h > 150 and dehum_24h < 800 }}"
+          dehum_day1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
+      - choose:
+          - conditions: "{{ dehum_day1 == 0 and dehum_ok }}"
+            sequence:
+              - service: input_number.set_value
+                target: {entity_id: input_number.dehumidifier_running_watts_day_1}
+                data: {value: "{{ dehum_24h | round(1) }}"}
+              - service: input_datetime.set_datetime
+                target: {entity_id: input_datetime.dehumidifier_spc_last_seed}
+                data: {date: "{{ now().date() }}"}
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Dehumidifier day_1 seeded with {{ dehum_24h | round(1) }}
+                    (measured 24h mean). day_2..day_7 left untouched; the
+                    capture stamp is NOT set — this is a seed, not a capture.
+          - conditions: "{{ dehum_day1 == 0 and not dehum_ok }}"
+            sequence:
+              - service: system_log.write
+                data:
+                  level: info
+                  message: >-
+                    SPC seed: Dehumidifier NOT seeded — no measured mean in band
+                    (sensor.dehumidifier_running_watts_steady_24h = {{ states('sensor.dehumidifier_running_watts_steady_24h') }}, needs 150 < w < 800).
+                    Slots stay 0; the chart shows a gap and the limits stay
+                    unavailable. Nothing is invented.
+        default:
+          - service: system_log.write
+            data:
+              level: info
+              message: "SPC seed: Dehumidifier already has data ({{ dehum_day1 }}), skipping"
+
+script:
+  # ===============================================================
+  # SPC Force Seed — uses hardcoded historical values from InfluxDB query
+  # Values from spc_seed_results.json (2026-07-28)
+  # Run once to align HA with Grafana, then nightly captures maintain it.
+  # ===============================================================
+  spc_force_seed_all:
+    alias: "SPC Force Seed All Appliances"
+    icon: mdi:refresh
+    mode: single
+    sequence:
+      # --- FRIDGE (values: 114.7, 124.8, 114.9, 123.7, 114.3, 123.7, 114.8) ---
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_1}
+        data: {value: 114.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_2}
+        data: {value: 124.8}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_3}
+        data: {value: 114.9}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_4}
+        data: {value: 123.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_5}
+        data: {value: 114.3}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_6}
+        data: {value: 123.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.fridge_running_watts_day_7}
+        data: {value: 114.8}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.fridge_spc_last_capture}
+        data: {date: "{{ now().strftime('%Y-%m-%d') }}"}
+
+      # --- FURNACE (values: 767.4, 766.8, 770.7, 776.7, 776.1, 766.6, 762.4) ---
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_1}
+        data: {value: 767.4}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_2}
+        data: {value: 766.8}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_3}
+        data: {value: 770.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_4}
+        data: {value: 776.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_5}
+        data: {value: 776.1}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_6}
+        data: {value: 766.6}
+      - service: input_number.set_value
+        target: {entity_id: input_number.furnace_running_watts_day_7}
+        data: {value: 762.4}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.furnace_spc_last_capture}
+        data: {date: "{{ now().strftime('%Y-%m-%d') }}"}
+
+      # --- AC (values: 2554.0, 2364.5, 2486.1, 2485.6, 2388.2, 2524.8, 2406.2) ---
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_1}
+        data: {value: 2554.0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_2}
+        data: {value: 2364.5}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_3}
+        data: {value: 2486.1}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_4}
+        data: {value: 2485.6}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_5}
+        data: {value: 2388.2}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_6}
+        data: {value: 2524.8}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ac_running_watts_day_7}
+        data: {value: 2406.2}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.ac_spc_last_capture}
+        data: {date: "{{ now().strftime('%Y-%m-%d') }}"}
+
+      # --- HWH RECIRC (values: 105.0, 106.7, 105.8, 105.0, 105.8, 104.1, 107.3) ---
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_1}
+        data: {value: 105.0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_2}
+        data: {value: 106.7}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_3}
+        data: {value: 105.8}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_4}
+        data: {value: 105.0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_5}
+        data: {value: 105.8}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_6}
+        data: {value: 104.1}
+      - service: input_number.set_value
+        target: {entity_id: input_number.hwh_recirc_running_watts_day_7}
+        data: {value: 107.3}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.hwh_recirc_spc_last_capture}
+        data: {date: "{{ now().strftime('%Y-%m-%d') }}"}
+
+      # --- DEHUMIDIFIER: CLEAR, do not fabricate ------------------------
+      # Was 585.4 / 591.5 / 590.3 / 587.2 / 591.6 / 587.7 / 592.6 — seven
+      # Santa Fe Classic days. That machine was diagnosed with a
+      # refrigerant leak and replaced; those values describe hardware that
+      # no longer exists and, left in place, define control limits the E080
+      # can never satisfy.
+      #
+      # They are NOT replaced with seven E080 numbers. Only two full days
+      # have been measured (456.6 and 451.6 W), and writing seven synthetic
+      # points would either invent variation or — if identical — give
+      # sigma = 0, collapsing UCL and LCL onto the mean so that every
+      # subsequent day reads out of control.
+      #
+      # Clearing to 0 makes the slots invalid to the >0 filter in mean_7d /
+      # sigma_7d, so the fallbacks (455 W / 4.6 W, both measured) carry the
+      # chart until real days accumulate. Clearing the capture stamp makes
+      # the Daily sensor unavailable, which renders as an honest CHART GAP
+      # rather than a phantom repeat of a stale slot.
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_1}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_2}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_3}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_4}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_5}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_6}
+        data: {value: 0}
+      - service: input_number.set_value
+        target: {entity_id: input_number.dehumidifier_running_watts_day_7}
+        data: {value: 0}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.dehumidifier_spc_last_capture}
+        data: {date: "1970-01-01"}
+
+      # --- COOLING kWh/CDD (values: typical 1.14, no historical yet) ---
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_1}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_2}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_3}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_4}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_5}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_6}
+        data: {value: 1.14}
+      - service: input_number.set_value
+        target: {entity_id: input_number.cooling_kwh_cdd_day_7}
+        data: {value: 1.14}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.cooling_kwh_cdd_spc_last_capture}
+        data: {date: "{{ now().strftime('%Y-%m-%d') }}"}
+
+  # ===============================================================
+  # SPC RESET — DEHUMIDIFIER ONLY (added 2026-08-08)
+  # ---------------------------------------------------------------
+  # Use this, NOT spc_force_seed_all, whenever the dehumidifier's daily
+  # statistic changes definition. spc_force_seed_all also overwrites the
+  # fridge, furnace, AC, HWH-recirc and cooling slots with hardcoded
+  # 2026-07-28 InfluxDB values - eleven days of real accumulated data on
+  # five other populations, destroyed to fix one. Wrong blast radius.
+  #
+  # WHY IT CLEARS RATHER THAN SEEDS: the same reasoning as the dehumidifier
+  # block in spc_force_seed_all. Writing seven synthetic points either
+  # invents variation or, if identical, gives sigma = 0 and collapses UCL
+  # and LCL onto the mean. Zeros fail the `select('>', 0)` filter in
+  # mean_7d / sigma_7d, so the measured fallbacks carry the chart until
+  # real days accumulate, and the 1970 capture stamp makes the Daily sensor
+  # unavailable - an honest chart GAP, not a phantom repeat of a stale slot.
+  #
+  # THE ZEROS ARE NOT STUCK. The EOD capture rotates d6->d7 ... d1->d2 and
+  # writes today into d1, so each passing day pushes one zero further down
+  # and the buffer is fully real after seven captures.
+  #
+  # TRANSITION WARNING - READ BEFORE RUNNING. sensor.dehumidifier_running_
+  # watts_steady_24h is a statistics sensor over a 24 h max_age, and on
+  # restart it rebuilds that buffer from RECORDER HISTORY of
+  # sensor.dehumidifier_power_when_on_steady. Those recorded states were
+  # produced by the OLD availability template. The statistics platform reads
+  # recorded states; it does not re-evaluate the template retroactively. So
+  # the first capture after a window change averages old-rule samples with
+  # new-rule ones and lands near the old 456.6 W rather than the new 458.9 W.
+  # CORRECT SEQUENCE: restart -> let the first 23:59 capture happen (or not,
+  # it does not matter) -> RUN THIS SCRIPT AGAIN THE NEXT MORNING to discard
+  # that mixed point. The capture 24 h after restart is the first clean one.
+  # ===============================================================
+  spc_reset_dehumidifier:
+    alias: "SPC Reset - Dehumidifier Only"
+    icon: mdi:broom
+    mode: single
+    sequence:
+      - service: input_number.set_value
+        target:
+          entity_id:
+            - input_number.dehumidifier_running_watts_day_1
+            - input_number.dehumidifier_running_watts_day_2
+            - input_number.dehumidifier_running_watts_day_3
+            - input_number.dehumidifier_running_watts_day_4
+            - input_number.dehumidifier_running_watts_day_5
+            - input_number.dehumidifier_running_watts_day_6
+            - input_number.dehumidifier_running_watts_day_7
+        data:
+          value: 0
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.dehumidifier_spc_last_capture
+        data:
+          date: "1970-01-01"
+      - service: system_log.write
+        data:
+          level: warning
+          message: >-
+            SPC reset: dehumidifier 7-day buffer cleared to 0 and capture stamp
+            set to 1970-01-01. Updated 2026-08-21: mean_7d, sigma_7d, upper and
+            lower now go UNAVAILABLE rather than falling back to 459/2.1 W, so
+            no control band is drawn around a number nobody measured. The chart
+            shows 7 gaps until real captures accumulate, which is correct.
+            The startup seeder will no longer repaint a constant into the empty
+            slots. Other SPC populations untouched.
+
+      - service: system_log.write
+        data:
+          level: info
+          message: "SPC force seed completed - all 6 populations seeded"
+
+shell_command:
+  # spc_seed_from_history REMOVED 2026-08-22. It had been declared and never
+  # called since it was written, and ha_audit.py had been saying so. Deleting
+  # rather than wiring it up, because scripts/spc_seed.py now takes its InfluxDB
+  # credentials from the environment ONLY - the hardcoded user and password were
+  # removed the same day, since this repo pushes to a public GitHub remote and
+  # .gitignore does not cover scripts/. HA does not set INFLUXDB_USER /
+  # INFLUXDB_PASS, so a shell_command wrapper could only ever fail to connect.
+  # It is a CLI tool now. Run it from a shell that has the environment:
+  #   INFLUXDB_URL=http://<host>:8086 INFLUXDB_USER=... INFLUXDB_PASS=...
+  #     HA_CONFIG=/config python3 /config/scripts/spc_seed.py --days 7
+  # It prints a reviewable plan to www/spc_seed_results.yaml and writes nothing
+  # back on its own - same contract as spc_buffer_export.py --restore LATEST.
+
+  # Nightly rolling-buffer backup (see automation.nightly_buffer_backup).
+  # Append-only; the script never opens the CSV for writing or truncation.
+  spc_buffer_export: "python3 /config/scripts/spc_buffer_export.py >> /config/www/spc/buffer_backup.log 2>&1"

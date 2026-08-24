@@ -1,0 +1,471 @@
+# =============================================================================
+# pipelines.yaml — the declaration of every daily-capture data pipeline.
+#
+# NOT Home Assistant config. HA loads configuration.yaml and packages/ only;
+# this file sits at the repo root and is read by scripts/, never by HA.
+#
+# WHY IT EXISTS. Until 2026-08-21 the same facts were restated in five places
+# — the capture automation, the sensor templates, the dashboard card,
+# CLAUDE.md §ENTITIES, and scripts/spc_validator.py — and they drifted. Three
+# examples found while building this file, all real:
+#
+#   1. CLAUDE.md's "EOD TIMING SEQUENCE — FROZEN" lists 9 entries. There are
+#      19 capture automations. Undocumented: capture_daily_cdd 23:55:15,
+#      capture_daily_ac_min_per_cycle 23:55:30, capture_daily_runtime_per_cdd
+#      23:56:45, capture_daily_dehumidifier_cost 23:59:30,
+#      capture_daily_ac_cost 23:59:45. And archive_monthly_hdd has drifted
+#      from the documented 23:58:00 to 23:58:15. A frozen schedule that does
+#      not list most of its timers cannot prevent the collision it exists to
+#      prevent.
+#   2. Stale-detector coverage could not be established by name: matching
+#      "capture_daily_cdd" to "cdd_capture_stale" by string similarity gives
+#      false joins. The real relationship is the stamp entity the detector
+#      READS, which is why `stamp` below is the join key.
+#   3. 4 pipelines write buffers but stamp nothing, so their liveness cannot
+#      be monitored even in principle. See `gaps` at the bottom.
+#
+# CONSUMERS
+#   scripts/ha_audit.py          — checks the invariants below hold
+#   scripts/spc_buffer_export.py — backs up every `buffer` entity nightly
+#
+# MAINTENANCE. Derived fields (automation, at, stamp, buffer, stale_detector)
+# were extracted FROM the config, not typed from memory, and ha_audit.py
+# re-derives and compares them on every run — so this file cannot silently
+# drift from reality the way the five copies it replaces did.
+# =============================================================================
+
+pipelines:
+  archive_monthly_cdd:
+    label: "cdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:58:30"
+    stamp: "input_datetime.cdd_archive_last_ok"
+    season: "cooling"
+    stale_detector: "binary_sensor.cdd_monthly_archive_stale"
+    buffer_slots: 0
+    dynamic_buffer: true   # entity ids are built from templates at runtime
+  archive_monthly_gas_heat_cost:
+    label: "gas heat cost"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: null
+    stamp: "input_datetime.gas_heat_cost_archive_last_ok"
+    season: "heating"
+    stale_detector: "binary_sensor.gas_heat_cost_archive_stale"
+    buffer_slots: 0
+    dynamic_buffer: true   # entity ids are built from templates at runtime
+  archive_monthly_hdd:
+    label: "hdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:58:15"
+    stamp: "input_datetime.hdd_archive_last_ok"
+    season: "heating"
+    stale_detector: "binary_sensor.hdd_monthly_archive_stale"
+    buffer_slots: 0
+    dynamic_buffer: true   # entity ids are built from templates at runtime
+  capture_daily_ac_cost:
+    label: "ac cost"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:59:45"
+    stamp: "input_datetime.ac_cost_capture_last_ok"
+    season: "cooling"
+    stale_detector: "binary_sensor.ac_cost_capture_stale"
+    buffer_slots: 1
+    buffer:
+      - input_number.ac_cost_year_acc
+  capture_daily_ac_min_per_cycle:
+    label: "ac min per cycle"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:55:30"
+    stamp: "input_datetime.ac_min_per_cycle_capture_last_ok"
+    season: "cooling"
+    stale_detector: "binary_sensor.ac_min_cycle_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.ac_min_per_cycle_day_1
+      - input_number.ac_min_per_cycle_day_2
+      - input_number.ac_min_per_cycle_day_3
+      - input_number.ac_min_per_cycle_day_4
+      - input_number.ac_min_per_cycle_day_5
+      - input_number.ac_min_per_cycle_day_6
+      - input_number.ac_min_per_cycle_day_7
+  capture_daily_ac_watts:
+    label: "AC running watts"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.ac_spc_last_capture"
+    seed_stamp: "input_datetime.ac_spc_last_seed"
+    season: "cooling"
+    stale_detector: "binary_sensor.ac_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.ac_running_watts_day_1
+      - input_number.ac_running_watts_day_2
+      - input_number.ac_running_watts_day_3
+      - input_number.ac_running_watts_day_4
+      - input_number.ac_running_watts_day_5
+      - input_number.ac_running_watts_day_6
+      - input_number.ac_running_watts_day_7
+    guard:
+      source: "sensor.ac_running_watts_latched"
+      live_source: "sensor.ac_running_watts_24h"
+      band: [500, 5000]
+      activity: "sensor.ac_runtime_today"
+      activity_min: 0.5
+    limits:
+      - sensor.ac_running_watts_mean_7d
+      - sensor.ac_running_watts_sigma_7d
+      - sensor.ac_running_watts_upper
+      - sensor.ac_running_watts_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_cdd:
+    label: "cdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:55:15"
+    stamp: "input_datetime.cdd_capture_last_ok"
+    season: "cooling"
+    stale_detector: "binary_sensor.cdd_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.cdd_day_1
+      - input_number.cdd_day_2
+      - input_number.cdd_day_3
+      - input_number.cdd_day_4
+      - input_number.cdd_day_5
+      - input_number.cdd_day_6
+      - input_number.cdd_day_7
+  capture_daily_cooling_kwh_cdd:
+    label: "Cooling efficiency kWh/CDD"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.cooling_kwh_cdd_spc_last_capture"
+    season: "cooling"
+    stale_detector: "binary_sensor.cooling_kwh_cdd_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.cooling_kwh_cdd_day_1
+      - input_number.cooling_kwh_cdd_day_2
+      - input_number.cooling_kwh_cdd_day_3
+      - input_number.cooling_kwh_cdd_day_4
+      - input_number.cooling_kwh_cdd_day_5
+      - input_number.cooling_kwh_cdd_day_6
+      - input_number.cooling_kwh_cdd_day_7
+    guard:
+      source: "sensor.sem_ac_daily"
+      live_source: "sensor.hvac_cdd65_today"
+      activity: "sensor.hvac_cdd65_today"
+      activity_min: 0.5
+    limits:
+      - sensor.cooling_kwh_cdd_mean_7d
+      - sensor.cooling_kwh_cdd_sigma_7d
+      - sensor.cooling_kwh_cdd_upper
+      - sensor.cooling_kwh_cdd_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_dehumidifier_cost:
+    label: "dehumidifier cost"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:59:30"
+    stamp: "input_datetime.dehumidifier_cost_capture_last_ok"
+    season: "none"
+    stale_detector: "binary_sensor.dehumidifier_cost_capture_stale"
+    buffer_slots: 1
+    buffer:
+      - input_number.dehumidifier_cost_year_acc
+  capture_daily_dehumidifier_duty_kwh:
+    label: "dehumidifier duty kwh"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:59:30"
+    stamp: "input_datetime.dehumidifier_duty_kwh_capture_last_ok"
+    season: "none"
+    stale_detector: "binary_sensor.dehumidifier_duty_kwh_capture_stale"
+    buffer_slots: 14
+    buffer:
+      - input_number.dehumidifier_duty_day_1
+      - input_number.dehumidifier_duty_day_2
+      - input_number.dehumidifier_duty_day_3
+      - input_number.dehumidifier_duty_day_4
+      - input_number.dehumidifier_duty_day_5
+      - input_number.dehumidifier_duty_day_6
+      - input_number.dehumidifier_duty_day_7
+      - input_number.dehumidifier_kwh_day_1
+      - input_number.dehumidifier_kwh_day_2
+      - input_number.dehumidifier_kwh_day_3
+      - input_number.dehumidifier_kwh_day_4
+      - input_number.dehumidifier_kwh_day_5
+      - input_number.dehumidifier_kwh_day_6
+      - input_number.dehumidifier_kwh_day_7
+  capture_daily_water_overnight:
+    label: "Water overnight minimum flow"
+    kind: leak
+    defined_in: "packages/utility_meters.yaml"
+    # Six marks 00:00:45..05:00:45 give five hourly bins; the manifest records
+    # the first, which is the reset mark. The others are 01/02/03/04/05 :00:45.
+    at: "00:00:45"
+    stamp: "input_datetime.water_overnight_capture_last_ok"
+    season: "none"
+    stale_detector: "binary_sensor.water_overnight_capture_stale"
+    buffer_slots: 7
+    # This buffer INVERTS the SPC convention. 0.00 gal/h is a PERFECT night and
+    # must count as data; -1 means "no night recorded". ha_audit reads both.
+    empty_sentinel: -1
+    # Seven identical 0.00 nights is a real measurement of a leak-free house,
+    # not the fabricated-constant signature repeated-buffer exists to catch.
+    benign_repeat: 0
+    buffer:
+      - input_number.water_overnight_min_day_1
+      - input_number.water_overnight_min_day_2
+      - input_number.water_overnight_min_day_3
+      - input_number.water_overnight_min_day_4
+      - input_number.water_overnight_min_day_5
+      - input_number.water_overnight_min_day_6
+      - input_number.water_overnight_min_day_7
+    guard:
+      # The guard is subgroup SIZE, not a value band: a night is usable when
+      # enough clean hourly bins closed. There is no upper band because the
+      # softener regen is expected to blow past any value you would pick - the
+      # minimum is what makes that harmless.
+      source: "sensor.water_meter_volume"
+      live_source: "sensor.water_overnight_min_flow"
+      activity: "input_number.water_night_bins"
+      activity_min: 3
+    limits:
+      - sensor.water_overnight_min_mean_7d
+    chart: "dashboards/cards/utilities/water-overnight-min-flow.yaml"
+  capture_daily_dehumidifier_watts:
+    label: "Dehumidifier steady-window watts"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.dehumidifier_spc_last_capture"
+    seed_stamp: "input_datetime.dehumidifier_spc_last_seed"
+    season: "none"
+    stale_detector: "binary_sensor.dehumidifier_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.dehumidifier_running_watts_day_1
+      - input_number.dehumidifier_running_watts_day_2
+      - input_number.dehumidifier_running_watts_day_3
+      - input_number.dehumidifier_running_watts_day_4
+      - input_number.dehumidifier_running_watts_day_5
+      - input_number.dehumidifier_running_watts_day_6
+      - input_number.dehumidifier_running_watts_day_7
+    guard:
+      source: "sensor.dehumidifier_running_watts_latched"
+      live_source: "sensor.dehumidifier_running_watts_steady_24h"
+      band: [150, 800]
+      activity: "counter.dehumidifier_cycles_today"
+      activity_min: 2
+    limits:
+      - sensor.dehumidifier_running_watts_mean_7d
+      - sensor.dehumidifier_running_watts_sigma_7d
+      - sensor.dehumidifier_running_watts_upper
+      - sensor.dehumidifier_running_watts_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_fridge_watts:
+    label: "Fridge running watts"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.fridge_spc_last_capture"
+    seed_stamp: "input_datetime.fridge_spc_last_seed"
+    season: "none"
+    stale_detector: "binary_sensor.fridge_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.fridge_running_watts_day_1
+      - input_number.fridge_running_watts_day_2
+      - input_number.fridge_running_watts_day_3
+      - input_number.fridge_running_watts_day_4
+      - input_number.fridge_running_watts_day_5
+      - input_number.fridge_running_watts_day_6
+      - input_number.fridge_running_watts_day_7
+    guard:
+      source: "sensor.fridge_running_watts_latched"
+      live_source: "sensor.fridge_running_watts_24h"
+      band: [50, 400]
+      activity: "sensor.fridge_runtime_today"
+      activity_min: 1.0
+    limits:
+      - sensor.fridge_running_watts_mean_7d
+      - sensor.fridge_running_watts_sigma_7d
+      - sensor.fridge_running_watts_upper
+      - sensor.fridge_running_watts_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_furnace_min_per_cycle:
+    label: "furnace min per cycle"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:56:15"
+    stamp: "input_datetime.furnace_cycle_capture_last_ok"
+    season: "heating"
+    stale_detector: "binary_sensor.furnace_cycle_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.furnace_min_per_cycle_day_1
+      - input_number.furnace_min_per_cycle_day_2
+      - input_number.furnace_min_per_cycle_day_3
+      - input_number.furnace_min_per_cycle_day_4
+      - input_number.furnace_min_per_cycle_day_5
+      - input_number.furnace_min_per_cycle_day_6
+      - input_number.furnace_min_per_cycle_day_7
+  capture_daily_furnace_watts:
+    label: "Furnace blower running watts (high-speed)"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.furnace_spc_last_capture"
+    seed_stamp: "input_datetime.furnace_spc_last_seed"
+    season: "heating"
+    stale_detector: "binary_sensor.furnace_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.furnace_running_watts_day_1
+      - input_number.furnace_running_watts_day_2
+      - input_number.furnace_running_watts_day_3
+      - input_number.furnace_running_watts_day_4
+      - input_number.furnace_running_watts_day_5
+      - input_number.furnace_running_watts_day_6
+      - input_number.furnace_running_watts_day_7
+    guard:
+      source: "sensor.furnace_running_watts_latched"
+      live_source: "sensor.furnace_running_watts_24h"
+      band: [300, 1000]
+      activity: "sensor.furnace_runtime_today"
+      activity_min: 1.0
+    limits:
+      - sensor.furnace_running_watts_mean_7d
+      - sensor.furnace_running_watts_sigma_7d
+      - sensor.furnace_running_watts_upper
+      - sensor.furnace_running_watts_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_hdd:
+    label: "hdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:55:00"
+    stamp: "input_datetime.hdd_capture_last_ok"
+    season: "heating"
+    stale_detector: "binary_sensor.hdd_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.hdd_day_1
+      - input_number.hdd_day_2
+      - input_number.hdd_day_3
+      - input_number.hdd_day_4
+      - input_number.hdd_day_5
+      - input_number.hdd_day_6
+      - input_number.hdd_day_7
+  capture_daily_hwh_recirc_watts:
+    label: "HWH recirc pump running watts"
+    kind: spc
+    defined_in: "packages/spc.yaml"
+    at: "23:59:00"
+    stamp: "input_datetime.hwh_recirc_spc_last_capture"
+    seed_stamp: "input_datetime.hwh_recirc_spc_last_seed"
+    season: "none"
+    stale_detector: "binary_sensor.hwh_recirc_spc_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.hwh_recirc_running_watts_day_1
+      - input_number.hwh_recirc_running_watts_day_2
+      - input_number.hwh_recirc_running_watts_day_3
+      - input_number.hwh_recirc_running_watts_day_4
+      - input_number.hwh_recirc_running_watts_day_5
+      - input_number.hwh_recirc_running_watts_day_6
+      - input_number.hwh_recirc_running_watts_day_7
+    guard:
+      source: "sensor.hwh_recirc_running_watts_latched"
+      live_source: "sensor.hwh_recirc_running_watts_24h"
+      band: [80, 200]
+      activity: "sensor.hwh_recirc_runtime_today"
+      activity_min: 0.1
+    limits:
+      - sensor.hwh_recirc_running_watts_mean_7d
+      - sensor.hwh_recirc_running_watts_sigma_7d
+      - sensor.hwh_recirc_running_watts_upper
+      - sensor.hwh_recirc_running_watts_lower
+    chart: "dashboards/cards/apexcharts/spc-running-watts-control-chart.yaml"
+  capture_daily_monthly_tracking:
+    label: "monthly tracking"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:56:30"
+    stamp: "input_datetime.monthly_tracking_capture_last_ok"
+    season: "none"
+    stale_detector: "binary_sensor.monthly_report_stale"
+    buffer_slots: 21
+    buffer:
+      - input_number.ac_cycles_month_acc
+      - input_number.ac_cycles_year_acc
+      - input_number.ac_runtime_month_acc
+      - input_number.ac_runtime_year_acc
+      - input_number.cdd_cumulative_month_auto
+      - input_number.cdd_cumulative_year_auto
+      - input_number.expected_runtime_sum_month
+      - input_number.furnace_cycles_month_acc
+      - input_number.furnace_runtime_month_acc
+      - input_number.hdd_cumulative_month_auto
+      - input_number.hdd_cumulative_year_auto
+      - input_number.outdoor_temp_days_month
+      - input_number.outdoor_temp_sum_month
+      - input_number.zone_1f_cool_cycles_month_acc
+      - input_number.zone_1f_cool_runtime_month_acc
+      - input_number.zone_1f_cycles_month_acc
+      - input_number.zone_1f_runtime_month_acc
+      - input_number.zone_2f_cool_cycles_month_acc
+      - input_number.zone_2f_cool_runtime_month_acc
+      - input_number.zone_2f_cycles_month_acc
+      - input_number.zone_2f_runtime_month_acc
+  capture_daily_runtime_per_cdd:
+    label: "runtime per cdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:56:45"
+    stamp: "input_datetime.runtime_per_cdd_capture_last_ok"
+    season: "cooling"
+    stale_detector: "binary_sensor.runtime_per_cdd_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.runtime_per_cdd_day_1
+      - input_number.runtime_per_cdd_day_2
+      - input_number.runtime_per_cdd_day_3
+      - input_number.runtime_per_cdd_day_4
+      - input_number.runtime_per_cdd_day_5
+      - input_number.runtime_per_cdd_day_6
+      - input_number.runtime_per_cdd_day_7
+  capture_daily_runtime_per_hdd:
+    label: "runtime per hdd"
+    kind: accumulator
+    defined_in: "automations.yaml"
+    at: "23:56:00"
+    stamp: "input_datetime.runtime_per_hdd_capture_last_ok"
+    season: "heating"
+    stale_detector: "binary_sensor.runtime_per_hdd_capture_stale"
+    buffer_slots: 7
+    buffer:
+      - input_number.runtime_per_hdd_day_1
+      - input_number.runtime_per_hdd_day_2
+      - input_number.runtime_per_hdd_day_3
+      - input_number.runtime_per_hdd_day_4
+      - input_number.runtime_per_hdd_day_5
+      - input_number.runtime_per_hdd_day_6
+      - input_number.runtime_per_hdd_day_7
+
+# Pipelines that cannot currently be monitored, and why. ha_audit.py reports
+# these as WARN rather than FAIL so the list stays visible without blocking.
+gaps:
+  # Pipelines that write buffer slots but never record a success timestamp,
+  # so no stale detector can be written for them at all. All four were
+  # closed on 2026-08-21; an empty list here is the goal state.
+  no_stamp: []
+  # These record a stamp, so a detector is a few lines of template away.
+  stamp_but_no_detector: []

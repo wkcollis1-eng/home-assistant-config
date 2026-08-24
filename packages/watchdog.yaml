@@ -1,0 +1,697 @@
+# =============================================================================
+# Watchdog Package - Monitor and Auto-Recover Stale Sensors
+# =============================================================================
+#
+# Purpose: Detect sensors that stop updating and auto-reload their integrations
+#          with backoff protection to prevent reload spam.
+#
+# Monitored Systems:
+#   - Battery Bank Monitor (ESPHome/Custom)
+#   - Ecobee Thermostats
+#   - UPS Monitor
+#   - SEM Meter (energy monitoring)
+#   - Basement TH Node (SHT45) - DEHUMIDIFIER CONTROL SENSOR since 2026-07-29
+#
+# Features:
+#   - Configurable stale thresholds per sensor type
+#   - Auto-reload with 15-minute backoff
+#   - Persistent notifications on stale/recovery
+#   - Dashboard-friendly status sensors
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Input Numbers: Configurable Stale Thresholds (minutes)
+# -----------------------------------------------------------------------------
+input_number:
+  watchdog_threshold_battery_bank:
+    name: "Watchdog: Battery Bank Stale Threshold"
+    min: 5
+    max: 120
+    step: 5
+    unit_of_measurement: "min"
+    icon: mdi:battery-alert
+    initial: 30
+
+  watchdog_threshold_ecobee:
+    name: "Watchdog: Ecobee Stale Threshold"
+    min: 5
+    max: 120
+    step: 5
+    unit_of_measurement: "min"
+    icon: mdi:thermostat
+    initial: 30
+
+  watchdog_threshold_ups:
+    name: "Watchdog: UPS Stale Threshold"
+    min: 5
+    max: 120
+    step: 5
+    unit_of_measurement: "min"
+    icon: mdi:battery-charging
+    initial: 30
+
+  watchdog_threshold_sem:
+    name: "Watchdog: SEM Meter Stale Threshold"
+    min: 1
+    max: 30
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:flash
+    initial: 5
+
+  # 5 min, not the 30 used for the battery bank / Ecobee / UPS. This node is
+  # the dehumidifier's control input and publishes every 10 s, so 5 min is
+  # already 30 missed reads. It is also deliberately tighter than the 10-min
+  # dehumidifier_sensor_loss_shutdown in automations.yaml, giving the
+  # integration reload a full 5 minutes to recover the node before the
+  # control loop gives up and stops the compressor. Ladder: 5 min try to
+  # fix -> 10 min stop safely.
+  watchdog_threshold_basement_th:
+    name: "Watchdog: Basement TH Stale Threshold"
+    min: 1
+    max: 30
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:home-thermometer
+    initial: 5
+
+  watchdog_reload_backoff:
+    name: "Watchdog: Reload Backoff Period"
+    min: 5
+    max: 60
+    step: 5
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+    initial: 15
+
+# -----------------------------------------------------------------------------
+# Input Booleans: Enable/Disable Auto-Reload per Integration
+# -----------------------------------------------------------------------------
+input_boolean:
+  watchdog_auto_reload_battery_bank:
+    name: "Watchdog: Auto-Reload Battery Bank"
+    icon: mdi:reload
+
+  watchdog_auto_reload_ecobee:
+    name: "Watchdog: Auto-Reload Ecobee"
+    icon: mdi:reload
+
+  watchdog_auto_reload_ups:
+    name: "Watchdog: Auto-Reload UPS"
+    icon: mdi:reload
+
+  watchdog_auto_reload_sem:
+    name: "Watchdog: Auto-Reload SEM"
+    icon: mdi:reload
+
+  watchdog_auto_reload_basement_th:
+    name: "Watchdog: Auto-Reload Basement TH"
+    icon: mdi:reload
+
+# -----------------------------------------------------------------------------
+# Input Datetime: Track Last Reload Time (for backoff)
+# -----------------------------------------------------------------------------
+input_datetime:
+  watchdog_last_reload_battery_bank:
+    name: "Watchdog: Last Reload Battery Bank"
+    has_date: true
+    has_time: true
+
+  watchdog_last_reload_ecobee:
+    name: "Watchdog: Last Reload Ecobee"
+    has_date: true
+    has_time: true
+
+  watchdog_last_reload_ups:
+    name: "Watchdog: Last Reload UPS"
+    has_date: true
+    has_time: true
+
+  watchdog_last_reload_sem:
+    name: "Watchdog: Last Reload SEM"
+    has_date: true
+    has_time: true
+
+  watchdog_last_reload_basement_th:
+    name: "Watchdog: Last Reload Basement TH"
+    has_date: true
+    has_time: true
+
+# -----------------------------------------------------------------------------
+# Template Sensors: Staleness Detection
+# -----------------------------------------------------------------------------
+template:
+  - binary_sensor:
+      # --- Battery Bank Monitor ---
+      - name: "Watchdog: Battery Bank Stale"
+        unique_id: watchdog_battery_bank_stale
+        icon: "{{ 'mdi:battery-alert' if is_state('binary_sensor.watchdog_battery_bank_stale', 'on') else 'mdi:battery-check' }}"
+        device_class: problem
+        state: >
+          {% set sensor = states.sensor.battery_bank_monitor_battery_voltage %}
+          {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+            true
+          {% else %}
+            {% set threshold = states('input_number.watchdog_threshold_battery_bank') | float(30) * 60 %}
+            {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+          {% endif %}
+        attributes:
+          last_updated: >
+            {% set sensor = states.sensor.battery_bank_monitor_battery_voltage %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          seconds_since_update: >
+            {% set sensor = states.sensor.battery_bank_monitor_battery_voltage %}
+            {% if sensor %}
+              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
+            {% else %}
+              -1
+            {% endif %}
+          threshold_minutes: "{{ states('input_number.watchdog_threshold_battery_bank') }}"
+
+      # --- Ecobee Thermostats (either sensor stale triggers) ---
+      - name: "Watchdog: Ecobee Stale"
+        unique_id: watchdog_ecobee_stale
+        icon: "{{ 'mdi:thermostat-alert' if is_state('binary_sensor.watchdog_ecobee_stale', 'on') else 'mdi:thermostat' }}"
+        device_class: problem
+        state: >
+          {% set upstairs = states.sensor.upstairs_current_temperature %}
+          {% set main = states.sensor.main_floor_current_temperature %}
+          {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
+          {% set upstairs_stale = upstairs is none or upstairs.state in ['unavailable', 'unknown'] or (now() - upstairs.last_updated).total_seconds() > threshold %}
+          {% set main_stale = main is none or main.state in ['unavailable', 'unknown'] or (now() - main.last_updated).total_seconds() > threshold %}
+          {{ upstairs_stale or main_stale }}
+        attributes:
+          upstairs_last_updated: >
+            {% set sensor = states.sensor.upstairs_current_temperature %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          main_floor_last_updated: >
+            {% set sensor = states.sensor.main_floor_current_temperature %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          upstairs_stale: >
+            {% set sensor = states.sensor.upstairs_current_temperature %}
+            {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
+            {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+              true
+            {% else %}
+              {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+            {% endif %}
+          main_floor_stale: >
+            {% set sensor = states.sensor.main_floor_current_temperature %}
+            {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
+            {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+              true
+            {% else %}
+              {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+            {% endif %}
+          threshold_minutes: "{{ states('input_number.watchdog_threshold_ecobee') }}"
+
+      # --- UPS Monitor ---
+      - name: "Watchdog: UPS Stale"
+        unique_id: watchdog_ups_stale
+        icon: "{{ 'mdi:battery-alert-variant' if is_state('binary_sensor.watchdog_ups_stale', 'on') else 'mdi:battery-check' }}"
+        device_class: problem
+        state: >
+          {% set sensor = states.sensor.ups_monitor_battery_voltage %}
+          {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+            true
+          {% else %}
+            {% set threshold = states('input_number.watchdog_threshold_ups') | float(30) * 60 %}
+            {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+          {% endif %}
+        attributes:
+          last_updated: >
+            {% set sensor = states.sensor.ups_monitor_battery_voltage %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          seconds_since_update: >
+            {% set sensor = states.sensor.ups_monitor_battery_voltage %}
+            {% if sensor %}
+              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
+            {% else %}
+              -1
+            {% endif %}
+          threshold_minutes: "{{ states('input_number.watchdog_threshold_ups') }}"
+
+      # --- SEM Meter ---
+      - name: "Watchdog: SEM Stale"
+        unique_id: watchdog_sem_stale
+        icon: "{{ 'mdi:flash-alert' if is_state('binary_sensor.watchdog_sem_stale', 'on') else 'mdi:flash' }}"
+        device_class: problem
+        state: >
+          {% set sensor = states.sensor.sem_whole_home_power %}
+          {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+            true
+          {% else %}
+            {% set threshold = states('input_number.watchdog_threshold_sem') | float(5) * 60 %}
+            {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+          {% endif %}
+        attributes:
+          last_updated: >
+            {% set sensor = states.sensor.sem_whole_home_power %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          seconds_since_update: >
+            {% set sensor = states.sensor.sem_whole_home_power %}
+            {% if sensor %}
+              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
+            {% else %}
+              -1
+            {% endif %}
+          threshold_minutes: "{{ states('input_number.watchdog_threshold_sem') }}"
+
+      # --- Basement TH Node (dehumidifier control sensor) ---
+      # Keyed on the RAW humidity channel specifically: that is the entity
+      # the control band, the stall detector and the 60-min statistics mean
+      # all read. The node could stay on the API with that one channel dead
+      # (I2C fault, stuck value), and node_status alone would not show it.
+      - name: "Watchdog: Basement TH Stale"
+        unique_id: watchdog_basement_th_stale
+        icon: "{{ 'mdi:home-thermometer-outline' if is_state('binary_sensor.watchdog_basement_th_stale', 'on') else 'mdi:home-thermometer' }}"
+        device_class: problem
+        state: >
+          {% set sensor = states.sensor.basement_th_node_basement_humidity %}
+          {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
+            true
+          {% else %}
+            {% set threshold = states('input_number.watchdog_threshold_basement_th') | float(5) * 60 %}
+            {{ (now() - sensor.last_updated).total_seconds() > threshold }}
+          {% endif %}
+        attributes:
+          last_updated: >
+            {% set sensor = states.sensor.basement_th_node_basement_humidity %}
+            {{ sensor.last_updated if sensor else 'unknown' }}
+          seconds_since_update: >
+            {% set sensor = states.sensor.basement_th_node_basement_humidity %}
+            {% if sensor %}
+              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
+            {% else %}
+              -1
+            {% endif %}
+          threshold_minutes: "{{ states('input_number.watchdog_threshold_basement_th') }}"
+          node_status: "{{ states('binary_sensor.basement_th_node_node_status') }}"
+          rh_stuck: "{{ states('binary_sensor.basement_th_node_basement_rh_stuck') }}"
+
+  # --- Summary Sensor ---
+  - sensor:
+      - name: "Watchdog: Stale Sensor Count"
+        unique_id: watchdog_stale_sensor_count
+        icon: mdi:alert-circle
+        state: >
+          {{ [
+            is_state('binary_sensor.watchdog_battery_bank_stale', 'on'),
+            is_state('binary_sensor.watchdog_ecobee_stale', 'on'),
+            is_state('binary_sensor.watchdog_ups_stale', 'on'),
+            is_state('binary_sensor.watchdog_sem_stale', 'on'),
+            is_state('binary_sensor.watchdog_basement_th_stale', 'on')
+          ] | select | list | count }}
+        attributes:
+          stale_sensors: >
+            {% set stale = [] %}
+            {% if is_state('binary_sensor.watchdog_battery_bank_stale', 'on') %}
+              {% set stale = stale + ['Battery Bank'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.watchdog_ecobee_stale', 'on') %}
+              {% set stale = stale + ['Ecobee'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.watchdog_ups_stale', 'on') %}
+              {% set stale = stale + ['UPS'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.watchdog_sem_stale', 'on') %}
+              {% set stale = stale + ['SEM Meter'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.watchdog_basement_th_stale', 'on') %}
+              {% set stale = stale + ['Basement TH (dehum control)'] %}
+            {% endif %}
+            {{ stale | join(', ') if stale else 'None' }}
+
+# -----------------------------------------------------------------------------
+# Automations: Auto-Reload with Backoff
+# -----------------------------------------------------------------------------
+automation:
+  # --- Battery Bank Reload ---
+  - id: watchdog_reload_battery_bank
+    alias: "Watchdog: Reload Battery Bank"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_battery_bank_stale
+        to: "on"
+        for:
+          minutes: 1
+    condition:
+      - condition: state
+        entity_id: input_boolean.watchdog_auto_reload_battery_bank
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.watchdog_last_reload_battery_bank') %}
+          {% set backoff = states('input_number.watchdog_reload_backoff') | float(15) * 60 %}
+          {% if last in ['unknown', 'unavailable', ''] %}
+            true
+          {% else %}
+            {{ (now() - (last | as_datetime | as_local)).total_seconds() > backoff }}
+          {% endif %}
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.watchdog_last_reload_battery_bank
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: homeassistant.reload_config_entry
+        target:
+          entity_id: sensor.battery_bank_monitor_battery_voltage
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: Battery Bank Reloaded"
+          message: "Battery Bank integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
+          notification_id: watchdog_battery_bank
+
+  # --- Ecobee Reload ---
+  - id: watchdog_reload_ecobee
+    alias: "Watchdog: Reload Ecobee"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_ecobee_stale
+        to: "on"
+        for:
+          minutes: 1
+    condition:
+      - condition: state
+        entity_id: input_boolean.watchdog_auto_reload_ecobee
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.watchdog_last_reload_ecobee') %}
+          {% set backoff = states('input_number.watchdog_reload_backoff') | float(15) * 60 %}
+          {% if last in ['unknown', 'unavailable', ''] %}
+            true
+          {% else %}
+            {{ (now() - (last | as_datetime | as_local)).total_seconds() > backoff }}
+          {% endif %}
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.watchdog_last_reload_ecobee
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: homeassistant.reload_config_entry
+        target:
+          entity_id: sensor.upstairs_current_temperature
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: Ecobee Reloaded"
+          message: "Ecobee integration was reloaded due to stale sensors (upstairs & main floor) at {{ now().strftime('%H:%M:%S') }}"
+          notification_id: watchdog_ecobee
+
+  # --- UPS Reload ---
+  - id: watchdog_reload_ups
+    alias: "Watchdog: Reload UPS"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_ups_stale
+        to: "on"
+        for:
+          minutes: 1
+    condition:
+      - condition: state
+        entity_id: input_boolean.watchdog_auto_reload_ups
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.watchdog_last_reload_ups') %}
+          {% set backoff = states('input_number.watchdog_reload_backoff') | float(15) * 60 %}
+          {% if last in ['unknown', 'unavailable', ''] %}
+            true
+          {% else %}
+            {{ (now() - (last | as_datetime | as_local)).total_seconds() > backoff }}
+          {% endif %}
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.watchdog_last_reload_ups
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: homeassistant.reload_config_entry
+        target:
+          entity_id: sensor.ups_monitor_battery_voltage
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: UPS Reloaded"
+          message: "UPS integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
+          notification_id: watchdog_ups
+
+  # --- SEM Reload ---
+  - id: watchdog_reload_sem
+    alias: "Watchdog: Reload SEM"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_sem_stale
+        to: "on"
+        for:
+          minutes: 1
+    condition:
+      - condition: state
+        entity_id: input_boolean.watchdog_auto_reload_sem
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.watchdog_last_reload_sem') %}
+          {% set backoff = states('input_number.watchdog_reload_backoff') | float(15) * 60 %}
+          {% if last in ['unknown', 'unavailable', ''] %}
+            true
+          {% else %}
+            {{ (now() - (last | as_datetime | as_local)).total_seconds() > backoff }}
+          {% endif %}
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.watchdog_last_reload_sem
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: homeassistant.reload_config_entry
+        target:
+          entity_id: sensor.sem_whole_home_power
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: SEM Reloaded"
+          message: "SEM integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
+          notification_id: watchdog_sem
+
+  # --- Recovery Notification ---
+  # --- Basement TH Node Reload ---
+  # `for: 1 minute` matches the other entries, so the effective trip is the
+  # 5-min threshold plus 1 min = 6 min, still inside the 10-min control-loop
+  # shutdown. Message names the control consequence explicitly - a stale
+  # sensor here is not just a monitoring gap, it stops the dehumidifier.
+  - id: watchdog_reload_basement_th
+    alias: "Watchdog: Reload Basement TH"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_basement_th_stale
+        to: "on"
+        for:
+          minutes: 1
+    condition:
+      - condition: state
+        entity_id: input_boolean.watchdog_auto_reload_basement_th
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.watchdog_last_reload_basement_th') %}
+          {% set backoff = states('input_number.watchdog_reload_backoff') | float(15) * 60 %}
+          {% if last in ['unknown', 'unavailable', ''] %}
+            true
+          {% else %}
+            {{ (now() - (last | as_datetime | as_local)).total_seconds() > backoff }}
+          {% endif %}
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.watchdog_last_reload_basement_th
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: homeassistant.reload_config_entry
+        target:
+          entity_id: sensor.basement_th_node_basement_humidity
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: Basement TH Reloaded"
+          message: >-
+            Basement TH node integration reloaded due to a stale control RH at
+            {{ now().strftime('%H:%M:%S') }}. This is the dehumidifier's control
+            sensor — if it does not recover within 10 min of going stale, the
+            unit stops with reason `sensor_loss`.
+          notification_id: watchdog_basement_th
+
+  # ===============================================================
+  # BASEMENT TH NODE — ON-BOARD FAULT SURFACING
+  # ===============================================================
+  # Relocated here from automations.yaml on 2026-07-29 so all stale/fault
+  # handling lives in one file.
+  #
+  # These cover what the staleness check above CANNOT see. A stale check
+  # asks "is the entity still updating". A stuck sensor keeps updating with
+  # the same number forever, so last_updated stays fresh and the watchdog
+  # stays green while the control loop reads a lie. The node's own
+  # stuck-value detector is the only thing that catches that, which is why
+  # it gets its own alert rather than being folded into the reload logic.
+  # No auto-reload for these: reloading the integration does not fix an
+  # SHT45 that is answering incorrectly.
+  # ===============================================================
+  - id: basement_th_node_offline
+    alias: "Basement TH Node Offline"
+    description: "Notify when the basement TH node drops off the ESPHome API for 10 min. 10 min tolerates an OTA reboot (~30 s) and a WiFi reassociation without crying wolf."
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.basement_th_node_node_status
+        to: "off"
+        for:
+          minutes: 10
+      - platform: state
+        entity_id: binary_sensor.basement_th_node_node_status
+        to: "unavailable"
+        for:
+          minutes: 10
+    action:
+      - service: persistent_notification.create
+        data:
+          notification_id: basement_th_node_offline
+          title: "⚠️ Basement TH Node offline"
+          message: >
+            The basement TH node has been unreachable for 10+ min.
+            Last WiFi signal {{ states('sensor.basement_th_node_node_wifi_signal') }} dBm,
+            last reset reason "{{ states('sensor.basement_th_node_node_reset_reason') }}".
+            This is now the dehumidifier's CONTROL sensor — the unit will have
+            stopped with reason `sensor_loss` and will not restart until the
+            node returns. The Shelly is still logging as a validation channel
+            but does not take over control.
+
+  - id: basement_th_node_sensor_fault
+    alias: "Basement TH Node Sensor Fault"
+    description: "Surface the node's own on-board problem flags: SHT45 read fault, and the stuck-value detector (RH frozen at one value = a sensor that is answering but lying)."
+    mode: single
+    trigger:
+      - platform: state
+        id: sensor_fault
+        entity_id: binary_sensor.basement_th_node_basement_sensor_fault
+        to: "on"
+        for:
+          minutes: 5
+      - platform: state
+        id: rh_stuck
+        entity_id: binary_sensor.basement_th_node_basement_rh_stuck
+        to: "on"
+        for:
+          minutes: 5
+    action:
+      - service: persistent_notification.create
+        data:
+          notification_id: "basement_th_node_fault_{{ trigger.id }}"
+          title: "⚠️ Basement TH Node fault: {{ trigger.id }}"
+          message: >
+            {% if trigger.id == 'rh_stuck' %}
+            The node's stuck-value detector has latched: RH has not moved for the
+            detector's full window. The sensor is still answering, so the staleness
+            watchdog will NOT catch this and the dehumidifier is still controlling
+            on that value. Check it against the Shelly before trusting the band.
+            {% else %}
+            The node is reporting an SHT45 read fault. Dropped reads to date:
+            {{ states('sensor.basement_th_node_basement_dropped_reads') }}.
+            {% endif %}
+            Control reads {{ states('sensor.basement_th_node_basement_humidity') }} %RH;
+            Shelly validation channel reads
+            {{ states('sensor.shelly_temperature_humidity_humidity') }} %RH.
+
+  - id: watchdog_recovery_notification
+    alias: "Watchdog: Recovery Notification"
+    mode: parallel
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_battery_bank_stale
+        from: "on"
+        to: "off"
+        id: battery_bank
+      - platform: state
+        entity_id: binary_sensor.watchdog_ecobee_stale
+        from: "on"
+        to: "off"
+        id: ecobee
+      - platform: state
+        entity_id: binary_sensor.watchdog_ups_stale
+        from: "on"
+        to: "off"
+        id: ups
+      - platform: state
+        entity_id: binary_sensor.watchdog_sem_stale
+        from: "on"
+        to: "off"
+        id: sem
+      - platform: state
+        entity_id: binary_sensor.watchdog_basement_th_stale
+        from: "on"
+        to: "off"
+        id: basement_th
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: {{ trigger.id | title }} Recovered"
+          message: "{{ trigger.id | title }} sensors are updating normally again at {{ now().strftime('%H:%M:%S') }}"
+          notification_id: "watchdog_{{ trigger.id }}"
+
+# -----------------------------------------------------------------------------
+# Scripts: Manual Reload
+# -----------------------------------------------------------------------------
+script:
+  watchdog_reload_all_stale:
+    alias: "Watchdog: Reload All Stale Integrations"
+    icon: mdi:reload-alert
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_battery_bank_stale
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.battery_bank_monitor_battery_voltage
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_ecobee_stale
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.upstairs_current_temperature
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_ups_stale
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.ups_monitor_battery_voltage
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_sem_stale
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.sem_whole_home_power
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_basement_th_stale
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.basement_th_node_basement_humidity
+      - service: persistent_notification.create
+        data:
+          title: "Watchdog: Manual Reload Complete"
+          message: "All stale integrations have been reloaded at {{ now().strftime('%H:%M:%S') }}"

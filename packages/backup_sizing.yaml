@@ -1,0 +1,504 @@
+# =====================================================================
+# BACKUP SIZING — peak-hold instrumentation for the 12 V LiFePO4 bank
+#
+# PURPOSE. Sizing an inverter needs SURGE, not average. Induction motors pull
+# 3-8x running current for 100 ms - 2 s at start, and the SEM publishes every
+# 2.0 s, so most starts are missed entirely. Measured 2026-08-23:
+#
+#   AC compressor start   first sample already at running current - 0x surge seen
+#   Fridge start          ONE sample at 2277.4 W, 0.4 s later 111.9 W
+#                         3 samples of 10,194 in 8 h landed above half-peak
+#
+# So a captured peak is a LUCKY CATCH and a LOWER BOUND on the true surge.
+# These sensors keep the luckiest catch across every start, which over weeks
+# converges on a usable floor for sizing. They cannot become an upper bound;
+# for that you need a sampler faster than the motor's run-up.
+#
+# WHY NOT `statistics` value_max. It would hold a 43,200-sample deque per
+# channel at 2 s over 24 h and recompute the max on every update - about 21,600
+# comparisons a second across five channels, on a host already at 15% CPU.
+# A trigger-template latch is O(1) per update and restores across restarts.
+#
+# SCOPE (set by the user 2026-08-23): fridge, furnace HEAT, Kitchen Counter 2
+# (coffee maker), HWH recirc, plus flat loads (lights/TV/computer).
+# NEVER on the bank: AC, dryer, microwave.
+#
+# *** THE FURNACE NUMBER HERE IS NOT THE WINTER NUMBER. ***
+# It is August. sensor.sem_furnace_power currently sees the AIR HANDLER running
+# for COOLING. Heat mode adds the inducer motor and igniter and may run the
+# blower at a different speed. The furnace is the #1 essential load for winter
+# backup and its heat-mode draw is UNMEASURED until the first heat call. Press
+# the reset button then, and re-read these peaks after a week of real heating.
+# =====================================================================
+
+input_button:
+  reset_load_peaks:
+    name: "Reset Load Peaks"
+    icon: mdi:restart
+
+template:
+  # ----- live sum of the circuits that would actually be on the bank -----
+  - sensor:
+      - name: "Backup Essentials Load"
+        unique_id: backup_essentials_load
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:home-battery
+        availability: >
+          {{ states('sensor.sem_fridge_power') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        # COMPOSES sensor.monitoring_load rather than repeating its members.
+        # Before P16 both this sum and monitoring_load listed the same plugs, so
+        # adding the basement router meant editing two lists and forgetting one
+        # would be silent. Add a monitoring circuit in ONE place now.
+        state: >
+          {{ ((states('sensor.sem_fridge_power') | float(0))
+              + (states('sensor.sem_furnace_power') | float(0))
+              + (states('sensor.sem_counter_2_power') | float(0))
+              + (states('sensor.hwh_current_consumption') | float(0))
+              + (states('sensor.monitoring_load') | float(0)))
+             | round(0) }}
+        attributes:
+          # Amps drawn FROM the bank, which is what decides whether the BMS can
+          # carry it - not the watts. Uses the bank's OWN reported voltage
+          # rather than a nominal 12.5, falling back only if the ESP is
+          # unreachable. 88% inverter efficiency.
+          amps_at_bank_v: >
+            {% set v = states('sensor.battery_bank_monitor_battery_voltage')
+                       | float(12.8) %}
+            {{ (((states('sensor.sem_fridge_power') | float(0))
+                 + (states('sensor.sem_furnace_power') | float(0))
+                 + (states('sensor.sem_counter_2_power') | float(0))
+                 + (states('sensor.hwh_current_consumption') | float(0))
+                 + (states('sensor.monitoring_load') | float(0)))
+                / ([v, 10.0] | max * 0.88)) | round(0) }}
+
+  # ----- the monitoring brain -------------------------------------------
+  # HA host, the UPS outlet feeding the modem/network, and the basement router.
+  # BILL CONFIRMED 2026-08-24 that the router plugs STRAIGHT INTO THE WALL, not
+  # the UPS - so these are independent circuits and summing them is correct.
+  # That confirmation is the warrant; the coincident-step test below only
+  # agreed with it, and per R14 it should have been an answered question rather
+  # than an investigation.
+  # This is the load that
+  # runs for the WHOLE outage regardless of what else is shed, so it sets the
+  # floor on runtime. Verified independent (not nested) before summing - see the
+  # header of this file.
+  - sensor:
+      - name: "Monitoring Load"
+        unique_id: backup_monitoring_load
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:server-network
+        availability: >
+          {{ states('sensor.ha_n100_pc_current_consumption') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ ((states('sensor.ha_n100_pc_current_consumption') | float(0))
+              + (states('sensor.ups_outlet_current_consumption') | float(0))
+              + (states('sensor.basement_router_current_consumption')
+                 | float(0)))
+             | round(1) }}
+
+  # ----- peak hold, one block per load -----------------------------------
+  # Each latches its own previous state. `trigger.entity_id` distinguishes a new
+  # sample from a reset press. is_number() guards the latch against an
+  # `unavailable` transition clobbering a held peak - the same failure that cost
+  # the dehumidifier SPC 15 nights (see packages/spc.yaml).
+  - trigger:
+      - platform: state
+        entity_id: sensor.sem_fridge_power
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Fridge Peak Watts"
+        unique_id: backup_fridge_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:fridge-alert
+        state: >
+          {% set v = states('sensor.sem_fridge_power') | float(0) %}
+          {% set p = states('sensor.fridge_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.sem_fridge_power')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.sem_fridge_power') | float(0) %}
+            {% set p = states('sensor.fridge_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.fridge_peak_watts', 'occurred') }}
+            {% endif %}
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.sem_furnace_power
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Furnace Peak Watts"
+        unique_id: backup_furnace_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:fire-alert
+        state: >
+          {% set v = states('sensor.sem_furnace_power') | float(0) %}
+          {% set p = states('sensor.furnace_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.sem_furnace_power')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.sem_furnace_power') | float(0) %}
+            {% set p = states('sensor.furnace_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.furnace_peak_watts', 'occurred') }}
+            {% endif %}
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.sem_counter_2_power
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Coffee Maker Peak Watts"
+        unique_id: backup_coffee_maker_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:coffee-maker
+        state: >
+          {% set v = states('sensor.sem_counter_2_power') | float(0) %}
+          {% set p = states('sensor.coffee_maker_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.sem_counter_2_power')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.sem_counter_2_power') | float(0) %}
+            {% set p = states('sensor.coffee_maker_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.coffee_maker_peak_watts', 'occurred') }}
+            {% endif %}
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.hwh_current_consumption
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "HWH Recirc Peak Watts"
+        unique_id: backup_hwh_recirc_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:pump
+        state: >
+          {% set v = states('sensor.hwh_current_consumption') | float(0) %}
+          {% set p = states('sensor.hwh_recirc_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.hwh_current_consumption')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.hwh_current_consumption') | float(0) %}
+            {% set p = states('sensor.hwh_recirc_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.hwh_recirc_peak_watts', 'occurred') }}
+            {% endif %}
+
+  # ----- basement router peak ---------------------------------------------
+  # The card had the RAW plug sensor in the peak row, so it showed live watts.
+  # As of P16 the router IS counted, via sensor.monitoring_load - Bill confirmed
+  # 2026-08-24 it is on the wall, not the UPS (see this file's header).
+  - trigger:
+      - platform: state
+        entity_id: sensor.basement_router_current_consumption
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Basement Router Peak Watts"
+        unique_id: backup_basement_router_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:router-network
+        state: >
+          {% set v = states('sensor.basement_router_current_consumption')
+                     | float(0) %}
+          {% set p = states('sensor.basement_router_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.basement_router_current_consumption')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.basement_router_current_consumption')
+                       | float(0) %}
+            {% set p = states('sensor.basement_router_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks'
+                  or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.basement_router_peak_watts', 'occurred') }}
+            {% endif %}
+
+  # ----- 1/min sample of the cumulative energy (P18) ---------------------
+  # Lossless: the accumulator carries everything between reads.
+  - trigger:
+      - platform: time_pattern
+        minutes: "/1"
+    sensor:
+      - name: "Backup Essentials Energy Sampled"
+        unique_id: backup_essentials_energy_sampled
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        icon: mdi:sigma
+        # MUST FAIL CLOSED. `| float(0)` on an absent integral yields a real
+        # -looking 0.0, which change_second then turns into 0 W of average load -
+        # i.e. "the bank lasts forever". Seen for real on 2026-08-24 when
+        # reload_all did not start the integration platform.
+        availability: >
+          {{ states('sensor.backup_essentials_energy') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ states('sensor.backup_essentials_energy') | float(0) | round(6) }}
+
+  # ----- time-weighted 24 h average power, in watts ----------------------
+  - sensor:
+      - name: "Backup Essentials Avg 24h"
+        unique_id: backup_essentials_avg_24h
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:timer-outline
+        # Negative means the accumulator went backwards - a restart or a reset,
+        # which is a fault rather than noise. Fail to unavailable, never to 0.
+        # Three conditions, and the third is the one that was missing: a rate of
+        # exactly 0.0 from an EMPTY statistics buffer is indistinguishable from a
+        # genuine zero load, so require the window to actually hold samples.
+        availability: >
+          {{ states('sensor.backup_essentials_energy_rate') not in
+             ['unknown', 'unavailable', 'none', ''] and
+             states('sensor.backup_essentials_energy_rate') | float(-1) >= 0 and
+             state_attr('sensor.backup_essentials_energy_rate',
+                        'age_coverage_ratio') | float(0) > 0 }}
+        state: >
+          {{ (states('sensor.backup_essentials_energy_rate') | float(0)
+              * 3600000) | round(0) }}
+        attributes:
+          # Passed through so the card can say "filling" until the window is
+          # full, rather than quoting a two-hour mean as a 24 h figure.
+          age_coverage_ratio: >
+            {{ state_attr('sensor.backup_essentials_energy_rate',
+                          'age_coverage_ratio') | float(0) }}
+
+  # ----- the RUNTIME indicator --------------------------------------------
+  # Sampled once a minute purely so the 24 h statistics buffer below is 1,440
+  # entries instead of 43,200. See this file's header.
+  - trigger:
+      - platform: time_pattern
+        minutes: "/1"
+    sensor:
+      - name: "Backup Essentials Sampled"
+        unique_id: backup_essentials_sampled
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:timer-sand
+        state: >
+          {{ states('sensor.backup_essentials_load') | float(0) | round(0) }}
+
+  # The one that actually sizes the inverter: highest simultaneous essentials
+  # draw ever observed, including whichever surge happened to be caught.
+  - trigger:
+      - platform: state
+        entity_id: sensor.backup_essentials_load
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Backup Essentials Peak Watts"
+        unique_id: backup_essentials_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:home-lightning-bolt
+        state: >
+          {% set v = states('sensor.backup_essentials_load') | float(0) %}
+          {% set p = states('sensor.backup_essentials_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.backup_essentials_load')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.backup_essentials_load') | float(0) %}
+            {% set p = states('sensor.backup_essentials_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.backup_essentials_peak_watts', 'occurred') }}
+            {% endif %}
+          amps_at_bank_v: >
+            {% set v = states('sensor.backup_essentials_load') | float(0) %}
+            {% set p = states('sensor.backup_essentials_peak_watts') | float(0) %}
+            {% set bv = states('sensor.battery_bank_monitor_battery_voltage')
+                        | float(12.8) %}
+            {{ (([v, p] | max) / ([bv, 10.0] | max * 0.85)) | round(0) }}
+
+  - trigger:
+      - platform: state
+        entity_id: sensor.monitoring_load
+      - platform: state
+        entity_id: input_button.reset_load_peaks
+      # Trigger templates have NO state until something fires. Without this a
+      # peak reads unknown until its source next changes - which for a load that
+      # is off, like the coffee maker, can be days - and every peak blanks again
+      # after each restart. Firing on start re-seeds it.
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: "Monitoring Peak Watts"
+        unique_id: backup_monitoring_peak_watts
+        unit_of_measurement: "W"
+        device_class: power
+        icon: mdi:server-network-outline
+        state: >
+          {% set v = states('sensor.monitoring_load') | float(0) %}
+          {% set p = states('sensor.monitoring_peak_watts') | float(0) %}
+          {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
+            {{ v | round(0) }}
+          {% elif is_number(states('sensor.monitoring_load')) %}
+            {{ [v, p] | max | round(0) }}
+          {% else %}
+            {{ p | round(0) }}
+          {% endif %}
+        attributes:
+          occurred: >
+            {% set v = states('sensor.monitoring_load') | float(0) %}
+            {% set p = states('sensor.monitoring_peak_watts') | float(0) %}
+            {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
+              {{ now().isoformat() }}
+            {% else %}
+              {{ state_attr('sensor.monitoring_peak_watts', 'occurred') }}
+            {% endif %}
+
+sensor:
+  # THE number for runtime. 24 h is the first window whose rolling average
+  # converges (28% spread, against 293% at 1 h) - short windows swing with
+  # whether a furnace call is inside them. sampling_size covers 1,440 one-minute
+  # samples with headroom so max_age stays the binding limit.
+  # SUPERSEDED 2026-08-24 by sensor.backup_essentials_avg_24h, which integrates
+  # rather than point-sampling. Kept defined so its history survives; do not use
+  # it for runtime. It point-samples POWER once a minute, so its answer depends
+  # on which second it fires (5.4% spread across sampling phases, measured).
+  - platform: statistics
+    name: "Backup Essentials Mean 24h"
+    unique_id: backup_essentials_mean_24h
+    entity_id: sensor.backup_essentials_sampled
+    # average_linear, NOT mean. `mean` is the arithmetic mean of the buffer and
+    # is only a time average when the samples are evenly spaced. They are, while
+    # the 1-minute sampler is feeding it live - but on restart the statistics
+    # platform restores its buffer from the RECORDER, which collapses repeated
+    # identical values. The sampled sensor's recorded history already contains
+    # gaps of 120, 180 and 420 s where the value simply did not change, so a
+    # restored buffer is NON-uniform and an unweighted mean over it would
+    # over-weight the periods when load was moving. That is the same sampling
+    # bias that made utility_electric_power_mean run +7.0% high on 2026-08-23,
+    # arriving by a different door. average_linear is immune to spacing.
+    state_characteristic: average_linear
+    max_age:
+      hours: 24
+    sampling_size: 1600
+
+  # --- THE runtime instrument (P18) --------------------------------------
+  # Accumulates power*dt on every update of backup_essentials_load, so a 0.5 s
+  # inrush contributes exactly its own energy and nothing more. method: left
+  # because the source is a step function; max_sub_interval keeps the integral
+  # advancing when a load sits constant for a long stretch.
+  - platform: integration
+    source: sensor.backup_essentials_load
+    name: "Backup Essentials Energy"
+    unique_id: backup_essentials_energy
+    unit_prefix: k
+    unit_time: h
+    method: left
+    max_sub_interval:
+      minutes: 1
+    round: 6
+
+  # change_second over the SAMPLED total. Sampling a cumulative accumulator once
+  # a minute is lossless - the integration happened between the reads - which is
+  # why the same 1-minute cadence that aliases POWER is safe on ENERGY.
+  # precision: kWh/s at ~250 W is about 7e-5, so default rounding would show 0.0.
+  # That exact trap cost a deploy cycle on utility_electric_power_rate.
+  - platform: statistics
+    name: "Backup Essentials Energy Rate"
+    unique_id: backup_essentials_energy_rate
+    entity_id: sensor.backup_essentials_energy_sampled
+    state_characteristic: change_second
+    max_age:
+      hours: 24
+    sampling_size: 1600
+    precision: 12

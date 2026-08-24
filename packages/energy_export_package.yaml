@@ -1,0 +1,31 @@
+shell_command:
+  daily_energy_export: "python3 /config/scripts/daily_energy_export.py"
+
+automation:
+  - id: daily_energy_csv_export
+    alias: "Daily Energy CSV Export (00:15)"
+    mode: single
+    trigger:
+      - platform: time
+        at: "00:15:00"
+    action:
+      # Guarded 2026-08-22. Appends one row to www/energy/energy_daily_master.csv
+      # and writes the day file. No retry and no stale detector, so a silent
+      # skip is a permanent hole in the record - the guard logs instead.
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.ha_maintenance_mode
+                state: "on"
+            sequence:
+              - action: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    Daily energy CSV export SKIPPED - ha_maintenance_mode is on.
+                    www/energy/energy_YYYY-MM-DD.csv and the master append are
+                    both missing for this date and will not retry. Run
+                    shell_command.daily_energy_export by hand once maintenance
+                    is over.
+        default:
+          - action: shell_command.daily_energy_export
