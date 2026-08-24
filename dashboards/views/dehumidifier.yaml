@@ -205,7 +205,7 @@ sections:
     apex_config:
       annotations:
         yaxis:
-        - y: 60
+        - 'y': 60
           borderColor: '#d32f2f'
           label:
             text: 60% mold ceiling
@@ -607,7 +607,7 @@ sections:
     apex_config:
       annotations:
         yaxis:
-        - y: 0
+        - 'y': 0
           borderColor: '#2e7d32'
           strokeDashArray: 4
           label:
@@ -677,7 +677,7 @@ sections:
     apex_config:
       annotations:
         yaxis:
-        - y: 0
+        - 'y': 0
           borderColor: '#b71c1c'
           label:
             text: DEW POINT REACHED
@@ -733,7 +733,7 @@ sections:
     apex_config:
       annotations:
         yaxis:
-        - y: 0
+        - 'y': 0
           borderColor: '#2e7d32'
           strokeDashArray: 4
           label:
@@ -1189,7 +1189,7 @@ sections:
     apex_config:
       annotations:
         yaxis:
-        - y: 0
+        - 'y': 0
           borderColor: '#2e7d32'
           strokeDashArray: 4
           label:

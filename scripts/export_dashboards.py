@@ -44,12 +44,34 @@ P = lambda *a: os.path.join(CONFIG, *a)
 SKIP = ("lovelace_dashboards", "lovelace_resources")
 
 
+# Strings a YAML 1.1 parser coerces to bool/null and PyYAML does NOT.
+#
+# 2026-08-24, EARNED THE HARD WAY. apexcharts annotations use the key `y`.
+# PyYAML's bool resolver matches yes|no|true|false|on|off but NOT bare `y`, so
+# it emits `y: 60` unquoted and reads it straight back as the string "y" - a
+# clean round-trip that proves nothing. Home Assistant's FRONTEND parses the
+# raw configuration editor with js-yaml on a YAML 1.1 bool set, where `y` IS
+# true. Pasting such YAML rewrote five annotation keys in
+# .storage/lovelace.lovelace as the literal string "true", silently killing the
+# 60 % mold-ceiling line and four zero lines on the live dehumidifier view.
+#
+# Round-tripping through the same library you dumped with is not a test. The
+# parser that matters is the one that CONSUMES the file (R6). Quote anything
+# either dialect could reinterpret.
+_AMBIGUOUS = frozenset("""
+y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off
+OFF ~ null Null NULL
+""".split())
+
+
 def _yaml():
     import yaml
 
     def block(dumper, data):
         if "\n" in data:
             return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        if data in _AMBIGUOUS:
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
     yaml.add_representer(str, block)
