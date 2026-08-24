@@ -65,3 +65,6 @@ scripts/.verify_*.tmp
 
 # ESPHome Device Builder local artifacts - the peer link key is a credential
 esphome/.device-builder*
+
+# LibreOffice / OpenOffice lock files (appear while a CSV is open in a viewer)
+.~lock.*#
