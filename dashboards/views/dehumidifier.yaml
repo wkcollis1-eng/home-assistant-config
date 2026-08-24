@@ -274,6 +274,21 @@ sections:
       {% set max_ok  = is_number(max_raw) %}
       {% set max_h   = max_raw | float(0) %}
       {% set comp    = is_state('binary_sensor.dehumidifier_compressor_active', 'on') %}
+      {# BAND POSITION. binary_sensor.dehumidifier_should_run is a START signal -
+         `temp >= min_temp and rh > rh_on` - with no hysteresis and no knowledge of
+         the OFF threshold. Between OFF and ON it is correctly false WHILE THE UNIT
+         IS LEGITIMATELY RUNNING, because the stop is owned by dehumidifier_auto_off,
+         which triggers on rh < rh_off. Reported 2026-08-24: the Live Status row
+         labelled that sensor "Should run (control verdict)", so at RH 52.5 mid-cycle
+         the card said the verdict was Off while the compressor ran and the OFF
+         setpoint was 0.5 points away. Nothing was wrong with the control; the card
+         was asking a different question from the one its label claimed. A
+         hysteresis loop has THREE states and the card showed two. #}
+      {% set rh_now = states('sensor.basement_th_node_basement_humidity') %}
+      {% set rh_ok  = is_number(rh_now) %}
+      {% set rhv    = rh_now | float(0) %}
+      {% set on_th  = states('input_number.dehumidifier_rh_on_threshold')  | float(0) %}
+      {% set off_th = states('input_number.dehumidifier_rh_off_threshold') | float(0) %}
       {% set run_min = ((as_timestamp(now()) - as_timestamp(on_s, 0)) / 60) if on_ok else 0 %}
       {% set off_min = ((as_timestamp(now()) - as_timestamp(off_s, 0)) / 60) if off_ok else 0 %}
       {% if is_state('switch.dehumidifier', 'on') %}
@@ -286,6 +301,7 @@ sections:
          max-cycle guards key on. #}
       {% if comp %}**COMPRESSOR RUNNING**{% else %}**POWERED — fan sampling, compressor off**{% endif %} — {{ run_min | round(0) }} min since switch-on.
 
+      - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv <= off_th %}RH {{ rhv | round(1) }} % is at or below OFF {{ off_th | round(1) }} — **stop is due**{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % sits between OFF {{ off_th | round(1) }} and ON {{ on_th | round(1) }} — **holding, correctly**; it runs on down to {{ off_th | round(1) }} %{% endif %}
       - Min-run {{ min_run | round(0) }} min: {{ '✅ satisfied' if run_min >= min_run else '🔒 held ' ~ ((min_run - run_min) | round(0)) ~ ' min more' }}
       - Max cycle {{ ((max_h * 60) | round(0)) if max_ok else '⚠️ unreadable' }}{{ ' min: ' ~ (((max_h * 60) - run_min) | round(0)) ~ ' min to backstop' if max_ok else ' — the backstop falls back to a 2 h cap' }}
       {% else %}
@@ -298,6 +314,7 @@ sections:
       {% if off_ok %}
       **OFF** — {{ off_min | round(0) }} min since last stop ({{ states('input_select.dehumidifier_last_stop_reason') }}).
 
+      - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % is below ON {{ on_th | round(1) }} — **holding off, correctly**; it starts above {{ on_th | round(1) }} %{% endif %}
       - Min-off {{ min_off | round(0) }} min: {{ '✅ clear to start' if off_min >= min_off else '🔒 locked out ' ~ ((min_off - off_min) | round(0)) ~ ' min more' }}
       - Mold force-on override bypasses min-off after 10 min
       {% else %}
@@ -324,7 +341,7 @@ sections:
     - entity: sensor.basement_th_node_basement_temperature
       name: Basement temp (control)
     - entity: binary_sensor.dehumidifier_should_run
-      name: Should run (control verdict)
+      name: Start demand (RH above ON) — not a run/stop verdict
     - entity: binary_sensor.dehumidifier_compressor_active
       name: Compressor
     - type: divider
