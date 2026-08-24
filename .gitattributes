@@ -18,6 +18,16 @@
 *.md    text eol=lf
 *.sql   text eol=lf
 
+# CSV: explicitly OPTED OUT of normalisation, not merely omitted.
+# 2026-08-24: the comment above said CSV was left off this list so the
+# append-only reporting data would not be rewritten on checkout. Omission does
+# not do that. An unlisted extension is `text: unspecified`, which falls back to
+# core.autocrlf - on this Windows/Samba working copy that is exactly the
+# rewrite the comment forbids, and git says so: staging www/energy/*.csv emits
+# "LF will be replaced by CRLF the next time Git touches it" 57 times.
+# -text turns the stated intent into an enforced one.
+*.csv   -text
+
 # Binary — never touch.
 *.db    binary
 *.png   binary
