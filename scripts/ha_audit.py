@@ -151,9 +151,24 @@ def known_entities():
     for rel in config_files():
         cfg = load(rel) or {}
         for dom in ("input_number", "input_datetime", "input_boolean", "input_select",
-                    "input_text", "counter", "utility_meter"):
+                    "input_text", "counter"):
             for k in (cfg.get(dom) or {}):
                 ents.add("%s.%s" % (dom, k))
+    # utility_meter is a COMPONENT, not an entity domain: it creates sensor.*
+    # ids from `name:` (falling back to the config key), one per tariff when
+    # tariffs are declared. 2026-08-24: this loop used to emit
+    # "utility_meter.<key>", so all 43 YAML meters were absent from the known
+    # set and any reference to one would have been reported unresolved. Same
+    # synthesis defect this function's own docstring describes for unique_id,
+    # in the same function. Fixed alongside the identical bug in
+    # scripts/gen_reference.py.
+    for rel in config_files():
+        for k, v in ((load(rel) or {}).get("utility_meter") or {}).items():
+            v = v if isinstance(v, dict) else {}
+            base = slug(v.get("name") or k)
+            tf = v.get("tariffs") or []
+            for oid in (["%s_%s" % (base, slug(t)) for t in tf] if tf else [base]):
+                ents.add("sensor." + oid)
     # YAML automations and scripts. Added 2026-08-22: rule_entity_refs_resolve
     # flagged automation.sdr_water_meter_leak_now, which is declared right there
     # in packages/utility_meters.yaml - it was simply not registered yet. HA
@@ -646,16 +661,76 @@ def rule_chart_window_vs_recorder():
         keep = (cfg.get("recorder") or {}).get("purge_keep_days")
     if not keep:
         return
+
+    def _apex_cards(node, out):
+        """Every custom:apexcharts-card dict anywhere in a dashboard config."""
+        if isinstance(node, dict):
+            if node.get("type") == "custom:apexcharts-card":
+                out.append(node)
+            for v in node.values():
+                _apex_cards(v, out)
+        elif isinstance(node, list):
+            for v in node:
+                _apex_cards(v, out)
+        return out
+
+    for rel in _dashboard_files():
+        # 2026-08-24, TWO DEFECTS FIXED HERE, both R6 - the rule was written from
+        # an assumption about apexcharts-card's API instead of from the shipped JS.
+        #
+        # 1. It looked for the literal `statistics: true`. That is not an option
+        #    the card has. Reading www/community/apexcharts-card/apexcharts-card.js
+        #    shows `statistics` is an OBJECT taking `period` (5minute|hour|day|
+        #    week|month) and `type` (mean|min|max|sum|state|change), which it
+        #    feeds to statistics_during_period. So the escape hatch could never
+        #    be satisfied by a correct config, and the fix the message told you
+        #    to apply does not exist.
+        # 2. The check was whole-FILE. One occurrence anywhere in a 200 KB
+        #    dashboard muted every chart in it - a blanket suppression wearing
+        #    the clothes of a per-chart exemption.
+        #
+        # Now parsed and scoped per card, and a card counts as covered only when
+        # EVERY series reads statistics; one raw series still draws blanks.
+        cfg = load(rel)
+        if not cfg:
+            continue
+        for card in _apex_cards(cfg, []):
+            span = card.get("graph_span")
+            m = re.match(r"^(\d+)d$", str(span or ""))
+            if not m or int(m.group(1)) <= keep:
+                continue
+            series = card.get("series") or []
+            # A series is safe from the purge horizon if it reads long-term
+            # statistics OR generates its own points. 2026-08-24: the first
+            # version of this check only accepted `statistics`, so a chart whose
+            # constant reference line uses a data_generator - the idiom the SPC
+            # control limits already use, and the only option for an
+            # input_number, which has no state_class and therefore no long-term
+            # statistics - stayed flagged with nothing left to fix. A warning
+            # you cannot clear teaches you to ignore the rule.
+            covered = bool(series) and all(
+                isinstance(sr, dict) and (sr.get("statistics") or sr.get("data_generator"))
+                for sr in series)
+            if covered:
+                continue
+            title = ((card.get("header") or {}).get("title")
+                     or (series[0].get("entity") if series and isinstance(series[0], dict) else "?"))
+            warn("chart-window-exceeds-recorder",
+                 "%s: chart %r asks for %sd but recorder purge_keep_days is %s - "
+                 "the extra %dd can only ever be blank. Give EVERY series a "
+                 "`statistics:` block (period: day, type: mean|state|...) or "
+                 "shorten the span"
+                 % (rel, title, m.group(1), keep, int(m.group(1)) - keep))
+
     for rel in _dashboard_files():
         src = text(rel)
-        if not src or "statistics: true" in src:
+        if not src:
             continue
-        for m in re.finditer(r"^\s*(?:graph_span|days_to_show):\s*(\d+)d\s*$", src, re.M):
+        for m in re.finditer(r"^\s*days_to_show:\s*(\d+)\s*$", src, re.M):
             if int(m.group(1)) > keep:
                 warn("chart-window-exceeds-recorder",
                      "%s asks for %sd but recorder purge_keep_days is %s - the "
-                     "extra %dd can only ever be blank (set `statistics: true` "
-                     "or shorten the span)"
+                     "extra %dd can only ever be blank"
                      % (rel, m.group(1), keep, int(m.group(1)) - keep))
         for m in re.finditer(r"^\s*hours_to_show:\s*(\d+)\s*$", src, re.M):
             if int(m.group(1)) > keep * 24:
@@ -1067,6 +1142,20 @@ def main():
     if not man:
         sys.exit("pipelines.yaml not found under %s" % CONFIG)
     ents = known_entities()
+
+    # Union in the LIVE state machine when a token is reachable. Strictly
+    # additive: it can only remove false positives, never create findings, and
+    # the audit stays fully offline when there is no token (its whole design).
+    #
+    # 2026-08-24: rule_entity_refs_resolve reported sun.sun x4 as unresolved on
+    # the Energy Performance dashboard. sun.sun exists and reads above_horizon.
+    # It has no entity-registry row (core integrations with no config entry do
+    # not get one) and does not restore, so the offline set cannot see it, and
+    # neither can any amount of YAML parsing. A checker that cries wolf about a
+    # core entity spends the trust the real findings need (R7).
+    _live, _live_err = _live_states()
+    if _live:
+        ents |= set(s["entity_id"] for s in _live if s.get("entity_id"))
 
     rule_manifest_matches_config(man)
     rule_entities_resolve(man, ents)

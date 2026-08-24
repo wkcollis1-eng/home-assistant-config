@@ -416,20 +416,32 @@ views:
         color: '#4CAF50'
         stroke_width: 2
         yaxis_id: energy
+        statistics:
+          type: state
+          period: day
       - entity: sensor.computer_outlet_this_month_s_consumption
         name: Computer
         color: '#2196F3'
         stroke_width: 2
         yaxis_id: energy
+        statistics:
+          type: state
+          period: day
       - entity: sensor.dehumidifier_this_month_s_consumption
         name: Dehumidifier
         color: '#00BCD4'
         stroke_width: 2
         yaxis_id: energy
+        statistics:
+          type: state
+          period: day
       - entity: sensor.living_room_tv_sonos_homatics_this_month_s_consumption
         name: TV/Sonos/Homatics
         color: '#F7D88B'
         stroke_width: 2
+        statistics:
+          type: state
+          period: day
       grid_options:
         columns: 12
         rows: 7
@@ -2059,7 +2071,7 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 11.8
+          - 'y': 11.8
             borderColor: '#FF5722'
             borderWidth: 2
             strokeDashArray: 5
@@ -2070,7 +2082,7 @@ views:
                 color: '#FF5722'
                 background: transparent
                 fontSize: 11px
-          - y: 12.2
+          - 'y': 12.2
             borderColor: '#FF7043'
             borderWidth: 2
             strokeDashArray: 5
@@ -2081,7 +2093,7 @@ views:
                 color: '#FF7043'
                 background: transparent
                 fontSize: 11px
-          - y: 12.4
+          - 'y': 12.4
             borderColor: '#FF9800'
             borderWidth: 2
             strokeDashArray: 4
@@ -2092,7 +2104,7 @@ views:
                 color: '#FF9800'
                 background: transparent
                 fontSize: 11px
-          - y: 12.65
+          - 'y': 12.65
             borderColor: '#F44336'
             borderWidth: 2
             strokeDashArray: 4
@@ -2103,7 +2115,7 @@ views:
                 color: '#F44336'
                 background: transparent
                 fontSize: 11px
-          - y: 13.15
+          - 'y': 13.15
             borderColor: '#26C6DA'
             borderWidth: 1
             strokeDashArray: 3
@@ -2114,7 +2126,7 @@ views:
                 color: '#26C6DA'
                 background: transparent
                 fontSize: 11px
-          - y: 13.3
+          - 'y': 13.3
             borderColor: '#00CA8B'
             borderWidth: 2
             strokeDashArray: 0
@@ -2161,11 +2173,11 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 0
+          - 'y': 0
             borderColor: '#888888'
             borderWidth: 1
             strokeDashArray: 2
-          - y: -1.18
+          - 'y': -1.18
             borderColor: '#66BB6A'
             borderWidth: 1
             strokeDashArray: 4
@@ -2212,7 +2224,7 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: -14.9
+          - 'y': -14.9
             borderColor: '#FFA726'
             borderWidth: 1
             strokeDashArray: 4
@@ -2259,11 +2271,11 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 0
+          - 'y': 0
             borderColor: '#555555'
             borderWidth: 1
             strokeDashArray: 2
-          - y: -3
+          - 'y': -3
             borderColor: '#FF9800'
             borderWidth: 2
             strokeDashArray: 4
@@ -2274,7 +2286,7 @@ views:
                 color: '#FF9800'
                 background: transparent
                 fontSize: 11px
-          - y: -10
+          - 'y': -10
             borderColor: '#F44336'
             borderWidth: 2
             strokeDashArray: 4
@@ -2285,7 +2297,7 @@ views:
                 color: '#F44336'
                 background: transparent
                 fontSize: 11px
-          - y: -58
+          - 'y': -58
             borderColor: '#9C27B0'
             borderWidth: 1
             strokeDashArray: 3
@@ -2396,7 +2408,7 @@ views:
         annotations:
           yaxis:
           - yAxisIndex: 0
-            y: 8
+            'y': 8
             strokeDashArray: 4
             borderColor: '#c0392b'
             label:
@@ -2405,7 +2417,7 @@ views:
                 color: '#c0392b'
                 background: transparent
           - yAxisIndex: 1
-            y: 53.3
+            'y': 53.3
             strokeDashArray: 3
             borderColor: '#2980b9'
             label:
@@ -2470,7 +2482,7 @@ views:
         annotations:
           yaxis:
           - yAxisIndex: 0
-            y: 12.65
+            'y': 12.65
             strokeDashArray: 4
             borderColor: '#F44336'
             label:
@@ -2479,7 +2491,7 @@ views:
                 color: '#F44336'
                 background: transparent
           - yAxisIndex: 0
-            y: 12.4
+            'y': 12.4
             strokeDashArray: 4
             borderColor: '#e67e22'
             label:
@@ -2488,7 +2500,7 @@ views:
                 color: '#e67e22'
                 background: transparent
           - yAxisIndex: 0
-            y: 12.2
+            'y': 12.2
             strokeDashArray: 4
             borderColor: '#c0392b'
             label:
@@ -2497,7 +2509,7 @@ views:
                 color: '#c0392b'
                 background: transparent
           - yAxisIndex: 0
-            y: 11.8
+            'y': 11.8
             strokeDashArray: 2
             borderColor: '#7f8c8d'
             label:
@@ -2506,7 +2518,7 @@ views:
                 color: '#7f8c8d'
                 background: transparent
           - yAxisIndex: 1
-            y: 4.18
+            'y': 4.18
             strokeDashArray: 3
             borderColor: '#e67e22'
             label:
@@ -2530,7 +2542,7 @@ views:
         ### Status: <font color="{{ phase_color }}">{{ phase }}</font>
 
         {% if rt > 0 %}
-        ### Runtime: <font color="{{ phase_color }}">{{ (rt // 60) | int }}h {{ (rt % 60) | int }}m</font>
+        ### Runtime: <font color="{{ phase_color }}">{{ (rt // 60) | int(0) }}h {{ (rt % 60) | int(0) }}m</font>
         {% elif phase in ['Charging', 'Float'] %}
         ### Runtime: <font color="cyan">-- On AC Power</font>
         {% else %}
@@ -2952,7 +2964,7 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 11.8
+          - 'y': 11.8
             borderColor: '#FF5722'
             borderWidth: 2
             strokeDashArray: 5
@@ -2963,7 +2975,7 @@ views:
                 color: '#FF5722'
                 background: transparent
                 fontSize: 11px
-          - y: 12.2
+          - 'y': 12.2
             borderColor: '#FF7043'
             borderWidth: 2
             strokeDashArray: 5
@@ -2974,7 +2986,7 @@ views:
                 color: '#FF7043'
                 background: transparent
                 fontSize: 11px
-          - y: 12.4
+          - 'y': 12.4
             borderColor: '#FF9800'
             borderWidth: 2
             strokeDashArray: 4
@@ -2985,7 +2997,7 @@ views:
                 color: '#FF9800'
                 background: transparent
                 fontSize: 11px
-          - y: 13.262
+          - 'y': 13.262
             borderColor: '#00CA8B'
             borderWidth: 1
             strokeDashArray: 3
@@ -2996,7 +3008,7 @@ views:
                 color: '#00CA8B'
                 background: transparent
                 fontSize: 10px
-          - y: 14.2
+          - 'y': 14.2
             borderColor: '#29B6F6'
             borderWidth: 2
             strokeDashArray: 4
@@ -3007,7 +3019,7 @@ views:
                 color: '#29B6F6'
                 background: transparent
                 fontSize: 11px
-          - y: 14.6
+          - 'y': 14.6
             borderColor: '#26C6DA'
             borderWidth: 1
             strokeDashArray: 3
@@ -3018,7 +3030,7 @@ views:
                 color: '#26C6DA'
                 background: transparent
                 fontSize: 10px
-          - y: 14.8
+          - 'y': 14.8
             borderColor: '#db4437'
             borderWidth: 2
             strokeDashArray: 5
@@ -3065,11 +3077,11 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 0
+          - 'y': 0
             borderColor: '#888888'
             borderWidth: 1
             strokeDashArray: 2
-          - y: 80
+          - 'y': 80
             borderColor: '#26C6DA'
             borderWidth: 1
             strokeDashArray: 4
@@ -3080,7 +3092,7 @@ views:
                 color: '#26C6DA'
                 background: transparent
                 fontSize: 10px
-          - y: -50
+          - 'y': -50
             borderColor: '#FF9800'
             borderWidth: 1
             strokeDashArray: 4
@@ -3091,7 +3103,7 @@ views:
                 color: '#FF9800'
                 background: transparent
                 fontSize: 10px
-          - y: -117
+          - 'y': -117
             borderColor: '#9C27B0'
             borderWidth: 1
             strokeDashArray: 3
@@ -3138,11 +3150,11 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 0
+          - 'y': 0
             borderColor: '#888888'
             borderWidth: 1
             strokeDashArray: 2
-          - y: 1168
+          - 'y': 1168
             borderColor: '#26C6DA'
             borderWidth: 1
             strokeDashArray: 4
@@ -3153,7 +3165,7 @@ views:
                 color: '#26C6DA'
                 background: transparent
                 fontSize: 10px
-          - y: -1500
+          - 'y': -1500
             borderColor: '#c0392b'
             borderWidth: 1
             strokeDashArray: 4
@@ -3200,7 +3212,7 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 20
+          - 'y': 20
             borderColor: '#F44336'
             borderWidth: 2
             strokeDashArray: 5
@@ -3247,11 +3259,11 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 0
+          - 'y': 0
             borderColor: '#555555'
             borderWidth: 1
             strokeDashArray: 2
-          - y: -3
+          - 'y': -3
             borderColor: '#FF9800'
             borderWidth: 2
             strokeDashArray: 4
@@ -3262,7 +3274,7 @@ views:
                 color: '#FF9800'
                 background: transparent
                 fontSize: 11px
-          - y: -10
+          - 'y': -10
             borderColor: '#F44336'
             borderWidth: 2
             strokeDashArray: 4
@@ -3305,7 +3317,7 @@ views:
           curve: smooth
         annotations:
           yaxis:
-          - y: 32
+          - 'y': 32
             borderColor: '#db4437'
             borderWidth: 2
             strokeDashArray: 5
@@ -3415,8 +3427,8 @@ views:
         | Ah Charged | {{ ahc | round(2) }} Ah |
         | Ah Discharged | {{ ahd | round(2) }} Ah |
         | Full-charge cycles | {{ cyc }} |
-        | HW Net Charge (INA228 reg) | {{ states('sensor.battery_bank_monitor_hw_net_charge_ina228') }} Ah |
-        | Integration Δ (SW−HW) | {{ states('sensor.battery_bank_monitor_cycle_integration_delta_sw_hw') }} Ah |
+        | HW Net Charge (INA228 reg) | {{ states('sensor.basement_battery_bank_monitor_hw_net_charge_ina228') }} Ah |
+        | Integration Δ (SW−HW) | {{ states('sensor.basement_battery_bank_monitor_cycle_integration_delta_sw_hw') }} Ah |
         | CV Absorption (live) | {{ cve if cve not in ['unknown', 'unavailable'] else '---' }} min |
 
         ***
@@ -4103,7 +4115,7 @@ views:
             format: MM/dd
         annotations:
           yaxis:
-          - y: 10
+          - 'y': 10
             borderColor: '#E24B4A'
             strokeDashArray: 4
             label:
@@ -4117,7 +4129,7 @@ views:
         legend:
           show: false
         tooltip:
-          y:
+          'y':
             formatter: |
               EVAL:function(val) {
                 return val !== null && val > 0 ? val.toFixed(1) + ' min/cycle' : 'No data';
@@ -4169,7 +4181,7 @@ views:
           shared: true
         annotations:
           yaxis:
-          - y: 5
+          - 'y': 5
             borderColor: '#ff6b6b'
             borderWidth: 2
             strokeDashArray: 5
@@ -4256,7 +4268,7 @@ views:
             format: MM/dd
         annotations:
           yaxis:
-          - y: 8
+          - 'y': 8
             borderColor: '#E24B4A'
             strokeDashArray: 4
             label:
@@ -4270,7 +4282,7 @@ views:
         legend:
           show: false
         tooltip:
-          y:
+          'y':
             formatter: |
               EVAL:function(val) {
                 return val !== null && val > 0 ? val.toFixed(1) + ' min/cycle' : 'No data';
@@ -4380,7 +4392,7 @@ views:
           - Dec
         annotations:
           yaxis:
-          - y: 8
+          - 'y': 8
             borderColor: '#E24B4A'
             strokeDashArray: 4
             label:
@@ -4395,7 +4407,7 @@ views:
           show: true
           position: top
         tooltip:
-          y:
+          'y':
             formatter: |
               EVAL:function(val, opts) {
                 if (val === null || val === 0) return 'No data';
@@ -4493,7 +4505,7 @@ views:
           - Dec
         annotations:
           yaxis:
-          - y: 50
+          - 'y': 50
             borderColor: '#BA7517'
             strokeDashArray: 3
             label:
@@ -4506,7 +4518,7 @@ views:
         legend:
           show: false
         tooltip:
-          y:
+          'y':
             formatter: |
               EVAL:function(val) {
                 return val !== null ? val.toFixed(1) + '% short-cycle days' : 'No data';
@@ -4561,11 +4573,11 @@ views:
         {# ── Overall health score (0-4 issues) ────────────────────────── #} {% set issues = namespace(n=0) %} {% if short_pct_7d >= 60 %}{% set issues.n = issues.n + 1 %}{% endif %} {% if rt_count >= 3 and rt_hdd_7d > rt_hdd_ucl %}{% set issues.n = issues.n + 1 %}{% endif %} {% if pipe_status == 'fault' %}{% set issues.n = issues.n + 1 %}{% endif %} {% if ac_samples >= 3 and ac_short_7d >= 60 %}{% set issues.n = issues.n + 1 %}{% endif %}
         <div style="font-family:'Roboto',sans-serif; line-height:1.55; max-width:920px;">
         <h2 style="border-bottom:2px solid #444; padding-bottom:5px; margin-bottom:6px; font-size:1.05em;"> 🩺 Diagnostic Analysis — {{ '🟢 All systems normal' if issues.n == 0 else ('🟡 ' ~ issues.n ~ ' item' ~ ('s' if issues.n > 1 else '') ~ ' need attention') if issues.n <= 2 else '🔴 Multiple issues — review below' }} </h2> <p style="color:#666; font-size:0.80em; margin:0 0 12px 0;"> Furnace {{ '▶ running' if heating_on else '◼ idle' }} · AC {{ '▶ running' if cooling_on else '◼ idle' }} · {{ outdoor }}°F outdoor · HDD today {{ hdd_today | round(1) }} · CDD today {{ cdd_today | round(1) }} · Updated {{ now().strftime('%H:%M') }} </p>
-        {# ── FURNACE CYCLE QUALITY ─────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if short_pct_7d < 30 else ('🟡' if short_pct_7d < 60 else '🔴') }} Furnace Cycle Quality </h3> <table style="width:100%; border-collapse:collapse; font-size:0.86em; margin-bottom:10px;"> <tr style="color:#888; border-bottom:1px solid #333;"> <td style="padding:3px 8px; width:26%;">Metric</td> <td style="padding:3px 8px; width:18%;">Value</td> <td style="padding:3px 8px;">Interpretation</td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">Live min/cycle</td> <td style="padding:4px 8px; font-weight:bold;"> {{ mpc_live | round(1) if mpc_live > 0 else '—' }}{{ ' min' if mpc_live > 0 else '' }} </td> <td style="padding:4px 8px; color:#888;"> {{ '🟢 healthy cycle in progress' if mpc_live >= 8 and heating_on else ('🔴 short cycle — under 8 min' if mpc_live > 0 and mpc_live < 8 and heating_on else 'furnace not currently running') }} </td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">7-day mean</td> <td style="padding:4px 8px; font-weight:bold;"> {{ mpc_mean | round(1) if mpc_mean > 0 else '—' }}{{ ' min' if mpc_mean > 0 else '' }} </td> <td style="padding:4px 8px; color:#888;"> {% if mpc_samples < 3 %} ⚪ Insufficient data ({{ mpc_samples }}/3 minimum days) {% elif mpc_mean >= 10 %} 🟢 Optimal range — steady-state combustion {% elif mpc_mean >= 8 %} 🟢 Acceptable — above 8-min threshold {% elif mpc_mean >= 6 %} 🟡 Borderline — approaching short-cycle losses {% else %} 🔴 Short-cycling confirmed — check differential settings {% endif %} </td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">SPC bounds (7d)</td> <td style="padding:4px 8px; font-weight:bold;"> [{{ mpc_lcl | round(1) }}, {{ mpc_ucl | round(1) }}] </td> <td style="padding:4px 8px; color:#888;"> {% if mpc_samples < 3 %}⚪ Window not yet populated {% elif mpc_mean > mpc_ucl %}🔴 Above UCL — abnormally long cycles (verify sensor) {% elif mpc_mean < mpc_lcl %}🔴 Below LCL — confirm short-cycle correction is working {% else %}🟢 Mean within ±2σ control limits · σ={{ mpc_sigma | round(2) }} {% endif %} </td> </tr> <tr> <td style="padding:4px 8px; color:#aaa;">Short-cycle rate (7d)</td> <td style="padding:4px 8px; font-weight:bold; color:{{ '#ff6b6b' if short_pct_7d >= 60 else ('#ffb300' if short_pct_7d >= 30 else '#81c784') }};"> {{ short_pct_7d | round(0) | int }}% </td> <td style="padding:4px 8px; color:#888;"> {% if short_pct_7d >= 75 %} 🔴 Severe — >75% of days below 8-min threshold · differential settings require review {% elif short_pct_7d >= 60 %} 🔴 High — majority of days short-cycling · verify Ecobee 1F=2.0°F 2F=1.5°F setting {% elif short_pct_7d >= 30 %} 🟡 Moderate — present on shoulder-season low-load days · expected with ECM furnace {% elif short_pct_7d > 0 %} 🟢 Low — within acceptable range for current outdoor conditions {% else %} 🟢 No short-cycle days in 7-day window {% endif %} </td> </tr> </table>
-        {# ── AC CYCLE QUALITY ──────────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '⚪' if ac_samples == 0 else ('🟢' if ac_short_7d < 30 else ('🟡' if ac_short_7d < 60 else '🔴')) }} AC Cycle Quality </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> {% if ac_samples == 0 %} ⚪ No AC operation in 7-day window — no cycle data to assess. {% else %} 7d mean: <b>{{ ac_mpc_mean | round(1) }} min/cycle</b> · σ={{ ac_mpc_sigma | round(1) }} · {% if ac_mpc_mean >= 10 %} 🟢 Optimal range. {% elif ac_mpc_mean >= 8 %} 🟡 Borderline — approaching 10-min threshold. {% if ac_mpc_sigma > 4 %} High σ indicates overnight cycles are shorter than daytime runs.{% endif %} {% else %} 🔴 Short-cycling — compressor contactor wear risk. Verify 1F cool differential ≥ 2.0°F and overnight setpoint ≥ 78°F. {% endif %} Short-cycle rate: <b>{{ ac_short_7d | round(0) | int }}%</b> {{ '🟢' if ac_short_7d < 30 else ('🟡' if ac_short_7d < 60 else '🔴') }} · {{ ac_samples }} sample days. {% endif %} </p>
+        {# ── FURNACE CYCLE QUALITY ─────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if short_pct_7d < 30 else ('🟡' if short_pct_7d < 60 else '🔴') }} Furnace Cycle Quality </h3> <table style="width:100%; border-collapse:collapse; font-size:0.86em; margin-bottom:10px;"> <tr style="color:#888; border-bottom:1px solid #333;"> <td style="padding:3px 8px; width:26%;">Metric</td> <td style="padding:3px 8px; width:18%;">Value</td> <td style="padding:3px 8px;">Interpretation</td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">Live min/cycle</td> <td style="padding:4px 8px; font-weight:bold;"> {{ mpc_live | round(1) if mpc_live > 0 else '—' }}{{ ' min' if mpc_live > 0 else '' }} </td> <td style="padding:4px 8px; color:#888;"> {{ '🟢 healthy cycle in progress' if mpc_live >= 8 and heating_on else ('🔴 short cycle — under 8 min' if mpc_live > 0 and mpc_live < 8 and heating_on else 'furnace not currently running') }} </td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">7-day mean</td> <td style="padding:4px 8px; font-weight:bold;"> {{ mpc_mean | round(1) if mpc_mean > 0 else '—' }}{{ ' min' if mpc_mean > 0 else '' }} </td> <td style="padding:4px 8px; color:#888;"> {% if mpc_samples < 3 %} ⚪ Insufficient data ({{ mpc_samples }}/3 minimum days) {% elif mpc_mean >= 10 %} 🟢 Optimal range — steady-state combustion {% elif mpc_mean >= 8 %} 🟢 Acceptable — above 8-min threshold {% elif mpc_mean >= 6 %} 🟡 Borderline — approaching short-cycle losses {% else %} 🔴 Short-cycling confirmed — check differential settings {% endif %} </td> </tr> <tr style="border-bottom:1px solid #222;"> <td style="padding:4px 8px; color:#aaa;">SPC bounds (7d)</td> <td style="padding:4px 8px; font-weight:bold;"> [{{ mpc_lcl | round(1) }}, {{ mpc_ucl | round(1) }}] </td> <td style="padding:4px 8px; color:#888;"> {% if mpc_samples < 3 %}⚪ Window not yet populated {% elif mpc_mean > mpc_ucl %}🔴 Above UCL — abnormally long cycles (verify sensor) {% elif mpc_mean < mpc_lcl %}🔴 Below LCL — confirm short-cycle correction is working {% else %}🟢 Mean within ±2σ control limits · σ={{ mpc_sigma | round(2) }} {% endif %} </td> </tr> <tr> <td style="padding:4px 8px; color:#aaa;">Short-cycle rate (7d)</td> <td style="padding:4px 8px; font-weight:bold; color:{{ '#ff6b6b' if short_pct_7d >= 60 else ('#ffb300' if short_pct_7d >= 30 else '#81c784') }};"> {{ short_pct_7d | round(0) | int(0) }}% </td> <td style="padding:4px 8px; color:#888;"> {% if short_pct_7d >= 75 %} 🔴 Severe — >75% of days below 8-min threshold · differential settings require review {% elif short_pct_7d >= 60 %} 🔴 High — majority of days short-cycling · verify Ecobee 1F=2.0°F 2F=1.5°F setting {% elif short_pct_7d >= 30 %} 🟡 Moderate — present on shoulder-season low-load days · expected with ECM furnace {% elif short_pct_7d > 0 %} 🟢 Low — within acceptable range for current outdoor conditions {% else %} 🟢 No short-cycle days in 7-day window {% endif %} </td> </tr> </table>
+        {# ── AC CYCLE QUALITY ──────────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '⚪' if ac_samples == 0 else ('🟢' if ac_short_7d < 30 else ('🟡' if ac_short_7d < 60 else '🔴')) }} AC Cycle Quality </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> {% if ac_samples == 0 %} ⚪ No AC operation in 7-day window — no cycle data to assess. {% else %} 7d mean: <b>{{ ac_mpc_mean | round(1) }} min/cycle</b> · σ={{ ac_mpc_sigma | round(1) }} · {% if ac_mpc_mean >= 10 %} 🟢 Optimal range. {% elif ac_mpc_mean >= 8 %} 🟡 Borderline — approaching 10-min threshold. {% if ac_mpc_sigma > 4 %} High σ indicates overnight cycles are shorter than daytime runs.{% endif %} {% else %} 🔴 Short-cycling — compressor contactor wear risk. Verify 1F cool differential ≥ 2.0°F and overnight setpoint ≥ 78°F. {% endif %} Short-cycle rate: <b>{{ ac_short_7d | round(0) | int(0) }}%</b> {{ '🟢' if ac_short_7d < 30 else ('🟡' if ac_short_7d < 60 else '🔴') }} · {{ ac_samples }} sample days. {% endif %} </p>
         {# ── RUNTIME / HDD EFFICIENCY ──────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '⚪' if rt_count < 3 else ('🟢' if rt_in_ctrl else ('🟡' if rt_hdd_7d <= rt_hdd_ucl else '🔴')) }} Runtime Efficiency (7-day SPC) </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> {% if rt_count < 3 %} ⚪ SPC window needs {{ 3 - rt_count }} more HDD day{{ 's' if (3 - rt_count) > 1 else '' }} to establish control limits. {% else %} Runtime/HDD: <b>{{ rt_hdd_7d | round(1) }} min/HDD</b> · Mean {{ rt_hdd_mean | round(1) }} · Bounds [{{ rt_hdd_lcl | round(1) }}, {{ rt_hdd_ucl | round(1) }}] · {% if rt_hdd_7d > rt_hdd_ucl %} 🔴 <b>Above UCL</b> — furnace working harder than its established norm. Primary suspects: dirty air filter, partially closed registers, or increased duct leakage. Check filter immediately; measure static pressure if filter is clean. {% elif rt_hdd_7d > rt_hdd_mean %} 🟡 Elevated — between mean and UCL. Current outdoor conditions may be driving higher load. Monitor for trend; no action if stable. {% elif rt_hdd_7d >= rt_hdd_lcl %} 🟢 In control — operating within established norms for this season. {% else %} 🔵 Below LCL — verify outdoor temperature sensor and HDD accumulator are updating correctly. {% endif %} {% endif %} </p>
-        {# ── ZONE BALANCE AND CHAINING ─────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if (45 <= zone_bal <= 68) else '🟡' }} Zone Balance &amp; Chaining </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> <b>Zone balance MTD:</b> {{ zone_bal | round(1) }}% 2F load · {% if zone_bal > 68 %} 🔴 2F heavily dominant — verify 1F damper opens fully and check 1F duct runs. {% elif zone_bal > 58 %} 🟡 2F-dominant — typical for roof load on colonial; monitor for trend above 68%. {% elif zone_bal >= 45 %} 🟢 Balanced — normal 2-zone distribution. {% else %} 🟡 1F-dominant — check 2F thermostat response and zone damper. {% endif %} <br> <b>Chaining index today:</b> {{ chain | round(2) if chain > 0 else '—' }} (MTD: {{ chain_mtd | round(2) }}) · {% if chain_mtd >= 1.5 %} 🟢 Excellent — both zones frequently sharing single furnace ignitions. {% elif chain_mtd >= 1.3 %} 🟢 Good chaining — zones overlapping efficiently. {% elif chain_mtd >= 1.1 %} 🟡 Mostly sequential calls — limited zone heat sharing. {% else %} 🟡 Near 1.0 — essentially single-zone operation pattern this month. {% endif %} <br> Today: {{ furn_cycles }} ignitions · 1F {{ (rt_1f * 60) | round(0) | int }} min · 2F {{ (rt_2f * 60) | round(0) | int }} min · {{ calls_today }} zone calls · {{ furn_runtime | round(2) }}h furnace runtime. </p>
-        {# ── SETBACK RECOVERY ──────────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if (rec_1f > 0 and rec_1f < 25 and rec_2f > 0 and rec_2f < 35) else ('⚪' if rec_1f == 0 else '🟡') }} Setback Recovery </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> {% if rec_1f == 0 and rec_2f == 0 %} ⚪ No recovery data yet today — will populate after the next morning setback ramp. {% else %} <b>1F last recovery:</b> {{ rec_1f | round(1) }} min to {{ hold_1f }}°F · {% if rec_1f < 8 %}🟢 Fast — low overnight load{% elif rec_1f < 18 %}🟢 Normal{% elif rec_1f < 25 %}🟡 Slightly long — may reflect cold start or high setback depth{% else %}🔴 Long recovery — check zone damper and duct delivery{% endif %} · <b>2F last recovery:</b> {{ rec_2f | round(1) }} min to {{ hold_2f }}°F · {% if rec_2f < 12 %}🟢 Fast{% elif rec_2f < 25 %}🟢 Normal for 1,500 sq ft zone{% elif rec_2f < 35 %}🟡 Elevated — expected on cold mornings, verify no duct restriction{% else %}🔴 Long — inspect 2F zone damper and verify duct CFM{% endif %}. <br> Recovery time is proportional to setback depth and outdoor temperature; colder mornings will always produce longer values. Σ of 1F + 2F recovery > 50 min warrants investigation. Current total: <b>{{ (rec_1f + rec_2f) | round(0) | int }} min</b> {{ '🟢' if (rec_1f + rec_2f) < 40 else ('🟡' if (rec_1f + rec_2f) < 50 else '🔴') }}. {% endif %} </p>
+        {# ── ZONE BALANCE AND CHAINING ─────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if (45 <= zone_bal <= 68) else '🟡' }} Zone Balance &amp; Chaining </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> <b>Zone balance MTD:</b> {{ zone_bal | round(1) }}% 2F load · {% if zone_bal > 68 %} 🔴 2F heavily dominant — verify 1F damper opens fully and check 1F duct runs. {% elif zone_bal > 58 %} 🟡 2F-dominant — typical for roof load on colonial; monitor for trend above 68%. {% elif zone_bal >= 45 %} 🟢 Balanced — normal 2-zone distribution. {% else %} 🟡 1F-dominant — check 2F thermostat response and zone damper. {% endif %} <br> <b>Chaining index today:</b> {{ chain | round(2) if chain > 0 else '—' }} (MTD: {{ chain_mtd | round(2) }}) · {% if chain_mtd >= 1.5 %} 🟢 Excellent — both zones frequently sharing single furnace ignitions. {% elif chain_mtd >= 1.3 %} 🟢 Good chaining — zones overlapping efficiently. {% elif chain_mtd >= 1.1 %} 🟡 Mostly sequential calls — limited zone heat sharing. {% else %} 🟡 Near 1.0 — essentially single-zone operation pattern this month. {% endif %} <br> Today: {{ furn_cycles }} ignitions · 1F {{ (rt_1f * 60) | round(0) | int(0) }} min · 2F {{ (rt_2f * 60) | round(0) | int(0) }} min · {{ calls_today }} zone calls · {{ furn_runtime | round(2) }}h furnace runtime. </p>
+        {# ── SETBACK RECOVERY ──────────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if (rec_1f > 0 and rec_1f < 25 and rec_2f > 0 and rec_2f < 35) else ('⚪' if rec_1f == 0 else '🟡') }} Setback Recovery </h3> <p style="font-size:0.86em; color:#888; margin:0 0 10px 8px;"> {% if rec_1f == 0 and rec_2f == 0 %} ⚪ No recovery data yet today — will populate after the next morning setback ramp. {% else %} <b>1F last recovery:</b> {{ rec_1f | round(1) }} min to {{ hold_1f }}°F · {% if rec_1f < 8 %}🟢 Fast — low overnight load{% elif rec_1f < 18 %}🟢 Normal{% elif rec_1f < 25 %}🟡 Slightly long — may reflect cold start or high setback depth{% else %}🔴 Long recovery — check zone damper and duct delivery{% endif %} · <b>2F last recovery:</b> {{ rec_2f | round(1) }} min to {{ hold_2f }}°F · {% if rec_2f < 12 %}🟢 Fast{% elif rec_2f < 25 %}🟢 Normal for 1,500 sq ft zone{% elif rec_2f < 35 %}🟡 Elevated — expected on cold mornings, verify no duct restriction{% else %}🔴 Long — inspect 2F zone damper and verify duct CFM{% endif %}. <br> Recovery time is proportional to setback depth and outdoor temperature; colder mornings will always produce longer values. Σ of 1F + 2F recovery > 50 min warrants investigation. Current total: <b>{{ (rec_1f + rec_2f) | round(0) | int(0) }} min</b> {{ '🟢' if (rec_1f + rec_2f) < 40 else ('🟡' if (rec_1f + rec_2f) < 50 else '🔴') }}. {% endif %} </p>
         {# ── PIPELINE INTEGRITY ────────────────────────────────────────── #} <h3 style="margin:0 0 4px 0; font-size:0.95em;"> {{ '🟢' if pipe_status == 'ok' else ('🟡' if pipe_status == 'degraded' else '🔴') }} Data Pipeline </h3> <p style="font-size:0.86em; color:#888; margin:0 0 6px 8px;"> Status: <b>{{ pipe_status | upper }}</b> · HDD {{ '✓' if hdd_ok == 'ok' else '✗' }} · CDD {{ '✓' if cdd_ok == 'ok' else '✗' }} · Furnace MPC {{ '✓' if fmpc_ok == 'ok' else '✗' }} · AC MPC {{ '✓' if ampc_ok == 'ok' else '✗' }} · {% if pipe_status == 'ok' %} All captures current — SPC window and monthly accumulators updating normally. {% elif pipe_status == 'degraded' %} 🟡 One or more captures stale — check <i>input_datetime.*_capture_last_ok</i> timestamps in Pipeline health panel above. SPC bounds may be based on incomplete data. {% else %} 🔴 Multiple captures failing — SPC analysis and monthly accumulators unreliable. Restart HA and verify automation triggers in Developer Tools. {% endif %} </p>
         </div>
       grid_options:
