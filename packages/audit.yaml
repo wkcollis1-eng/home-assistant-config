@@ -1,0 +1,370 @@
+# ============================================================================
+# packages/audit.yaml
+# Runs scripts/ha_audit.py from the HA UI and keeps its result visible.
+#
+# WHY A PACKAGE OF ITS OWN. The audit spans the whole config — SPC, HVAC,
+# energy, dashboards — so it does not belong inside packages/spc.yaml, and
+# dropping it into configuration.yaml or watchdog.yaml means editing files
+# that already work. A new package is self-contained and cannot break
+# anything that exists.
+#
+# HOW TO RUN IT
+#   Developer Tools > Actions > "Run HA Audit"  (script.ha_audit)
+#     This is the one to use. THREE places the result appears:
+#       1. the Actions response pane, inline (added 2026-08-21 - the script
+#          returns the parsed report via `stop:` + `response_variable:`;
+#          without that a script returns nothing and the pane stays blank,
+#          which is what happened on the first run)
+#       2. Notifications - the bell in the sidebar, full report, FAILs first
+#       3. /config/www/spc/ha_audit.log - every run, appended
+#     ...and the counts land in the input_numbers below for the dashboard.
+#   Developer Tools > Actions > shell_command.ha_audit
+#     Raw. Returns {stdout, stderr, returncode}; verified against HA 2026.8.2
+#     components/shell_command/__init__.py — SupportsResponse.OPTIONAL, no
+#     truncation, non-zero exit is logged rather than raised, 60 s timeout.
+#     The audit runs in ~1.5 s over Samba, so the timeout is not a concern.
+#
+# WHY IT ALSO RUNS ITSELF. An audit you have to remember to run is an audit
+# that does not run — the same reasoning that produced the SPC capture
+# watchdog. automation.nightly_ha_audit runs it at 00:30, after the 00:20
+# buffer backup, and binary_sensor.ha_audit_failing turns the result into
+# something the dashboard can show and an alert can hang off.
+#
+# EXIT CODE. ha_audit.py exits 1 when any FAIL is present. shell_command logs
+# a non-zero return code as an error but does NOT raise, so the script below
+# still runs to completion and reports properly. returncode is in the
+# response if you want it.
+# ============================================================================
+
+shell_command:
+  # --json for the caller to parse, --log so the human-readable report is
+  # still archived. www/ is gitignored (*.log), so this never enters git.
+  #
+  # THE WHOLE COMMAND LIVES IN secrets.yaml, not just a token. HA's `!secret`
+  # cannot be used inside a string, so `HA_TOKEN=!secret x` is impossible - the
+  # entire value has to be the secret. secrets.yaml is gitignored and has never
+  # been committed (verified 2026-08-23: 0 commits touch it in any branch);
+  # packages/ is tracked, so the token could not live here.
+  #
+  # The env vars it carries let rule_statistics_buffer reach /api/states. That
+  # rule had NEVER run in the nightly audit: it tried the Supervisor proxy at
+  # http://supervisor/core/api/states and got 401, because that route is for
+  # ADD-ONS and a shell_command runs inside HA Core itself. See P13.
+  #
+  # Until the placeholder in secrets.yaml is replaced with a real token the
+  # audit still runs and simply reports `live-check-skipped` - a coverage gap
+  # that announces itself, which is the correct failure direction.
+  #
+  # shell_command is NOT reloadable. Changing this needs a restart.
+  ha_audit: !secret ha_audit_cmd
+
+  # --- the audit's own test suite -----------------------------------------
+  # No secret needed, unlike ha_audit above: the suite does not need HA_TOKEN.
+  # Without HA_URL the throwaway tree it builds simply reports
+  # live-check-skipped, which the harness expects - so the whole command can
+  # live here in tracked YAML. Writes only to the system temp dir, never
+  # /config. shell_command is NOT reloadable; this needs a RESTART.
+  ha_audit_tests: "python3 /config/scripts/test_ha_audit.py --json"
+
+input_number:
+  # Written by script.ha_audit. Plain numbers rather than parsing the summary
+  # line with a regex — a reworded finding cannot silently break the sensors.
+  ha_audit_fail_count:
+    name: "HA Audit FAIL Count"
+    min: 0
+    max: 999
+    step: 1
+    mode: box
+    icon: mdi:alert-octagon
+  ha_audit_warn_count:
+    name: "HA Audit WARN Count"
+    min: 0
+    max: 999
+    step: 1
+    mode: box
+    icon: mdi:alert
+
+input_datetime:
+  ha_audit_last_run:
+    name: "HA Audit Last Run"
+    has_date: true
+    has_time: true
+
+template:
+  - binary_sensor:
+      # No availability: block, deliberately — same reasoning as the SPC
+      # capture watchdog. A health indicator that can go unavailable fails in
+      # the direction that hides the fault.
+      - name: "HA Audit Failing"
+        unique_id: ha_audit_failing
+        device_class: problem
+        icon: mdi:clipboard-alert
+        state: >
+          {{ states('input_number.ha_audit_fail_count') | float(0) > 0 }}
+        attributes:
+          fail: "{{ states('input_number.ha_audit_fail_count') }}"
+          warn: "{{ states('input_number.ha_audit_warn_count') }}"
+          last_run: "{{ states('input_datetime.ha_audit_last_run') }}"
+
+      # Separate from the FAIL check on purpose: an audit that has not run in
+      # days is its own failure, and it is invisible if you only watch the
+      # FAIL count (which would sit at its last good value forever).
+      - name: "HA Audit Stale"
+        unique_id: ha_audit_stale
+        device_class: problem
+        icon: mdi:clipboard-clock
+        state: >
+          {% set last = states('input_datetime.ha_audit_last_run') | as_datetime %}
+          {% if last is none %}
+            true
+          {% else %}
+            {{ (now().date() - last.date()).days > 2 }}
+          {% endif %}
+
+script:
+  ha_audit:
+    alias: "Run HA Audit"
+    icon: mdi:clipboard-check
+    mode: single
+    sequence:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard.
+      #
+      # This was a bare `condition:` until 2026-08-21. A failing condition
+      # aborts a script silently — no notification, no response, nothing in
+      # the Actions pane. For something you run BY HAND that is the worst
+      # possible behaviour: indistinguishable from "it ran and found
+      # nothing", which is the same fails-quiet pattern the SPC watchdog and
+      # the unparseable-stamp guard were built to eliminate. It now stops
+      # with a response that says so.
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                summary: >-
+                  Skipped: input_boolean.ha_maintenance_mode is on.
+                  Turn it off to run the audit.
+                fail: -1
+                warn: 0
+                info: 0
+                findings: []
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      - service: shell_command.ha_audit
+        response_variable: audit
+      # NEVER put the audit JSON in a script variable. 2026-08-22: this block
+      # was `raw: "{{ audit.stdout | trim }}"`, and every run raised
+      #   ValueError: Template error: from_json got invalid input '{"fail":...
+      # on the `raw | from_json` below - with the quoted input looking like
+      # perfectly valid JSON, which is what made it baffling.
+      #
+      # Cause, read from helpers/template/__init__.py at the pinned 2026.8.2:
+      # every rendered template goes through _parse_result, which runs
+      # ast.literal_eval on the result. This JSON contains only strings, ints,
+      # lists and dicts - no true/false/null - so it is ALSO a valid Python
+      # dict literal. literal_eval succeeds, and `raw` silently stops being a
+      # str and becomes a dict, wrapped by RESULT_WRAPPERS in a subclass whose
+      # __str__ returns the ORIGINAL render text. That wrapper is why the
+      # error message prints immaculate double-quoted JSON while from_json is
+      # being handed a dict and correctly refusing it.
+      #
+      # Verified: from_json on the identical 9,032-byte string via /api/template
+      # returns 13. The string was never the problem; the round-trip through a
+      # script variable was. MAX_TEMPLATE_OUTPUT is 256 KiB, so size is not it
+      # either, and shell_command does not truncate (components/shell_command
+      # /__init__.py line 144 - full decode, .strip() only).
+      #
+      # Fix: read audit.stdout directly at each point of use. A response_variable
+      # holds the real service response, so audit.stdout is a genuine str inside
+      # the template and from_json gets what it expects. The audit had been dead
+      # since packages/audit.yaml was created on 2026-08-21; ha_audit_last_run
+      # still read 2026-08-21 11:06:05 and binary_sensor.ha_audit_stale needs
+      # >2 days, so nothing had said so yet.
+      - if:
+          - condition: template
+            value_template: >-
+              {{ not (audit.stdout | default('', true) | trim).startswith('{') }}
+        then:
+          - variables:
+              broken:
+                summary: >-
+                  ha_audit.py produced no JSON (returncode
+                  {{ audit.returncode | default('?') }}).
+                fail: -1
+                warn: 0
+                info: 0
+                stderr: "{{ audit.stderr | default('') }}"
+                findings: []
+          - service: persistent_notification.create
+            data:
+              notification_id: ha_audit
+              title: "⚠️ HA Audit did not run"
+              message: >
+                {{ broken.summary }}
+
+
+                stderr: {{ broken.stderr }}
+
+
+                Check that python3 and PyYAML are available to HA and that
+                /config/scripts/ha_audit.py and /config/pipelines.yaml exist.
+          - stop: "audit produced no output"
+            response_variable: broken
+      - variables:
+          report: "{{ audit.stdout | trim | from_json }}"
+      - service: input_number.set_value
+        target: {entity_id: input_number.ha_audit_fail_count}
+        data: {value: "{{ report.fail }}"}
+      - service: input_number.set_value
+        target: {entity_id: input_number.ha_audit_warn_count}
+        data: {value: "{{ report.warn }}"}
+      - service: input_datetime.set_datetime
+        target: {entity_id: input_datetime.ha_audit_last_run}
+        data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}
+      - service: persistent_notification.create
+        data:
+          # Fixed id so repeat runs replace the notification instead of
+          # stacking up one per night.
+          notification_id: ha_audit
+          title: >
+            {{ '❌' if report.fail > 0 else '✅' }} HA Audit — {{ report.summary }}
+          message: >
+            Ran {{ report.ran_at }}. Full report:
+            /config/www/spc/ha_audit.log
+
+
+            {% for f in report.findings if f.severity == 'FAIL' -%}
+            **FAIL** `{{ f.rule }}` — {{ f.message }}
+
+            {% endfor -%}
+            {% for f in report.findings if f.severity == 'WARN' -%}
+            WARN `{{ f.rule }}` — {{ f.message }}
+
+            {% endfor -%}
+            {% for f in report.findings if f.severity == 'INFO' -%}
+            INFO `{{ f.rule }}` — {{ f.message }}
+
+            {% endfor %}
+      # Returns the parsed report to the caller, so Developer Tools > Actions
+      # shows it inline instead of an empty response pane. Scripts are
+      # SupportsResponse.OPTIONAL and return ScriptRunResult.service_response,
+      # which is what `stop:` + `response_variable:` populates (verified in
+      # HA 2026.8.2 components/script/__init__.py::_service_handler).
+      - stop: "audit complete"
+        response_variable: report
+
+
+  # -------------------------------------------------------------------------
+  # THE AUDIT'S OWN TEST SUITE                            added 2026-08-24
+  #   Developer Tools > Actions > "Run HA Audit Self-Tests"
+  #
+  # WHY. ha_audit.py is the gate the whole config leans on, and R7 says a gate
+  # untested against a known-bad input is not a gate. Twice on 2026-08-24 a
+  # rule was found silently incapable of firing: rule_doc_ids shipped with a
+  # regex whose word-boundary escape had been mangled into a literal backspace
+  # byte, and rule_shell_commands_guarded is per-NAME, not per-CALL-SITE.
+  # Neither was visible from a clean audit run, because a rule that CANNOT
+  # fire looks exactly like a rule with nothing to report.
+  #
+  # scripts/test_ha_audit.py injects a known fault per covered rule and asserts
+  # it FIRES, then asserts a clean tree is SILENT. Throwaway copies in the
+  # system temp dir; it never writes to /config.
+  # -------------------------------------------------------------------------
+  ha_audit_tests:
+    alias: "Run HA Audit Self-Tests"
+    icon: mdi:test-tube
+    mode: single
+    sequence:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard. Stops
+      # with a response rather than a bare condition, for the same reason
+      # script.ha_audit does: a failing condition aborts silently, which is
+      # indistinguishable from "ran and found nothing".
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                summary: >-
+                  Skipped: input_boolean.ha_maintenance_mode is on.
+                  Turn it off to run the self-tests.
+                passed: "skipped"
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+
+      - service: shell_command.ha_audit_tests
+        response_variable: tests
+
+      # Fail closed. An empty or non-JSON stdout means the suite did not run -
+      # a timeout, a missing python3, a syntax error - and that must never be
+      # reported as a pass.
+      - if:
+          - condition: template
+            value_template: >-
+              {{ not (tests.stdout | default('', true) | trim).startswith('{') }}
+        then:
+          - variables:
+              broken:
+                summary: >-
+                  test_ha_audit.py produced no JSON (returncode
+                  {{ tests.returncode | default('?') }}). The suite did NOT run;
+                  this is not a pass.
+                passed: "error"
+                stderr: "{{ tests.stderr | default('') }}"
+          - stop: "no JSON from the suite"
+            response_variable: broken
+
+      # Read tests.stdout directly at each point of use. NEVER copy it into a
+      # variable first: every rendered template goes through _parse_result,
+      # which literal_evals the result, and this JSON is also a valid Python
+      # dict literal - so the variable silently stops being a str and from_json
+      # then refuses it. That exact bug had script.ha_audit dead from
+      # 2026-08-21 to 2026-08-22. See the note above script.ha_audit.
+      - variables:
+          result:
+            summary: "{{ (tests.stdout | from_json).summary }}"
+            passed: "{{ (tests.stdout | from_json).passed }}"
+            covered: "{{ (tests.stdout | from_json).covered }}"
+            total_rule_ids: "{{ (tests.stdout | from_json).total_rule_ids }}"
+            failures: "{{ (tests.stdout | from_json).failures | join('; ') }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ not (tests.stdout | from_json).passed }}"
+        then:
+          - service: persistent_notification.create
+            data:
+              title: "HA audit self-tests FAILED"
+              notification_id: ha_audit_tests
+              message: >-
+                {{ (tests.stdout | from_json).summary }}
+
+                A rule that cannot fire looks exactly like a rule with nothing
+                to report. Fix the rule or the injector before trusting the
+                next clean audit.
+        else:
+          - service: persistent_notification.dismiss
+            data:
+              notification_id: ha_audit_tests
+
+      - stop: "self-tests complete"
+        response_variable: result
+
+automation:
+  - id: nightly_ha_audit
+    alias: "Nightly HA Audit"
+    description: "Run the static audit after the buffer backup and record the result"
+    mode: single
+    trigger:
+      - platform: time
+        at: "00:30:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.ha_maintenance_mode
+        state: "off"
+    action:
+      - service: script.turn_on
+        target: {entity_id: script.ha_audit}

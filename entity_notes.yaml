@@ -1,0 +1,896 @@
+# Hand-maintained MEANING for entity ids. Existence is derived
+# from the registry by scripts/gen_entities.py - an id here that
+# no longer exists is simply dropped from ENTITIES.md and
+# reported. Seeded 2026-08-23 from CLAUDE.md's old ENTITIES block.
+
+automation.capture_daily_water_overnight_min:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: 00/01/02/03/04/05 :00:45
+automation.nightly_ha_audit:
+  group: AUDIT (packages/audit.yaml)
+  note: 00:30, guarded
+automation.nightly_rolling_buffer_backup:
+  group: SYSTEM (configuration.yaml / packages/spc.yaml)
+  note: 00:20, guarded
+automation.notify_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: persistent_notification, 2h debounce
+automation.sdr_water_meter_leak_flag_set:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: Leak day-bins; OUTAGE BACKSTOP
+automation.sdr_water_meter_leak_now:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: LeakNow; the immediate path, to phone
+automation.sdr_water_meter_leak_now_cleared:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: says when it ends
+binary_sensor.ac_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: season-aware via runtime_today
+binary_sensor.ac_watts_out_of_control:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+binary_sensor.climate_adjusted_efficiency_alert:
+  group: CLIMATE NORMS
+  note: ''
+binary_sensor.climate_cold_snap_today:
+  group: CLIMATE NORMS
+  note: ''
+binary_sensor.cooling_kwh_cdd_out_of_control:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+binary_sensor.cooling_kwh_cdd_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: gated on sensor.hvac_cdd65_today
+binary_sensor.dehumidifier_should_run:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+binary_sensor.dehumidifier_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: gated on counter.dehumidifier_cycles_today
+binary_sensor.dehumidifier_watts_out_of_control:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+binary_sensor.fridge_compressor_running:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+binary_sensor.fridge_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: on = ran today, no capture in >2 days
+binary_sensor.fridge_watts_out_of_control:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+binary_sensor.furnace_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: season-aware via runtime_today
+binary_sensor.furnace_watts_out_of_control:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+binary_sensor.ha_audit_failing:
+  group: AUDIT (packages/audit.yaml)
+  note: problem; fail_count > 0
+binary_sensor.ha_audit_stale:
+  group: AUDIT (packages/audit.yaml)
+  note: problem; no run in >2 days
+binary_sensor.hvac_ac_running:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+binary_sensor.hvac_filter_change_alert:
+  group: FILTER
+  note: fires at >= 1000 hrs
+binary_sensor.hvac_furnace_running:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+binary_sensor.hvac_furnace_short_cycling_alert:
+  group: FURNACE CYCLE TRACKING
+  note: suppressed during recovery
+binary_sensor.hvac_runtime_per_hdd_high_alert:
+  group: EFFICIENCY MONITORING
+  note: '>mean+2σ'
+binary_sensor.hvac_runtime_per_hdd_low_alert:
+  group: EFFICIENCY MONITORING
+  note: <mean-2σ
+binary_sensor.hwh_recirc_pump_running:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+binary_sensor.hwh_recirc_spc_capture_stale:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: ''
+binary_sensor.hwh_recirc_watts_out_of_control:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+binary_sensor.spc_capture_stale_any:
+  group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
+  note: roll-up; attr stale_populations
+binary_sensor.watchdog_battery_bank_stale:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Battery Bank monitor stale detection
+binary_sensor.watchdog_ecobee_stale:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Ecobee temps stale (either sensor)
+binary_sensor.watchdog_sem_stale:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: SEM Meter stale detection
+binary_sensor.watchdog_ups_stale:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: UPS monitor stale detection
+binary_sensor.water_meter_stale:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: no decode in > sdr_water_stale_minutes
+binary_sensor.water_overnight_capture_stale:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: problem; no capture in > 2 days
+binary_sensor.water_overnight_leak_suspected:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: problem; min > threshold
+binary_sensor.water_softener_regen_last_night:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: max > threshold
+climate.main_floor:
+  group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
+  note: 1F Ecobee
+climate.upstairs:
+  group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
+  note: 2F Ecobee
+counter.dehumidifier_cycles_today:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_boolean.ha_maintenance_mode:
+  group: GUARDS / MODES
+  note: gate for all shell_command calls
+input_boolean.watchdog_auto_reload_battery_bank:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Enable auto-reload
+input_boolean.watchdog_auto_reload_ecobee:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_boolean.watchdog_auto_reload_sem:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_boolean.watchdog_auto_reload_ups:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_button.reset_load_peaks:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: press after the first real heat call
+input_datetime.ac_spc_last_capture:
+  group: SPC — AC (packages/spc.yaml)
+  note: measured captures only
+input_datetime.ac_spc_last_seed:
+  group: SPC — AC (packages/spc.yaml)
+  note: startup seed, never a capture
+input_datetime.cooling_kwh_cdd_spc_last_capture:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+input_datetime.dehumidifier_cycle_start_time:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_datetime.dehumidifier_last_cycle_end_time:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_datetime.dehumidifier_spc_last_capture:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: measured captures only
+input_datetime.dehumidifier_spc_last_seed:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: startup seed, never a capture
+input_datetime.fridge_spc_last_capture:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: measured captures only
+input_datetime.fridge_spc_last_seed:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: startup seed, never a capture
+input_datetime.furnace_spc_last_capture:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: measured captures only
+input_datetime.furnace_spc_last_seed:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: startup seed, never a capture
+input_datetime.ha_audit_last_run:
+  group: AUDIT (packages/audit.yaml)
+  note: ''
+input_datetime.hvac_filter_last_changed:
+  group: FILTER
+  note: ''
+input_datetime.hwh_recirc_spc_last_capture:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: measured captures only
+input_datetime.hwh_recirc_spc_last_seed:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: startup seed, never a capture
+input_datetime.water_overnight_capture_last_ok:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: ''
+input_number.ac_power_threshold:
+  group: SPC — AC (packages/spc.yaml)
+  note: default 300W
+input_number.dehumidifier_cycle_start_dp:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_number.dehumidifier_last_cycle_minutes:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_number.dehumidifier_last_hold_hours:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_number.dehumidifier_last_pull_down_rate:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+input_number.dehumidifier_rh_off_threshold:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: default 46%
+input_number.dehumidifier_rh_on_threshold:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: default 49%
+input_number.dhw_bill_thm:
+  group: DHW ARCHIVES
+  note: entry field (Therms → auto CCF)
+input_number.fridge_power_threshold:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: default 50W
+input_number.furnace_power_threshold:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: default 300W
+input_number.ha_audit_fail_count:
+  group: AUDIT (packages/audit.yaml)
+  note: ''
+input_number.ha_audit_warn_count:
+  group: AUDIT (packages/audit.yaml)
+  note: ''
+input_number.hdd_cumulative_month_auto:
+  group: HDD/CDD
+  note: ''
+input_number.hdd_cumulative_year_auto:
+  group: HDD/CDD
+  note: ''
+input_number.hvac_filter_runtime_hours:
+  group: FILTER
+  note: ''
+input_number.hwh_recirc_power_threshold:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: default 70W
+input_number.sdr_leak_now_hold_minutes:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: default 10 (~5 frames at 112 s)
+input_number.watchdog_reload_backoff:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Reload backoff period (minutes)
+input_number.watchdog_threshold_battery_bank:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Stale threshold (minutes)
+input_number.watchdog_threshold_ecobee:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_number.watchdog_threshold_sem:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_number.watchdog_threshold_ups:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: ''
+input_number.water_overnight_leak_threshold:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: default 0.25 (above today's 0.10)
+input_number.water_overnight_min_bins:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: default 3
+input_number.water_regen_threshold_gal:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: default 15
+input_select.dehumidifier_last_stop_reason:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: conditions_cleared|max_runtime
+script.ha_audit:
+  group: AUDIT (packages/audit.yaml)
+  note: '"Run HA Audit" — the one to call'
+script.spc_force_seed_all:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Force seed all SPC day slots from 24h stats
+script.watchdog_reload_all_stale:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Manual reload all stale integrations
+sensor.ac_running_watts_24h:
+  group: SPC — AC (packages/spc.yaml)
+  note: statistics; unavailable while AC is off
+sensor.ac_running_watts_daily:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.ac_running_watts_latched:
+  group: SPC — AC (packages/spc.yaml)
+  note: last numeric 24h mean; what the capture guard reads
+sensor.ac_running_watts_lower:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.ac_running_watts_mean_7d:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.ac_running_watts_sigma_7d:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.ac_running_watts_upper:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.ac_runtime_today:
+  group: SPC — AC (packages/spc.yaml)
+  note: ''
+sensor.backup_essentials_avg_24h:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: THE runtime number; time-weighted, from the integral
+sensor.backup_essentials_energy:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: integration of essentials; power*dt, every ~2 s
+sensor.backup_essentials_energy_rate:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: change_second, kWh/s; precision 12 or it reads 0
+sensor.backup_essentials_energy_sampled:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: 1/min sample of a CUMULATIVE total - lossless
+sensor.backup_essentials_load:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: fridge+furnace+counter2+hwh recirc; attr amps_at_12v
+sensor.backup_essentials_mean_24h:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: SUPERSEDED by backup_essentials_avg_24h; point-samples power
+sensor.backup_essentials_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: THE inverter-sizing number; attr amps_at_12v
+sensor.backup_essentials_sampled:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: 1/min sample so the 24h buffer is 1440 not 43200
+sensor.basement_dew_point:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.basement_router_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: latching peak; counted via monitoring_load since P16
+sensor.basement_router_today_s_consumption:
+  group: KASA PLUGS
+  note: ''
+sensor.climate_norms_status:
+  group: CLIMATE NORMS
+  note: ''
+sensor.climate_norms_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.coffee_maker_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: Counter 2; resistive, no inrush
+sensor.computer_outlet_today_s_consumption:
+  group: KASA PLUGS
+  note: ''
+sensor.cooling_kwh_cdd_daily:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+sensor.cooling_kwh_cdd_lower:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+sensor.cooling_kwh_cdd_mean_7d:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+sensor.cooling_kwh_cdd_sigma_7d:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+sensor.cooling_kwh_cdd_upper:
+  group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_avg_cycle_minutes:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_current:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_dew_point_margin:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_duty_cycle_24h:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_energy:
+  group: KASA PLUGS
+  note: ''
+sensor.dehumidifier_hold_time:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: only valid for conditions_cleared stops
+sensor.dehumidifier_power_when_on:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: raw watts, gated on > power_threshold
+sensor.dehumidifier_power_when_on_steady:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: raw watts, gated to minutes 10-14 of a run
+sensor.dehumidifier_pull_down_rate:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_run_elapsed:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: minutes into current run; 0 when compressor off
+sensor.dehumidifier_running_watts_24h:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: statistics, full-run (diagnostic only)
+sensor.dehumidifier_running_watts_daily:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_running_watts_latched:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: last numeric steady-window mean; capture guard reads this.
+sensor.dehumidifier_running_watts_lower:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_running_watts_mean_7d:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_running_watts_sigma_7d:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_running_watts_steady_24h:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: statistics on the steady gate; feeds the latch
+sensor.dehumidifier_running_watts_upper:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: ''
+sensor.dehumidifier_runtime_today:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_runtime_week:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.dehumidifier_startup_deficit:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: steady_24h minus 24h; control-mode signature, not a fault
+sensor.dehumidifier_steady_sample_count_24h:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: samples behind the steady mean
+sensor.dhw_gas_12m:
+  group: ENERGY METRICS
+  note: ''
+sensor.efficiency_deviation_index:
+  group: CLIMATE NORMS
+  note: ''
+sensor.efficiency_deviation_month:
+  group: MONTHLY REPORT
+  note: ''
+sensor.electric_meter_ert_type:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: ''
+sensor.electric_meter_tamper_enc:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: ''
+sensor.electric_meter_tamper_phy:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: ''
+sensor.expected_cdd_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.expected_hdd_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.expected_runtime_month:
+  group: MONTHLY REPORT
+  note: ''
+sensor.expected_runtime_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.expected_temperature_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.fridge_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: inrush 18-21x running, caught by luck
+sensor.fridge_running_watts_24h:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: statistics; unavailable while fridge is off
+sensor.fridge_running_watts_daily:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.fridge_running_watts_latched:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: last numeric 24h mean; what the capture guard reads
+sensor.fridge_running_watts_lower:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.fridge_running_watts_mean_7d:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.fridge_running_watts_sigma_7d:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.fridge_running_watts_upper:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.fridge_runtime_today:
+  group: SPC — FRIDGE (packages/spc.yaml)
+  note: ''
+sensor.furnace_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: AUGUST VALUE IS COOLING BLOWER, not heat
+sensor.furnace_running_watts_24h:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: statistics; unavailable while blower is off
+sensor.furnace_running_watts_daily:
+  group: KNOWN ISSUES
+  note: was unavailable — fixed 2026-07-20 (threshold + capture stamp)
+sensor.furnace_running_watts_latched:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: last numeric 24h mean; what the capture guard reads
+sensor.furnace_running_watts_lower:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+sensor.furnace_running_watts_mean_7d:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+sensor.furnace_running_watts_sigma_7d:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+sensor.furnace_running_watts_upper:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+sensor.furnace_runtime_today:
+  group: SPC — FURNACE (packages/spc.yaml)
+  note: ''
+sensor.gas_dhw_usage_month:
+  group: ENERGY METRICS
+  note: ''
+sensor.gas_heating_usage_month:
+  group: ENERGY METRICS
+  note: ''
+sensor.gas_meter_ert_type:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: ''
+sensor.gas_meter_tamper_enc:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: ''
+sensor.gas_meter_tamper_phy:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: SCM; watch for a CHANGE, never the value
+sensor.hdd_deviation_today:
+  group: CLIMATE NORMS
+  note: ''
+sensor.hdd_rolling_7_day_auto_2:
+  group: HDD/CDD
+  note: '[_2 FRAGILE]'
+sensor.hvac_1f_runtime_per_hdd_today:
+  group: EFFICIENCY MONITORING
+  note: ''
+sensor.hvac_2f_runtime_per_hdd_today:
+  group: EFFICIENCY MONITORING
+  note: ''
+sensor.hvac_ac_blower_energy:
+  group: HVAC COOLING EFFICIENCY (configuration.yaml)
+  note: cumulative kWh (integration sensor)
+sensor.hvac_ac_blower_power:
+  group: HVAC COOLING EFFICIENCY (configuration.yaml)
+  note: furnace power when AC >100W, else 0
+sensor.hvac_building_load_ua_12m:
+  group: ENERGY METRICS
+  note: ''
+sensor.hvac_building_load_ua_estimate:
+  group: ENERGY METRICS
+  note: ''
+sensor.hvac_cdd65_today:
+  group: HDD/CDD
+  note: ''
+sensor.hvac_chaining_index:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_chaining_index_month:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_chaining_index_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_daily_electric_cost_estimate:
+  group: DAILY COST
+  note: ''
+sensor.hvac_daily_gas_cost_estimate:
+  group: DAILY COST
+  note: ''
+sensor.hvac_daily_total_cost_estimate:
+  group: DAILY COST
+  note: ''
+sensor.hvac_filter_hours_remaining:
+  group: FILTER
+  note: ''
+sensor.hvac_furnace_cycle_data_count:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycle_lower_bound:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycle_mean_7d:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycle_sigma_7d:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycle_upper_bound:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycles_month_2:
+  group: FURNACE CYCLE TRACKING
+  note: '[_2 FRAGILE]'
+sensor.hvac_furnace_cycles_per_day_month:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycles_per_day_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycles_today:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_cycles_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_min_per_cycle:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_min_per_cycle_month:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_min_per_cycle_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_runtime_month_2:
+  group: FURNACE CYCLE TRACKING
+  note: '[_2 FRAGILE]'
+sensor.hvac_furnace_runtime_today:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_furnace_runtime_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_hdd65_today:
+  group: HDD/CDD
+  note: ''
+sensor.hvac_heating_efficiency_12m:
+  group: ENERGY METRICS
+  note: ''
+sensor.hvac_heating_efficiency_mtd:
+  group: ENERGY METRICS
+  note: ''
+sensor.hvac_outdoor_temp_hartford_proxy:
+  group: WEATHER
+  note: combined source (Live>Pirate>NWS>Open-Meteo)
+sensor.hvac_runtime_per_hdd_7_day:
+  group: EFFICIENCY MONITORING
+  note: '[_2 FRAGILE] primary operational metric'
+sensor.hvac_runtime_per_hdd_7_day_mean:
+  group: RUNTIME/HDD STATISTICS
+  note: '[_2 FRAGILE]'
+sensor.hvac_runtime_per_hdd_7_day_std_dev:
+  group: RUNTIME/HDD STATISTICS
+  note: '[_2 FRAGILE]'
+sensor.hvac_runtime_per_hdd_data_count:
+  group: RUNTIME/HDD STATISTICS
+  note: alerts suppressed if <4
+sensor.hvac_runtime_per_hdd_lower_bound_1s:
+  group: RUNTIME/HDD STATISTICS
+  note: ''
+sensor.hvac_runtime_per_hdd_month:
+  group: MONTHLY REPORT
+  note: ''
+sensor.hvac_runtime_per_hdd_upper_bound_1s:
+  group: RUNTIME/HDD STATISTICS
+  note: ''
+sensor.hvac_total_cycles_month:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_total_cycles_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_total_runtime_per_hdd_today:
+  group: EFFICIENCY MONITORING
+  note: ''
+sensor.hvac_zone_overlap_month:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_zone_overlap_percent:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_zone_overlap_today:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hvac_zone_overlap_week:
+  group: FURNACE CYCLE TRACKING
+  note: ''
+sensor.hwh_current_consumption:
+  group: KASA PLUGS
+  note: ''
+sensor.hwh_recirc_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: smart plug on the RECIRC PUMP, not a tank
+sensor.hwh_recirc_running_watts_24h:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: statistics; unavailable while pump is off
+sensor.hwh_recirc_running_watts_daily:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_recirc_running_watts_latched:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: last numeric 24h mean; what the capture guard reads
+sensor.hwh_recirc_running_watts_lower:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_recirc_running_watts_mean_7d:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_recirc_running_watts_sigma_7d:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_recirc_running_watts_upper:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_recirc_runtime_today:
+  group: SPC — HWH RECIRC (packages/spc.yaml)
+  note: ''
+sensor.hwh_today_s_consumption:
+  group: KASA PLUGS
+  note: Hot Water Heater (Basement)
+sensor.living_room_tv_sonos_homatics_today_s_consumption:
+  group: KASA PLUGS
+  note: ''
+sensor.main_floor_current_temperature:
+  group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
+  note: 1F current temp (watchdog monitored)
+sensor.monitoring_load:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: HA host + UPS outlet + router; runs the WHOLE outage
+sensor.monitoring_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: flat load, peak is near running
+sensor.outdoor_temp_live:
+  group: WEATHER
+  note: Open-Meteo 10-min — authoritative CDD65 source
+sensor.outdoor_temp_mean_month:
+  group: MONTHLY REPORT
+  note: ''
+sensor.pirate_weather_cdd_forecast_today:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_cloud_cover:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_condition:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_data_age:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_dew_point:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_feels_like:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_hdd_forecast_7_day:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_hdd_forecast_today:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_hdd_forecast_tomorrow:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_humidity:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_ozone:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_pressure:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_temperature:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_today_condition:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_today_high:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_today_low:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_today_precip_probability:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_tomorrow_condition:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_tomorrow_high:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_tomorrow_low:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_tomorrow_precip_probability:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_uv_index:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_visibility:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_wind_bearing:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_wind_direction:
+  group: WEATHER
+  note: ''
+sensor.pirate_weather_wind_speed:
+  group: WEATHER
+  note: ''
+sensor.recommended_setback_depth:
+  group: 'SETBACK RECOVERY (state machine: IDLE→SETBACK_ACTIVE→RECOVERING→IDLE)'
+  note: ''
+sensor.sem_ac_current:
+  group: SEM METER (packages/sem_meter.yaml)
+  note: ''
+sensor.sem_line_voltage:
+  group: SEM METER (packages/sem_meter.yaml)
+  note: ''
+sensor.sem_other_power:
+  group: SEM METER (packages/sem_meter.yaml)
+  note: whole_home minus branch sum
+sensor.sem_whole_home_power_10min:
+  group: SEM METER (packages/sem_meter.yaml)
+  note: matched partner for utility_electric_power_clean
+sensor.shelly_temperature_humidity_humidity:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.shelly_temperature_humidity_temperature:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''
+sensor.site_eui_estimate:
+  group: ENERGY METRICS
+  note: ''
+sensor.tv_room_today_s_consumption:
+  group: KASA PLUGS
+  note: ''
+sensor.upstairs_current_temperature:
+  group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
+  note: 2F current temp (watchdog monitored)
+sensor.utility_electric_power_avg:
+  group: SDR ELECTRIC — SEM CROSS-CHECK (packages/utility_meters.yaml)
+  note: 60 min mean W from the COUNTER; use this for the SEM check
+sensor.utility_electric_power_rate:
+  group: SDR ELECTRIC — SEM CROSS-CHECK (packages/utility_meters.yaml)
+  note: statistics change_second, kWh/s; precision 9 or it reads 0.0
+sensor.watchdog_stale_sensor_count:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: Count of stale systems
+sensor.water_meter_age:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: minutes since last decode
+sensor.water_meter_backflow:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: BackFlow, 2 bits, past 35 d 0-3
+sensor.water_meter_leak:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: Leak, 4 bits, day bins / 35 d
+sensor.water_meter_leak_now:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: LeakNow, 2 bits, past 24 h 0-3
+sensor.water_meter_no_use:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: NoUse, 6 bits — ENCODING UNCONFIRMED,
+sensor.water_meter_reading:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: rtlamr2mqtt; carries the whole
+sensor.water_meter_volume:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: reading x water_meter_scale, gal
+sensor.water_overnight_bins:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: valid bins last night (need 3 of 5)
+sensor.water_overnight_max_flow:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: busiest bin = the softener regen
+sensor.water_overnight_min_flow:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: last night's minimum hourly bin
+sensor.water_overnight_min_mean_7d:
+  group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
+  note: the TREND - this is the instrument
+switch.dehumidifier:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: ''

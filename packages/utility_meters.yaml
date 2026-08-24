@@ -1,0 +1,1295 @@
+# packages/utility_meters.yaml
+# SDR utility-meter package: gas (Itron 100G DLT, SCM), electric (Vision
+# AirPoint, SCM), water (Neptune R900 v4).
+#
+# The rtlamr2mqtt add-on (ha_autodiscovery: true) creates, per configured
+# meter, a device with two entities:
+#   sensor.<name>_reading    - the RAW transmitted counter
+#   sensor.<name>_last_seen  - ISO timestamp of the last successful decode
+# So with meters named gas_meter / electric_meter / water_meter, the sources
+# are sensor.gas_meter_reading, sensor.gas_meter_last_seen, and so on.
+# VERIFIED against the live instance 2026-08-21 - do not assume other names.
+#
+# CONFIRMED SCALE FACTORS (measured, not inferred):
+#   gas      1.0   ft3/count   - transmitted 568774 vs odometer 5687 x100
+#   water    0.1   gal/count   - lifetime 163,918 gal over ~1795 days = 91 gal/day
+#   electric 0.01  kWh/count   - 3095435 x 0.01 = 30,954 kWh vs LCD 30,899
+#
+# EVERY tunable is an input_number or input_boolean so it can be adjusted from
+# the dashboard without editing YAML or restarting HA.
+#
+# SCALE FACTORS ARE UNVERIFIED UNTIL CALIBRATED. Defaults are best-guess only.
+
+input_boolean:
+  sdr_alerts_enabled:
+    name: SDR meter alerts enabled
+    icon: mdi:bell-ring
+
+input_number:
+  # --- scale factors (set these from the calibration procedure) -------------
+  gas_meter_scale:
+    name: Gas scale (ft3 per count)
+    min: 0.1
+    max: 1000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "ft³"
+    icon: mdi:fire
+
+  water_meter_scale:
+    name: Water scale (gal per count)
+    min: 0.001
+    max: 100
+    step: 0.001
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:water
+
+  electric_meter_scale:
+    name: Electric scale (kWh per count)
+    min: 0.001
+    max: 100
+    step: 0.001
+    mode: box
+    unit_of_measurement: "kWh"
+    icon: mdi:flash
+
+  # --- gas bill reconciliation ---------------------------------------------
+  gas_btu_factor:
+    name: Gas BTU factor (from CNG bill)
+    min: 900
+    max: 1200
+    step: 0.1
+    mode: box
+    unit_of_measurement: "BTU/ft³"
+    icon: mdi:calculator
+
+  gas_pressure_factor:
+    name: Gas pressure correction (from CNG bill)
+    min: 0.5
+    max: 2
+    step: 0.0001
+    mode: box
+    icon: mdi:gauge
+
+  # --- SEM cross-check ------------------------------------------------------
+  sem_compare_window_minutes:
+    name: SEM comparison averaging window
+    min: 5
+    max: 240
+    step: 5
+    mode: box
+    unit_of_measurement: "min"
+    icon: mdi:scale-balance
+
+  # --- staleness thresholds -------------------------------------------------
+  # Gas ticks once per ~1.3 furnace-hours in winter and once every 2-5 DAYS in
+  # summer, so its threshold is on RECEPTION, not on the value changing.
+  sdr_gas_stale_minutes:
+    name: Gas stale threshold
+    min: 5
+    max: 1440
+    step: 5
+    mode: box
+    unit_of_measurement: "min"
+    icon: mdi:timer-alert
+
+  sdr_water_stale_minutes:
+    name: Water stale threshold
+    min: 5
+    max: 1440
+    step: 5
+    mode: box
+    unit_of_measurement: "min"
+    icon: mdi:timer-alert
+
+  sdr_electric_stale_minutes:
+    name: Electric stale threshold
+    min: 5
+    max: 1440
+    step: 5
+    mode: box
+    unit_of_measurement: "min"
+    icon: mdi:timer-alert
+
+  # LeakNow is already the meter's own 24-hour judgement, so a long hold adds
+  # delay without adding confidence. This exists only to reject a single
+  # bad-frame artefact: at the observed ~112 s decode cadence, 10 minutes is
+  # about 5 frames. Reed-Solomon already drops corrupt frames, so this is
+  # belt-and-braces against a decode that passes RS with a wrong flag.
+  sdr_leak_now_hold_minutes:
+    name: SDR leak-now hold before alerting
+    min: 0
+    max: 120
+    step: 1
+    initial: 10
+    unit_of_measurement: "min"
+    mode: box
+    icon: mdi:timer-alert
+
+  sdr_leak_hold_hours:
+    name: Leak flag hold before alerting
+    min: 0.5
+    max: 48
+    step: 0.5
+    mode: box
+    unit_of_measurement: "h"
+    icon: mdi:water-alert
+
+  # === OVERNIGHT MINIMUM FLOW (added 2026-08-22) =======================
+  #
+  # WHY MINIMUM AND NOT TOTAL. The softener regenerates about once a month
+  # around 02:00 and draws tens of gallons. Any metric built on overnight
+  # TOTAL or MEAN would spike one night in thirty and either raise a false
+  # leak alarm or get its threshold widened until it can no longer see a real
+  # leak. The MINIMUM across five hourly bins is immune by construction: a
+  # regen occupies one or two bins and the minimum comes from a clean one.
+  # Nothing has to be excluded, filtered or remembered - the statistic does it.
+  #
+  # AND THE SAME PASS GIVES THE REGEN FOR FREE. The maximum hourly bin IS the
+  # regen - "it will stand out" is precisely what a max is for. One capture,
+  # two signals. A regen that stops happening is itself a fault worth seeing:
+  # salt bridge, stuck valve, dead controller.
+  #
+  # Working state. Not for tuning.
+  water_night_prev_volume:
+    name: "Water night: volume at last hour mark"
+    min: 0
+    max: 99999999
+    step: 0.1
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:counter
+  water_night_min_gal:
+    name: "Water night: running min hourly gal"
+    min: -1
+    max: 99999
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:arrow-down-bold
+  water_night_max_gal:
+    name: "Water night: running max hourly gal"
+    min: -1
+    max: 99999
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:arrow-up-bold
+  water_night_bins:
+    name: "Water night: valid hourly bins"
+    min: 0
+    max: 24
+    step: 1
+    mode: box
+    icon: mdi:counter
+
+  # 7-day rolling buffer of the overnight minimum, same shape as every SPC
+  # buffer here: day_1 is last night, and 0 means "no valid subgroup that
+  # night" so the mean excludes it. The TREND is the instrument - a rising
+  # overnight minimum is the leak signal, not any single value.
+  water_overnight_min_day_1:
+    name: "Water Overnight Min Day 1 (Last Night)"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_2:
+    name: "Water Overnight Min Day 2"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_3:
+    name: "Water Overnight Min Day 3"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_4:
+    name: "Water Overnight Min Day 4"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_5:
+    name: "Water Overnight Min Day 5"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_6:
+    name: "Water Overnight Min Day 6"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+  water_overnight_min_day_7:
+    name: "Water Overnight Min Day 7"
+    min: -1
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "gal/h"
+
+  # A regen is tens of gallons, the idle floor is ~0.1 gal/h. 15 gal in one
+  # hour separates them by two orders of magnitude - this threshold does not
+  # need to be right to within a factor of two.
+  water_regen_threshold_gal:
+    name: "Water: hourly gal that means a softener regen"
+    min: 1
+    max: 200
+    step: 1
+    initial: 15
+    unit_of_measurement: "gal"
+    mode: box
+    icon: mdi:shimmer
+
+  # Deliberately ABOVE the 0.10 gal/h measured 2026-08-22 with the house empty
+  # (four single-count ticks in four hours, 13:13-17:14). An alarm that fires
+  # the night it is installed teaches nothing and gets muted. Isolate the fridge
+  # ice maker first, find the real floor, then lower this. A house with no leak
+  # sits at 0.00-0.02 gal/h.
+  water_overnight_leak_threshold:
+    name: "Water: overnight min that means a leak"
+    min: 0
+    max: 10
+    step: 0.01
+    initial: 0.25
+    unit_of_measurement: "gal/h"
+    mode: box
+    icon: mdi:water-alert
+
+  water_overnight_min_bins:
+    name: "Water: minimum valid bins for a usable night"
+    min: 1
+    max: 5
+    step: 1
+    initial: 3
+    mode: box
+    icon: mdi:counter
+
+input_datetime:
+  # Capture stamp, per the pipeline manifest contract in pipelines.yaml.
+  water_overnight_capture_last_ok:
+    name: "Water Overnight Capture Last OK"
+    has_date: true
+    has_time: true
+
+
+template:
+  - sensor:
+      # --- engineering units -------------------------------------------------
+      - name: "Gas Meter Volume"
+        unique_id: sdr_gas_meter_volume
+        unit_of_measurement: "ft³"
+        device_class: gas
+        state_class: total_increasing
+        availability: >
+          {{ states('sensor.gas_meter_reading') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.gas_meter_reading') | float(0)
+              * states('input_number.gas_meter_scale') | float(100))
+             | round(1) }}
+
+      - name: "Gas Meter Therms"
+        unique_id: sdr_gas_meter_therms
+        unit_of_measurement: "therm"
+        state_class: total_increasing
+        availability: >
+          {{ states('sensor.gas_meter_volume') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.gas_meter_volume') | float(0)
+              * states('input_number.gas_btu_factor') | float(1030)
+              * states('input_number.gas_pressure_factor') | float(1.0)
+              / 100000) | round(4) }}
+
+      - name: "Water Meter Volume"
+        unique_id: sdr_water_meter_volume
+        unit_of_measurement: "gal"
+        device_class: water
+        state_class: total_increasing
+        availability: >
+          {{ states('sensor.water_meter_reading') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.water_meter_reading') | float(0)
+              * states('input_number.water_meter_scale') | float(0.1))
+             | round(2) }}
+
+      # =====================================================================
+      # R900 STATUS FIELDS (added 2026-08-22)
+      #
+      # WHY THESE EXIST. packages/utility_meters.yaml has triggered
+      # automation.sdr_water_leak_flag on sensor.water_meter_leak since it was
+      # written, and that entity had never been created - so the leak alarm
+      # could not fire. The automation's own description anticipated it:
+      # "confirm it in Developer Tools and disable this automation if absent."
+      # Found 2026-08-22 by ha_audit.py rule_entity_refs_resolve.
+      #
+      # The add-on's autodiscovery publishes only <meter>_reading and
+      # <meter>_last_seen as ENTITIES - but it carries the whole decoded R900
+      # frame as ATTRIBUTES on _reading. Verified on the live instance:
+      #   Unkn1 163  NoUse 35  BackFlow 0  Unkn3 0  Leak 0  LeakNow 0
+      # so no add-on change and no MQTT work is needed; these just surface
+      # fields that were already arriving.
+      #
+      # FIELD SEMANTICS, from the decoder source rather than from a forum -
+      # bemasher/rtlamr r900/r900.go, the code that produces these very
+      # attributes:
+      #   NoUse       6 bits   "day bins of no use"
+      #   BackFlow    2 bits   "backflow past 35d hi/lo"
+      #   Leak        4 bits   "day bins of leak"
+      #   LeakNow     2 bits   "leak past 24h hi/lo"
+      #   Unkn1 / Unkn3        undecoded, deliberately not exposed
+      #
+      # READ Leak AND LeakNow DIFFERENTLY. Leak counts DAY BINS over the 35-day
+      # window, so it stays non-zero for weeks after a leak that has already
+      # been fixed - it answers "has this meter seen a leak recently", not "is
+      # water running now". LeakNow is the past-24h indicator and is the one
+      # that answers the second question. The existing alarm triggers on
+      # Leak > 0, which is right for "go look", wrong for "act now" - see
+      # CLAUDE.md P7 for the recommendation.
+      #
+      # CALIBRATION CAVEAT, stated rather than buried: NoUse currently reads 35
+      # on a house consuming ~91 gal/day, which is not credible as "35 day bins
+      # of no use". Either the bin encoding differs on R900 v4 or the field is
+      # offset. It is published as a diagnostic ONLY and nothing alarms on it.
+      # The same caution the leak automation already carries applies: published
+      # R900 field ranges do not cover every observed value.
+      - name: "Water Meter Leak"
+        unique_id: sdr_water_meter_leak
+        unit_of_measurement: "day bins"
+        state_class: measurement
+        icon: mdi:water-alert
+        availability: >
+          {{ states('sensor.water_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.water_meter_reading', 'Leak') is not none }}
+        state: "{{ state_attr('sensor.water_meter_reading', 'Leak') | int(0) }}"
+        attributes:
+          field: "Leak (4 bits, day bins of leak over the 35-day window)"
+
+      - name: "Water Meter Leak Now"
+        unique_id: sdr_water_meter_leak_now
+        state_class: measurement
+        icon: mdi:water-pump
+        availability: >
+          {{ states('sensor.water_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.water_meter_reading', 'LeakNow') is not none }}
+        state: "{{ state_attr('sensor.water_meter_reading', 'LeakNow') | int(0) }}"
+        attributes:
+          field: "LeakNow (2 bits, leak past 24h hi/lo)"
+
+      - name: "Water Meter Backflow"
+        unique_id: sdr_water_meter_backflow
+        state_class: measurement
+        icon: mdi:backup-restore
+        availability: >
+          {{ states('sensor.water_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.water_meter_reading', 'BackFlow') is not none }}
+        state: "{{ state_attr('sensor.water_meter_reading', 'BackFlow') | int(0) }}"
+        attributes:
+          field: "BackFlow (2 bits, backflow past 35d hi/lo)"
+
+      - name: "Water Meter No Use"
+        unique_id: sdr_water_meter_no_use
+        unit_of_measurement: "day bins"
+        state_class: measurement
+        icon: mdi:water-off
+        # DIAGNOSTIC ONLY - see the calibration caveat above. Nothing alarms
+        # on this and nothing should until the encoding is confirmed.
+        availability: >
+          {{ states('sensor.water_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.water_meter_reading', 'NoUse') is not none }}
+        state: "{{ state_attr('sensor.water_meter_reading', 'NoUse') | int(0) }}"
+        attributes:
+          field: "NoUse (6 bits, day bins of no use) - encoding UNCONFIRMED"
+
+      # =====================================================================
+      # SCM STATUS FIELDS - gas and electric (added 2026-08-22)
+      #
+      # Gas and electric speak SCM, not R900, so their status set is different
+      # from the water meter's leak fields. Widths from bemasher/rtlamr
+      # scm/scm.go: TamperPhy bits[24:26], TamperEnc bits[30:32], Type
+      # bits[26:30].
+      #
+      # NOTHING ALARMS ON THE VALUE, and that is deliberate. Measured across the
+      # whole retained history: gas TamperPhy is 3 on every one of 61 frames,
+      # electric is 0 on every one of 1,704. A constant is a meter-type
+      # characteristic, not an event - an alarm on "gas TamperPhy == 3" would
+      # fire forever and be muted within a day.
+      #
+      # The signal worth having is a TRANSITION: a tamper field changing on a
+      # meter that has never changed it means someone at the meter, a meter
+      # swap, or a decode fault. That is currently invisible, and these sensors
+      # make it visible. Alarming on the transition waits until there is enough
+      # history to call the baseline honestly - 61 gas frames is not enough.
+      #
+      # ChecksumVal is NOT exposed: rtlamr verifies it and drops bad frames, so
+      # by the time a value reaches us the checksum has told us everything it
+      # can.
+      - name: "Gas Meter Tamper Phy"
+        unique_id: sdr_gas_meter_tamper_phy
+        state_class: measurement
+        icon: mdi:shield-alert-outline
+        availability: >
+          {{ states('sensor.gas_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.gas_meter_reading', 'TamperPhy') is not none }}
+        state: "{{ state_attr('sensor.gas_meter_reading', 'TamperPhy') | int(0) }}"
+        attributes:
+          field: "TamperPhy (SCM bits 24:26, 2 bits) - watch for a CHANGE, not a value"
+
+      - name: "Gas Meter Tamper Enc"
+        unique_id: sdr_gas_meter_tamper_enc
+        state_class: measurement
+        icon: mdi:shield-alert-outline
+        availability: >
+          {{ states('sensor.gas_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.gas_meter_reading', 'TamperEnc') is not none }}
+        state: "{{ state_attr('sensor.gas_meter_reading', 'TamperEnc') | int(0) }}"
+        attributes:
+          field: "TamperEnc (SCM bits 30:32, 2 bits) - watch for a CHANGE, not a value"
+
+      - name: "Gas Meter Ert Type"
+        unique_id: sdr_gas_meter_ert_type
+        icon: mdi:identifier
+        availability: >
+          {{ states('sensor.gas_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.gas_meter_reading', 'Type') is not none }}
+        state: "{{ state_attr('sensor.gas_meter_reading', 'Type') | int(0) }}"
+        attributes:
+          field: "Type (SCM bits 26:30) - ERT class. A change means a meter swap."
+
+      - name: "Electric Meter Tamper Phy"
+        unique_id: sdr_electric_meter_tamper_phy
+        state_class: measurement
+        icon: mdi:shield-alert-outline
+        availability: >
+          {{ states('sensor.electric_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.electric_meter_reading', 'TamperPhy') is not none }}
+        state: "{{ state_attr('sensor.electric_meter_reading', 'TamperPhy') | int(0) }}"
+        attributes:
+          field: "TamperPhy (SCM bits 24:26, 2 bits) - watch for a CHANGE, not a value"
+
+      - name: "Electric Meter Tamper Enc"
+        unique_id: sdr_electric_meter_tamper_enc
+        state_class: measurement
+        icon: mdi:shield-alert-outline
+        availability: >
+          {{ states('sensor.electric_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.electric_meter_reading', 'TamperEnc') is not none }}
+        state: "{{ state_attr('sensor.electric_meter_reading', 'TamperEnc') | int(0) }}"
+        attributes:
+          field: "TamperEnc (SCM bits 30:32, 2 bits) - watch for a CHANGE, not a value"
+
+      - name: "Electric Meter Ert Type"
+        unique_id: sdr_electric_meter_ert_type
+        icon: mdi:identifier
+        availability: >
+          {{ states('sensor.electric_meter_reading') not in
+             ['unknown', 'unavailable', 'none', '']
+             and state_attr('sensor.electric_meter_reading', 'Type') is not none }}
+        state: "{{ state_attr('sensor.electric_meter_reading', 'Type') | int(0) }}"
+        attributes:
+          field: "Type (SCM bits 26:30) - ERT class. A change means a meter swap."
+
+      # =====================================================================
+      # OVERNIGHT MINIMUM FLOW (added 2026-08-22)
+      # Written by automation.capture_daily_water_overnight. See the helper
+      # block near the top of this file for why MINIMUM rather than total.
+      # =====================================================================
+      - name: "Water Overnight Min Flow"
+        unique_id: sdr_water_overnight_min_flow
+        unit_of_measurement: "gal/h"
+        state_class: measurement
+        icon: mdi:water-percent
+        # Availability mirrors every other daily-capture sensor in this config:
+        # the stamp must be from today or yesterday. A skipped night is a chart
+        # gap, not a stale number quietly re-reported as fresh.
+        availability: >
+          {% set stamp = states('input_datetime.water_overnight_capture_last_ok') | as_datetime %}
+          {{ stamp is not none
+             and (now().date() - stamp.date()).days <= 1
+             and states('input_number.water_overnight_min_day_1') | float(-1) >= 0 }}
+        state: "{{ states('input_number.water_overnight_min_day_1') | float(0) | round(3) }}"
+
+      - name: "Water Overnight Min Mean 7d"
+        unique_id: sdr_water_overnight_min_mean_7d
+        unit_of_measurement: "gal/h"
+        state_class: measurement
+        icon: mdi:chart-line
+        # 0 means "no valid subgroup that night" and is excluded, exactly as in
+        # the SPC buffers. Unavailable below 2 nights: a trend needs a trend.
+        availability: >
+          {% set d = [
+            states('input_number.water_overnight_min_day_1') | float(-1),
+            states('input_number.water_overnight_min_day_2') | float(-1),
+            states('input_number.water_overnight_min_day_3') | float(-1),
+            states('input_number.water_overnight_min_day_4') | float(-1),
+            states('input_number.water_overnight_min_day_5') | float(-1),
+            states('input_number.water_overnight_min_day_6') | float(-1),
+            states('input_number.water_overnight_min_day_7') | float(-1) ] %}
+          {#- 0 is the IDEAL value here, not a missing subgroup. This is the one
+              place the SPC buffer idiom must NOT be copied: there, 0 means "no
+              valid subgroup that day" and is excluded. Here a leak-free night
+              genuinely reads 0.00 gal/h, and excluding zeros would bias the
+              trend upward and hide exactly the good nights that prove there is
+              no leak. -1 is the "no night recorded" sentinel instead. -#}
+          {{ d | select('>=', 0) | list | length > 1 }}
+        state: >
+          {% set d = [
+            states('input_number.water_overnight_min_day_1') | float(-1),
+            states('input_number.water_overnight_min_day_2') | float(-1),
+            states('input_number.water_overnight_min_day_3') | float(-1),
+            states('input_number.water_overnight_min_day_4') | float(-1),
+            states('input_number.water_overnight_min_day_5') | float(-1),
+            states('input_number.water_overnight_min_day_6') | float(-1),
+            states('input_number.water_overnight_min_day_7') | float(-1) ] %}
+          {% set v = d | select('>=', 0) | list %}
+          {{ (v | sum / v | length) | round(3) }}
+
+      - name: "Water Overnight Max Flow"
+        unique_id: sdr_water_overnight_max_flow
+        unit_of_measurement: "gal/h"
+        state_class: measurement
+        icon: mdi:arrow-up-bold-box
+        # The busiest hourly bin of the night. This is the softener regen when
+        # it runs, and it is why the minimum above can ignore it.
+        availability: >
+          {% set stamp = states('input_datetime.water_overnight_capture_last_ok') | as_datetime %}
+          {{ stamp is not none and (now().date() - stamp.date()).days <= 1
+             and states('input_number.water_night_max_gal') | float(-1) >= 0 }}
+        state: "{{ states('input_number.water_night_max_gal') | float(0) | round(2) }}"
+
+      - name: "Water Overnight Bins"
+        unique_id: sdr_water_overnight_bins
+        state_class: measurement
+        icon: mdi:counter
+        state: "{{ states('input_number.water_night_bins') | int(0) }}"
+
+      - name: "Electric Meter Energy"
+        unique_id: sdr_electric_meter_energy
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        availability: >
+          {{ states('sensor.electric_meter_reading') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.electric_meter_reading') | float(0)
+              * states('input_number.electric_meter_scale') | float(1.0))
+             | round(3) }}
+
+      # --- utility-meter live power -----------------------------------------
+      # sensor.utility_electric_power is produced by the derivative platform
+      # below and already carries WATTS (unit_prefix: m). This wrapper only
+      # guards against the negative spikes a counter reset or a decode glitch
+      # would otherwise produce.
+      - name: "Utility Electric Power Clean"
+        unique_id: sdr_utility_electric_power_clean
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {{ states('sensor.utility_electric_power') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {% set w = states('sensor.utility_electric_power') | float(0) %}
+          {{ 0 if w < 0 else (w | round(0)) }}
+
+      # --- SEM cross-check ---------------------------------------------------
+      # The utility meter is revenue-grade and traceable; the 16 SEM CTs have
+      # never been checked against it. Positive error = SEM reads HIGH.
+      # Compare LONG averages only: the utility figure is a difference quotient
+      # over a 30-90 s decode interval, so instantaneous agreement is not
+      # expected and disagreement there means nothing.
+      # --- counter-derived mean power (P12, 2026-08-23) --------------------
+      # Watts from sensor.utility_electric_power_rate, which is a `statistics`
+      # change_second over the ENERGY COUNTER. kWh/s -> W is x 3.6e6.
+      #
+      # WHY THIS EXISTS. The comparison used to read
+      # sensor.utility_electric_power_mean, a `statistics` mean over a
+      # `derivative`. A derivative only emits a sample when the counter TICKS,
+      # and the counter ticks faster when power is high, so an unweighted mean
+      # over those samples over-weights the high-power periods. Measured over
+      # 16 h on 2026-08-23: it ran +7.0% high on average, +39.5% in the burstiest
+      # hour, with correlation(burstiness, overestimate) r = +0.75. That made
+      # sem_vs_utility_error report the 16 CTs about 9% LOW when they are not.
+      #
+      # The counter is cumulative, so over any window the energy delta is exact
+      # and mean power is (E_end - E_start)/T. Replayed against 16 h of history
+      # with the deployed change_second semantics:
+      #     NEW  mean -0.55%  sd 1.89 pp  worst 7.6%
+      #     OLD  mean -7.03%  sd 6.08 pp  worst 24.5%
+      #
+      # Availability, not clamping. A negative rate means the counter went
+      # BACKWARDS - a meter swap or a bad decode - which is a fault, not noise,
+      # and must read `unavailable` rather than 0 W. Clamping negatives to zero
+      # is what rectified noise into bias on the old path; do not reintroduce it.
+      - name: "Utility Electric Power Avg"
+        unique_id: sdr_utility_electric_power_avg
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {{ states('sensor.utility_electric_power_rate') not in
+             ['unknown', 'unavailable', 'none', ''] and
+             states('sensor.utility_electric_power_rate') | float(-1) >= 0 }}
+        state: >
+          {{ (states('sensor.utility_electric_power_rate') | float(0) * 3600000)
+             | round(0) }}
+
+      - name: "SEM vs Utility Error"
+        unique_id: sdr_sem_vs_utility_error
+        unit_of_measurement: "%"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.utility_electric_power_avg') | float(0) > 50 }}
+        state: >
+          {% set u = states('sensor.utility_electric_power_avg') | float(0) %}
+          {% set m = states('sensor.sem_whole_home_power_mean') | float(0) %}
+          {{ (100 * (m - u) / u) | round(2) if u > 50 else 0 }}
+
+      - name: "SEM vs Utility Delta"
+        unique_id: sdr_sem_vs_utility_delta
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        # Same > 50 W floor as the error sensor beside it. Guarding only on
+        # unknown/unavailable let a warming statistics buffer publish
+        # SEM - 0 = 394 W as a discrepancy on 2026-08-23. A cross-check with one
+        # side missing must go unavailable, not report the other side as error.
+        availability: >
+          {{ states('sensor.utility_electric_power_avg') | float(0) > 50 }}
+        state: >
+          {{ (states('sensor.sem_whole_home_power_mean') | float(0)
+              - states('sensor.utility_electric_power_avg') | float(0))
+             | round(0) }}
+
+      # --- reception age, in minutes ----------------------------------------
+      # Source is the add-on's own sensor.<meter>_last_seen timestamp - an
+      # AUTHORITATIVE decode time, not an inference from HA state-write
+      # bookkeeping. It also survives the sleep_for cycle correctly, which
+      # last_reported would not.
+      #
+      # A frozen counter is the real failure mode: MQTT retains the last value
+      # so the entity stays available with a stale number, indistinguishable
+      # from zero consumption. And for gas, a value that does not change for
+      # days is NORMAL - so staleness must be measured on RECEPTION, never on
+      # value change.
+      #
+      # MISSING ENTITY MUST FAIL CLOSED. An absent or unparseable timestamp
+      # returns 99999, not 0 - otherwise a sensor that never existed reports
+      # "heard 0 min ago / OK", which is fail-open on the one detector whose
+      # entire job is catching silent failure.
+      # Requires HA 2024.8+. Falls back to last_changed if absent - in which
+      # case the gas threshold must be raised to days, not minutes.
+      - name: "Gas Meter Age"
+        unique_id: sdr_gas_meter_age
+        unit_of_measurement: "min"
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.gas_meter_last_seen') %}
+          {% if t in ['unknown', 'unavailable', 'none', ''] %}
+            99999
+          {% else %}
+            {{ [ ((now().timestamp() - as_timestamp(t, 0)) / 60) | round(1),
+                 99999 ] | min }}
+          {% endif %}
+
+      - name: "Water Meter Age"
+        unique_id: sdr_water_meter_age
+        unit_of_measurement: "min"
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.water_meter_last_seen') %}
+          {% if t in ['unknown', 'unavailable', 'none', ''] %}
+            99999
+          {% else %}
+            {{ [ ((now().timestamp() - as_timestamp(t, 0)) / 60) | round(1),
+                 99999 ] | min }}
+          {% endif %}
+
+      - name: "Electric Meter Age"
+        unique_id: sdr_electric_meter_age
+        unit_of_measurement: "min"
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.electric_meter_last_seen') %}
+          {% if t in ['unknown', 'unavailable', 'none', ''] %}
+            99999
+          {% else %}
+            {{ [ ((now().timestamp() - as_timestamp(t, 0)) / 60) | round(1),
+                 99999 ] | min }}
+          {% endif %}
+
+  - binary_sensor:
+      - name: "Gas Meter Stale"
+        unique_id: sdr_gas_meter_stale
+        device_class: problem
+        state: >
+          {{ states('sensor.gas_meter_age') | float(0)
+             > states('input_number.sdr_gas_stale_minutes') | float(360) }}
+
+      - name: "Water Meter Stale"
+        unique_id: sdr_water_meter_stale
+        device_class: problem
+        state: >
+          {{ states('sensor.water_meter_age') | float(0)
+             > states('input_number.sdr_water_stale_minutes') | float(60) }}
+
+      - name: "Electric Meter Stale"
+        unique_id: sdr_electric_meter_stale
+        device_class: problem
+        state: >
+          {{ states('sensor.electric_meter_age') | float(0)
+             > states('input_number.sdr_electric_stale_minutes') | float(60) }}
+
+# ---------------------------------------------------------------------------
+# Live power from the utility counter.
+#
+# 0.01 kWh per count at a 30-90 s decode cadence gives roughly 10 W of
+# quantisation on a single interval - fine for trend, too coarse for
+# instantaneous comparison. time_window smooths across several decodes.
+#
+# ---------------------------------------------------------------------------
+  - binary_sensor:
+      # A regen that runs is normal; a regen that STOPS running is a fault -
+      # salt bridge, stuck valve, dead controller. This makes both visible.
+      - name: "Water Softener Regen Last Night"
+        unique_id: sdr_water_softener_regen_last_night
+        icon: mdi:shimmer
+        availability: >
+          {{ is_number(states('sensor.water_overnight_max_flow')) }}
+        state: >
+          {{ states('sensor.water_overnight_max_flow') | float(0)
+             > states('input_number.water_regen_threshold_gal') | float(15) }}
+
+      - name: "Water Overnight Leak Suspected"
+        unique_id: sdr_water_overnight_leak_suspected
+        device_class: problem
+        icon: mdi:water-alert
+        # Requires enough clean bins to be a real measurement. A night where
+        # the meter went quiet is not evidence of anything.
+        availability: >
+          {{ is_number(states('sensor.water_overnight_min_flow')) }}
+        state: >
+          {% set m = states('sensor.water_overnight_min_flow') | float(-1) %}
+          {% set n = states('input_number.water_night_bins') | int(0) %}
+          {% set th = states('input_number.water_overnight_leak_threshold') | float(0.25) %}
+          {% set need = states('input_number.water_overnight_min_bins') | int(3) %}
+          {{ m >= 0 and n >= need and m > th }}
+
+      - name: "Water Overnight Capture Stale"
+        unique_id: sdr_water_overnight_capture_stale
+        device_class: problem
+        icon: mdi:clock-alert-outline
+        # No availability: guard, deliberately. A watchdog that can go
+        # unavailable fails in the direction that hides the fault.
+        state: >
+          {# .date() on BOTH sides. `now()` is tz-aware and as_datetime() on an
+             input_datetime is naive, so subtracting the datetimes raises
+             TypeError and an exception in a watchdog's state template makes it
+             unavailable - i.e. silent, the one thing a watchdog must never be.
+             Every other daily-capture sensor in this config already uses the
+             date form; this one deviated and was caught on deploy. #}
+          {% set stamp = states('input_datetime.water_overnight_capture_last_ok') | as_datetime %}
+          {{ stamp is none or (now().date() - stamp.date()).days > 2 }}
+        attributes:
+          last_capture: "{{ states('input_datetime.water_overnight_capture_last_ok') }}"
+
+
+sensor:
+  # derivative is a SENSOR PLATFORM, not a top-level domain. A top-level
+  # `derivative:` key fails with "cannot be merged, expected a dict".
+  #
+  # Source is kWh. unit_time: h gives kWh/h = kW, so unit_prefix: m scales
+  # that by 1e3 to land in WATTS directly - no conversion needed downstream.
+  # time_window 5 -> 10 min, 2026-08-23. This is NOT a smoothing preference,
+  # it is forced by the counter's resolution. The meter moves in 0.01 kWh steps,
+  # so a difference quotient over T seconds carries about 36000/T watts of
+  # quantisation noise, and at this house's ~400 W baseline the counter only
+  # ticks every ~91 s. Swept against SEM over 6 h, matching windows at each T:
+  #
+  #     window   sd vs SEM   mean err   % windows containing NO tick
+  #      30 s      22.9 pp    +97.8%      99.1%   <- reads 0 W almost always
+  #       1 min    49.6 pp    +88.3%      93.8%
+  #       2 min    74.4 pp    +50.9%      63.8%
+  #       5 min    23.3 pp     -4.8%       1.1%   <- previous setting
+  #      10 min     6.6 pp     -1.7%       0.0%   <- here
+  #      15 min     4.7 pp     -0.9%       0.0%
+  #
+  # SHORTENING THIS DOES NOT BUY RESPONSIVENESS, IT BUYS A SQUARE WAVE: below
+  # ~5 min most windows contain no tick at all and the sensor reads 0 W between
+  # spikes of 1200-2600 W. There is a second floor underneath - the counter can
+  # only advance when a frame is DECODED, about every 32 s.
+  #
+  # This meter can never give a true instantaneous reading; SEM does that job at
+  # 2 s. Keep sensor.sem_whole_home_power_10min beside it on any card so the two
+  # are compared at the SAME time constant - a 5-min utility figure next to a
+  # 2 s SEM figure read as a 156 W discrepancy on 2026-08-23 and was nothing but
+  # the mismatch.
+  - platform: derivative
+    name: "Utility Electric Power"
+    unique_id: sdr_utility_electric_power
+    source: sensor.electric_meter_energy
+    unit_time: h
+    unit_prefix: m
+    time_window: "00:10:00"
+    round: 0
+
+  # Matched partner for the live row. SEM publishes every ~2 s, so 10 min needs
+  # ~300 samples; 400 leaves headroom and keeps max_age the binding limit.
+  - platform: statistics
+    name: "SEM Whole Home Power 10min"
+    unique_id: sem_whole_home_power_10min
+    entity_id: sensor.sem_whole_home_power
+    state_characteristic: mean
+    max_age:
+      minutes: 10
+    sampling_size: 400
+
+  # Long averages for the SEM cross-check. Both sides must use the SAME window
+  # or the comparison is meaningless - and "same max_age" is NOT sufficient,
+  # see the sampling_size note below.
+  # Utility updates every ~63 s, so 500 samples spans ~8 h; max_age binds here.
+  # P12 (2026-08-23). change_second over the CUMULATIVE energy counter:
+  # (kWh_last - kWh_first) / (t_last - t_first), in kWh per second. Both
+  # endpoints are real decode values at real decode times, so there is no
+  # boundary misalignment to correct for - which is why it beat the fixed-hour
+  # replay (sd 1.89 pp vs 2.44 pp).
+  #
+  # sampling_size: the buffer must hold every update inside max_age or the
+  # window silently shortens - the same trap documented for the 500/2400
+  # mismatch below. Measured 2026-08-23: 22 min / 36 median / 50 max updates per
+  # 60 min. The CEILING is the decode rate, not the tick rate - the counter can
+  # only update when a frame is decoded, about 112/h at the current 32 s
+  # interval and ~129/h at 100% capture. 600 leaves 5x headroom over that
+  # ceiling and cannot be reached by a high-load day.
+  - platform: statistics
+    name: "Utility Electric Power Rate"
+    unique_id: sdr_utility_electric_power_rate
+    entity_id: sensor.electric_meter_energy
+    state_characteristic: change_second
+    max_age:
+      minutes: 60
+    sampling_size: 600
+    # kWh PER SECOND, so the value is ~1.1e-4 at this house's ~400 W. Without
+    # this the state rounds to one decimal, reads 0.0, and the watts sensor
+    # below computes 0 W from arithmetic that is otherwise correct. Found on
+    # deployment 2026-08-23: validate_ha.py passed and check_config returned
+    # valid, because neither runs the sensor. Only the deployed value shows it.
+    precision: 9
+
+  # SUPERSEDED 2026-08-23 by the counter-derived path above; see P12. Kept
+  # defined so its history survives and nothing referencing it breaks, but it is
+  # biased high by sampling and must NOT be used for the SEM comparison again.
+  - platform: statistics
+    name: "Utility Electric Power Mean"
+    unique_id: sdr_utility_electric_power_mean
+    entity_id: sensor.utility_electric_power_clean
+    state_characteristic: mean
+    max_age:
+      minutes: 60
+    sampling_size: 500
+
+  # Name must slugify to sensor.sem_whole_home_power_mean - the templates
+  # above reference that exact entity id.
+  # sampling_size MUST exceed (window_seconds / update_interval) or it, not
+  # max_age, becomes the binding limit. SEM updates every ~2 s, so 60 min
+  # needs ~1800 samples; at 500 the window silently collapses to ~17 min and
+  # the comparison below is meaningless. Verified against 12 h of history
+  # 2026-08-22: matched windows lift R^2 from 0.21 to 0.958.
+  - platform: statistics
+    name: "SEM Whole Home Power Mean"
+    unique_id: sdr_sem_whole_home_power_mean
+    entity_id: sensor.sem_whole_home_power
+    state_characteristic: mean
+    max_age:
+      minutes: 60
+    sampling_size: 2400
+
+utility_meter:
+  gas_daily:
+    source: sensor.gas_meter_volume
+    cycle: daily
+  gas_monthly:
+    source: sensor.gas_meter_volume
+    cycle: monthly
+  water_daily:
+    source: sensor.water_meter_volume
+    cycle: daily
+  water_monthly:
+    source: sensor.water_meter_volume
+    cycle: monthly
+  utility_electric_daily:
+    source: sensor.electric_meter_energy
+    cycle: daily
+  utility_electric_monthly:
+    source: sensor.electric_meter_energy
+    cycle: monthly
+
+automation:
+  - id: sdr_meter_stale_alert
+    alias: "SDR meter stale - alert"
+    description: >
+      Fires when any meter stops being HEARD. A wedged dongle or lost USB
+      enumeration leaves the last value retained in MQTT, so the entity stays
+      available with a frozen value - indistinguishable from zero consumption.
+      Reception age is the correct instrument, not value change or availability.
+      Muted by input_boolean.sdr_alerts_enabled during commissioning.
+    triggers:
+      - trigger: state
+        entity_id:
+          - binary_sensor.gas_meter_stale
+          - binary_sensor.water_meter_stale
+          - binary_sensor.electric_meter_stale
+        to: "on"
+        id: went_stale
+    conditions:
+      - condition: state
+        entity_id: input_boolean.sdr_alerts_enabled
+        state: "on"
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: "SDR meter not being heard"
+          message: >
+            {{ trigger.to_state.name }} went stale at
+            {{ now().strftime('%Y-%m-%d %H:%M') }}. Reception age exceeded its
+            threshold. Check the rtlamr2mqtt add-on log, then the dongle.
+    mode: queued
+    max: 5
+
+  # ENABLED 2026-08-22. sensor.water_meter_leak now exists (see the R900
+  # STATUS FIELDS block above), so the precondition this was waiting on -
+  # "confirm it in Developer Tools and disable this automation if absent" - is
+  # met and `initial_state: false` is removed. Note what it alarms on: Leak
+  # counts day bins over 35 days, so this means "this meter has seen a leak
+  # recently", not "water is running now". sensor.water_meter_leak_now is the
+  # past-24h field; CLAUDE.md P7 carries the recommendation.
+  - id: sdr_water_leak_flag
+    alias: "SDR water meter - leak flag set"
+    description: >
+      The Neptune R900 does its own leak detection and broadcasts the flag.
+      This is the one thing the softener turbine structurally cannot provide,
+      because a turbine has a startup flow threshold below which it does not
+      turn at all. Entity name depends on what rtlamr2mqtt publishes - confirm
+      it in Developer Tools and disable this automation if absent.
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.water_meter_leak
+        above: 0
+        for:
+          hours: "{{ states('input_number.sdr_leak_hold_hours') | float(2) }}"
+        id: leak_flag
+    conditions:
+      - condition: state
+        entity_id: input_boolean.sdr_alerts_enabled
+        state: "on"
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: "Water meter reports a leak"
+          message: >
+            The R900 leak field has been non-zero for
+            {{ states('input_number.sdr_leak_hold_hours') | float(2) }} h.
+            Value: {{ states('sensor.water_meter_leak') }}. Check fixtures
+            before assuming a decode artefact - published Leak ranges do not
+            cover every observed value.
+    mode: single
+
+  # =====================================================================
+  # OVERNIGHT MINIMUM FLOW - nightly capture (added 2026-08-22)
+  #
+  # Six marks at :45 past the hour, 00:00 through 05:00, giving five hourly
+  # bins. :45 because 00:00:00 / 00:00:30 / 01:00:00 / 03:00:00 / 04:00:00 /
+  # 05:00:00 are already taken and CLAUDE.md's invariant is about contention
+  # for shared state - these share none, but staying off the same second keeps
+  # the audit's eod report readable.
+  #
+  # FIVE BINS IS THE MARGIN FOR THE SOFTENER. A regen at ~02:00 occupies one
+  # or two bins; the minimum comes from the other three. That is the entire
+  # reason this is a minimum and not a mean.
+  #
+  # 00:00 is the RESET mark: it only records the starting volume. The five
+  # deltas are 00-01, 01-02, 02-03, 03-04, 04-05.
+  #
+  # THESE ARE LOCAL TIMES. HA `time` triggers fire in the instance timezone
+  # (America/New_York), NOT UTC - verified 2026-08-22 against automations whose
+  # `at:` is known: capture_daily_dehumidifier_watts is at: "23:59:00" and
+  # fired at 03:59:00 UTC. Worth stating because InfluxDB is the opposite:
+  # GROUP BY time(1d) there is UTC-aligned unless you add tz(), which is
+  # exactly the defect that put the Grafana SPC panels on the wrong day.
+  #
+  # DST, and why MIN was the right statistic again:
+  #   Spring forward - 02:00 local does not exist, so the 02:00:45 mark never
+  #     fires and the night yields 4 bins instead of 5. The guard needs 3, so
+  #     the capture still succeeds. Graceful.
+  #   Fall back - the 01:00-02:00 hour occurs twice. Whether HA fires the mark
+  #     once or twice, the worst case is a single bin spanning two wall-clock
+  #     hours, which INFLATES that bin. That can produce one false
+  #     "softener regen detected" per year. It cannot affect the leak signal,
+  #     because the leak signal is the MINIMUM and an inflated bin never
+  #     becomes the minimum.
+  # =====================================================================
+  - id: capture_daily_water_overnight
+    alias: "Capture Daily Water Overnight Min"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "00:00:45"
+        id: reset
+      - trigger: time
+        at: "01:00:45"
+      - trigger: time
+        at: "02:00:45"
+      - trigger: time
+        at: "03:00:45"
+      - trigger: time
+        at: "04:00:45"
+      - trigger: time
+        at: "05:00:45"
+        id: publish
+    actions:
+      # Snapshot at trigger time, per CLAUDE.md's SNAPSHOT RULE. `vol` is read
+      # once and every branch below uses that one read - a second states()
+      # call could land on the far side of a decode.
+      - variables:
+          vol: "{{ states('sensor.water_meter_volume') | float(-1) }}"
+          prev: "{{ states('input_number.water_night_prev_volume') | float(-1) }}"
+          cur_min: "{{ states('input_number.water_night_min_gal') | float(-1) }}"
+          cur_max: "{{ states('input_number.water_night_max_gal') | float(-1) }}"
+          bins: "{{ states('input_number.water_night_bins') | int(0) }}"
+          capture_date: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+          # A bin is valid only if both ends read a real cumulative volume and
+          # the delta is sane. Negative means the meter or the entity restarted;
+          # 500 gal in an hour is a burst pipe, not a bin worth averaging.
+          delta: >
+            {{ (vol - prev) if (vol >= 0 and prev >= 0 and vol >= prev
+                                and (vol - prev) < 500) else -1 }}
+      - choose:
+          # ---- 00:00 - start the night -------------------------------
+          - conditions:
+              - condition: trigger
+                id: reset
+            sequence:
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_prev_volume}
+                data: {value: "{{ vol if vol >= 0 else 0 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_min_gal}
+                data: {value: -1}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_max_gal}
+                data: {value: -1}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_bins}
+                data: {value: 0}
+
+          # ---- 01:00-05:00 - close a bin -----------------------------
+          - conditions:
+              - condition: template
+                value_template: "{{ delta | float(-1) >= 0 }}"
+            sequence:
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_min_gal}
+                data:
+                  value: >
+                    {{ delta | float(0) if cur_min < 0
+                       else [cur_min, delta | float(0)] | min }}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_max_gal}
+                data:
+                  value: >
+                    {{ delta | float(0) if cur_max < 0
+                       else [cur_max, delta | float(0)] | max }}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_bins}
+                data: {value: "{{ bins + 1 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_night_prev_volume}
+                data: {value: "{{ vol }}"}
+        default:
+          # An invalid bin still advances prev, or one bad decode would poison
+          # every later bin by widening its window.
+          - action: input_number.set_value
+            target: {entity_id: input_number.water_night_prev_volume}
+            data: {value: "{{ vol if vol >= 0 else prev }}"}
+          - action: system_log.write
+            data:
+              level: info
+              message: >
+                Water overnight: bin skipped - vol={{ vol }}, prev={{ prev }},
+                delta={{ delta }}. Bins so far {{ bins }}.
+
+      # ---- 05:00 only - publish the night into the 7-day buffer -------
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: publish
+              - condition: template
+                value_template: >
+                  {{ states('input_number.water_night_bins') | int(0)
+                     >= states('input_number.water_overnight_min_bins') | int(3)
+                     and states('input_number.water_night_min_gal') | float(-1) >= 0 }}
+            sequence:
+              - variables:
+                  # bins are one hour wide, so gal per bin IS gal/h
+                  tonight: "{{ states('input_number.water_night_min_gal') | float(0) | round(3) }}"
+                  d1: "{{ states('input_number.water_overnight_min_day_1') | float(0) }}"
+                  d2: "{{ states('input_number.water_overnight_min_day_2') | float(0) }}"
+                  d3: "{{ states('input_number.water_overnight_min_day_3') | float(0) }}"
+                  d4: "{{ states('input_number.water_overnight_min_day_4') | float(0) }}"
+                  d5: "{{ states('input_number.water_overnight_min_day_5') | float(0) }}"
+                  d6: "{{ states('input_number.water_overnight_min_day_6') | float(0) }}"
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_7}
+                data: {value: "{{ d6 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_6}
+                data: {value: "{{ d5 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_5}
+                data: {value: "{{ d4 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_4}
+                data: {value: "{{ d3 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_3}
+                data: {value: "{{ d2 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_2}
+                data: {value: "{{ d1 }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_overnight_min_day_1}
+                data: {value: "{{ tonight }}"}
+              - action: input_datetime.set_datetime
+                target: {entity_id: input_datetime.water_overnight_capture_last_ok}
+                data: {datetime: "{{ capture_date }}"}
+              - action: system_log.write
+                data:
+                  level: info
+                  message: >
+                    Water overnight min = {{ tonight }} gal/h over
+                    {{ states('input_number.water_night_bins') }} bins;
+                    busiest bin {{ states('input_number.water_night_max_gal') }} gal.
+          - conditions:
+              - condition: trigger
+                id: publish
+            sequence:
+              - action: system_log.write
+                data:
+                  level: warning
+                  message: >
+                    Water overnight NOT captured - bins={{
+                    states('input_number.water_night_bins') }} (need {{
+                    states('input_number.water_overnight_min_bins') }}),
+                    min={{ states('input_number.water_night_min_gal') }}.
+                    A night the meter went quiet is not evidence of anything.
+        default: []
+
+  # ---------------------------------------------------------------------
+  # LEAK NOW - the immediate path (added 2026-08-22)
+  #
+  # Goes to the phone, not to a persistent notification. The 2026-08-21 event
+  # ran 20.7 hours and cleared on its own; a notification sitting in the
+  # sidebar would have been read after it ended, which is the same as not
+  # having it. See the WHY block on sdr_leak_now_hold_minutes above.
+  #
+  # NOT gated on sdr_alerts_enabled. That flag exists to mute commissioning
+  # noise while unplugging the dongle, and a real leak is not commissioning
+  # noise. Staleness alerts and the Leak day-bin notice stay muted by it;
+  # this one does not.
+  # ---------------------------------------------------------------------
+  - id: sdr_water_leak_now
+    alias: "SDR water meter - leak NOW"
+    description: >
+      R900 LeakNow is the meter's own past-24h continuous-flow indicator, 0-3.
+      Non-zero means water is running that the register considers continuous.
+      This is the field that moved during the 2026-08-21 event while Leak
+      stayed 0.
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.water_meter_leak_now
+        above: 0
+        for:
+          minutes: "{{ states('input_number.sdr_leak_now_hold_minutes') | int(10) }}"
+        id: leak_now
+    conditions:
+      # Only that the reading is fresh. An alarm built on a stale decode is
+      # worse than no alarm - it reports a condition that may have ended.
+      - condition: state
+        entity_id: binary_sensor.water_meter_stale
+        state: "off"
+    actions:
+      - action: notify.mobile_app_bills_iphone
+        data:
+          title: "💧 Water leak - meter reports flow NOW"
+          message: >
+            R900 LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3.
+            The meter sees continuous flow.
+            Today {{ states('sensor.water_daily') | float(0) | round(1) }} gal
+            vs a ~91 gal/day norm.
+            Last decode {{ states('sensor.water_meter_age') | float(0) | round(0) | int(0) }} min ago.
+            Leak day-bins over 35 d: {{ states('sensor.water_meter_leak') }}.
+      - action: persistent_notification.create
+        data:
+          notification_id: sdr_water_leak_now
+          title: "Water leak - meter reports flow NOW"
+          message: >
+            LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3 since
+            {{ now().strftime('%Y-%m-%d %H:%M') }}.
+            Detection is inside the meter, not in this config - it cannot be
+            tuned, and it sees flow below a turbine's startup threshold.
+            Check toilets first: a flapper seep is the usual cause at this
+            magnitude.
+    mode: single
+
+  # Clearing matters as much as firing. The 2026-08-21 event self-cleared at
+  # 11:28 and nothing would have said so - leaving a phone alert as the last
+  # word on a condition that had ended.
+  - id: sdr_water_leak_now_cleared
+    alias: "SDR water meter - leak NOW cleared"
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.water_meter_leak_now
+        below: 1
+        id: leak_cleared
+    conditions:
+      # Only speak if we actually raised the alarm, so a reboot at 0 is silent.
+      - condition: template
+        value_template: >
+          {{ state_attr('automation.sdr_water_meter_leak_now', 'last_triggered')
+             is not none }}
+    actions:
+      - action: notify.mobile_app_bills_iphone
+        data:
+          title: "💧 Water leak flag cleared"
+          message: >
+            R900 LeakNow is back to 0 as of
+            {{ now().strftime('%H:%M') }}. The meter no longer sees continuous
+            flow. Leak day-bins over the last 35 d:
+            {{ states('sensor.water_meter_leak') }} - non-zero there means it
+            happened, even though it has stopped.
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: sdr_water_leak_now
+    mode: single
