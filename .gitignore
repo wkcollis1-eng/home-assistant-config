@@ -68,3 +68,8 @@ esphome/.device-builder*
 
 # LibreOffice / OpenOffice lock files (appear while a CSV is open in a viewer)
 .~lock.*#
+
+# Reference copy of the separate HVAC Baseline repo - 2.0 MB of another
+# project's content. Belongs in its own repo, not vendored into this one,
+# where it would silently go stale against its source.
+baseline-repo/

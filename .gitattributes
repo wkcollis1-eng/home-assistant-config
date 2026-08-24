@@ -28,6 +28,12 @@
 # -text turns the stated intent into an enforced one.
 *.csv   -text
 
+# Vendored HACS frontend under www/community/ - shipped minified artifacts we
+# read (R6) but never author. Normalising them rewrites a third party's bytes
+# and churns the diff on every HACS update. 2026-08-24: mushroom.js was the
+# last file still emitting a CRLF-rewrite warning after the *.csv fix.
+www/community/** -text
+
 # Binary — never touch.
 *.db    binary
 *.png   binary
