@@ -1,458 +1,718 @@
 weather_update_script:
-  alias: "Weather update script"
-  description: ""
+  alias: Weather update script
+  description: ''
   sequence:
-    - action: weather.get_forecasts
-      metadata: {}
-      target:
-        device_id: 0ab523fba3daaef140af4822794e6ecf
-      data:
-        type: hourly
-      response_variable: temperature
-# ===============================================================
-# COMPLETE SCRIPTS.YAML
-# ===============================================================
-# Run seed_2024_bill_archive ONCE after setup to load historical data
-# ===============================================================
-
+  - action: weather.get_forecasts
+    metadata: {}
+    target:
+      device_id: 0ab523fba3daaef140af4822794e6ecf
+    data:
+      type: hourly
+    response_variable: temperature
 seed_2024_bill_archive:
-  alias: "Seed 2024 Bill Archive Data"
-  description: "Load 2024 historical data for YoY comparisons"
+  alias: Seed 2024 Bill Archive Data
+  description: Load 2024 historical data for YoY comparisons
   sequence:
-    # ELECTRIC 2024
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jan_amount }
-      data: { value: 167.46 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jan_kwh }
-      data: { value: 567 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_feb_amount }
-      data: { value: 155.70 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_feb_kwh }
-      data: { value: 514 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_mar_amount }
-      data: { value: 134.50 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_mar_kwh }
-      data: { value: 493 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_apr_amount }
-      data: { value: 120.17 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_apr_kwh }
-      data: { value: 432 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_may_amount }
-      data: { value: 108.76 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_may_kwh }
-      data: { value: 430 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jun_amount }
-      data: { value: 125.65 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jun_kwh }
-      data: { value: 519 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jul_amount }
-      data: { value: 159.93 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jul_kwh }
-      data: { value: 691 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_aug_amount }
-      data: { value: 172.04 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_aug_kwh }
-      data: { value: 738 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_sep_amount }
-      data: { value: 143.04 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_sep_kwh }
-      data: { value: 606 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_oct_amount }
-      data: { value: 109.40 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_oct_kwh }
-      data: { value: 428 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_nov_amount }
-      data: { value: 116.70 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_nov_kwh }
-      data: { value: 469 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_dec_amount }
-      data: { value: 149.91 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_dec_kwh }
-      data: { value: 476 }
-    # GAS 2024
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jan_amount }
-      data: { value: 170.08 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jan_ccf }
-      data: { value: 109 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_feb_amount }
-      data: { value: 166.44 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_feb_ccf }
-      data: { value: 106 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_mar_amount }
-      data: { value: 127.05 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_mar_ccf }
-      data: { value: 76 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_apr_amount }
-      data: { value: 78.01 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_apr_ccf }
-      data: { value: 38 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_may_amount }
-      data: { value: 53.18 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_may_ccf }
-      data: { value: 19 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jun_amount }
-      data: { value: 43.30 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jun_ccf }
-      data: { value: 12 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jul_amount }
-      data: { value: 39.94 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jul_ccf }
-      data: { value: 10 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_aug_amount }
-      data: { value: 38.41 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_aug_ccf }
-      data: { value: 9 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_sep_amount }
-      data: { value: 42.83 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_sep_ccf }
-      data: { value: 12 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_oct_amount }
-      data: { value: 55.89 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_oct_ccf }
-      data: { value: 22 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_nov_amount }
-      data: { value: 94.88 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_nov_ccf }
-      data: { value: 55 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_dec_amount }
-      data: { value: 166.13 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_dec_ccf }
-      data: { value: 100 }
-    - service: persistent_notification.create
-      data:
-        title: "✅ 2024 Archive Loaded"
-        message: "All 12 months of 2024 data ready for YoY comparisons"
-
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jan_amount
+    data:
+      value: 167.46
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jan_kwh
+    data:
+      value: 567
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_feb_amount
+    data:
+      value: 155.7
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_feb_kwh
+    data:
+      value: 514
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_mar_amount
+    data:
+      value: 134.5
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_mar_kwh
+    data:
+      value: 493
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_apr_amount
+    data:
+      value: 120.17
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_apr_kwh
+    data:
+      value: 432
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_may_amount
+    data:
+      value: 108.76
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_may_kwh
+    data:
+      value: 430
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jun_amount
+    data:
+      value: 125.65
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jun_kwh
+    data:
+      value: 519
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jul_amount
+    data:
+      value: 159.93
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jul_kwh
+    data:
+      value: 691
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_aug_amount
+    data:
+      value: 172.04
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_aug_kwh
+    data:
+      value: 738
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_sep_amount
+    data:
+      value: 143.04
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_sep_kwh
+    data:
+      value: 606
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_oct_amount
+    data:
+      value: 109.4
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_oct_kwh
+    data:
+      value: 428
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_nov_amount
+    data:
+      value: 116.7
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_nov_kwh
+    data:
+      value: 469
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_dec_amount
+    data:
+      value: 149.91
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_dec_kwh
+    data:
+      value: 476
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jan_amount
+    data:
+      value: 170.08
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jan_ccf
+    data:
+      value: 109
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_feb_amount
+    data:
+      value: 166.44
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_feb_ccf
+    data:
+      value: 106
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_mar_amount
+    data:
+      value: 127.05
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_mar_ccf
+    data:
+      value: 76
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_apr_amount
+    data:
+      value: 78.01
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_apr_ccf
+    data:
+      value: 38
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_may_amount
+    data:
+      value: 53.18
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_may_ccf
+    data:
+      value: 19
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jun_amount
+    data:
+      value: 43.3
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jun_ccf
+    data:
+      value: 12
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jul_amount
+    data:
+      value: 39.94
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jul_ccf
+    data:
+      value: 10
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_aug_amount
+    data:
+      value: 38.41
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_aug_ccf
+    data:
+      value: 9
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_sep_amount
+    data:
+      value: 42.83
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_sep_ccf
+    data:
+      value: 12
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_oct_amount
+    data:
+      value: 55.89
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_oct_ccf
+    data:
+      value: 22
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_nov_amount
+    data:
+      value: 94.88
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_nov_ccf
+    data:
+      value: 55
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_dec_amount
+    data:
+      value: 166.13
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_dec_ccf
+    data:
+      value: 100
+  - service: persistent_notification.create
+    data:
+      title: ✅ 2024 Archive Loaded
+      message: All 12 months of 2024 data ready for YoY comparisons
 seed_2025_electric_archive:
-  alias: "Seed 2025 Electric Archive Data"
-  description: "Load 2025 electric bill data for MoM/YoY comparisons"
+  alias: Seed 2025 Electric Archive Data
+  description: Load 2025 electric bill data for MoM/YoY comparisons
   sequence:
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jan_amount }
-      data: { value: 143.56 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jan_kwh }
-      data: { value: 461 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_feb_amount }
-      data: { value: 139.48 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_feb_kwh }
-      data: { value: 447 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_mar_amount }
-      data: { value: 100.84 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_mar_kwh }
-      data: { value: 314 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_apr_amount }
-      data: { value: 109.56 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_apr_kwh }
-      data: { value: 344 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_may_amount }
-      data: { value: 141.84 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_may_kwh }
-      data: { value: 464 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jun_amount }
-      data: { value: 179.41 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jun_kwh }
-      data: { value: 626 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jul_amount }
-      data: { value: 315.86 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_jul_kwh }
-      data: { value: 1129 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_aug_amount }
-      data: { value: 248.31 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_aug_kwh }
-      data: { value: 880 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_sep_amount }
-      data: { value: 173.58 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_sep_kwh }
-      data: { value: 619 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_oct_amount }
-      data: { value: 138.95 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_oct_kwh }
-      data: { value: 513 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_nov_amount }
-      data: { value: 130.36 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_nov_kwh }
-      data: { value: 479 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_dec_amount }
-      data: { value: 124.09 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.electric_archive_dec_kwh }
-      data: { value: 454 }
-    - service: persistent_notification.create
-      data:
-        title: "✅ 2025 Electric Archive Loaded"
-        message: "All 12 months of 2025 electric data loaded"
-
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jan_amount
+    data:
+      value: 143.56
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jan_kwh
+    data:
+      value: 461
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_feb_amount
+    data:
+      value: 139.48
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_feb_kwh
+    data:
+      value: 447
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_mar_amount
+    data:
+      value: 100.84
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_mar_kwh
+    data:
+      value: 314
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_apr_amount
+    data:
+      value: 109.56
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_apr_kwh
+    data:
+      value: 344
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_may_amount
+    data:
+      value: 141.84
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_may_kwh
+    data:
+      value: 464
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jun_amount
+    data:
+      value: 179.41
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jun_kwh
+    data:
+      value: 626
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jul_amount
+    data:
+      value: 315.86
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_jul_kwh
+    data:
+      value: 1129
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_aug_amount
+    data:
+      value: 248.31
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_aug_kwh
+    data:
+      value: 880
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_sep_amount
+    data:
+      value: 173.58
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_sep_kwh
+    data:
+      value: 619
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_oct_amount
+    data:
+      value: 138.95
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_oct_kwh
+    data:
+      value: 513
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_nov_amount
+    data:
+      value: 130.36
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_nov_kwh
+    data:
+      value: 479
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_dec_amount
+    data:
+      value: 124.09
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electric_archive_dec_kwh
+    data:
+      value: 454
+  - service: persistent_notification.create
+    data:
+      title: ✅ 2025 Electric Archive Loaded
+      message: All 12 months of 2025 electric data loaded
 seed_2025_gas_archive:
-  alias: "Seed 2025 Gas Archive Data"
-  description: "Load 2025 gas bill data for MoM/YoY comparisons"
+  alias: Seed 2025 Gas Archive Data
+  description: Load 2025 gas bill data for MoM/YoY comparisons
   sequence:
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jan_amount }
-      data: { value: 241.53 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jan_ccf }
-      data: { value: 161 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_feb_amount }
-      data: { value: 248.00 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_feb_ccf }
-      data: { value: 154 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_mar_amount }
-      data: { value: 188.49 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_mar_ccf }
-      data: { value: 106 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_apr_amount }
-      data: { value: 133.11 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_apr_ccf }
-      data: { value: 75 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_may_amount }
-      data: { value: 81.16 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_may_ccf }
-      data: { value: 38 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jun_amount }
-      data: { value: 59.39 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jun_ccf }
-      data: { value: 23 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jul_amount }
-      data: { value: 50.01 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_jul_ccf }
-      data: { value: 17 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_aug_amount }
-      data: { value: 48.43 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_aug_ccf }
-      data: { value: 16 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_sep_amount }
-      data: { value: 41.38 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_sep_ccf }
-      data: { value: 11 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_oct_amount }
-      data: { value: 52.98 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_oct_ccf }
-      data: { value: 18 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_nov_amount }
-      data: { value: 114.03 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_nov_ccf }
-      data: { value: 58 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_dec_amount }
-      data: { value: 185.00 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.gas_archive_dec_ccf }
-      data: { value: 110 }
-    - service: persistent_notification.create
-      data:
-        title: "✅ 2025 Gas Archive Loaded"
-        message: "All 12 months of 2025 gas data loaded"
-
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jan_amount
+    data:
+      value: 241.53
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jan_ccf
+    data:
+      value: 161
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_feb_amount
+    data:
+      value: 248.0
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_feb_ccf
+    data:
+      value: 154
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_mar_amount
+    data:
+      value: 188.49
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_mar_ccf
+    data:
+      value: 106
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_apr_amount
+    data:
+      value: 133.11
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_apr_ccf
+    data:
+      value: 75
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_may_amount
+    data:
+      value: 81.16
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_may_ccf
+    data:
+      value: 38
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jun_amount
+    data:
+      value: 59.39
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jun_ccf
+    data:
+      value: 23
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jul_amount
+    data:
+      value: 50.01
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_jul_ccf
+    data:
+      value: 17
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_aug_amount
+    data:
+      value: 48.43
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_aug_ccf
+    data:
+      value: 16
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_sep_amount
+    data:
+      value: 41.38
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_sep_ccf
+    data:
+      value: 11
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_oct_amount
+    data:
+      value: 52.98
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_oct_ccf
+    data:
+      value: 18
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_nov_amount
+    data:
+      value: 114.03
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_nov_ccf
+    data:
+      value: 58
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_dec_amount
+    data:
+      value: 185.0
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.gas_archive_dec_ccf
+    data:
+      value: 110
+  - service: persistent_notification.create
+    data:
+      title: ✅ 2025 Gas Archive Loaded
+      message: All 12 months of 2025 gas data loaded
 seed_dhw_archives:
-  alias: "Seed DHW Archive Data (Navien-metered)"
-  description: "Load Navien DHW readings for accurate heating isolation (Mar 2025 - Feb 2026)"
+  alias: Seed DHW Archive Data (Navien-metered)
+  description: Load Navien DHW readings for accurate heating isolation (Mar 2025 -
+    Feb 2026)
   sequence:
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_jan }
-      data: { value: 17.76 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_feb }
-      data: { value: 13.63 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_mar }
-      data: { value: 22.47 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_apr }
-      data: { value: 20.66 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_may }
-      data: { value: 19.21 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_jun }
-      data: { value: 16.72 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_jul }
-      data: { value: 15.59 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_aug }
-      data: { value: 11.24 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_sep }
-      data: { value: 15.59 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_oct }
-      data: { value: 17.40 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_nov }
-      data: { value: 19.21 }
-    - service: input_number.set_value
-      target: { entity_id: input_number.dhw_archive_dec }
-      data: { value: 21.75 }
-    - service: persistent_notification.create
-      data:
-        title: "✅ DHW Archive Loaded"
-        message: "12 months of Navien-metered DHW data loaded (215.6 CCF total)"
-
-# ===============================================================
-# MONTHLY ACCUMULATOR SEEDING SCRIPT
-# Run ONCE before restarting HA to seed accumulators with MTD values
-# The template sensors add today's value, so we store (month - today)
-# ===============================================================
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_jan
+    data:
+      value: 17.76
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_feb
+    data:
+      value: 13.63
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_mar
+    data:
+      value: 22.47
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_apr
+    data:
+      value: 20.66
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_may
+    data:
+      value: 19.21
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_jun
+    data:
+      value: 16.72
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_jul
+    data:
+      value: 15.59
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_aug
+    data:
+      value: 11.24
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_sep
+    data:
+      value: 15.59
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_oct
+    data:
+      value: 17.4
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_nov
+    data:
+      value: 19.21
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.dhw_archive_dec
+    data:
+      value: 21.75
+  - service: persistent_notification.create
+    data:
+      title: ✅ DHW Archive Loaded
+      message: 12 months of Navien-metered DHW data loaded (215.6 CCF total)
 seed_monthly_accumulators:
-  alias: "Seed Monthly Accumulators with MTD Data"
-  description: "Initialize monthly accumulators from current history_stats (run before HA restart)"
+  alias: Seed Monthly Accumulators with MTD Data
+  description: Initialize monthly accumulators from current history_stats (run before
+    HA restart)
   sequence:
-    # Furnace Runtime: month total minus today
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_runtime_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_furnace_runtime_today') | float(0) %}
-          {{ [month - today, 0] | max | round(2) }}
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.furnace_runtime_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_furnace_runtime_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_furnace_runtime_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(2) }}
 
-    # Furnace Cycles: month total minus today's cycles
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.furnace_cycles_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_furnace_cycles_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_furnace_cycles_today') | float(0) %}
-          {{ [month - today, 0] | max | round(0) }}
+        '
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.furnace_cycles_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_furnace_cycles_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_furnace_cycles_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(0) }}
 
-    # Zone 1F Runtime: month total minus today
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_runtime_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_1f_heat_runtime_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_1f_heat_runtime_today') | float(0) %}
-          {{ [month - today, 0] | max | round(2) }}
+        '
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.zone_1f_runtime_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_1f_heat_runtime_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_1f_heat_runtime_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(2) }}
 
-    # Zone 2F Runtime: month total minus today
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_runtime_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_2f_heat_runtime_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_2f_heat_runtime_today') | float(0) %}
-          {{ [month - today, 0] | max | round(2) }}
+        '
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.zone_2f_runtime_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_2f_heat_runtime_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_2f_heat_runtime_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(2) }}
 
-    # Zone 1F Cycles: month total minus today's cycles
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_1f_cycles_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_1f_heat_cycles_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_1f_heat_cycles_today') | float(0) %}
-          {{ [month - today, 0] | max | round(0) }}
+        '
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.zone_1f_cycles_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_1f_heat_cycles_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_1f_heat_cycles_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(0) }}
 
-    # Zone 2F Cycles: month total minus today's cycles
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.zone_2f_cycles_month_acc
-      data:
-        value: >
-          {% set month = states('sensor.hvac_2f_heat_cycles_month_2') | float(0) %}
-          {% set today = states('sensor.hvac_2f_heat_cycles_today') | float(0) %}
-          {{ [month - today, 0] | max | round(0) }}
+        '
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.zone_2f_cycles_month_acc
+    data:
+      value: '{% set month = states(''sensor.hvac_2f_heat_cycles_month_2'') | float(0)
+        %} {% set today = states(''sensor.hvac_2f_heat_cycles_today'') | float(0)
+        %} {{ [month - today, 0] | max | round(0) }}
 
-    - service: persistent_notification.create
-      data:
-        title: "✅ Monthly Accumulators Seeded"
-        message: >
-          Furnace: {{ states('input_number.furnace_runtime_month_acc') }}h /
-          {{ states('input_number.furnace_cycles_month_acc') }} cycles |
-          1F: {{ states('input_number.zone_1f_runtime_month_acc') }}h /
-          {{ states('input_number.zone_1f_cycles_month_acc') }} cycles |
-          2F: {{ states('input_number.zone_2f_runtime_month_acc') }}h /
-          {{ states('input_number.zone_2f_cycles_month_acc') }} cycles
+        '
+  - service: persistent_notification.create
+    data:
+      title: ✅ Monthly Accumulators Seeded
+      message: 'Furnace: {{ states(''input_number.furnace_runtime_month_acc'') }}h
+        / {{ states(''input_number.furnace_cycles_month_acc'') }} cycles | 1F: {{
+        states(''input_number.zone_1f_runtime_month_acc'') }}h / {{ states(''input_number.zone_1f_cycles_month_acc'')
+        }} cycles | 2F: {{ states(''input_number.zone_2f_runtime_month_acc'') }}h
+        / {{ states(''input_number.zone_2f_cycles_month_acc'') }} cycles
+
+        '
+one_shot_seed_gas_heat_season_2025_26:
+  alias: ONE-SHOT Seed Gas Heat Season 2025-26
+  mode: single
+  sequence:
+  - target:
+      entity_id: input_number.gas_heat_cs_1
+    data:
+      value: 4.15
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_2
+    data:
+      value: 14.41
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_3
+    data:
+      value: 0
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_4
+    data:
+      value: 1.77
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_5
+    data:
+      value: 76.26
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_6
+    data:
+      value: 148.42
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_7
+    data:
+      value: 230.93
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_8
+    data:
+      value: 253.3
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_9
+    data:
+      value: 176.38
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_10
+    data:
+      value: 91.26
+    action: input_number.set_value
+  - target:
+      entity_id: input_number.gas_heat_cs_11
+    data:
+      value: 54.27
+    action: input_number.set_value
+  - data:
+      level: info
+      message: Seeded gas_heat_cs_1..11 for season 2025-26 (total $1051.15). Safe
+        to delete this script.
+    action: system_log.write
+  description: ''

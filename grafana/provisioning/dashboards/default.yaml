@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: 'home-assistant'
+    folder: 'Home'
+    type: file
+    options:
+      path: /config/grafana/dashboards

@@ -1,0 +1,125 @@
+# Dehumidifier SPC control chart — PASTE THIS INTO BOTH PLACES:
+#   Energy Monitoring -> SPC section -> card 3
+#   the second dashboard view that carries a duplicate of this card
+# Both currently hold the OLD history-sourced version, which is why the
+# seeded 459 W still appears on two day-buckets: sensor.
+# dehumidifier_running_watts_daily kept that value in the recorder for the
+# days it was available, and the old card reads recorder history.
+# Slot state is already correct: day_1..day_7 = 0, limits unavailable.
+#
+# ------------------------------------------------------------------------
+# Dehumidifier — Running Watts SPC
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: Dehumidifier — Running Watts SPC
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (steady-window mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # day_4..day_7 are 0 after the 2026-08-07 E080 reset — gaps, not 0 W bars.
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.dehumidifier_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.dehumidifier_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.dehumidifier_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.dehumidifier_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.dehumidifier_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];

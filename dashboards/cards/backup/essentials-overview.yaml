@@ -1,0 +1,309 @@
+# Backup Bank — Essentials Load & Surge
+# ==============================================================================
+# Dashboard: Overview → Battery Bank Dashboard
+#   live copy: .storage/lovelace.lovelace, view path battery-bank-dashboard
+#   UI-managed, so editing THIS file changes nothing until it is pasted
+#   into the raw configuration editor. See CLAUDE.md CONSTRAINTS.
+# Source of truth: packages/backup_sizing.yaml.
+#
+# WHAT THIS IS FOR. Sizing and operating the 12 V 500 Ah LiFePO4 bank. The bank
+# is NOT a planning exercise — battery_bank_monitor is a live ESPHome INA228
+# that has already carried four outages, so the bottom section is MEASURED
+# evidence, not estimate. Nothing on this card invents a capacity, a depth of
+# discharge, or a runtime; those come from the monitor itself.
+#
+# ESSENTIALS, set 2026-08-23: fridge, furnace (HEAT), Kitchen Counter 2 (coffee),
+# HWH recirc pump, and the monitoring brain (HA host + UPS outlet + router).
+# NEVER on the bank: AC, dryer, microwave.
+#
+# ------------------------------------------------------------------------------
+# READ BEFORE TRUSTING THE PEAK ROW.
+# SEM publishes every 2.0 s. Induction motors surge for 100 ms – 2 s, so most
+# starts are MISSED ENTIRELY: measured 2026-08-23, the AC compressor's first
+# post-start sample was already at running current (0x surge captured), and the
+# fridge's 2277 W inrush appeared in exactly 3 samples out of 10,194 over 8 h.
+#
+# Every peak here is therefore a LUCKY CATCH and a LOWER BOUND. It converges
+# upward over weeks and can never be treated as a ceiling. For a true surge
+# figure you need a sampler faster than the motor's run-up, or the appliance's
+# nameplate LRA.
+# ------------------------------------------------------------------------------
+#
+# THE FURNACE NUMBER IS A COOLING NUMBER UNTIL THE FIRST HEAT CALL.
+# sem_furnace_power currently watches the air handler running for the AC. Heat
+# mode adds the inducer motor and igniter and may run the blower at a different
+# speed. The furnace is the #1 winter essential and its heat-mode draw is
+# UNMEASURED. Press "Reset peaks" at the first real heat call.
+#
+# THE 24 H MEAN IS TIME-WEIGHTED, and needs to be. It uses `average_linear`
+# rather than `mean`: an arithmetic mean is only a time average when samples are
+# evenly spaced, and while the 1-minute sampler feeds it live they are - but on
+# restart `statistics` restores its buffer from the recorder, which collapses
+# repeated values, leaving a NON-uniform buffer that would over-weight the
+# periods when load was moving. The tile reads "filling…" until it holds a full
+# 24 hours, because a two-hour mean under a 24 h label looks like an answer.
+#
+# AMPS, NOT WATTS, IS THE NUMBER THAT BINDS. A BMS trips on current. The
+# amps_at_bank_v attribute divides by the bank's OWN reported voltage rather
+# than a nominal 12.5 V, so it stays honest as the pack sags under load.
+type: vertical-stack
+cards:
+  # --- headline: what the bank is carrying right now ------------------------
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - type: custom:mushroom-template-card
+        primary: >-
+          {{ states('sensor.backup_essentials_load') | float(0) | round(0) }} W
+        secondary: >-
+          {{ state_attr('sensor.backup_essentials_load', 'amps_at_bank_v')
+             | float(0) | round(0) }} A from the bank
+        icon: mdi:home-battery
+        icon_color: >-
+          {% set a = state_attr('sensor.backup_essentials_load',
+                                'amps_at_bank_v') | float(0) %}
+          {% if a >= 250 %}red{% elif a >= 150 %}orange{% else %}green{% endif %}
+        vertical: true
+        tap_action:
+          action: more-info
+          entity: sensor.backup_essentials_load
+
+      - type: custom:mushroom-template-card
+        primary: >-
+          {{ states('sensor.battery_bank_monitor_state_of_charge')
+             | float(0) | round(1) }}%
+        secondary: >-
+          {{ states('sensor.battery_bank_monitor_bank_state') }} ·
+          {{ states('sensor.battery_bank_monitor_battery_voltage')
+             | float(0) | round(2) }} V
+        icon: mdi:battery-charging-high
+        icon_color: >-
+          {% set s = states('sensor.battery_bank_monitor_state_of_charge')
+                     | float(0) %}
+          {% if s < 30 %}red{% elif s < 60 %}orange{% else %}green{% endif %}
+        vertical: true
+        tap_action:
+          action: more-info
+          entity: sensor.battery_bank_monitor_state_of_charge
+
+      # Both runtime regimes, because runtime depends on outage LENGTH. The 24 h
+      # mean is the long-outage number - it is the first window whose rolling
+      # average converges (28% spread, against 293% at 1 h). The bank's own
+      # measured outage average is the SHORT-outage number: its last outage ran
+      # 12 minutes at 925 W, which is near the p95 of instantaneous essentials,
+      # because a short outage samples the PEAK of the duty cycle rather than
+      # averaging it.
+      # NOT READY UNTIL THE WINDOW IS FULL. `statistics` starts reporting from
+      # its first sample, so this reads a two-hour mean under a 24 h label right
+      # after any reload - 320 W on a busy afternoon against a 213 W truth. The
+      # coverage ratio is checked so a young number announces itself instead of
+      # being quoted. It also goes grey while filling.
+      - type: custom:mushroom-template-card
+        primary: >-
+          {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                'age_coverage_ratio') | float(0) %}
+          {% if c < 0.9 %}
+            filling…
+          {% else %}
+            {{ states('sensor.backup_essentials_avg_24h') | float(0) | round(0) }} W
+          {% endif %}
+        secondary: >-
+          {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                'age_coverage_ratio') | float(0) %}
+          {% if c < 0.9 %}
+            {{ (c * 24) | round(1) }} h of 24 · now
+            {{ states('sensor.backup_essentials_avg_24h') | float(0) | round(0) }} W
+          {% else %}
+            24 h mean · outage was
+            {{ states('sensor.battery_bank_monitor_last_outage_average_power')
+               | float(0) | round(0) }} W
+          {% endif %}
+        icon: mdi:timer-outline
+        icon_color: >-
+          {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                'age_coverage_ratio') | float(0) %}
+          {{ 'disabled' if c < 0.9 else 'blue' }}
+        vertical: true
+        tap_action:
+          action: more-info
+          entity: sensor.backup_essentials_avg_24h
+
+  # --- peak hold ------------------------------------------------------------
+  # THE ROWS BELOW DO NOT SUM TO THE ROW ABOVE THEM, and must not be added.
+  # Each peak latches independently, so they are maxima taken at DIFFERENT
+  # MOMENTS - on 2026-08-24 the fridge peaked at 03:36, the coffee maker at
+  # 06:49 and the furnace the previous evening. Adding them gave 4,533 W against
+  # a real simultaneous peak of 3,395 W: 34% high, and exactly the error an
+  # inverter would be sized on.
+  #
+  # backup_essentials_peak_watts is the only sizing number here, because it
+  # latches the peak of the SUM rather than the sum of the peaks.
+  #
+  # The router is a COMPONENT of the monitoring row, not a peer of it - it is
+  # inside sensor.monitoring_load since P16. It is listed under it, indented,
+  # so the hierarchy is visible. Nothing is double-counted in any sum: verified
+  # live 2026-08-24, monitoring 39.8 W = 11.8 + 16.6 + 11.4.
+  - type: entities
+    title: Peak hold — lower bounds, see header
+    show_header_toggle: false
+    entities:
+      - entity: sensor.backup_essentials_peak_watts
+        name: ALL ESSENTIALS, SIMULTANEOUS — the sizing number
+        secondary_info: last-changed
+      - type: section
+        label: Individual peaks — taken at different moments, do NOT add these
+      - entity: sensor.fridge_peak_watts
+        name: Fridge (inrush ~18x running)
+      - entity: sensor.furnace_peak_watts
+        name: Furnace — COOLING until first heat call
+      - entity: sensor.coffee_maker_peak_watts
+        name: Coffee maker (resistive, no inrush)
+      - entity: sensor.hwh_recirc_peak_watts
+        name: HWH recirc pump
+      - entity: sensor.monitoring_peak_watts
+        name: Monitoring brain (HA + UPS + router)
+      - entity: sensor.basement_router_peak_watts
+        name: ↳ of which, basement router
+      - type: divider
+      - entity: input_button.reset_load_peaks
+        name: Reset peaks — press at first heat call
+
+  # --- who is drawing what, and when they overlap ---------------------------
+  # Stacked deliberately: simultaneity is the whole question for inverter
+  # sizing. Two 1 kW loads that never coincide need a very different inverter
+  # from two that always do.
+  - type: custom:apexcharts-card
+    stacked: true
+    graph_span: 24h
+    header:
+      show: true
+      title: Essentials — 24 h, stacked
+      show_states: true
+      colorize_states: true
+    yaxis:
+      - id: watts
+        min: 0
+        apex_config:
+          title:
+            text: Watts
+    series:
+      - entity: sensor.sem_furnace_power
+        name: Furnace
+        type: area
+        color: "#FF7043"
+        stroke_width: 1
+        yaxis_id: watts
+      - entity: sensor.sem_fridge_power
+        name: Fridge
+        type: area
+        color: "#42A5F5"
+        stroke_width: 1
+        yaxis_id: watts
+      - entity: sensor.sem_counter_2_power
+        name: Coffee
+        type: area
+        color: "#8D6E63"
+        stroke_width: 1
+        yaxis_id: watts
+      - entity: sensor.hwh_current_consumption
+        name: HWH recirc
+        type: area
+        color: "#26A69A"
+        stroke_width: 1
+        yaxis_id: watts
+      # Carries the basement router as of P16, so no separate router series is
+      # needed and the stack still sums to the Total line. Adding a monitoring
+      # circuit is a one-line change in packages/backup_sizing.yaml.
+      - entity: sensor.monitoring_load
+        name: Monitoring (HA + UPS + router)
+        type: area
+        color: "#AB47BC"
+        stroke_width: 1
+        yaxis_id: watts
+      # Drawn over the stack as a check: this line must sit exactly on top of
+      # it. If it ever sits BELOW, a series has been stacked that is not part of
+      # sensor.backup_essentials_load - which is what adding the basement router
+      # to the stack did on 2026-08-23.
+      #
+      # NAMED "live" ON PURPOSE. This series has no group_by, so its header
+      # value is the last RAW sample. The identical entity on the chart below
+      # carries group_by avg/5min and so shows a 5-MINUTE MEAN. On 2026-08-24
+      # they read 284 W and 181.2 W at the same moment and looked contradictory;
+      # both were right. Every series on THIS chart is raw and every series on
+      # that one is 5-min, so each chart is internally consistent - only the
+      # labels were silent about which. Same trap as the 5-min utility figure
+      # beside a 2 s SEM figure: anything a reader may compare must say its
+      # time constant.
+      - entity: sensor.backup_essentials_load
+        name: Total (bank) — live
+        type: line
+        color: "#FFFFFF"
+        stroke_width: 2
+        yaxis_id: watts
+        show:
+          in_header: true
+          legend_value: true
+
+  # --- how much of the house is NOT on the bank -----------------------------
+  # The gap between these two lines is everything that gets shed. Useful when
+  # deciding whether a circuit is worth adding.
+  - type: custom:apexcharts-card
+    graph_span: 24h
+    header:
+      show: true
+      title: Whole home vs essentials
+      show_states: true
+      colorize_states: true
+    yaxis:
+      - id: watts
+        min: 0
+        apex_config:
+          title:
+            text: Watts
+    series:
+      - entity: sensor.sem_whole_home_power
+        name: Whole home — 5 min avg
+        type: line
+        color: "#78909C"
+        stroke_width: 2
+        group_by:
+          func: avg
+          duration: 5min
+        yaxis_id: watts
+      - entity: sensor.backup_essentials_load
+        name: On the bank — 5 min avg
+        type: area
+        color: "#66BB6A"
+        stroke_width: 2
+        group_by:
+          func: avg
+          duration: 5min
+        yaxis_id: watts
+
+  # --- MEASURED outage evidence --------------------------------------------
+  # This section is worth more than every estimate above it: the bank has
+  # actually done this. last_discharge_peak_current is the real number an
+  # inverter and BMS have to survive.
+  - type: entities
+    title: Measured — what the bank has already carried
+    show_header_toggle: false
+    entities:
+      - entity: sensor.battery_bank_monitor_total_outage_events
+        name: Outages survived
+      - type: divider
+      - entity: sensor.battery_bank_monitor_last_outage_peak_power
+        name: Last outage — peak power
+      - entity: sensor.battery_bank_monitor_last_discharge_peak_current
+        name: Last discharge — PEAK CURRENT
+      - entity: sensor.battery_bank_monitor_last_outage_average_power
+        name: Last outage — average power
+      - entity: sensor.battery_bank_monitor_last_outage_duration
+        name: Last outage — duration
+      - entity: sensor.battery_bank_monitor_last_outage_wh
+        name: Last outage — energy delivered
+      - type: divider
+      - entity: sensor.battery_bank_monitor_runtime_remaining
+        name: Runtime remaining (bank's own estimate)
+      - entity: sensor.battery_bank_monitor_last_coulombic_efficiency
+        name: Coulombic efficiency

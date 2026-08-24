@@ -1,0 +1,772 @@
+# SPC Running-Watts / kWh-CDD Control Charts — ApexCharts Card
+# =============================================================
+# Dashboard: Energy Monitoring (SPC section), HVAC Diagnostics
+# Source of truth: packages/spc.yaml
+# Pair with: conditional/spc-capture-stale.yaml (carries the real dates)
+#
+# THE X-AXIS IS SUBGROUP ORDER, NOT A CALENDAR DATE.
+# An XmR chart is indexed by subgroup, and here that is forced as well as
+# correct. The day_1..day_7 slots hold the last 7 SUCCESSFUL captures and
+# rotate only when a capture passes its guard, so slot index is not calendar
+# age. Any population that stops capturing therefore drifts out of a fixed
+# window and draws nothing at all:
+#   2026-08-21 — HWH recirc last captured 08-01, 0 of 7 slots inside a 14d
+#   window; dehumidifier last captured 08-08, 1 of 7. Both charts were blank.
+# That is not a tuning problem. apexcharts-card re-stamps the axis bounds from
+# graph_span on every refresh —
+#   this._apexBrush || (q.xaxis = {min: h.getTime() - off, max: ...})
+# (verified in www/community/apexcharts-card/apexcharts-card.js) — so the axis
+# can never follow the data, and apex_config.xaxis.min/max cannot override it.
+# Widening graph_span only moves the cliff: furnace and AC go MONTHS without a
+# capture every off-season by design (see SEASONAL CARRYOVER in spc.yaml), so a
+# wall-clock axis guarantees those two charts blank for half the year.
+#
+# So the 7 subgroups are plotted on the last 7 day-slots of the window, and
+# every date is suppressed: xaxis.labels.show is false and tooltip.x.show is
+# false. Nothing on the chart claims a date, so nothing can misdate the data —
+# which was the defect in the ORIGINAL cards, where HWH's 08-01 data was
+# labelled 08-14..08-20. The real capture date and its age live in
+# conditional/spc-capture-stale.yaml, which appears above these charts
+# whenever a population missed last night.
+#
+# OTHER FIXES CARRIED HERE
+#   - Columns read the input_number slots directly. The old fridge/AC/
+#     dehumidifier cards charted sensor.<x>_running_watts_daily over recorder
+#     history; that sensor is availability-gated to a stamp no older than one
+#     day, so a single skipped capture blanked the whole window.
+#   - 0 / NaN / unknown / unavailable / missing entity all map to null, which
+#     draws a GAP. A literal 0 became a column at the axis floor that dragged
+#     the auto-scale down, and `d.state` on a missing entity threw a TypeError
+#     that blanked the card.
+#   - y-axis auto-scales. Hard-coded min/max (dehumidifier 400-610, HWH 80-120)
+#     hid any point outside the band.
+#   - Limit lines return [] when the limit sensor is unavailable — which now
+#     happens below 2 valid slots (see packages/spc.yaml). No line is the
+#     honest rendering of "not enough subgroups to set limits".
+#
+# RESERVED IDENTIFIERS IN data_generator — read before editing the JS.
+# The body is wrapped as
+#   AsyncFunction('entity', 'start', 'end', 'hass', 'moment', "'use strict'; " + body)
+# so entity / start / end / hass / moment are function PARAMETERS. Declaring
+# `const end = ...` is a SyntaxError, and the failure is silent in the worst
+# way: _updateHistory sets this._updating = true BEFORE calling the generator
+# and clears it only on success, so one throw leaves the flag stuck and every
+# later refresh returns early — the card spins on "loading" forever with no
+# error shown. This file uses t0/t1.
+#
+# A series with a data_generator never calls the history API: _updateHistory
+# branches to _generateData and skips the fetch. These cards issue zero
+# recorder queries, which is why six of them on one view stay cheap.
+
+
+# ------------------------------------------------------------------------
+# Fridge — Running Watts SPC
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: Fridge — Running Watts SPC
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (compressor-on mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.fridge_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header. Slot
+        // day_1 is the newest capture, day_7 the oldest; they are laid out on
+        // the last 7 day-slots of the window so the chart is always full, and
+        // the axis date labels are turned off so no date is ever asserted.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.fridge_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          // 0 means "no valid subgroup that day" — a cleared slot, or one
+          // never filled since a reset. null draws a GAP; a literal 0 would
+          // draw a column at the axis floor and drag the auto-scale down.
+          // NaN (missing entity, 'unknown', 'unavailable') takes the same
+          // path, so this never throws.
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.fridge_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // Flat reference spanning the same 7 subgroups, from the CURRENT limit
+        // rather than its recorder history: the limit applies to the whole
+        // 7-subgroup window, and reading history made the line disappear on
+        // any day the sensor happened to be unavailable.
+        const lim = hass.states['sensor.fridge_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }   // below 2 valid slots -> no line
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.fridge_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.fridge_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.fridge_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.fridge_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+
+# ------------------------------------------------------------------------
+# Furnace Blower — Running Watts SPC (high-speed only)
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: Furnace Blower — Running Watts SPC (high-speed only)
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (high-speed blower mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # Seasonal: no captures outside heating season. The subgroup axis keeps
+    # last season's tail visible instead of blanking the chart for months.
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.furnace_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.furnace_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.furnace_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.furnace_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.furnace_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.furnace_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.furnace_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.furnace_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+
+# ------------------------------------------------------------------------
+# AC — Running Watts SPC (unvalidated seeds)
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: AC — Running Watts SPC (unvalidated seeds)
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (compressor-on mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # Seasonal: same as furnace — see spc.yaml SEASONAL CARRYOVER note.
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.ac_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.ac_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.ac_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.ac_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.ac_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.ac_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.ac_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.ac_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+
+# ------------------------------------------------------------------------
+# HWH Recirc Pump — Running Watts SPC
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: HWH Recirc Pump — Running Watts SPC
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (pump-on mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.hwh_recirc_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.hwh_recirc_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.hwh_recirc_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.hwh_recirc_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.hwh_recirc_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.hwh_recirc_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.hwh_recirc_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.hwh_recirc_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+
+# ------------------------------------------------------------------------
+# Dehumidifier — Running Watts SPC
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: Dehumidifier — Running Watts SPC
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 1
+      apex_config:
+        title:
+          text: W (steady-window mean)
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # day_4..day_7 are 0 after the 2026-08-07 E080 reset — gaps, not 0 W bars.
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.dehumidifier_running_watts_day_1
+      name: Daily subgroup (W)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.dehumidifier_running_watts_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.dehumidifier_running_watts_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.dehumidifier_running_watts_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.dehumidifier_running_watts_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 1
+      data_generator: |
+        const lim = hass.states['sensor.dehumidifier_running_watts_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+
+# ------------------------------------------------------------------------
+# Cooling Efficiency — kWh/CDD SPC
+# ------------------------------------------------------------------------
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: Cooling Efficiency — kWh/CDD SPC
+    show_states: true
+    colorize_states: true
+  # 8d window over 7 daily slots: the subgroups are laid out on the last 7
+  # of them, so the chart is always full regardless of capture staleness.
+  graph_span: 8d
+  span:
+    end: day
+  yaxis:
+    - id: spc
+      decimals: 2
+      apex_config:
+        title:
+          text: kWh per cooling degree day
+  apex_config:
+    chart:
+      height: 280
+    legend:
+      show: true
+      position: bottom
+    tooltip:
+      shared: true
+      # The x value is subgroup position, not a date. Showing it would
+      # assert a date the data does not support.
+      x:
+        show: false
+    xaxis:
+      labels:
+        show: false
+      axisTicks:
+        show: false
+      title:
+        text: last 7 captured subgroups — oldest to newest
+  series:
+    # Header state reads the raw slot, not the availability-gated daily
+    # sensor, so the last captured value always shows.
+    - entity: input_number.cooling_kwh_cdd_day_1
+      name: Daily subgroup (kWh/CDD)
+      type: column
+      color: "#2196F3"
+      yaxis_id: spc
+      float_precision: 2
+      data_generator: |
+        // X is subgroup POSITION, not a date — see the file header.
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const slot = hass.states['input_number.cooling_kwh_cdd_day_' + (i + 1)];
+          const v = slot ? parseFloat(slot.state) : NaN;
+          const t = new Date(today);
+          t.setDate(t.getDate() - i);
+          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+        }
+        return out.reverse();
+    - entity: sensor.cooling_kwh_cdd_mean_7d
+      name: Centre line (7d mean)
+      type: line
+      color: "#2e7d32"
+      stroke_width: 2
+      curve: straight
+      yaxis_id: spc
+      float_precision: 2
+      data_generator: |
+        const lim = hass.states['sensor.cooling_kwh_cdd_mean_7d'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.cooling_kwh_cdd_upper
+      name: UCL (+2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 2
+      data_generator: |
+        const lim = hass.states['sensor.cooling_kwh_cdd_upper'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];
+    - entity: sensor.cooling_kwh_cdd_lower
+      name: LCL (−2σ)
+      type: line
+      color: "#c0504d"
+      stroke_width: 1
+      curve: straight
+      yaxis_id: spc
+      float_precision: 2
+      data_generator: |
+        const lim = hass.states['sensor.cooling_kwh_cdd_lower'];
+        const v = lim ? parseFloat(lim.state) : NaN;
+        if (!isFinite(v)) { return []; }
+        // t0/t1, not start/end — those are reserved params (see file header).
+        const t1 = new Date();
+        t1.setHours(12, 0, 0, 0);
+        const t0 = new Date(t1);
+        t0.setDate(t0.getDate() - 6);
+        return [[t0.getTime(), v], [t1.getTime(), v]];

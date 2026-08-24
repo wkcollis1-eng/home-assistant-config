@@ -46,13 +46,17 @@ series:
     color: "#1A89F5"
     stroke_width: 2
     yaxis_id: temp
-  - entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+  # 1F Indoor: was tstat_2d884c_lyric_t6_pro_thermostat - a Honeywell T6 Pro
+  # replaced by Ecobee in June 2026. This series had drawn nothing since.
+  - entity: climate.main_floor
     attribute: current_temperature
     name: 1F Indoor
     color: "#00CA8B"
     stroke_width: 2
     yaxis_id: temp
-  - entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+  # 2F Indoor: was tstat_2d8878_lyric_t6_pro_thermostat - a Honeywell T6 Pro
+  # replaced by Ecobee in June 2026. This series had drawn nothing since.
+  - entity: climate.upstairs
     attribute: current_temperature
     name: 2F Indoor
     color: "#F7D88B"

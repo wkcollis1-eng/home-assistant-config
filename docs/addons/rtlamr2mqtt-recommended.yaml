@@ -1,0 +1,93 @@
+# rtlamr2mqtt add-on config — CORRECTED 2026-08-22 after reading the add-on source
+# (allangood/rtlamr2mqtt, rtlamr2mqtt-addon/app/*). My first version of this file
+# was wrong twice; both errors are named below so they are not repeated.
+#
+# ERROR 1 — "set listen_mode: true". DO NOT. In this add-on listen_mode is a
+#   DISCOVERY mode, not a continuous-publishing mode. meter_reader.py:
+#       if self.listen_mode:
+#           if meter_id not in self._seen_ids: ... logger.info('New meter | ID ...')
+#       else:
+#           self.reading_queue.put_nowait(reading)     # <-- only here
+#   In listen_mode readings are never enqueued, so NOTHING is published to MQTT.
+#   Every sensor would go stale and the whole SDR stack would go dark.
+#   config.py confirms the intent: "Add at least one meter or enable listen_mode
+#   to discover meter IDs", and it forces sleep_for = 0 when listen_mode is set.
+#
+# ERROR 2 — "remove -unique=true". Removing it does nothing. buildcmd.py adds it
+#   as the DEFAULT unless custom_parameters already contains a -unique flag:
+#       if not has_prefix('-unique', custom_args):
+#           args.append('-unique=true')
+#   The override must be explicit: -unique=false.
+#
+# WHAT ACTUALLY FIXES IT: sleep_for: 0. In meter_reader.run(), _sleep_cycle() is
+# called only `if self.sleep_for > 0`, and the "all meters read" break is also
+# gated on sleep_for > 0. So with 0 the inner loop reads and enqueues forever:
+# no restart, no sleep, no SIGTERM/SIGKILL, and resolution falls to the meters'
+# own transmit interval. It is also the add-on's own default - the 60 was set here.
+
+general:
+  sleep_for: 0            # CHANGED from 60. This single line is the whole fix.
+  verbosity: info
+  listen_mode: false      # UNCHANGED. See ERROR 1 - this must stay false.
+
+custom_parameters:
+  rtltcp: -s 2048000
+  rtlamr: -unique=false   # CHANGED from -unique=true. Must be =false, not absent.
+  #
+  # WHY. From rtlamr's own source (flags.go, UniqueFilter.Filter), -unique
+  # suppresses any frame whose CHECKSUM matches the previous one from that meter
+  # id, held in an in-memory map. Today that map is wiped every ~2 min by the
+  # process restart, which is why every meter publishes every cycle even when
+  # the reading has not moved. With sleep_for: 0 the process never restarts, so
+  # the map PERSISTS and a meter with flat consumption goes silent.
+  #
+  # That breaks the one thing your own commissioning note says matters:
+  #   "A frozen counter is the real failure mode ... 'Heard ago' is the
+  #    instrument; value change is not."
+  # With -unique=true and no restarts, water_meter_last_seen would freeze
+  # overnight, water_meter_age would climb past sdr_water_stale_minutes (60),
+  # water_meter_stale would go on - and that GATES OFF
+  # automation.sdr_water_meter_leak_now. Gas is worse: it ticks every 2-5 days
+  # in summer against a 360 min threshold.
+
+mqtt:
+  ha_autodiscovery_topic: homeassistant
+  ha_status_topic: homeassistant/status
+  base_topic: rtlamr
+  discovery_interval: 300
+  tls_enabled: false
+
+meters:
+  - id: 20109304
+    protocol: scm
+    name: gas_meter
+    unit_of_measurement: ft³
+    icon: mdi:fire
+  - id: 43344099
+    protocol: scm
+    name: electric_meter
+    unit_of_measurement: kWh
+    icon: mdi:flash
+  - id: 1571014090
+    protocol: r900
+    name: water_meter
+    unit_of_measurement: gal
+    icon: mdi:water
+
+# EXPECTED AFTER THE CHANGE
+#   - "Sleeping for 60 seconds" / "Waking up" / "All 3 meters read" disappear
+#     from the log entirely - those lines only exist on the sleep path.
+#   - "rtl_tcp did not exit after SIGTERM, sending SIGKILL" stops. It was firing
+#     735x/day; stop() is now only reached on add-on restart. The 2.0 s SIGTERM
+#     timeout is hardcoded in process_manager.py and is NOT configurable, so
+#     removing the restarts is the only way to stop paying it.
+#   - sensor.water_meter_age should sawtooth at the R900 transmit interval
+#     (~15-30 s) instead of ~112 s, and must NOT climb past a minute overnight.
+#     If it climbs, -unique is still active.
+#
+# FOLLOW-ON once this is live: exclude sensor.*_meter_last_seen from the recorder
+# in configuration.yaml. Without -unique it changes on every frame - roughly
+# 4,000/day per meter, ~12,000/day total, about +20% on top of the basement
+# node's 58k rows/day. Its history has no analytical value: sensor.*_meter_age
+# derives everything from the live value, and your dongle-health chart plots
+# _age, not _last_seen.

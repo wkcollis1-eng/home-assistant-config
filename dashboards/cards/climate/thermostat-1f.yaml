@@ -2,7 +2,7 @@
 # Full thermostat control with temperature adjustment
 # Dashboard: Home
 type: custom:mushroom-climate-card
-entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+entity: climate.main_floor
 name: 1st Floor
 icon: mdi:home-floor-1
 hvac_modes:

@@ -1,0 +1,71 @@
+# SPC Capture Health — Conditional entities card
+# ==============================================
+# Dashboard: Energy Monitoring (SPC section), HVAC Diagnostics
+# Pair with apexcharts/spc-running-watts-control-chart.yaml
+# Backed by: packages/spc.yaml -> SPC CAPTURE WATCHDOG
+#
+# REPLACES the earlier markdown version, which recomputed staleness in Jinja
+# on the card. That duplicated the rule in a place nothing validates, and it
+# had no opportunity gate — it would have shown furnace and AC as stale all
+# summer, which is how an alarm gets ignored. The rule now lives once, in
+# packages/spc.yaml, and this card only displays it.
+#
+# WHY IT MATTERS. On 2026-08-21 an audit found 6 of 10 non-SPC pipelines had
+# a stale detector and 0 of 6 SPC pipelines did. That gap is the only reason
+# the dehumidifier could stop capturing on 08-07 and HWH recirc on 08-01 and
+# go 14 and 20 days unnoticed. The charts were drawing stale data or nothing,
+# and nothing said so.
+#
+# The card is hidden entirely while every pipeline is healthy, so it costs
+# nothing on a normal day and means something on a bad one.
+#
+# "on" here does NOT mean "the appliance is off". It means the pipeline had
+# the OPPORTUNITY to capture — the appliance ran today — and did not take it
+# for more than two days. Out of season the detectors stay quiet by design.
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.spc_capture_stale_any
+    state: "on"
+card:
+  type: entities
+  title: SPC capture stale
+  state_color: true
+  entities:
+    - entity: binary_sensor.spc_capture_stale_any
+      name: Any pipeline stale
+      secondary_info: last-changed
+    - type: section
+      label: Which pipeline, and when it last captured
+    # Each row's more-info shows the last_capture, activity_today and
+    # capture_guard attributes — enough to tell "guard too tight" from
+    # "chain broken" without leaving the dashboard.
+    - entity: binary_sensor.fridge_spc_capture_stale
+      name: Fridge
+    - entity: binary_sensor.furnace_spc_capture_stale
+      name: Furnace blower
+    - entity: binary_sensor.ac_spc_capture_stale
+      name: AC
+    - entity: binary_sensor.hwh_recirc_spc_capture_stale
+      name: HWH recirc
+    - entity: binary_sensor.dehumidifier_spc_capture_stale
+      name: Dehumidifier
+    - entity: binary_sensor.cooling_kwh_cdd_spc_capture_stale
+      name: Cooling kWh/CDD
+    - type: section
+      label: Next step
+    - type: attribute
+      entity: binary_sensor.spc_capture_stale_any
+      attribute: stale_populations
+      name: Stale now
+    # The nightly skip line prints the latched value the guard read, the live
+    # 24h statistic and the guard band — Settings > System > Logs, "SPC skipped".
+    - entity: input_datetime.dehumidifier_spc_last_capture
+      name: "  ↳ dehumidifier last capture"
+    - entity: input_datetime.hwh_recirc_spc_last_capture
+      name: "  ↳ HWH recirc last capture"
+  footer:
+    type: graph
+    entity: sensor.dehumidifier_running_watts_latched
+    hours_to_show: 48
+    detail: 2
