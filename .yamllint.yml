@@ -6,12 +6,36 @@ yaml-files:
   - '*.yaml'
   - '*.yml'
 
+# SCOPE (revised 2026-08-21). Everything below is owned by something else, or
+# rewritten by something else. Linting it here produces failures this repo
+# cannot act on, and a CI job that is permanently red is a CI job you stop
+# reading — which is precisely how 7 CRLF files sat failing unnoticed.
 ignore: |
+  # Third-party / downloaded — not ours to format.
   custom_components/
   deps/
   themes/
   www/
   .storage/
+  # Nested repository. baseline-repo/ has its own .git, .github/workflows/ and
+  # .markdownlint.json, and lints itself on its own push. Linting it from here
+  # duplicates that CI and reports errors that must be fixed in the other repo.
+  baseline-repo/
+  # Gitignored, so the CI checkout never contains them. Linting them locally
+  # made the local run disagree with CI in both directions — the thing that
+  # teaches you to distrust the local run.
+  secrets.yaml
+  secrets_*.yaml
+  esphome/secrets.yaml
+  # UI-MANAGED — Home Assistant rewrites these wholesale in its own serializer
+  # style (2-space sequence indent, `metadata: {}`, device_id GUIDs) whenever a
+  # script, automation or scene is touched in the UI. Style-linting them is
+  # futile: the next UI edit reverts any reformat, so the job would flap red
+  # forever. Their VALIDITY is not unchecked — the ha-config-check job parses
+  # them in full, which is the stronger test and the one that matters.
+  scripts.yaml
+  automations.yaml
+  scenes.yaml
 
 rules:
   # Disable line-length - HA shell commands and templates are inherently long
@@ -39,6 +63,13 @@ rules:
     ignore-shebangs: true
     min-spaces-from-content: 1
 
+  # Warnings only, so these never failed the build; exempted for esphome/ for
+  # the same reason as colons above — aligned trailing commentary on register
+  # tables is deliberate there.
+  comments-indentation:
+    ignore: |
+      esphome/
+
   # Allow empty values (common in HA for defaults)
   empty-values:
     forbid-in-block-mappings: false
@@ -56,6 +87,14 @@ rules:
   colons:
     max-spaces-before: 0
     max-spaces-after: 1
+    # esphome/ exempted 2026-08-21. Those configs use column-aligned value
+    # tables for register maps and calibration constants, where the extra
+    # spaces ARE the readability. Collapsing them would make the files worse,
+    # and ESPHome owns their validation anyway (config -> codegen -> g++ -Wall
+    # -> real compile, per CLAUDE.md) — a far stronger gate than a style rule.
+    # Structural rules (indentation, syntax) still apply to esphome/.
+    ignore: |
+      esphome/
   commas:
     max-spaces-before: 0
     min-spaces-after: 1

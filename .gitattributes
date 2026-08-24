@@ -1,0 +1,25 @@
+# Line-ending policy — added 2026-08-21.
+#
+# WHY. Seven card snippets, packages/watchdog.yaml, configuration.yaml,
+# automations.yaml and the two seed scripts had drifted to CRLF and were
+# failing .yamllint.yml's `new-lines: unix` rule in CI. This config is edited
+# from Windows over a Samba share to the HA host, so any editor that defaults
+# to CRLF reintroduces it silently and the build goes red again. Normalising
+# in git makes that structurally impossible rather than a thing to remember.
+#
+# Deliberately scoped to text formats only. CSV is NOT listed: the reporting
+# CSVs under www/ and reports/ are append-only data files (see CLAUDE.md
+# "NEVER overwrite/truncate CSV files"), and renormalising them on checkout
+# would rewrite data this repo treats as immutable.
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.py    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+
+# Binary — never touch.
+*.db    binary
+*.png   binary
+*.jpg   binary
+*.pem   binary
