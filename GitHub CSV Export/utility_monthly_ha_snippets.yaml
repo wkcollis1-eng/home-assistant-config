@@ -133,6 +133,9 @@ shell_command:
 # 23:58:45 the 23:56:30 capture automation has already credited today's
 # values into all month accumulators.
 #
+# --- separate YAML document: the block above is a mapping, this one is a
+# sequence for automations.yaml. One document cannot be both.
+---
 - id: snapshot_utility_month
   alias: "Snapshot HVAC accumulators for utility monthly export"
   description: >

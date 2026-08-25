@@ -562,11 +562,12 @@ sensor:
     ambient_light:
       name: "Basement Lux"
       id: basement_lux
-      internal: true          # Rev 2.2: 2 s gating kept, but 43,200 rows/day is
-                              # recorder bloat. HA gets the per-minute min/max
-                              # copies below (2,880/day) -- strictly more useful
-                              # for threshold tuning than a throttled spot sample.
-                              # Live 2 s values remain visible via `esphome logs`.
+      # Rev 2.2: 2 s gating kept, but 43,200 rows/day is
+      # recorder bloat. HA gets the per-minute min/max
+      # copies below (2,880/day) -- strictly more useful
+      # for threshold tuning than a throttled spot sample.
+      # Live 2 s values remain visible via `esphome logs`.
+      internal: true
       on_value:
         then:
           - lambda: |-
