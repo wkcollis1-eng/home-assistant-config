@@ -31,6 +31,9 @@ shell_command:
 # Fires at 02:00 AM daily — safely clear of all 23:57–23:59 EOD CSV writes.
 # ══════════════════════════════════════════════════════════════════════════════
 
+# --- separate YAML document: the block above is a mapping, this one is a
+# sequence for automations.yaml. One document cannot be both.
+---
 - id: push_csv_to_github_daily
   alias: "Push CSV reports to GitHub (Baseline Repo)"
   description: >
