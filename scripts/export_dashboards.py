@@ -38,6 +38,7 @@ import json
 import os
 import sys
 import glob
+import argparse
 
 CONFIG = os.environ.get("HA_CONFIG", "/config")
 P = lambda *a: os.path.join(CONFIG, *a)
@@ -87,6 +88,13 @@ def header(src, extra=""):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true",
+                    help="machine-readable, for script.export_dashboards")
+    ap.add_argument("--check", action="store_true",
+                    help="report drift, write nothing")
+    args = ap.parse_args()
+
     yaml = _yaml()
     out_dir = P("dashboards", "lovelace")
     if not os.path.isdir(out_dir):
@@ -121,13 +129,43 @@ def main():
 
         text = body + yaml.dump(data, allow_unicode=True, sort_keys=False,
                                 default_flow_style=False, width=100)
-        with io.open(os.path.join(out_dir, name), "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(text)
-        written.append((name, n, len(text)))
+        dest = os.path.join(out_dir, name)
+        # Report whether this actually CHANGED. The repo copy is sometimes
+        # deliberately AHEAD of live - corrections written but not yet pasted
+        # into the raw configuration editor - and in that state a run silently
+        # throws them away. "3 changed" instead of "6 written" is the
+        # difference between noticing that and not.
+        prior = None
+        if os.path.exists(dest):
+            with io.open(dest, encoding="utf-8") as fh:
+                prior = fh.read()
+        changed = prior != text
+        if not args.check:
+            with io.open(dest, "w", encoding="utf-8", newline=chr(10)) as fh:
+                fh.write(text)
+        written.append((name, n, len(text), changed))
 
-    print("wrote %d file(s) to dashboards/lovelace/" % len(written))
-    for name, n, size in written:
-        print("   %-28s %2d item(s)  %6d bytes" % (name, n, size))
+    nch = sum(1 for w in written if w[3])
+    if args.json:
+        print(json.dumps({
+            "files": len(written),
+            "changed": nch,
+            "wrote": not args.check,
+            "detail": [{"file": f, "items": it, "bytes": b, "changed": c}
+                       for f, it, b, c in written],
+            "summary": ("%d dashboard file(s) %s, %d changed"
+                        % (len(written), "checked" if args.check else "written", nch)),
+        }, sort_keys=True))
+        return 0
+    print("%s %d file(s) in dashboards/lovelace/  (%d changed)"
+          % ("checked" if args.check else "wrote", len(written), nch))
+    for f, it, b, c in written:
+        print("   %-28s %2d item(s)  %6d bytes  %s"
+              % (f, it, b, "CHANGED" if c else "same"))
+    if nch and not args.check:
+        print("")
+        print("If any of those held corrections not yet pasted into the raw")
+        print("configuration editor, this run just overwrote them.")
     return 0
 
 
