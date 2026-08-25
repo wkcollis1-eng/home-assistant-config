@@ -66,6 +66,15 @@ shell_command:
   # /config. shell_command is NOT reloadable; this needs a RESTART.
   ha_audit_tests: "python3 /config/scripts/test_ha_audit.py --json"
 
+  # Mirrors every live dashboard from .storage/lovelace.* into
+  # dashboards/lovelace/. It lives in THIS package rather than one of its own
+  # because it exists for the same reason the audit does: .storage is
+  # gitignored and off-limits to edit, so without this the 16 views across 4
+  # dashboards have no backup, no history, and no file for ha_audit.py to
+  # resolve entity references against - and a dashboard is the one place a
+  # broken entity is completely silent.
+  export_dashboards: "python3 /config/scripts/export_dashboards.py --json"
+
 input_number:
   # Written by script.ha_audit. Plain numbers rather than parsing the summary
   # line with a regex — a reworded finding cannot silently break the sensors.
@@ -351,6 +360,66 @@ script:
               notification_id: ha_audit_tests
 
       - stop: "self-tests complete"
+        response_variable: result
+
+  export_dashboards:
+    alias: "Export Dashboards to Repo"
+    icon: mdi:content-save-cog
+    mode: single
+    sequence:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard. Stops
+      # with a response rather than a bare condition, so a skip is legible
+      # instead of looking like a silent success.
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                summary: >-
+                  Skipped: input_boolean.ha_maintenance_mode is on.
+                  Turn it off to export the dashboards.
+                changed: "skipped"
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+
+      - service: shell_command.export_dashboards
+        response_variable: exp
+
+      # Fail closed. Empty or non-JSON stdout means the export did not run, and
+      # that must never read as "nothing to do" - which is exactly what a
+      # successful no-change run looks like.
+      - if:
+          - condition: template
+            value_template: >-
+              {{ not (exp.stdout | default('', true) | trim).startswith('{') }}
+        then:
+          - variables:
+              broken:
+                summary: >-
+                  export_dashboards.py produced no JSON (returncode
+                  {{ exp.returncode | default('?') }}). The export did NOT run;
+                  the repo copy is unchanged and may now be stale.
+                changed: "error"
+                stderr: "{{ exp.stderr | default('') }}"
+          - stop: "no JSON from the exporter"
+            response_variable: broken
+
+      # Read exp.stdout directly at each point of use - never via a variable
+      # first. See the note above script.ha_audit_tests: this JSON is also a
+      # valid Python dict literal, so a variable stops being a str and from_json
+      # then refuses it. That bug had script.ha_audit dead for a day.
+      - variables:
+          result:
+            summary: "{{ (exp.stdout | from_json).summary }}"
+            files: "{{ (exp.stdout | from_json).files }}"
+            changed: "{{ (exp.stdout | from_json).changed }}"
+            detail: >-
+              {{ (exp.stdout | from_json).detail
+                 | selectattr('changed') | map(attribute='file') | join(', ') }}
+
+      - stop: "export complete"
         response_variable: result
 
 automation:
