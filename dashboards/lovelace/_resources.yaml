@@ -6,15 +6,15 @@
 # exist / which custom card resources load. Not pasteable.
 #
 items:
-- id: 81a6846e487d4b51a8b1e9f90e716af8
-  url: /hacsfiles/lovelace-mushroom/mushroom.js?hacstag=444350375522
-  type: module
-- id: 8c9f44bb47234e799dc48fd7389410b4
-  url: /hacsfiles/apexcharts-card/apexcharts-card.js?hacstag=331701152223
-  type: module
-- id: 1265de5ac19b449fa14c17e50d501ee4
-  url: /hacsfiles/mini-graph-card/mini-graph-card-bundle.js?hacstag=1512800620130
-  type: module
-- id: 6b2136ebd83a412690874a990e8a2639
-  url: /hacsfiles/platinum-weather-card/platinum-weather-card.js?hacstag=488086721105
-  type: module
+  - id: 81a6846e487d4b51a8b1e9f90e716af8
+    url: /hacsfiles/lovelace-mushroom/mushroom.js?hacstag=444350375522
+    type: module
+  - id: 8c9f44bb47234e799dc48fd7389410b4
+    url: /hacsfiles/apexcharts-card/apexcharts-card.js?hacstag=331701152223
+    type: module
+  - id: 1265de5ac19b449fa14c17e50d501ee4
+    url: /hacsfiles/mini-graph-card/mini-graph-card-bundle.js?hacstag=1512800620130
+    type: module
+  - id: 6b2136ebd83a412690874a990e8a2639
+    url: /hacsfiles/platinum-weather-card/platinum-weather-card.js?hacstag=488086721105
+    type: module

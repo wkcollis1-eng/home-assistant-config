@@ -6,30 +6,30 @@
 # exist / which custom card resources load. Not pasteable.
 #
 items:
-- id: map
-  icon: mdi:map
-  title: Map
-  url_path: map
-  show_in_sidebar: true
-  require_admin: false
-  mode: storage
-- id: energy_performance
-  show_in_sidebar: true
-  title: Energy Performance
-  require_admin: false
-  mode: storage
-  url_path: energy-performance
-- id: lovelace
-  icon: mdi:view-dashboard
-  title: Overview
-  url_path: lovelace
-  show_in_sidebar: true
-  mode: storage
-  require_admin: false
-- id: sdr_utility_meters
-  show_in_sidebar: true
-  icon: mdi:radio-tower
-  title: SDR Utility Meters
-  require_admin: false
-  mode: storage
-  url_path: sdr-utility-meters
+  - id: map
+    icon: mdi:map
+    title: Map
+    url_path: map
+    show_in_sidebar: true
+    require_admin: false
+    mode: storage
+  - id: energy_performance
+    show_in_sidebar: true
+    title: Energy Performance
+    require_admin: false
+    mode: storage
+    url_path: energy-performance
+  - id: lovelace
+    icon: mdi:view-dashboard
+    title: Overview
+    url_path: lovelace
+    show_in_sidebar: true
+    mode: storage
+    require_admin: false
+  - id: sdr_utility_meters
+    show_in_sidebar: true
+    icon: mdi:radio-tower
+    title: SDR Utility Meters
+    require_admin: false
+    mode: storage
+    url_path: sdr-utility-meters
