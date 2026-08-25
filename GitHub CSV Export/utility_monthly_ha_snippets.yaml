@@ -1,0 +1,239 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 1 — configuration.yaml
+# Add these input_number entities inside the existing input_number: block.
+#
+# These hold a point-in-time snapshot of month-end HVAC accumulator values
+# taken at 23:58:45 on the last day of the month — BEFORE the 00:01 reset
+# zeros them on the 1st.  They persist until overwritten next month-end.
+# ══════════════════════════════════════════════════════════════════════════════
+
+input_number:
+  # ... existing input_numbers above ...
+
+  # ── Utility monthly snapshot — HVAC accumulators at month-end ────────────
+  # Written by snapshot_utility_month automation (last day, 23:58:45).
+  # Read by appendutilitymonthlycsv shell_command (2nd of month, 10:00 AM).
+  # All values represent the closed calendar month; persist until next snapshot.
+
+  snapshot_hdd_month:
+    name: "Snapshot HDD Month (utility export)"
+    min: 0
+    max: 2500
+    step: 0.1
+    unit_of_measurement: "°F-days"
+    mode: box
+    icon: mdi:thermometer-minus
+
+  snapshot_cdd_month:
+    name: "Snapshot CDD Month (utility export)"
+    min: 0
+    max: 800
+    step: 0.1
+    unit_of_measurement: "°F-days"
+    mode: box
+    icon: mdi:thermometer-plus
+
+  snapshot_furnace_hrs_month:
+    name: "Snapshot Furnace Hours Month (utility export)"
+    min: 0
+    max: 800
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:fire
+
+  snapshot_heat_1f_hrs_month:
+    name: "Snapshot Heat 1F Hours Month (utility export)"
+    min: 0
+    max: 500
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:home-floor-1
+
+  snapshot_heat_2f_hrs_month:
+    name: "Snapshot Heat 2F Hours Month (utility export)"
+    min: 0
+    max: 500
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:home-floor-2
+
+  snapshot_heating_eff_month:
+    name: "Snapshot Heating Efficiency Month (utility export)"
+    min: 0
+    max: 400
+    step: 0.1
+    unit_of_measurement: "CCF/1kHDD"
+    mode: box
+    icon: mdi:gauge
+
+  snapshot_efficiency_dev_month:
+    name: "Snapshot Efficiency Deviation Month (utility export)"
+    min: -100
+    max: 100
+    step: 0.1
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:gauge-low
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 2 — configuration.yaml
+# Add inside the existing shell_command: block.
+#
+# Reads snapshot input_numbers for HVAC values (safe after accumulator reset).
+# Reads current billing input_numbers (persist until manually overwritten).
+# Reads current dhw_bill_thm (entered by user on the evening of the 1st).
+# Month string uses previous month — this runs on the 2nd.
+#
+# COOLING COLUMNS (cool_1f_hrs / cool_2f_hrs):
+#   Hardcoded to 0 — cooling runtime sensors not yet implemented.
+#   When hvac_1f_cool_runtime_month and hvac_2f_cool_runtime_month sensors
+#   exist, replace the 0 literals with sensor state references.
+# ══════════════════════════════════════════════════════════════════════════════
+
+shell_command:
+  # ... existing shell_commands above ...
+
+  appendutilitymonthlycsv: >-
+    python3 /config/scripts/csv_manager.py append_utility_monthly --data '{
+      "month":                      "{{ (now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m') }}",
+      "gas_ccf":                    {{ states('input_number.gas_bill_ccf')                  | float(0) }},
+      "gas_cost":                   {{ states('input_number.gas_bill_amount')               | float(0) }},
+      "gas_days":                   {{ states('input_number.gas_bill_days')                 | int(0)   }},
+      "elec_kwh":                   {{ states('input_number.electricity_bill_kwh')          | int(0)   }},
+      "elec_cost":                  {{ states('input_number.electricity_bill_amount')       | float(0) }},
+      "elec_days":                  {{ states('input_number.electricity_bill_days')         | int(0)   }},
+      "dhw_thm":                    {{ states('input_number.dhw_bill_thm')                  | float(0) }},
+      "hdd65":                      {{ states('input_number.snapshot_hdd_month')            | float(0) }},
+      "cdd65":                      {{ states('input_number.snapshot_cdd_month')            | float(0) }},
+      "furnace_hrs":                {{ states('input_number.snapshot_furnace_hrs_month')    | float(0) }},
+      "heat_1f_hrs":                {{ states('input_number.snapshot_heat_1f_hrs_month')    | float(0) }},
+      "heat_2f_hrs":                {{ states('input_number.snapshot_heat_2f_hrs_month')    | float(0) }},
+      "cool_1f_hrs":                0,
+      "cool_2f_hrs":                0,
+      "heating_eff_ccf_per_1k_hdd": {{ states('input_number.snapshot_heating_eff_month')   | float(0) }},
+      "efficiency_deviation_pct":   {{ states('input_number.snapshot_efficiency_dev_month') | float(0) }}
+    }'
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PART 3 — automations.yaml — paste BOTH blocks
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Automation 1: Month-end snapshot (last day of month, 23:58:45) ─────────
+#
+# Saves all HVAC accumulator values to snapshot input_numbers before the
+# 00:01 reset zeros them on the 1st.  Fires 15 seconds after appendmonthlycsv
+# (23:58:30) to ensure monthly tracking is complete.
+#
+# Snapshots taken from raw accumulators (not derived sensors) because by
+# 23:58:45 the 23:56:30 capture automation has already credited today's
+# values into all month accumulators.
+#
+- id: snapshot_utility_month
+  alias: "Snapshot HVAC accumulators for utility monthly export"
+  description: >
+    Saves month-end HVAC accumulator values to snapshot input_numbers at
+    23:58:45 on the last day of the month.  These persist through the 00:01
+    accumulator reset and are read by appendutilitymonthlycsv on the 2nd.
+  trigger:
+    - platform: time
+      at: "23:58:45"
+  condition:
+    - condition: template
+      value_template: >
+        {{ now().day == (now().replace(month=now().month % 12 + 1, day=1)
+           if now().month < 12 else now().replace(year=now().year + 1, month=1, day=1)
+           ) - timedelta(days=1)).day }}
+  action:
+    - alias: "Snapshot HDD"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_hdd_month
+      data:
+        value: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) }}"
+
+    - alias: "Snapshot CDD"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_cdd_month
+      data:
+        value: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) }}"
+
+    - alias: "Snapshot furnace hours"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_furnace_hrs_month
+      data:
+        value: "{{ states('input_number.furnace_runtime_month_acc') | float(0) }}"
+
+    - alias: "Snapshot 1F heating hours"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_heat_1f_hrs_month
+      data:
+        value: "{{ states('input_number.zone_1f_runtime_month_acc') | float(0) }}"
+
+    - alias: "Snapshot 2F heating hours"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_heat_2f_hrs_month
+      data:
+        value: "{{ states('input_number.zone_2f_runtime_month_acc') | float(0) }}"
+
+    - alias: "Snapshot heating efficiency"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_heating_eff_month
+      data:
+        value: "{{ states('sensor.hvac_heating_efficiency_mtd') | float(0) }}"
+
+    - alias: "Snapshot efficiency deviation"
+      service: input_number.set_value
+      target:
+        entity_id: input_number.snapshot_efficiency_dev_month
+      data:
+        value: "{{ states('sensor.efficiency_deviation_month') | float(0) }}"
+
+    - service: system_log.write
+      data:
+        message: >
+          Utility month snapshot complete:
+          HDD={{ states('input_number.hdd_cumulative_month_auto') }},
+          furnace={{ states('input_number.furnace_runtime_month_acc') }}h,
+          1F={{ states('input_number.zone_1f_runtime_month_acc') }}h,
+          2F={{ states('input_number.zone_2f_runtime_month_acc') }}h
+        level: info
+  mode: single
+
+
+# ── Automation 2: Write utility_monthly.csv (2nd of month, 10:00 AM) ───────
+#
+# Runs on the 2nd — after:
+#   ✓ HVAC accumulators snapshotted (23:58:45, last day)
+#   ✓ Accumulators reset (00:01, 1st)
+#   ✓ dhw_bill_thm entered from NaviLink (evening of 1st)
+#   ✓ Well outside 23:55–23:59 EOD write window
+#
+- id: append_utility_monthly_csv
+  alias: "Append utility monthly CSV"
+  description: >
+    Appends one calendar-month row to reports/utility_monthly.csv on the 2nd
+    of each month at 10:00 AM.  Reads HVAC values from snapshot input_numbers
+    (saved before the 00:01 accumulator reset), billing fields from persistent
+    input_numbers, and dhw_bill_thm entered manually on the 1st.
+    cool_1f_hrs / cool_2f_hrs stubbed at 0 until cooling runtime sensors
+    are implemented.
+  trigger:
+    - platform: time
+      at: "10:00:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().day == 2 }}"
+  action:
+    - alias: "Write utility monthly row"
+      service: shell_command.appendutilitymonthlycsv
+  mode: single
