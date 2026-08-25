@@ -1,0 +1,32 @@
+# =============================================================================
+# Basement TH Node display tuning -- merge these THREE entries into the EXISTING
+# input_number: block in configuration.yaml (do NOT paste as a second top-level
+# input_number: key -- a duplicate key silently overwrites the first block).
+# Consumed by basement-th-node.yaml Rev 2.1 (imported via platform: homeassistant,
+# mirrored to restore_value globals on-node; firmware defaults 12 lx / 3 min / 30%
+# apply until HA first reports).
+# =============================================================================
+input_number:
+  basement_display_lux_wake:
+    name: Basement Display Lux Wake
+    min: 1
+    max: 200
+    step: 1
+    unit_of_measurement: "lx"
+    icon: mdi:brightness-5
+    # Tune in the mounted position: lights-on / night-dark / midday-leak readings.
+  basement_display_blank_min:
+    name: Basement Display Blank Minutes
+    min: 1
+    max: 30
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-outline
+  basement_display_contrast_pct:
+    name: Basement Display Contrast
+    min: 15
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:contrast-circle
+    # Floor 15: SSD1306 stacks are reported to clamp below ~15% (no visible change).

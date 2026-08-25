@@ -1,0 +1,35 @@
+Claude Code Session Prompt
+You are implementing a cooling/AC monitoring build-out for a Home Assistant config.
+The working directory is the HA config root accessed via Samba share.
+Target files: configuration.yaml (~3800 lines) and automations.yaml (~2100 lines).
+
+CONTEXT
+- 2021 colonial, 2,440 sq ft, East Hampton CT
+- Two-zone forced air system: Honeywell Lyric T6 Pro thermostats
+  - 1F thermostat entity: climate.tstat_2d884c_lyric_t6_pro_thermostat
+  - 2F thermostat entity: climate.tstat_2d8878_lyric_t6_pro_thermostat
+- Single gas furnace, single AC compressor shared by both zones
+- Heating infrastructure is the established pattern — mirror it exactly for cooling
+- Recorder purge_keep_days: 14 (history_stats today/week sensors are purge-dependent;
+  monthly data uses input_number accumulators which are immune)
+
+WORK RULES
+1. Read the relevant section of the target file before every edit — do not rely on
+   memory of file contents from earlier in the session.
+2. Run `ha config check` after completing each numbered Step before proceeding.
+3. Make no changes not specified in this document.
+4. Do not modify capture_daily_hdd — CDD tracking uses a separate automation (Step 5).
+5. Do not add hvac_cdd65_cumulative_month or hvac_cdd65_cumulative_year template sensors —
+   input_number.cdd_cumulative_month_auto already serves this purpose.
+6. If entity registry shows _2-suffix variants of thermostat entities, confirm which is
+   active before writing the binary sensors in Step 1.
+7. All new input_datetime entities require has_date: true and has_time: true.
+8. Preserve all existing YAML comments and formatting conventions.
+
+IMPLEMENTATION ORDER
+Follow Steps 1–11 in sequence. Each step specifies exact insertion points.
+Complete Steps 1–3 (configuration.yaml additions) first, validate, then
+Steps 4–6 (more configuration.yaml), validate, then Steps 7–11 (automations.yaml
+modifications and new automations), final validate.
+
+This document contains all YAML — do not generate content beyond what is specified here.
