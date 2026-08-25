@@ -68,6 +68,17 @@ OFF ~ null Null NULL
 def _yaml():
     import yaml
 
+    # yamllint sets indent-sequences: true (.yamllint.yml). PyYAML emits block
+    # sequences flush with their parent key, which that rule rejects - 2026-08-25,
+    # six generated dashboard files turned the repo CI red on first push. Force
+    # sequences to indent under their key so the generated files satisfy the same
+    # linter as everything else, rather than earning an exclusion.
+    class _Dumper(yaml.Dumper):
+        def increase_indent(self, flow=False, indentless=False):
+            return super(_Dumper, self).increase_indent(flow, False)
+
+    yaml._cc_dumper = _Dumper
+
     def block(dumper, data):
         if "\n" in data:
             return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
@@ -75,7 +86,7 @@ def _yaml():
             return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
-    yaml.add_representer(str, block)
+    _Dumper.add_representer(str, block)
     return yaml
 
 
@@ -127,8 +138,8 @@ def main():
             n = len(cfg.get("views", []))
             body = header(base, "# %d view(s).\n" % n)
 
-        text = body + yaml.dump(data, allow_unicode=True, sort_keys=False,
-                                default_flow_style=False, width=100)
+        text = body + yaml.dump(data, Dumper=yaml._cc_dumper, allow_unicode=True,
+                                sort_keys=False, default_flow_style=False, width=100)
         dest = os.path.join(out_dir, name)
         # Report whether this actually CHANGED. The repo copy is sometimes
         # deliberately AHEAD of live - corrections written but not yet pasted

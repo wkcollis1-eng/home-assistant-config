@@ -9,1286 +9,1286 @@ header:
     content: |
       # Dehumidifier Status
 badges:
-- type: entity
-  show_name: true
-  show_state: true
-  show_icon: true
-  entity: sensor.dehumidifier_signal_strength
-- type: entity
-  show_name: true
-  show_state: true
-  show_icon: true
-  entity: binary_sensor.dehumidifier_compressor_active
-  name: Compressor
-- type: entity
-  show_name: true
-  show_state: true
-  show_icon: true
-  entity: binary_sensor.basement_th_node_node_status
-  name: TH Node
-- type: entity
-  show_name: true
-  show_state: true
-  show_icon: true
-  entity: binary_sensor.basement_rh_sensors_disagree
-  name: RH Cross-Check
-- type: entity
-  show_name: true
-  show_state: true
-  show_icon: true
-  entity: input_select.dehumidifier_last_stop_reason
-  name: Last Stop
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: sensor.dehumidifier_signal_strength
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: binary_sensor.dehumidifier_compressor_active
+    name: Compressor
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: binary_sensor.basement_th_node_node_status
+    name: TH Node
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: binary_sensor.basement_rh_sensors_disagree
+    name: RH Cross-Check
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: input_select.dehumidifier_last_stop_reason
+    name: Last Stop
 sections:
-- type: grid
-  cards:
-  - type: markdown
-    text_only: true
-    content: |
-      ## 1 · RH Control — primary loop
-  - type: markdown
-    title: RH Envelope — where we should be
-    content: |
-      {% set a = 17.27 %}
-      {% set b = 237.7 %}
-      {% set t_raw    = states('sensor.basement_th_node_basement_temperature') %}
-      {% set rh_raw   = states('sensor.basement_th_node_basement_humidity') %}
-      {% set pack_raw = states('sensor.battery_bank_monitor_battery_pack_temperature') %}
-      {% set man_raw  = states('input_number.basement_coldest_surface_temp') %}
-      {% set t    = t_raw  | float(0) %}
-      {% set rh   = rh_raw | float(0) %}
-      {% set dp   = states('sensor.basement_dew_point') | float(0) %}
-      {% set ah   = states('sensor.basement_th_node_basement_absolute_humidity') | float(0) | round (4) %}
-      {% set mold = states('input_number.dehumidifier_rh_force_on') | float(60) %}
-      {% set marg = states('input_number.basement_dp_margin_min') | float(8) %}
-      {% set cap  = states('input_number.basement_dp_target_cap') | float(55) %}
-      {% set on_  = states('input_number.dehumidifier_rh_on_threshold')  | float(0) %}
-      {% set off_ = states('input_number.dehumidifier_rh_off_threshold') | float(0) %}
-      {% set hold = 2.0 %}
-      {% set t_ok = is_number(t_raw) and t > 32 and t < 120 %}
-      {# COLDEST SURFACE - must match sensor.basement_condensation_margin, which
-         takes min(pack, manual override) behind a >40 degF plausibility gate on
-         each. 2026-08-24: this card read the pack ALONE. The two agreed only
-         because the pack happened to be the colder of the two. Enter a genuinely
-         colder surface - slab, below-grade wall, cold-water line - and the guard
-         moves while this card goes on quoting a ceiling computed from the pack:
-         laxer, on the one card that tells you what to set. Worked example at the
-         time: a 58 degF slab makes the real ceiling 49.4 % and the recommendation
-         47.4 %, against the 58.0 % this card would still have printed.
-         A condensation ceiling is only ever the COLDEST KNOWN surface. #}
-      {% set pack_ok = is_number(pack_raw) and (pack_raw | float(0)) > 40 %}
-      {% set man_ok  = is_number(man_raw)  and (man_raw  | float(0)) > 40 %}
-      {% set cands   = ([pack_raw | float(999)] if pack_ok else [])
-                     + ([man_raw  | float(999)] if man_ok  else []) %}
-      {% set surf_ok = cands | length > 0 %}
-      {% set tc  = (t - 32) * 5 / 9 %}
-      {% set g_t = a * tc / (b + tc) %}
-      {% set surf = (cands | min) if surf_ok else 0 %}
-      {% set surf_src = 'manual override' if (man_ok and (man_raw | float(999)) <= (pack_raw | float(999))) else 'bank pack' %}
-      {% set dpt  = surf - marg %}
-      {% set dptc = (dpt - 32) * 5 / 9 %}
-      {% set rh_cond = 100 * (e ** (a * dptc / (b + dptc) - g_t)) if (t_ok and surf_ok) else 999 %}
-      {% set capc = (cap - 32) * 5 / 9 %}
-      {% set rh_cap = 100 * (e ** (a * capc / (b + capc) - g_t)) if t_ok else 999 %}
-      {# BINDING is min(mold, condensation) ONLY. The DP cap is shown but
-         deliberately excluded: mold and condensation are failure limits,
-         the DP cap is a preference inherited from the DP-control era. In
-         warm weather DP 55 degF converts to a low RH (52 % at 74 degF)
-         and would otherwise drive this card to demand an aggressive
-         setpoint for a reason that is not a limit. It gets an advisory
-         line below instead. #}
-      {% set bind = [mold, rh_cond] | min %}
-      {% set rec  = bind - hold %}
-      {% if not t_ok %}
-      ⛔ **Control temperature unreadable** — ceilings cannot be computed. Dehumidifier stops on `sensor_loss` after 10 min.
-      {% else %}
-      ### {{ t | round(1) }} °F &nbsp;·&nbsp; **RH {{ rh | round(1) }} %** &nbsp;·&nbsp; DP {{ dp | round(1) }} °F &nbsp;·&nbsp; {{ ah }} g/m³
+  - type: grid
+    cards:
+      - type: markdown
+        text_only: true
+        content: |
+          ## 1 · RH Control — primary loop
+      - type: markdown
+        title: RH Envelope — where we should be
+        content: |
+          {% set a = 17.27 %}
+          {% set b = 237.7 %}
+          {% set t_raw    = states('sensor.basement_th_node_basement_temperature') %}
+          {% set rh_raw   = states('sensor.basement_th_node_basement_humidity') %}
+          {% set pack_raw = states('sensor.battery_bank_monitor_battery_pack_temperature') %}
+          {% set man_raw  = states('input_number.basement_coldest_surface_temp') %}
+          {% set t    = t_raw  | float(0) %}
+          {% set rh   = rh_raw | float(0) %}
+          {% set dp   = states('sensor.basement_dew_point') | float(0) %}
+          {% set ah   = states('sensor.basement_th_node_basement_absolute_humidity') | float(0) | round (4) %}
+          {% set mold = states('input_number.dehumidifier_rh_force_on') | float(60) %}
+          {% set marg = states('input_number.basement_dp_margin_min') | float(8) %}
+          {% set cap  = states('input_number.basement_dp_target_cap') | float(55) %}
+          {% set on_  = states('input_number.dehumidifier_rh_on_threshold')  | float(0) %}
+          {% set off_ = states('input_number.dehumidifier_rh_off_threshold') | float(0) %}
+          {% set hold = 2.0 %}
+          {% set t_ok = is_number(t_raw) and t > 32 and t < 120 %}
+          {# COLDEST SURFACE - must match sensor.basement_condensation_margin, which
+             takes min(pack, manual override) behind a >40 degF plausibility gate on
+             each. 2026-08-24: this card read the pack ALONE. The two agreed only
+             because the pack happened to be the colder of the two. Enter a genuinely
+             colder surface - slab, below-grade wall, cold-water line - and the guard
+             moves while this card goes on quoting a ceiling computed from the pack:
+             laxer, on the one card that tells you what to set. Worked example at the
+             time: a 58 degF slab makes the real ceiling 49.4 % and the recommendation
+             47.4 %, against the 58.0 % this card would still have printed.
+             A condensation ceiling is only ever the COLDEST KNOWN surface. #}
+          {% set pack_ok = is_number(pack_raw) and (pack_raw | float(0)) > 40 %}
+          {% set man_ok  = is_number(man_raw)  and (man_raw  | float(0)) > 40 %}
+          {% set cands   = ([pack_raw | float(999)] if pack_ok else [])
+                         + ([man_raw  | float(999)] if man_ok  else []) %}
+          {% set surf_ok = cands | length > 0 %}
+          {% set tc  = (t - 32) * 5 / 9 %}
+          {% set g_t = a * tc / (b + tc) %}
+          {% set surf = (cands | min) if surf_ok else 0 %}
+          {% set surf_src = 'manual override' if (man_ok and (man_raw | float(999)) <= (pack_raw | float(999))) else 'bank pack' %}
+          {% set dpt  = surf - marg %}
+          {% set dptc = (dpt - 32) * 5 / 9 %}
+          {% set rh_cond = 100 * (e ** (a * dptc / (b + dptc) - g_t)) if (t_ok and surf_ok) else 999 %}
+          {% set capc = (cap - 32) * 5 / 9 %}
+          {% set rh_cap = 100 * (e ** (a * capc / (b + capc) - g_t)) if t_ok else 999 %}
+          {# BINDING is min(mold, condensation) ONLY. The DP cap is shown but
+             deliberately excluded: mold and condensation are failure limits,
+             the DP cap is a preference inherited from the DP-control era. In
+             warm weather DP 55 degF converts to a low RH (52 % at 74 degF)
+             and would otherwise drive this card to demand an aggressive
+             setpoint for a reason that is not a limit. It gets an advisory
+             line below instead. #}
+          {% set bind = [mold, rh_cond] | min %}
+          {% set rec  = bind - hold %}
+          {% if not t_ok %}
+          ⛔ **Control temperature unreadable** — ceilings cannot be computed. Dehumidifier stops on `sensor_loss` after 10 min.
+          {% else %}
+          ### {{ t | round(1) }} °F &nbsp;·&nbsp; **RH {{ rh | round(1) }} %** &nbsp;·&nbsp; DP {{ dp | round(1) }} °F &nbsp;·&nbsp; {{ ah }} g/m³
 
-      | Ceiling on air RH | % | |
-      |---|---|---|
-      | Mold — the objective | **{{ mold | round(1) }}** | {{ '**← BINDING**' if bind == mold else '' }} |
-      | Condensation — DP ≤ {{ surf | round(1) }} − {{ marg | round(1) }} = {{ dpt | round(1) }} °F<br><sub>coldest surface: {{ surf_src }}</sub> | {{ (rh_cond | round(1)) if surf_ok else 'n/a' }} | {{ '**← BINDING**' if bind == rh_cond else '' }} |
-      | Absolute-moisture cap — DP {{ cap | round(1) }} °F as RH here | {{ rh_cap | round(1) }} | *advisory* |
+          | Ceiling on air RH | % | |
+          |---|---|---|
+          | Mold — the objective | **{{ mold | round(1) }}** | {{ '**← BINDING**' if bind == mold else '' }} |
+          | Condensation — DP ≤ {{ surf | round(1) }} − {{ marg | round(1) }} = {{ dpt | round(1) }} °F<br><sub>coldest surface: {{ surf_src }}</sub> | {{ (rh_cond | round(1)) if surf_ok else 'n/a' }} | {{ '**← BINDING**' if bind == rh_cond else '' }} |
+          | Absolute-moisture cap — DP {{ cap | round(1) }} °F as RH here | {{ rh_cap | round(1) }} | *advisory* |
 
-      **Headroom now:** {{ (bind - rh) | round(1) }} points below the binding ceiling.
-      {%- if (bind - rh) < 0 %} ⛔ **OVER THE LIMIT**
-      {%- elif (bind - rh) < 1 %} ⛔ **AT THE LIMIT**
-      {%- elif (bind - rh) < 3 %} ⚠️ thin
-      {%- endif %}
+          **Headroom now:** {{ (bind - rh) | round(1) }} points below the binding ceiling.
+          {%- if (bind - rh) < 0 %} ⛔ **OVER THE LIMIT**
+          {%- elif (bind - rh) < 1 %} ⛔ **AT THE LIMIT**
+          {%- elif (bind - rh) < 3 %} ⚠️ thin
+          {%- endif %}
 
-      **RH ON should be ≤ {{ rec | round(1) }} %** — currently set {{ on_ | round(1) }} %, OFF {{ off_ | round(1) }} %.
+          **RH ON should be ≤ {{ rec | round(1) }} %** — currently set {{ on_ | round(1) }} %, OFF {{ off_ | round(1) }} %.
 
-      {% if on_ > rec + 0.25 -%}
-      ⛔ **LOWER RH ON to {{ rec | round(1) }}** — {{ (on_ - rec) | round(1) }} points too high for the binding ceiling of {{ bind | round(1) }} less the {{ hold | round(1) }}-point holdback.
-      {%- elif off_ >= on_ -%}
-      ⛔ **BAND INVERTED** — OFF ({{ off_ | round(1) }}) is not below ON ({{ on_ | round(1) }}). The unit will hunt.
-      {%- elif on_ < rec - 4.0 -%}
-      ℹ️ Setpoint is {{ (rec - on_) | round(1) }} points conservative. Relaxing toward {{ rec | round(1) }} % would save runtime — but only if OFF is still reachable.
-      {%- else -%}
-      ✅ Setpoint sits correctly under the binding ceiling.
-      {%- endif %}
-      {% if rh_cap < on_ %}
-      ℹ️ *Absolute-moisture note: at {{ t | round(1) }} °F, holding DP at the
-      {{ cap | round(1) }} °F cap would need RH {{ rh_cap | round(1) }} % — tighter than the
-      band. RH control does not chase this. Treat it as information about
-      how wet the air is in absolute terms, not as a setpoint instruction.*
-      {% endif %}
-      {% endif %}
+          {% if on_ > rec + 0.25 -%}
+          ⛔ **LOWER RH ON to {{ rec | round(1) }}** — {{ (on_ - rec) | round(1) }} points too high for the binding ceiling of {{ bind | round(1) }} less the {{ hold | round(1) }}-point holdback.
+          {%- elif off_ >= on_ -%}
+          ⛔ **BAND INVERTED** — OFF ({{ off_ | round(1) }}) is not below ON ({{ on_ | round(1) }}). The unit will hunt.
+          {%- elif on_ < rec - 4.0 -%}
+          ℹ️ Setpoint is {{ (rec - on_) | round(1) }} points conservative. Relaxing toward {{ rec | round(1) }} % would save runtime — but only if OFF is still reachable.
+          {%- else -%}
+          ✅ Setpoint sits correctly under the binding ceiling.
+          {%- endif %}
+          {% if rh_cap < on_ %}
+          ℹ️ *Absolute-moisture note: at {{ t | round(1) }} °F, holding DP at the
+          {{ cap | round(1) }} °F cap would need RH {{ rh_cap | round(1) }} % — tighter than the
+          band. RH control does not chase this. Treat it as information about
+          how wet the air is in absolute terms, not as a setpoint instruction.*
+          {% endif %}
+          {% endif %}
 
-      ---
-      *Unlike a dew-point setpoint, an RH setpoint does not need to move
-      when the basement cools — the mold ceiling is a fixed 60 % at every
-      temperature. What RH control is blind to is absolute moisture, which
-      is why the DP cap row above stays on this card and why the whole
-      dew-point section below was kept.*
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dehumidifier Performance (Rolling 12h)
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    series:
-    - entity: sensor.basement_th_node_basement_humidity
-      name: Humidity (control)
-      yaxis_id: dew
-      type: line
-      color: '#00d1ff'
-      stroke_width: 2
-      group_by:
-        func: last
-        duration: 5min
-      show:
-        legend_value: true
-    - entity: sensor.dehumidifier_current_consumption
-      name: Power Draw
-      yaxis_id: power
-      type: area
-      color: '#ff9800'
-      opacity: 0.3
-      stroke_width: 1
-      group_by:
-        func: avg
-        duration: 1min
-      show:
-        legend_value: false
-    yaxis:
-    - id: dew
-      decimals: 1
-      apex_config:
-        title:
-          text: RH (%)
-    - id: power
-      opposite: true
-      min: 0
-      max: 700
-      apex_config:
-        title:
-          text: Watts (W)
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: RH vs Band — PRIMARY CONTROL
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: rh
-      min: 45
-      max: 62
-      decimals: 1
-    - id: comp
-      show: false
-      min: 0
-      max: 1
-    apex_config:
-      annotations:
+          ---
+          *Unlike a dew-point setpoint, an RH setpoint does not need to move
+          when the basement cools — the mold ceiling is a fixed 60 % at every
+          temperature. What RH control is blind to is absolute moisture, which
+          is why the DP cap row above stays on this card and why the whole
+          dew-point section below was kept.*
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dehumidifier Performance (Rolling 12h)
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        series:
+          - entity: sensor.basement_th_node_basement_humidity
+            name: Humidity (control)
+            yaxis_id: dew
+            type: line
+            color: '#00d1ff'
+            stroke_width: 2
+            group_by:
+              func: last
+              duration: 5min
+            show:
+              legend_value: true
+          - entity: sensor.dehumidifier_current_consumption
+            name: Power Draw
+            yaxis_id: power
+            type: area
+            color: '#ff9800'
+            opacity: 0.3
+            stroke_width: 1
+            group_by:
+              func: avg
+              duration: 1min
+            show:
+              legend_value: false
         yaxis:
-        - 'y': 60
-          borderColor: '#d32f2f'
-          label:
-            text: 60% mold ceiling
-            style:
-              color: '#fff'
-              background: '#d32f2f'
-    series:
-    - entity: sensor.basement_th_node_basement_humidity
-      name: Bank RH (SHT45, control)
-      yaxis_id: rh
-      type: line
-      stroke_width: 3
-      color: '#00d1ff'
-    - entity: input_number.dehumidifier_rh_on_threshold
-      name: 'On'
-      yaxis_id: rh
-      type: line
-      curve: stepline
-      stroke_width: 1
-      color: '#ef6c00'
-      group_by:
-        func: last
-        duration: 5min
-    - entity: input_number.dehumidifier_rh_off_threshold
-      name: 'Off'
-      yaxis_id: rh
-      type: line
-      curve: stepline
-      stroke_width: 1
-      color: '#2e7d32'
-      group_by:
-        func: last
-        duration: 5min
-    - entity: input_number.dehumidifier_rh_force_on
-      name: Mold ceiling
-      yaxis_id: rh
-      type: line
-      curve: stepline
-      stroke_width: 2
-      color: '#d32f2f'
-      group_by:
-        func: last
-        duration: 5min
-    - entity: binary_sensor.dehumidifier_compressor_active
-      name: Compressor
-      yaxis_id: comp
-      type: area
-      color: '#90caf9'
-      opacity: 0.2
-      stroke_width: 0
-      transform: 'return x === ''on'' ? 1 : 0;'
-  - type: markdown
-    title: Cycle Timing — min-run / min-off countdown
-    content: |
-      {% set on_s  = states('input_datetime.dehumidifier_last_on_time') %}
-      {% set off_s = states('input_datetime.dehumidifier_last_off_time') %}
-      {% set on_ok  = on_s  not in ['unknown','unavailable'] and on_s[:4]  != '1970' %}
-      {% set off_ok = off_s not in ['unknown','unavailable'] and off_s[:4] != '1970' %}
-      {% set min_run = states('input_number.dehumidifier_min_run_minutes') | float(0) %}
-      {% set min_off = states('input_number.dehumidifier_min_off_minutes') | float(30) %}
-      {# The float() fallbacks below are DISPLAY defaults, and a display default
-         that disagrees with its helper is how this card came to advertise a
-         150 min cap against a helper holding 120. Read the helper; if it is
-         unreadable, say so rather than printing a number nobody set. #}
-      {% set max_raw = states('input_number.dehumidifier_max_runtime_hours') %}
-      {% set max_ok  = is_number(max_raw) %}
-      {% set max_h   = max_raw | float(0) %}
-      {% set comp    = is_state('binary_sensor.dehumidifier_compressor_active', 'on') %}
-      {# BAND POSITION. binary_sensor.dehumidifier_should_run is a START signal -
-         `temp >= min_temp and rh > rh_on` - with no hysteresis and no knowledge of
-         the OFF threshold. Between OFF and ON it is correctly false WHILE THE UNIT
-         IS LEGITIMATELY RUNNING, because the stop is owned by dehumidifier_auto_off,
-         which triggers on rh < rh_off. Reported 2026-08-24: the Live Status row
-         labelled that sensor "Should run (control verdict)", so at RH 52.5 mid-cycle
-         the card said the verdict was Off while the compressor ran and the OFF
-         setpoint was 0.5 points away. Nothing was wrong with the control; the card
-         was asking a different question from the one its label claimed. A
-         hysteresis loop has THREE states and the card showed two. #}
-      {% set rh_now = states('sensor.basement_th_node_basement_humidity') %}
-      {% set rh_ok  = is_number(rh_now) %}
-      {% set rhv    = rh_now | float(0) %}
-      {% set on_th  = states('input_number.dehumidifier_rh_on_threshold')  | float(0) %}
-      {% set off_th = states('input_number.dehumidifier_rh_off_threshold') | float(0) %}
-      {% set run_min = ((as_timestamp(now()) - as_timestamp(on_s, 0)) / 60) if on_ok else 0 %}
-      {% set off_min = ((as_timestamp(now()) - as_timestamp(off_s, 0)) / 60) if off_ok else 0 %}
-      {% if is_state('switch.dehumidifier', 'on') %}
-      {% if on_ok %}
-      {# POWERED is not RUNNING. The plug being on only means HA has not vetoed
-         the unit; the E080 samples fan-only at ~57.8 W between compressor runs,
-         and binary_sensor.dehumidifier_compressor_active is what says the
-         compressor is actually pulling. Elapsed time is measured from the
-         SWITCH-on stamp either way, because that is what the min-run and
-         max-cycle guards key on. #}
-      {% if comp %}**COMPRESSOR RUNNING**{% else %}**POWERED — fan sampling, compressor off**{% endif %} — {{ run_min | round(0) }} min since switch-on.
-
-      - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv <= off_th %}RH {{ rhv | round(1) }} % is at or below OFF {{ off_th | round(1) }} — **stop is due**{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % sits between OFF {{ off_th | round(1) }} and ON {{ on_th | round(1) }} — **holding, correctly**; it runs on down to {{ off_th | round(1) }} %{% endif %}
-      - Min-run {{ min_run | round(0) }} min: {{ '✅ satisfied' if run_min >= min_run else '🔒 held ' ~ ((min_run - run_min) | round(0)) ~ ' min more' }}
-      - Max cycle {{ ((max_h * 60) | round(0)) if max_ok else '⚠️ unreadable' }}{{ ' min: ' ~ (((max_h * 60) - run_min) | round(0)) ~ ' min to backstop' if max_ok else ' — the backstop falls back to a 2 h cap' }}
-      {% else %}
-      {% if comp %}**COMPRESSOR RUNNING**{% else %}**POWERED — fan sampling, compressor off**{% endif %} — elapsed unknown, ON stamp unset.
-
-      - Min-run: ⚠️ **INERT** — the guard fails open, so a stop is allowed immediately
-      - Max cycle: ⚠️ **INERT** — the backstop also keys on this stamp
-      {% endif %}
-      {% else %}
-      {% if off_ok %}
-      **OFF** — {{ off_min | round(0) }} min since last stop ({{ states('input_select.dehumidifier_last_stop_reason') }}).
-
-      - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % is below ON {{ on_th | round(1) }} — **holding off, correctly**; it starts above {{ on_th | round(1) }} %{% endif %}
-      - Min-off {{ min_off | round(0) }} min: {{ '✅ clear to start' if off_min >= min_off else '🔒 locked out ' ~ ((min_off - off_min) | round(0)) ~ ' min more' }}
-      - Mold force-on override bypasses min-off after 10 min
-      {% else %}
-      **OFF** — elapsed unknown, OFF stamp unset ({{ states('input_select.dehumidifier_last_stop_reason') }}).
-
-      - Min-off: ⚠️ **INERT** — the guard fails open, so a start is allowed immediately
-      {% endif %}
-      {% endif %}
-      {% if not on_ok or not off_ok %}
-
-      ⚠️ An `input_datetime` stamp is unset or 1970. Every elapsed-time guard
-      in this loop **fails open** in that state, by design — a missing timer
-      must never be able to strand the compressor on. Expect this for one
-      cycle after a fresh install, not persistently.
-      {% endif %}
-  - type: entities
-    title: Dehumidifier — Live Status
-    state_color: true
-    entities:
-    - entity: sensor.basement_th_node_basement_humidity
-      name: Bank RH — CONTROL VAR
-    - entity: sensor.basement_th_node_basement_humidity_smoothed
-      name: RH smoothed (median-5)
-    - entity: sensor.basement_th_node_basement_temperature
-      name: Basement temp (control)
-    - entity: binary_sensor.dehumidifier_should_run
-      name: Start demand (RH above ON) — not a run/stop verdict
-    - entity: binary_sensor.dehumidifier_compressor_active
-      name: Compressor
-    - type: divider
-    - entity: sensor.basement_dew_point
-      name: Dew point — diagnostic
-    - entity: sensor.basement_th_node_basement_absolute_humidity
-      name: Absolute humidity (node)
-    - entity: sensor.basement_dp_headroom
-      name: DP headroom to mold limit
-    - entity: sensor.basement_mold_limited_dp
-      name: Mold-limited DP (moves with temp)
-    - entity: sensor.basement_condensation_margin
-      name: Condensation margin (°F to coldest surface)
-    - entity: sensor.battery_bank_monitor_battery_pack_temperature
-      name: Bank pack temp (surface reference)
-    - type: divider
-    - entity: sensor.dehumidifier_runtime_today
-      name: Runtime today
-    - entity: sensor.dehumidifier_duty_cycle_24h
-      name: Duty today (runtime ÷ 24 h, not rolling)
-    - entity: counter.dehumidifier_cycles_today
-    - entity: sensor.dehumidifier_energy_daily
-      name: kWh today (live)
-  - type: entities
-    title: Dehumidifier — Control Setpoints
-    state_color: true
-    entities:
-    - entity: input_number.dehumidifier_rh_on_threshold
-      name: RH ON at (%) — PRIMARY
-    - entity: input_number.dehumidifier_rh_off_threshold
-      name: RH OFF at (%) — PRIMARY
-    - entity: input_number.dehumidifier_rh_force_on
-      name: RH mold ceiling (force-on backstop)
-    - type: divider
-    - entity: input_number.dehumidifier_min_run_minutes
-      name: Min RUN (anti short-cycle)
-    - entity: input_number.dehumidifier_min_off_minutes
-      name: Min OFF (anti short-cycle)
-    - entity: input_number.dehumidifier_max_runtime_hours
-      name: Max cycle (hours)
-    - entity: input_number.dehumidifier_min_temp
-      name: Min run temp (°F)
-    - type: divider
-    - entity: input_boolean.dehumidifier_local_control
-      name: LOCAL control — HA monitoring only
-    - entity: input_datetime.dehumidifier_local_control_since
-      name: Local control since
-    - entity: input_number.dehumidifier_local_control_max_hours
-      name: Local control nag limit (h)
-    - type: divider
-    - entity: input_number.dehumidifier_dp_stall_threshold
-      name: DP stall threshold (°F/h — positive MAGNITUDE)
-    - entity: input_number.dehumidifier_power_threshold
-      name: Compressor power gate (W)
-    - type: divider
-    - entity: input_number.basement_dp_margin_min
-      name: Min dew point margin (condensation guard)
-    - entity: input_number.basement_coldest_surface_temp
-      name: Colder surface override (≤ 40 °F disables it)
-    - type: divider
-    - entity: input_number.dehumidifier_dp_on_threshold
-      name: DP ON — INACTIVE since RH cutover
-    - entity: input_number.dehumidifier_dp_off_threshold
-      name: DP OFF — INACTIVE since RH cutover
-    - entity: input_number.basement_dp_target_cap
-      name: DP target cap (absolute-moisture reference)
-    - entity: sensor.basement_recommended_dp_on
-      name: → recommended DP ON (diagnostic only)
-    - type: divider
-    - entity: input_select.dehumidifier_last_stop_reason
-      name: Last stop reason
-  - type: markdown
-    content: |
-      {% set on = is_state('input_boolean.dehumidifier_local_control', 'on') %}
-      {% set s = states('input_datetime.dehumidifier_local_control_since') %}
-      {% set s_ok = s not in ['unknown', 'unavailable'] and s[:4] != '1970' %}
-      {% set hrs = ((as_timestamp(now()) - as_timestamp(s, 0)) / 3600) if s_ok else 0 %}
-      {% set lim_raw = states('input_number.dehumidifier_local_control_max_hours') %}
-      {% set lim_ok  = is_number(lim_raw) %}
-      {% set lim = lim_raw | float(0) %}
-      {% set pt_raw = states('input_number.dehumidifier_power_threshold') %}
-      {% set pt_ok  = is_number(pt_raw) %}
-      {% set pt = pt_raw | float(0) %}
-      {% if on %}
-      ## 🔧 LOCAL (UNIT) CONTROL — HA IS MONITORING ONLY
-
-      {% if s_ok -%}
-      **On for {{ hrs | round(1) }} h** of the {{ (lim | round(0)) if lim_ok else '⚠️ unreadable' }} h limit.
-      {%- if hrs > lim %} ⛔ **OVERDUE — hand control back or raise the limit.**{% endif %}
-      {%- else -%}
-      ⚠️ Entry stamp unset — elapsed time unknown, so the overdue reminder cannot fire.
-      {%- endif %}
-
-      **The E080's onboard humidistat is the only controller.** HA holds the
-      plug powered (min-off still honoured) and cannot switch it off.
-
-      | Suspended | Still running |
-      |---|---|
-      | RH band start / stop | SHT45 node + all logging |
-      | Mold ceiling force-on | Shelly cross-check |
-      | Condensation guard | Compressor + power capture |
-      | Max-runtime backstop | Duty, kWh, cost, SPC |
-      | DP stall cut-out | Watchdog |
-      | Dead-sensor cut-out | Every chart on this page |
-
-      {# 2026-08-24: this paragraph asserted a flat 250 W and the ratios that go
-         with it, while the helper had moved to 150. The two MEASUREMENTS are
-         what is durable - 57.8 W fan-only and 454.7 W compressor, 17 runs /
-         53.9 h - so those stay written down and the ratios are computed from
-         whatever the helper currently holds. A number that can drift should
-         never be typed into prose next to a live helper that supersedes it. #}
-      {% if pt_ok -%}
-      *The compressor gate `dehumidifier_power_threshold` reads **{{ pt | round(0) }} W**.
-      Fan-only sampling measures ~57.8 W and the compressor ~454.7 W (17 runs /
-      53.9 h, commissioning), so the gate sits {{ (pt / 57.8) | round(1) }}× above the
-      blower and {{ (454.7 / pt) | round(1) }}× below the compressor, with ZERO mid-run
-      excursions below it over that set.*
-      {%- else -%}
-      ⚠️ *`dehumidifier_power_threshold` is unreadable, so the compressor gate
-      cannot be stated — and `binary_sensor.dehumidifier_compressor_active` is
-      unavailable for the same reason, which reads as "not running" everywhere.*
-      {%- endif %}
-      {% else %}
-      ✅ **HA control active** — RH band, mold ceiling, condensation guard and
-      all four stop paths are live.
-      {#- hrs is now-minus-stamp, i.e. how long ago local control was last ENTERED.
-          It is NOT the duration of that run - the stamp is only written on entry,
-          and nothing records the exit. Until 2026-08-24 this line read "last run
-          ended after {{ hrs }} h", which rendered as 500.5 h for a stamp 20.9 days
-          old. Stating the elapsed-since is the only claim this stamp supports. -#}
-      {%- if s_ok %} Local control was last entered {{ (hrs / 24) | round(1) }} days ago; its duration is not recorded.{% endif %}
-      {% endif %}
-  - type: button
-    entity: input_boolean.dehumidifier_local_control
-    name: Local (Unit) Control
-    show_state: true
-    state_color: true
-    icon: mdi:tune-vertical
-    tap_action:
-      action: toggle
-      confirmation:
-        text: Hand the dehumidifier to its OWN humidistat? ON suspends every HA-side stop — mold ceiling,
-          condensation guard, runtime cap, stall and dead-sensor cut-outs — and holds the plug powered.
-    hold_action:
-      action: more-info
-  - type: button
-    entity: automation.dehumidifier_rh_stall_shutdown
-    name: DP Stall Shutdown
-    show_state: true
-    state_color: true
-    icon: mdi:fan-alert
-    tap_action:
-      action: toggle
-      confirmation:
-        text: Toggle the stall safety? OFF = disabled for a full-pulldown test. Remember to re-enable
-          it.
-    hold_action:
-      action: more-info
-  - type: custom:mushroom-entity-card
-    entity: input_number.dehumidifier_power_threshold
-    name: Power Threshold
-    icon: mdi:lightning-bolt-circle
-    icon_color: orange
-    layout: vertical
-    grid_options:
-      columns: 6
-      rows: 2
-- type: grid
-  cards:
-  - type: markdown
-    text_only: true
-    content: |+
-      ## 2 · Moisture physics — diagnostics
-
-  - type: markdown
-    title: Reading the rate charts — one sign rule
-    content: |
-      {% set thr_raw = states('input_number.dehumidifier_dp_stall_threshold') %}
-      {% set thr_ok = is_number(thr_raw) %}
-      {% set thr = thr_raw | float(0) %}
-      Every rate sensor below is a **signed derivative** in units per hour: `platform: derivative`, `unit_time: h`. One formula, one convention.
-
-      | | Means |
-      |---|---|
-      | **Negative** | the quantity is **falling** |
-      | **Positive** | the quantity is **rising** |
-
-      For moisture that reads straight off: **negative = drying**, **positive = reloading**. Removal (running) and ingress (off) are the *same* sensor split by compressor state, so they can never overlap — the pair is one continuous curve crossing zero at each state change.
-
-      ---
-      *Before 2026-08-07 four different conventions coexisted here and two of them were sign-flipped, so "removal" and "ingress" both read positive while meaning opposite things. The old `*_drop_rate_60min` pair also used a different formula — `2 × (60-min mean − current)` — whose window (60 min) is longer than a whole run (15.6–30.3 min measured), so it straddled the off period and netted falling against rising. Retired.*
-
-      **Two windows, one formula.** The window is chosen per job, and the choice is forced by arithmetic rather than taste. **30 min** for trend and for the stall detector: slope noise runs about σ√2/T, so at the SHT45's ~0.05 °F dew-point scatter that is ~0.14 °F/h. **10 min** for within-cycle work: measured runs are 15.0–30.4 min (daily longest, 2026-08-05..24, n=20, median 16.0), so a 30-min window can never fill inside a run — it always carries off-period data where dew point is *rising*, which nets against the run. At 10 min the noise is ~0.42 °F/h, which is 8–11 % of the −3.9 to −5.4 °F/h productive signal and 3× the 30-min figure — that ratio, not any threshold, is why the stall detector stays on 30 min.
-
-      {% if thr_ok -%}
-      **Against the live stall threshold of {{ thr }} °F/h**, the 30-min noise floor is {{ (0.14 / thr) | round(1) }}× the threshold and the 10-min floor is {{ (0.42 / thr) | round(1) }}×. *This card used to assert a 0.15 °F/h threshold and claim the 30-min noise sat "just under" it — true at 0.15, false once the helper moved. The detector's immunity does not come from that margin anyway: it comes from the size of the real signal, −3.9 to −5.4 °F/h, which is more than an order of magnitude clear of both.*
-      {%- else -%}
-      ⚠️ *`dehumidifier_dp_stall_threshold` is unreadable. The stall condition gates on that helper being numeric, so in this state no stall shutdown can fire — the max-runtime backstop is the only thing still capping a run.*
-      {%- endif %}
-
-      ⚠️ **The stall detector cannot currently fire.** It requires more than 90 min of continuous runtime; the E080's longest cycle since 2026-08-05 is 30.4 min. That gate was sized for the Santa Fe. Stated here because a listed safety that cannot reach its trigger reads as protection you do not have.
-
-      *The SHT45 is not the constraint — τ63 is seconds for both RH and temperature. The constraints are the smoothing window and the ~1–2 min transport lag from the machine end to the node alcove.*
-
-      ⚠️ **The node's own rate sensors on card 4 are NOT on this convention** — they are computed in ESPHome firmware. Their SIGN was verified against `esphome/basement-th-node.yaml` on 2026-08-24 and matches this convention; what differs is the UNIT on the temperature rate. See card 4.
-  - type: entities
-    title: Rate of change — canonical set (all signed the same way)
-    state_color: true
-    entities:
-    - entity: sensor.basement_ah_rate
-      name: ΔAbsolute humidity — the honest metric (g/m³/h)
-    - entity: sensor.basement_dp_rate
-      name: ΔDew point (°F/h)
-    - entity: sensor.basement_rh_rate
-      name: ΔRH (%/h)
-    - entity: sensor.basement_temp_rate
-      name: ΔTemperature (°F/h)
-    - type: divider
-    - entity: sensor.basement_dp_rate_10m
-      name: ΔDew point — 10 min (within-cycle)
-    - entity: sensor.basement_ah_rate_10m
-      name: ΔAbsolute humidity — 10 min (within-cycle)
-    - type: divider
-    - entity: sensor.dehumidifier_dp_removal_rate
-      name: ΔDP while RUNNING — expect negative
-    - entity: sensor.dehumidifier_dp_ingress_rate
-      name: ΔDP while OFF — expect positive
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dew Point vs Former DP Band (band now INACTIVE)
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: dp
-      decimals: 1
-    - id: comp
-      show: false
-      min: 0
-      max: 1
-    series:
-    - entity: sensor.basement_th_node_basement_dew_point
-      name: Dew point
-      yaxis_id: dp
-      type: line
-      stroke_width: 3
-      color: '#00838f'
-    - entity: binary_sensor.dehumidifier_compressor_active
-      name: Compressor
-      yaxis_id: comp
-      type: area
-      color: '#80deea'
-      opacity: 0.2
-      stroke_width: 0
-      transform: 'return x === ''on'' ? 1 : 0;'
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Moisture Removal (absolute) vs Compressor — the real proof
-      show_states: true
-      colorize_states: true
-    update_interval: 15s
-    graph_span: 12h
-    cache: false
-    span:
-      end: hour
-    yaxis:
-    - id: rate
-      decimals: 3
-      apex_config:
-        title:
-          text: g/m³/h  (negative = drying)
-    - id: comp
-      show: false
-      min: 0
-      max: 1
-    apex_config:
-      annotations:
+          - id: dew
+            decimals: 1
+            apex_config:
+              title:
+                text: RH (%)
+          - id: power
+            opposite: true
+            min: 0
+            max: 700
+            apex_config:
+              title:
+                text: Watts (W)
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: RH vs Band — PRIMARY CONTROL
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
         yaxis:
-        - 'y': 0
-          borderColor: '#2e7d32'
-          strokeDashArray: 4
-          label:
-            text: zero — above this the room is reloading
-            style:
-              color: '#fff'
-              background: '#2e7d32'
-    series:
-    - entity: sensor.basement_ah_rate_10m
-      name: ΔAH 10-min (negative = drying)
-      yaxis_id: rate
-      type: line
-      stroke_width: 2
-      color: '#2196F3'
-      float_precision: 3
-    - entity: binary_sensor.dehumidifier_compressor_active
-      name: Compressor
-      yaxis_id: comp
-      type: area
-      color: '#80deea'
-      opacity: 0.2
-      stroke_width: 0
-      transform: 'return x === ''on'' ? 1 : 0;'
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: DP vs Mold Limit — headroom as the basement cools
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: f
-      decimals: 1
-      apex_config:
-        title:
-          text: °F
-    series:
-    - entity: sensor.basement_mold_limited_dp
-      name: Mold limit (moves with temp)
-      yaxis_id: f
-      type: line
-      stroke_width: 2
-      color: '#d32f2f'
-    - entity: sensor.basement_th_node_basement_dew_point
-      name: Dew point
-      yaxis_id: f
-      type: line
-      stroke_width: 3
-      color: '#00838f'
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Condensation Margin — dew point vs coldest surface
-      show_states: true
-      colorize_states: true
-    graph_span: 7d
-    span:
-      end: hour
-    yaxis:
-    - id: f
-      decimals: 1
-      apex_config:
-        title:
-          text: °F
-    apex_config:
-      annotations:
+          - id: rh
+            min: 45
+            max: 62
+            decimals: 1
+          - id: comp
+            show: false
+            min: 0
+            max: 1
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 60
+                borderColor: '#d32f2f'
+                label:
+                  text: 60% mold ceiling
+                  style:
+                    color: '#fff'
+                    background: '#d32f2f'
+        series:
+          - entity: sensor.basement_th_node_basement_humidity
+            name: Bank RH (SHT45, control)
+            yaxis_id: rh
+            type: line
+            stroke_width: 3
+            color: '#00d1ff'
+          - entity: input_number.dehumidifier_rh_on_threshold
+            name: 'On'
+            yaxis_id: rh
+            type: line
+            curve: stepline
+            stroke_width: 1
+            color: '#ef6c00'
+            group_by:
+              func: last
+              duration: 5min
+          - entity: input_number.dehumidifier_rh_off_threshold
+            name: 'Off'
+            yaxis_id: rh
+            type: line
+            curve: stepline
+            stroke_width: 1
+            color: '#2e7d32'
+            group_by:
+              func: last
+              duration: 5min
+          - entity: input_number.dehumidifier_rh_force_on
+            name: Mold ceiling
+            yaxis_id: rh
+            type: line
+            curve: stepline
+            stroke_width: 2
+            color: '#d32f2f'
+            group_by:
+              func: last
+              duration: 5min
+          - entity: binary_sensor.dehumidifier_compressor_active
+            name: Compressor
+            yaxis_id: comp
+            type: area
+            color: '#90caf9'
+            opacity: 0.2
+            stroke_width: 0
+            transform: 'return x === ''on'' ? 1 : 0;'
+      - type: markdown
+        title: Cycle Timing — min-run / min-off countdown
+        content: |
+          {% set on_s  = states('input_datetime.dehumidifier_last_on_time') %}
+          {% set off_s = states('input_datetime.dehumidifier_last_off_time') %}
+          {% set on_ok  = on_s  not in ['unknown','unavailable'] and on_s[:4]  != '1970' %}
+          {% set off_ok = off_s not in ['unknown','unavailable'] and off_s[:4] != '1970' %}
+          {% set min_run = states('input_number.dehumidifier_min_run_minutes') | float(0) %}
+          {% set min_off = states('input_number.dehumidifier_min_off_minutes') | float(30) %}
+          {# The float() fallbacks below are DISPLAY defaults, and a display default
+             that disagrees with its helper is how this card came to advertise a
+             150 min cap against a helper holding 120. Read the helper; if it is
+             unreadable, say so rather than printing a number nobody set. #}
+          {% set max_raw = states('input_number.dehumidifier_max_runtime_hours') %}
+          {% set max_ok  = is_number(max_raw) %}
+          {% set max_h   = max_raw | float(0) %}
+          {% set comp    = is_state('binary_sensor.dehumidifier_compressor_active', 'on') %}
+          {# BAND POSITION. binary_sensor.dehumidifier_should_run is a START signal -
+             `temp >= min_temp and rh > rh_on` - with no hysteresis and no knowledge of
+             the OFF threshold. Between OFF and ON it is correctly false WHILE THE UNIT
+             IS LEGITIMATELY RUNNING, because the stop is owned by dehumidifier_auto_off,
+             which triggers on rh < rh_off. Reported 2026-08-24: the Live Status row
+             labelled that sensor "Should run (control verdict)", so at RH 52.5 mid-cycle
+             the card said the verdict was Off while the compressor ran and the OFF
+             setpoint was 0.5 points away. Nothing was wrong with the control; the card
+             was asking a different question from the one its label claimed. A
+             hysteresis loop has THREE states and the card showed two. #}
+          {% set rh_now = states('sensor.basement_th_node_basement_humidity') %}
+          {% set rh_ok  = is_number(rh_now) %}
+          {% set rhv    = rh_now | float(0) %}
+          {% set on_th  = states('input_number.dehumidifier_rh_on_threshold')  | float(0) %}
+          {% set off_th = states('input_number.dehumidifier_rh_off_threshold') | float(0) %}
+          {% set run_min = ((as_timestamp(now()) - as_timestamp(on_s, 0)) / 60) if on_ok else 0 %}
+          {% set off_min = ((as_timestamp(now()) - as_timestamp(off_s, 0)) / 60) if off_ok else 0 %}
+          {% if is_state('switch.dehumidifier', 'on') %}
+          {% if on_ok %}
+          {# POWERED is not RUNNING. The plug being on only means HA has not vetoed
+             the unit; the E080 samples fan-only at ~57.8 W between compressor runs,
+             and binary_sensor.dehumidifier_compressor_active is what says the
+             compressor is actually pulling. Elapsed time is measured from the
+             SWITCH-on stamp either way, because that is what the min-run and
+             max-cycle guards key on. #}
+          {% if comp %}**COMPRESSOR RUNNING**{% else %}**POWERED — fan sampling, compressor off**{% endif %} — {{ run_min | round(0) }} min since switch-on.
+
+          - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv <= off_th %}RH {{ rhv | round(1) }} % is at or below OFF {{ off_th | round(1) }} — **stop is due**{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % sits between OFF {{ off_th | round(1) }} and ON {{ on_th | round(1) }} — **holding, correctly**; it runs on down to {{ off_th | round(1) }} %{% endif %}
+          - Min-run {{ min_run | round(0) }} min: {{ '✅ satisfied' if run_min >= min_run else '🔒 held ' ~ ((min_run - run_min) | round(0)) ~ ' min more' }}
+          - Max cycle {{ ((max_h * 60) | round(0)) if max_ok else '⚠️ unreadable' }}{{ ' min: ' ~ (((max_h * 60) - run_min) | round(0)) ~ ' min to backstop' if max_ok else ' — the backstop falls back to a 2 h cap' }}
+          {% else %}
+          {% if comp %}**COMPRESSOR RUNNING**{% else %}**POWERED — fan sampling, compressor off**{% endif %} — elapsed unknown, ON stamp unset.
+
+          - Min-run: ⚠️ **INERT** — the guard fails open, so a stop is allowed immediately
+          - Max cycle: ⚠️ **INERT** — the backstop also keys on this stamp
+          {% endif %}
+          {% else %}
+          {% if off_ok %}
+          **OFF** — {{ off_min | round(0) }} min since last stop ({{ states('input_select.dehumidifier_last_stop_reason') }}).
+
+          - Band: {% if not rh_ok %}⚠️ RH unreadable{% elif rhv > on_th %}RH {{ rhv | round(1) }} % is above ON {{ on_th | round(1) }} — **start demanded**{% else %}RH {{ rhv | round(1) }} % is below ON {{ on_th | round(1) }} — **holding off, correctly**; it starts above {{ on_th | round(1) }} %{% endif %}
+          - Min-off {{ min_off | round(0) }} min: {{ '✅ clear to start' if off_min >= min_off else '🔒 locked out ' ~ ((min_off - off_min) | round(0)) ~ ' min more' }}
+          - Mold force-on override bypasses min-off after 10 min
+          {% else %}
+          **OFF** — elapsed unknown, OFF stamp unset ({{ states('input_select.dehumidifier_last_stop_reason') }}).
+
+          - Min-off: ⚠️ **INERT** — the guard fails open, so a start is allowed immediately
+          {% endif %}
+          {% endif %}
+          {% if not on_ok or not off_ok %}
+
+          ⚠️ An `input_datetime` stamp is unset or 1970. Every elapsed-time guard
+          in this loop **fails open** in that state, by design — a missing timer
+          must never be able to strand the compressor on. Expect this for one
+          cycle after a fresh install, not persistently.
+          {% endif %}
+      - type: entities
+        title: Dehumidifier — Live Status
+        state_color: true
+        entities:
+          - entity: sensor.basement_th_node_basement_humidity
+            name: Bank RH — CONTROL VAR
+          - entity: sensor.basement_th_node_basement_humidity_smoothed
+            name: RH smoothed (median-5)
+          - entity: sensor.basement_th_node_basement_temperature
+            name: Basement temp (control)
+          - entity: binary_sensor.dehumidifier_should_run
+            name: Start demand (RH above ON) — not a run/stop verdict
+          - entity: binary_sensor.dehumidifier_compressor_active
+            name: Compressor
+          - type: divider
+          - entity: sensor.basement_dew_point
+            name: Dew point — diagnostic
+          - entity: sensor.basement_th_node_basement_absolute_humidity
+            name: Absolute humidity (node)
+          - entity: sensor.basement_dp_headroom
+            name: DP headroom to mold limit
+          - entity: sensor.basement_mold_limited_dp
+            name: Mold-limited DP (moves with temp)
+          - entity: sensor.basement_condensation_margin
+            name: Condensation margin (°F to coldest surface)
+          - entity: sensor.battery_bank_monitor_battery_pack_temperature
+            name: Bank pack temp (surface reference)
+          - type: divider
+          - entity: sensor.dehumidifier_runtime_today
+            name: Runtime today
+          - entity: sensor.dehumidifier_duty_cycle_24h
+            name: Duty today (runtime ÷ 24 h, not rolling)
+          - entity: counter.dehumidifier_cycles_today
+          - entity: sensor.dehumidifier_energy_daily
+            name: kWh today (live)
+      - type: entities
+        title: Dehumidifier — Control Setpoints
+        state_color: true
+        entities:
+          - entity: input_number.dehumidifier_rh_on_threshold
+            name: RH ON at (%) — PRIMARY
+          - entity: input_number.dehumidifier_rh_off_threshold
+            name: RH OFF at (%) — PRIMARY
+          - entity: input_number.dehumidifier_rh_force_on
+            name: RH mold ceiling (force-on backstop)
+          - type: divider
+          - entity: input_number.dehumidifier_min_run_minutes
+            name: Min RUN (anti short-cycle)
+          - entity: input_number.dehumidifier_min_off_minutes
+            name: Min OFF (anti short-cycle)
+          - entity: input_number.dehumidifier_max_runtime_hours
+            name: Max cycle (hours)
+          - entity: input_number.dehumidifier_min_temp
+            name: Min run temp (°F)
+          - type: divider
+          - entity: input_boolean.dehumidifier_local_control
+            name: LOCAL control — HA monitoring only
+          - entity: input_datetime.dehumidifier_local_control_since
+            name: Local control since
+          - entity: input_number.dehumidifier_local_control_max_hours
+            name: Local control nag limit (h)
+          - type: divider
+          - entity: input_number.dehumidifier_dp_stall_threshold
+            name: DP stall threshold (°F/h — positive MAGNITUDE)
+          - entity: input_number.dehumidifier_power_threshold
+            name: Compressor power gate (W)
+          - type: divider
+          - entity: input_number.basement_dp_margin_min
+            name: Min dew point margin (condensation guard)
+          - entity: input_number.basement_coldest_surface_temp
+            name: Colder surface override (≤ 40 °F disables it)
+          - type: divider
+          - entity: input_number.dehumidifier_dp_on_threshold
+            name: DP ON — INACTIVE since RH cutover
+          - entity: input_number.dehumidifier_dp_off_threshold
+            name: DP OFF — INACTIVE since RH cutover
+          - entity: input_number.basement_dp_target_cap
+            name: DP target cap (absolute-moisture reference)
+          - entity: sensor.basement_recommended_dp_on
+            name: → recommended DP ON (diagnostic only)
+          - type: divider
+          - entity: input_select.dehumidifier_last_stop_reason
+            name: Last stop reason
+      - type: markdown
+        content: |
+          {% set on = is_state('input_boolean.dehumidifier_local_control', 'on') %}
+          {% set s = states('input_datetime.dehumidifier_local_control_since') %}
+          {% set s_ok = s not in ['unknown', 'unavailable'] and s[:4] != '1970' %}
+          {% set hrs = ((as_timestamp(now()) - as_timestamp(s, 0)) / 3600) if s_ok else 0 %}
+          {% set lim_raw = states('input_number.dehumidifier_local_control_max_hours') %}
+          {% set lim_ok  = is_number(lim_raw) %}
+          {% set lim = lim_raw | float(0) %}
+          {% set pt_raw = states('input_number.dehumidifier_power_threshold') %}
+          {% set pt_ok  = is_number(pt_raw) %}
+          {% set pt = pt_raw | float(0) %}
+          {% if on %}
+          ## 🔧 LOCAL (UNIT) CONTROL — HA IS MONITORING ONLY
+
+          {% if s_ok -%}
+          **On for {{ hrs | round(1) }} h** of the {{ (lim | round(0)) if lim_ok else '⚠️ unreadable' }} h limit.
+          {%- if hrs > lim %} ⛔ **OVERDUE — hand control back or raise the limit.**{% endif %}
+          {%- else -%}
+          ⚠️ Entry stamp unset — elapsed time unknown, so the overdue reminder cannot fire.
+          {%- endif %}
+
+          **The E080's onboard humidistat is the only controller.** HA holds the
+          plug powered (min-off still honoured) and cannot switch it off.
+
+          | Suspended | Still running |
+          |---|---|
+          | RH band start / stop | SHT45 node + all logging |
+          | Mold ceiling force-on | Shelly cross-check |
+          | Condensation guard | Compressor + power capture |
+          | Max-runtime backstop | Duty, kWh, cost, SPC |
+          | DP stall cut-out | Watchdog |
+          | Dead-sensor cut-out | Every chart on this page |
+
+          {# 2026-08-24: this paragraph asserted a flat 250 W and the ratios that go
+             with it, while the helper had moved to 150. The two MEASUREMENTS are
+             what is durable - 57.8 W fan-only and 454.7 W compressor, 17 runs /
+             53.9 h - so those stay written down and the ratios are computed from
+             whatever the helper currently holds. A number that can drift should
+             never be typed into prose next to a live helper that supersedes it. #}
+          {% if pt_ok -%}
+          *The compressor gate `dehumidifier_power_threshold` reads **{{ pt | round(0) }} W**.
+          Fan-only sampling measures ~57.8 W and the compressor ~454.7 W (17 runs /
+          53.9 h, commissioning), so the gate sits {{ (pt / 57.8) | round(1) }}× above the
+          blower and {{ (454.7 / pt) | round(1) }}× below the compressor, with ZERO mid-run
+          excursions below it over that set.*
+          {%- else -%}
+          ⚠️ *`dehumidifier_power_threshold` is unreadable, so the compressor gate
+          cannot be stated — and `binary_sensor.dehumidifier_compressor_active` is
+          unavailable for the same reason, which reads as "not running" everywhere.*
+          {%- endif %}
+          {% else %}
+          ✅ **HA control active** — RH band, mold ceiling, condensation guard and
+          all four stop paths are live.
+          {#- hrs is now-minus-stamp, i.e. how long ago local control was last ENTERED.
+              It is NOT the duration of that run - the stamp is only written on entry,
+              and nothing records the exit. Until 2026-08-24 this line read "last run
+              ended after {{ hrs }} h", which rendered as 500.5 h for a stamp 20.9 days
+              old. Stating the elapsed-since is the only claim this stamp supports. -#}
+          {%- if s_ok %} Local control was last entered {{ (hrs / 24) | round(1) }} days ago; its duration is not recorded.{% endif %}
+          {% endif %}
+      - type: button
+        entity: input_boolean.dehumidifier_local_control
+        name: Local (Unit) Control
+        show_state: true
+        state_color: true
+        icon: mdi:tune-vertical
+        tap_action:
+          action: toggle
+          confirmation:
+            text: Hand the dehumidifier to its OWN humidistat? ON suspends every HA-side stop — mold ceiling,
+              condensation guard, runtime cap, stall and dead-sensor cut-outs — and holds the plug powered.
+        hold_action:
+          action: more-info
+      - type: button
+        entity: automation.dehumidifier_rh_stall_shutdown
+        name: DP Stall Shutdown
+        show_state: true
+        state_color: true
+        icon: mdi:fan-alert
+        tap_action:
+          action: toggle
+          confirmation:
+            text: Toggle the stall safety? OFF = disabled for a full-pulldown test. Remember to re-enable
+              it.
+        hold_action:
+          action: more-info
+      - type: custom:mushroom-entity-card
+        entity: input_number.dehumidifier_power_threshold
+        name: Power Threshold
+        icon: mdi:lightning-bolt-circle
+        icon_color: orange
+        layout: vertical
+        grid_options:
+          columns: 6
+          rows: 2
+  - type: grid
+    cards:
+      - type: markdown
+        text_only: true
+        content: |+
+          ## 2 · Moisture physics — diagnostics
+
+      - type: markdown
+        title: Reading the rate charts — one sign rule
+        content: |
+          {% set thr_raw = states('input_number.dehumidifier_dp_stall_threshold') %}
+          {% set thr_ok = is_number(thr_raw) %}
+          {% set thr = thr_raw | float(0) %}
+          Every rate sensor below is a **signed derivative** in units per hour: `platform: derivative`, `unit_time: h`. One formula, one convention.
+
+          | | Means |
+          |---|---|
+          | **Negative** | the quantity is **falling** |
+          | **Positive** | the quantity is **rising** |
+
+          For moisture that reads straight off: **negative = drying**, **positive = reloading**. Removal (running) and ingress (off) are the *same* sensor split by compressor state, so they can never overlap — the pair is one continuous curve crossing zero at each state change.
+
+          ---
+          *Before 2026-08-07 four different conventions coexisted here and two of them were sign-flipped, so "removal" and "ingress" both read positive while meaning opposite things. The old `*_drop_rate_60min` pair also used a different formula — `2 × (60-min mean − current)` — whose window (60 min) is longer than a whole run (15.6–30.3 min measured), so it straddled the off period and netted falling against rising. Retired.*
+
+          **Two windows, one formula.** The window is chosen per job, and the choice is forced by arithmetic rather than taste. **30 min** for trend and for the stall detector: slope noise runs about σ√2/T, so at the SHT45's ~0.05 °F dew-point scatter that is ~0.14 °F/h. **10 min** for within-cycle work: measured runs are 15.0–30.4 min (daily longest, 2026-08-05..24, n=20, median 16.0), so a 30-min window can never fill inside a run — it always carries off-period data where dew point is *rising*, which nets against the run. At 10 min the noise is ~0.42 °F/h, which is 8–11 % of the −3.9 to −5.4 °F/h productive signal and 3× the 30-min figure — that ratio, not any threshold, is why the stall detector stays on 30 min.
+
+          {% if thr_ok -%}
+          **Against the live stall threshold of {{ thr }} °F/h**, the 30-min noise floor is {{ (0.14 / thr) | round(1) }}× the threshold and the 10-min floor is {{ (0.42 / thr) | round(1) }}×. *This card used to assert a 0.15 °F/h threshold and claim the 30-min noise sat "just under" it — true at 0.15, false once the helper moved. The detector's immunity does not come from that margin anyway: it comes from the size of the real signal, −3.9 to −5.4 °F/h, which is more than an order of magnitude clear of both.*
+          {%- else -%}
+          ⚠️ *`dehumidifier_dp_stall_threshold` is unreadable. The stall condition gates on that helper being numeric, so in this state no stall shutdown can fire — the max-runtime backstop is the only thing still capping a run.*
+          {%- endif %}
+
+          ⚠️ **The stall detector cannot currently fire.** It requires more than 90 min of continuous runtime; the E080's longest cycle since 2026-08-05 is 30.4 min. That gate was sized for the Santa Fe. Stated here because a listed safety that cannot reach its trigger reads as protection you do not have.
+
+          *The SHT45 is not the constraint — τ63 is seconds for both RH and temperature. The constraints are the smoothing window and the ~1–2 min transport lag from the machine end to the node alcove.*
+
+          ⚠️ **The node's own rate sensors on card 4 are NOT on this convention** — they are computed in ESPHome firmware. Their SIGN was verified against `esphome/basement-th-node.yaml` on 2026-08-24 and matches this convention; what differs is the UNIT on the temperature rate. See card 4.
+      - type: entities
+        title: Rate of change — canonical set (all signed the same way)
+        state_color: true
+        entities:
+          - entity: sensor.basement_ah_rate
+            name: ΔAbsolute humidity — the honest metric (g/m³/h)
+          - entity: sensor.basement_dp_rate
+            name: ΔDew point (°F/h)
+          - entity: sensor.basement_rh_rate
+            name: ΔRH (%/h)
+          - entity: sensor.basement_temp_rate
+            name: ΔTemperature (°F/h)
+          - type: divider
+          - entity: sensor.basement_dp_rate_10m
+            name: ΔDew point — 10 min (within-cycle)
+          - entity: sensor.basement_ah_rate_10m
+            name: ΔAbsolute humidity — 10 min (within-cycle)
+          - type: divider
+          - entity: sensor.dehumidifier_dp_removal_rate
+            name: ΔDP while RUNNING — expect negative
+          - entity: sensor.dehumidifier_dp_ingress_rate
+            name: ΔDP while OFF — expect positive
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dew Point vs Former DP Band (band now INACTIVE)
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
         yaxis:
-        - 'y': 0
-          borderColor: '#b71c1c'
-          label:
-            text: DEW POINT REACHED
-            style:
-              color: '#fff'
-              background: '#b71c1c'
-    series:
-    - entity: sensor.basement_condensation_margin
-      name: Margin (surface − dew point)
-      yaxis_id: f
-      type: line
-      stroke_width: 3
-      color: '#00838f'
-    - entity: sensor.battery_bank_monitor_battery_pack_temperature
-      name: Surface ref (bank pack)
-      yaxis_id: f
-      type: line
-      stroke_width: 1
-      color: '#8d6e63'
-    - entity: sensor.basement_th_node_basement_dew_point
-      name: Dew point
-      yaxis_id: f
-      type: line
-      stroke_width: 2
-      color: '#1565c0'
-    - entity: input_number.basement_dp_margin_min
-      name: Required margin
-      yaxis_id: f
-      type: line
-      curve: stepline
-      stroke_width: 1
-      color: '#ef6c00'
-      group_by:
-        func: last
-        duration: 5min
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: ΔDP 10-min — Removal (running, neg) vs Ingress (off, pos)
-      show_states: true
-      colorize_states: true
-    graph_span: 24h
-    span:
-      end: hour
-    yaxis:
-    - id: f
-      min: -10
-      max: 4
-      decimals: 2
-      apex_config:
-        title:
-          text: °F/h  (signed)
-    apex_config:
-      annotations:
+          - id: dp
+            decimals: 1
+          - id: comp
+            show: false
+            min: 0
+            max: 1
+        series:
+          - entity: sensor.basement_th_node_basement_dew_point
+            name: Dew point
+            yaxis_id: dp
+            type: line
+            stroke_width: 3
+            color: '#00838f'
+          - entity: binary_sensor.dehumidifier_compressor_active
+            name: Compressor
+            yaxis_id: comp
+            type: area
+            color: '#80deea'
+            opacity: 0.2
+            stroke_width: 0
+            transform: 'return x === ''on'' ? 1 : 0;'
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Moisture Removal (absolute) vs Compressor — the real proof
+          show_states: true
+          colorize_states: true
+        update_interval: 15s
+        graph_span: 12h
+        cache: false
+        span:
+          end: hour
         yaxis:
-        - 'y': 0
-          borderColor: '#2e7d32'
-          strokeDashArray: 4
-          label:
-            text: zero
-            style:
-              color: '#fff'
-              background: '#2e7d32'
-    series:
-    - entity: sensor.dehumidifier_dp_removal_rate
-      name: Running — expect negative
-      yaxis_id: f
-      type: line
-      stroke_width: 2
-      color: '#2e7d32'
-    - entity: sensor.dehumidifier_dp_ingress_rate
-      name: Off — expect positive
-      yaxis_id: f
-      type: line
-      stroke_width: 2
-      color: '#c62828'
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Absolute Humidity vs RH
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    yaxis:
-    - id: rate
-      show: true
-      decimals: 2
-      apex_config:
-        title:
-          text: g/m³
-    - id: rh
-      show: true
-      opposite: true
-      decimals: 1
-      min: 45
-      max: 60
-      apex_config:
-        title:
-          text: '% RH'
-    - id: run
-      show: false
-      min: 0
-      max: 1
-    series:
-    - entity: sensor.basement_th_node_basement_absolute_humidity
-      name: Absolute Humidity
-      yaxis_id: rate
-      type: line
-      stroke_width: 2
-      color: '#2196F3'
-      float_precision: 4
-    - entity: sensor.basement_th_node_basement_humidity
-      name: Humidity (control)
-      yaxis_id: rh
-      type: line
-      color: '#00d1ff'
-      stroke_width: 2
-      float_precision: 1
-- type: grid
-  cards:
-  - type: markdown
-    text_only: true
-    content: |+
-      ## 3 · Runtime, energy, SPC
-
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dehumidifier Daily kWh
-      show_states: true
-    graph_span: 10d
-    span:
-      end: day
-    yaxis:
-    - min: 0
-      decimals: 2
-    series:
-    - entity: sensor.dehumidifier_kwh_daily
-      name: Daily kWh
-      type: column
-      color: '#6a1b9a'
-      float_precision: 2
-      group_by:
-        func: last
-        duration: 1d
-    - entity: sensor.dehumidifier_kwh_mean_7d
-      name: 7d mean
-      type: line
-      curve: straight
-      stroke_width: 2
-      color: '#ef6c00'
-      float_precision: 2
-      group_by:
-        func: last
-        duration: 1d
-  - type: custom:apexcharts-card
-    graph_span: 14d
-    span:
-      end: day
-    header:
-      show: true
-      title: Dehumidifier Operating Cost (daily + YTD)
-      show_states: true
-      colorize_states: true
-    yaxis:
-    - id: daily
-      min: 0
-      decimals: 2
-    - id: cum
-      opposite: true
-      min: 0
-      decimals: 0
-    series:
-    - entity: sensor.dehumidifier_daily_cost
-      name: Daily cost
-      type: column
-      yaxis_id: daily
-      color: '#4caf50'
-      unit: ' $'
-      group_by:
-        func: max
-        duration: 1d
-    - entity: sensor.dehumidifier_cost_year_to_date
-      name: Cumulative (YTD)
-      type: line
-      yaxis_id: cum
-      color: '#2196F3'
-      stroke_width: 2
-      unit: ' $'
-      group_by:
-        func: last
-        duration: 1d
-    - entity: input_number.dehumidifier_cost_prev_year
-      name: Last season total
-      type: line
-      yaxis_id: cum
-      color: '#9e9e9e'
-      stroke_width: 1
-      curve: straight
-      unit: ' $'
-      group_by:
-        func: last
-        duration: 1d
-    apex_config:
-      stroke:
-        dashArray:
-        - 0
-        - 0
-        - 6
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dehumidifier — Running Watts SPC
-      show_states: true
-      colorize_states: true
-    graph_span: 8d
-    span:
-      end: day
-    yaxis:
-    - id: spc
-      decimals: 1
-      apex_config:
-        title:
-          text: W (steady-window mean)
-    apex_config:
-      chart:
-        height: 280
-      legend:
-        show: true
-        position: bottom
-      tooltip:
-        shared: true
-        x:
-          show: false
-      xaxis:
-        labels:
-          show: false
-        axisTicks:
-          show: false
-        title:
-          text: last 7 captured subgroups — oldest to newest
-    series:
-    - entity: input_number.dehumidifier_running_watts_day_1
-      name: Daily subgroup (W)
-      type: column
-      color: '#2196F3'
-      yaxis_id: spc
-      float_precision: 1
-      data_generator: |
-        // X is subgroup POSITION, not a date — see the file header.
-        const today = new Date();
-        today.setHours(12, 0, 0, 0);
-        const out = [];
-        for (let i = 0; i < 7; i++) {
-          const slot = hass.states['input_number.dehumidifier_running_watts_day_' + (i + 1)];
-          const v = slot ? parseFloat(slot.state) : NaN;
-          const t = new Date(today);
-          t.setDate(t.getDate() - i);
-          out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
-        }
-        return out.reverse();
-    - entity: sensor.dehumidifier_running_watts_mean_7d
-      name: Centre line (7d mean)
-      type: line
-      color: '#2e7d32'
-      stroke_width: 2
-      curve: straight
-      yaxis_id: spc
-      float_precision: 1
-      data_generator: |
-        const lim = hass.states['sensor.dehumidifier_running_watts_mean_7d'];
-        const v = lim ? parseFloat(lim.state) : NaN;
-        if (!isFinite(v)) { return []; }
-        // t0/t1, not start/end — those are reserved params (see file header).
-        const t1 = new Date();
-        t1.setHours(12, 0, 0, 0);
-        const t0 = new Date(t1);
-        t0.setDate(t0.getDate() - 6);
-        return [[t0.getTime(), v], [t1.getTime(), v]];
-    - entity: sensor.dehumidifier_running_watts_upper
-      name: UCL (+2σ)
-      type: line
-      color: '#c0504d'
-      stroke_width: 1
-      curve: straight
-      yaxis_id: spc
-      float_precision: 1
-      data_generator: |
-        const lim = hass.states['sensor.dehumidifier_running_watts_upper'];
-        const v = lim ? parseFloat(lim.state) : NaN;
-        if (!isFinite(v)) { return []; }
-        // t0/t1, not start/end — those are reserved params (see file header).
-        const t1 = new Date();
-        t1.setHours(12, 0, 0, 0);
-        const t0 = new Date(t1);
-        t0.setDate(t0.getDate() - 6);
-        return [[t0.getTime(), v], [t1.getTime(), v]];
-    - entity: sensor.dehumidifier_running_watts_lower
-      name: LCL (−2σ)
-      type: line
-      color: '#c0504d'
-      stroke_width: 1
-      curve: straight
-      yaxis_id: spc
-      float_precision: 1
-      data_generator: |
-        const lim = hass.states['sensor.dehumidifier_running_watts_lower'];
-        const v = lim ? parseFloat(lim.state) : NaN;
-        if (!isFinite(v)) { return []; }
-        // t0/t1, not start/end — those are reserved params (see file header).
-        const t1 = new Date();
-        t1.setHours(12, 0, 0, 0);
-        const t0 = new Date(t1);
-        t0.setDate(t0.getDate() - 6);
-        return [[t0.getTime(), v], [t1.getTime(), v]];
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dehumidifier Daily Duty %
-      show_states: true
-    graph_span: 10d
-    span:
-      end: day
-    yaxis:
-    - min: 0
-      max: 20
-      decimals: 1
-    series:
-    - entity: sensor.dehumidifier_duty_cycle_24h
-      name: Duty, day so far (÷ 24 h)
-      type: column
-      color: '#1565c0'
-      float_precision: 1
-      group_by:
-        func: last
-        duration: 1d
-    - entity: sensor.dehumidifier_duty_mean_7d
-      name: 7d mean
-      type: line
-      curve: straight
-      stroke_width: 2
-      color: '#ef6c00'
-      float_precision: 1
-      group_by:
-        func: last
-        duration: 1d
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dehumidifier — Longest Cycle/Day
-      show_states: true
-    graph_span: 14d
-    span:
-      end: day
-    yaxis:
-    - min: 0
-      max: 40
-      decimals: 0
-    series:
-    - entity: input_number.dehumidifier_last_cycle_minutes
-      name: Longest cycle (min)
-      type: column
-      color: '#4472c4'
-      group_by:
-        func: max
-        duration: 1d
-- type: grid
-  cards:
-  - type: markdown
-    text_only: true
-    content: |
-      ## 4 · Basement TH Node (SHT45) — CONTROL SENSOR
-  - type: entities
-    title: Basement TH Node — Live
-    state_color: true
-    entities:
-    - entity: sensor.basement_th_node_basement_temperature
-      name: Temperature (SHT45)
-    - entity: sensor.basement_th_node_basement_humidity
-      name: RH raw — CONTROL VAR
-    - entity: sensor.basement_th_node_basement_humidity_smoothed
-      name: RH smoothed (median-5)
-    - entity: sensor.basement_th_node_basement_dew_point
-      name: Dew point (native)
-    - entity: sensor.basement_th_node_basement_absolute_humidity
-      name: Absolute humidity
-  - type: entities
-    title: Node-native rates — RAW FIRMWARE OUTPUT, different convention
-    state_color: true
-    entities:
-    - entity: sensor.basement_th_node_basement_moisture_removal_rate_30m
-      name: Node moisture removal 30m (g/m³/h)
-    - entity: sensor.basement_th_node_basement_rh_rate_15m
-      name: Node ΔRH/h 15m
-    - entity: sensor.basement_th_node_basement_rh_rate_30m
-      name: Node ΔRH/h 30m
-    - entity: sensor.basement_th_node_basement_temp_rate_30m
-      name: Node ΔT/h 30m — °C/h, NOT °F/h
-  - type: markdown
-    content: |
-      ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2** — and as of 2026-08-24 they have been read against the firmware rather than guessed at. `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, marked DIAGNOSTIC ONLY and explicitly barred from feeding control or the HA stall detector). A least-squares slope carries the **natural sign**, so negative = falling, the same convention as card 2. Only ONE real difference survives: the unit on the temperature rate.
-
-      `basement_temp_rate_30m` in particular is in **°C/h**, because the node derives its slope from the SHT45's native Celsius reading while publishing temperature in °F. The dashboard now uses `sensor.basement_temp_rate` instead — a derivative taken in HA off the node's **°F** temperature, so it is °F/h at the root rather than scaled after the fact, and it shares one formula with every other rate.
-
-      *For the record, since it is the thing people get wrong: a rate is a difference per unit time, so only the 9/5 scale applies and the +32 offset does not. 1 °C/h = 1.8 °F/h, and 0 °C/h = 0 °F/h — not 32.*
-
-      **To retire this card**, change `t_rate_30` in `esphome/basement-th-node.yaml` to publish °C/h × 1.8 with `unit_of_measurement: "°F/h"`, or delete the four node rate sensors from firmware and rely on the HA-side set. The file is in the repo — this card previously said it "is not in hand", which had stopped anyone closing the question. Per the esp-firmware-validation gate, that edit is not done until `src/main.cpp.o` compiles with 0 errors; codegen alone does not compile lambdas.
-  - type: entities
-    title: Cross-Check — Control (SHT45) vs Validation (Shelly)
-    state_color: true
-    entities:
-    - entity: binary_sensor.basement_rh_sensors_disagree
-      name: Cross-check drift flag
-    - type: divider
-    - entity: sensor.basement_rh_delta_mean_24h
-      name: ΔRH 24h mean (SHT45 − Shelly)
-    - entity: sensor.basement_dp_delta_mean_24h
-      name: ΔDewpoint 24h mean
-    - entity: sensor.basement_temp_delta_mean_24h
-      name: ΔTemp 24h mean
-    - type: divider
-    - entity: sensor.basement_rh_delta_sht45_vs_shelly
-      name: ΔRH instantaneous (5-min sample)
-    - entity: input_number.basement_rh_delta_tolerance
-      name: Drift tolerance
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: RH — Control (SHT45) vs Validation (Shelly) — guards the setpoint
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: rh
-      decimals: 1
-      apex_config:
-        title:
-          text: '%RH'
-    series:
-    - entity: sensor.basement_th_node_basement_humidity
-      name: SHT45 raw (what the delta measures)
-      yaxis_id: rh
-      type: line
-      stroke_width: 2
-      color: '#ff9800'
-      group_by:
-        func: avg
-        duration: 5min
-    - entity: sensor.shelly_temperature_humidity_humidity
-      name: Shelly (validation only)
-      yaxis_id: rh
-      type: line
-      stroke_width: 2
-      color: '#1565c0'
-      group_by:
-        func: avg
-        duration: 5min
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Dew Point — Control (SHT45) vs Validation (Shelly)
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: dp
-      decimals: 1
-      apex_config:
-        title:
-          text: °F
-    series:
-    - entity: sensor.basement_th_node_basement_dew_point
-      name: Control DP (SHT45, Magnus)
-      yaxis_id: dp
-      type: line
-      stroke_width: 2
-      color: '#ff9800'
-      group_by:
-        func: avg
-        duration: 5min
-    - entity: sensor.shelly_dew_point
-      name: Validation DP (Shelly, Magnus)
-      yaxis_id: dp
-      type: line
-      stroke_width: 2
-      color: '#1565c0'
-      group_by:
-        func: avg
-        duration: 5min
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Cross-Check Delta (SHT45 − Shelly) — is the bias stable?
-      show_states: true
-      colorize_states: true
-    graph_span: 12h
-    span:
-      end: hour
-    yaxis:
-    - id: rh
-      decimals: 2
-      apex_config:
-        title:
-          text: '%RH  /  °F'
-    apex_config:
-      annotations:
+          - id: rate
+            decimals: 3
+            apex_config:
+              title:
+                text: g/m³/h  (negative = drying)
+          - id: comp
+            show: false
+            min: 0
+            max: 1
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#2e7d32'
+                strokeDashArray: 4
+                label:
+                  text: zero — above this the room is reloading
+                  style:
+                    color: '#fff'
+                    background: '#2e7d32'
+        series:
+          - entity: sensor.basement_ah_rate_10m
+            name: ΔAH 10-min (negative = drying)
+            yaxis_id: rate
+            type: line
+            stroke_width: 2
+            color: '#2196F3'
+            float_precision: 3
+          - entity: binary_sensor.dehumidifier_compressor_active
+            name: Compressor
+            yaxis_id: comp
+            type: area
+            color: '#80deea'
+            opacity: 0.2
+            stroke_width: 0
+            transform: 'return x === ''on'' ? 1 : 0;'
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: DP vs Mold Limit — headroom as the basement cools
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
         yaxis:
-        - 'y': 0
-          borderColor: '#2e7d32'
-          strokeDashArray: 4
-          label:
-            text: agreement
-            borderColor: '#2e7d32'
-            style:
-              color: '#ffffff'
-              background: '#2e7d32'
-    series:
-    - entity: sensor.basement_rh_delta_sht45_vs_shelly
-      name: ΔRH
-      yaxis_id: rh
-      type: line
-      stroke_width: 1
-      opacity: 0.4
-      color: '#9e9e9e'
-    - entity: sensor.basement_rh_delta_mean_24h
-      name: ΔRH 24h mean
-      yaxis_id: rh
-      type: line
-      stroke_width: 3
-      color: '#c62828'
-    - entity: sensor.basement_dp_delta_mean_24h
-      name: ΔDewpoint 24h mean
-      yaxis_id: rh
-      type: line
-      stroke_width: 2
-      color: '#6a1b9a'
-    - entity: sensor.basement_temp_delta_mean_24h
-      name: ΔTemp 24h mean
-      yaxis_id: rh
-      type: line
-      stroke_width: 2
-      curve: straight
-      color: '#0288d1'
-  - type: entities
-    title: Basement TH Node — Health
-    state_color: true
-    entities:
-    - entity: binary_sensor.watchdog_basement_th_stale
-      name: Watchdog — control RH stale
-    - entity: binary_sensor.basement_th_node_node_status
-      name: Node online
-    - entity: binary_sensor.basement_th_node_basement_sensor_fault
-      name: SHT45 fault
-    - entity: binary_sensor.basement_th_node_basement_rh_stuck
-      name: RH stuck-value latch
-    - type: divider
-    - entity: sensor.basement_th_node_basement_dropped_reads
-      name: Dropped reads
-    - entity: sensor.basement_th_node_node_wifi_signal
-      name: WiFi
-    - entity: sensor.basement_th_node_node_free_heap
-      name: Free heap
-    - entity: sensor.basement_th_node_node_loop_time
-      name: Loop time
-    - entity: sensor.basement_th_node_node_uptime
-      name: Uptime
-    - entity: sensor.basement_th_node_node_reset_reason
-      name: Last reset reason
-    - entity: sensor.basement_th_node_node_esphome_version
-      name: Firmware
-    - type: divider
-    - entity: button.basement_th_node_node_restart
-      name: Restart node
-  - type: entities
-    title: Basement TH Node — Display Tuning
-    state_color: true
-    entities:
-    - entity: binary_sensor.basement_th_node_basement_display_on
-      name: Display on
-    - type: divider
-    - entity: sensor.basement_th_node_basement_lux_max_1m
-    - entity: input_number.basement_display_lux_wake
-      name: Wake threshold
-    - entity: input_number.basement_display_blank_min
-      name: Blank delay
-    - entity: input_number.basement_display_contrast_pct
-      name: Contrast
-    - type: divider
-    - entity: sensor.basement_th_node_display_max_on_probes
-      name: Max-on probes
-    - entity: sensor.basement_th_node_display_self_glow_latches
-      name: Self-glow latches
+          - id: f
+            decimals: 1
+            apex_config:
+              title:
+                text: °F
+        series:
+          - entity: sensor.basement_mold_limited_dp
+            name: Mold limit (moves with temp)
+            yaxis_id: f
+            type: line
+            stroke_width: 2
+            color: '#d32f2f'
+          - entity: sensor.basement_th_node_basement_dew_point
+            name: Dew point
+            yaxis_id: f
+            type: line
+            stroke_width: 3
+            color: '#00838f'
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Condensation Margin — dew point vs coldest surface
+          show_states: true
+          colorize_states: true
+        graph_span: 7d
+        span:
+          end: hour
+        yaxis:
+          - id: f
+            decimals: 1
+            apex_config:
+              title:
+                text: °F
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#b71c1c'
+                label:
+                  text: DEW POINT REACHED
+                  style:
+                    color: '#fff'
+                    background: '#b71c1c'
+        series:
+          - entity: sensor.basement_condensation_margin
+            name: Margin (surface − dew point)
+            yaxis_id: f
+            type: line
+            stroke_width: 3
+            color: '#00838f'
+          - entity: sensor.battery_bank_monitor_battery_pack_temperature
+            name: Surface ref (bank pack)
+            yaxis_id: f
+            type: line
+            stroke_width: 1
+            color: '#8d6e63'
+          - entity: sensor.basement_th_node_basement_dew_point
+            name: Dew point
+            yaxis_id: f
+            type: line
+            stroke_width: 2
+            color: '#1565c0'
+          - entity: input_number.basement_dp_margin_min
+            name: Required margin
+            yaxis_id: f
+            type: line
+            curve: stepline
+            stroke_width: 1
+            color: '#ef6c00'
+            group_by:
+              func: last
+              duration: 5min
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: ΔDP 10-min — Removal (running, neg) vs Ingress (off, pos)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: f
+            min: -10
+            max: 4
+            decimals: 2
+            apex_config:
+              title:
+                text: °F/h  (signed)
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#2e7d32'
+                strokeDashArray: 4
+                label:
+                  text: zero
+                  style:
+                    color: '#fff'
+                    background: '#2e7d32'
+        series:
+          - entity: sensor.dehumidifier_dp_removal_rate
+            name: Running — expect negative
+            yaxis_id: f
+            type: line
+            stroke_width: 2
+            color: '#2e7d32'
+          - entity: sensor.dehumidifier_dp_ingress_rate
+            name: Off — expect positive
+            yaxis_id: f
+            type: line
+            stroke_width: 2
+            color: '#c62828'
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Absolute Humidity vs RH
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        yaxis:
+          - id: rate
+            show: true
+            decimals: 2
+            apex_config:
+              title:
+                text: g/m³
+          - id: rh
+            show: true
+            opposite: true
+            decimals: 1
+            min: 45
+            max: 60
+            apex_config:
+              title:
+                text: '% RH'
+          - id: run
+            show: false
+            min: 0
+            max: 1
+        series:
+          - entity: sensor.basement_th_node_basement_absolute_humidity
+            name: Absolute Humidity
+            yaxis_id: rate
+            type: line
+            stroke_width: 2
+            color: '#2196F3'
+            float_precision: 4
+          - entity: sensor.basement_th_node_basement_humidity
+            name: Humidity (control)
+            yaxis_id: rh
+            type: line
+            color: '#00d1ff'
+            stroke_width: 2
+            float_precision: 1
+  - type: grid
+    cards:
+      - type: markdown
+        text_only: true
+        content: |+
+          ## 3 · Runtime, energy, SPC
+
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dehumidifier Daily kWh
+          show_states: true
+        graph_span: 10d
+        span:
+          end: day
+        yaxis:
+          - min: 0
+            decimals: 2
+        series:
+          - entity: sensor.dehumidifier_kwh_daily
+            name: Daily kWh
+            type: column
+            color: '#6a1b9a'
+            float_precision: 2
+            group_by:
+              func: last
+              duration: 1d
+          - entity: sensor.dehumidifier_kwh_mean_7d
+            name: 7d mean
+            type: line
+            curve: straight
+            stroke_width: 2
+            color: '#ef6c00'
+            float_precision: 2
+            group_by:
+              func: last
+              duration: 1d
+      - type: custom:apexcharts-card
+        graph_span: 14d
+        span:
+          end: day
+        header:
+          show: true
+          title: Dehumidifier Operating Cost (daily + YTD)
+          show_states: true
+          colorize_states: true
+        yaxis:
+          - id: daily
+            min: 0
+            decimals: 2
+          - id: cum
+            opposite: true
+            min: 0
+            decimals: 0
+        series:
+          - entity: sensor.dehumidifier_daily_cost
+            name: Daily cost
+            type: column
+            yaxis_id: daily
+            color: '#4caf50'
+            unit: ' $'
+            group_by:
+              func: max
+              duration: 1d
+          - entity: sensor.dehumidifier_cost_year_to_date
+            name: Cumulative (YTD)
+            type: line
+            yaxis_id: cum
+            color: '#2196F3'
+            stroke_width: 2
+            unit: ' $'
+            group_by:
+              func: last
+              duration: 1d
+          - entity: input_number.dehumidifier_cost_prev_year
+            name: Last season total
+            type: line
+            yaxis_id: cum
+            color: '#9e9e9e'
+            stroke_width: 1
+            curve: straight
+            unit: ' $'
+            group_by:
+              func: last
+              duration: 1d
+        apex_config:
+          stroke:
+            dashArray:
+              - 0
+              - 0
+              - 6
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dehumidifier — Running Watts SPC
+          show_states: true
+          colorize_states: true
+        graph_span: 8d
+        span:
+          end: day
+        yaxis:
+          - id: spc
+            decimals: 1
+            apex_config:
+              title:
+                text: W (steady-window mean)
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          tooltip:
+            shared: true
+            x:
+              show: false
+          xaxis:
+            labels:
+              show: false
+            axisTicks:
+              show: false
+            title:
+              text: last 7 captured subgroups — oldest to newest
+        series:
+          - entity: input_number.dehumidifier_running_watts_day_1
+            name: Daily subgroup (W)
+            type: column
+            color: '#2196F3'
+            yaxis_id: spc
+            float_precision: 1
+            data_generator: |
+              // X is subgroup POSITION, not a date — see the file header.
+              const today = new Date();
+              today.setHours(12, 0, 0, 0);
+              const out = [];
+              for (let i = 0; i < 7; i++) {
+                const slot = hass.states['input_number.dehumidifier_running_watts_day_' + (i + 1)];
+                const v = slot ? parseFloat(slot.state) : NaN;
+                const t = new Date(today);
+                t.setDate(t.getDate() - i);
+                out.push([t.getTime(), (isFinite(v) && v > 0) ? v : null]);
+              }
+              return out.reverse();
+          - entity: sensor.dehumidifier_running_watts_mean_7d
+            name: Centre line (7d mean)
+            type: line
+            color: '#2e7d32'
+            stroke_width: 2
+            curve: straight
+            yaxis_id: spc
+            float_precision: 1
+            data_generator: |
+              const lim = hass.states['sensor.dehumidifier_running_watts_mean_7d'];
+              const v = lim ? parseFloat(lim.state) : NaN;
+              if (!isFinite(v)) { return []; }
+              // t0/t1, not start/end — those are reserved params (see file header).
+              const t1 = new Date();
+              t1.setHours(12, 0, 0, 0);
+              const t0 = new Date(t1);
+              t0.setDate(t0.getDate() - 6);
+              return [[t0.getTime(), v], [t1.getTime(), v]];
+          - entity: sensor.dehumidifier_running_watts_upper
+            name: UCL (+2σ)
+            type: line
+            color: '#c0504d'
+            stroke_width: 1
+            curve: straight
+            yaxis_id: spc
+            float_precision: 1
+            data_generator: |
+              const lim = hass.states['sensor.dehumidifier_running_watts_upper'];
+              const v = lim ? parseFloat(lim.state) : NaN;
+              if (!isFinite(v)) { return []; }
+              // t0/t1, not start/end — those are reserved params (see file header).
+              const t1 = new Date();
+              t1.setHours(12, 0, 0, 0);
+              const t0 = new Date(t1);
+              t0.setDate(t0.getDate() - 6);
+              return [[t0.getTime(), v], [t1.getTime(), v]];
+          - entity: sensor.dehumidifier_running_watts_lower
+            name: LCL (−2σ)
+            type: line
+            color: '#c0504d'
+            stroke_width: 1
+            curve: straight
+            yaxis_id: spc
+            float_precision: 1
+            data_generator: |
+              const lim = hass.states['sensor.dehumidifier_running_watts_lower'];
+              const v = lim ? parseFloat(lim.state) : NaN;
+              if (!isFinite(v)) { return []; }
+              // t0/t1, not start/end — those are reserved params (see file header).
+              const t1 = new Date();
+              t1.setHours(12, 0, 0, 0);
+              const t0 = new Date(t1);
+              t0.setDate(t0.getDate() - 6);
+              return [[t0.getTime(), v], [t1.getTime(), v]];
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dehumidifier Daily Duty %
+          show_states: true
+        graph_span: 10d
+        span:
+          end: day
+        yaxis:
+          - min: 0
+            max: 20
+            decimals: 1
+        series:
+          - entity: sensor.dehumidifier_duty_cycle_24h
+            name: Duty, day so far (÷ 24 h)
+            type: column
+            color: '#1565c0'
+            float_precision: 1
+            group_by:
+              func: last
+              duration: 1d
+          - entity: sensor.dehumidifier_duty_mean_7d
+            name: 7d mean
+            type: line
+            curve: straight
+            stroke_width: 2
+            color: '#ef6c00'
+            float_precision: 1
+            group_by:
+              func: last
+              duration: 1d
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dehumidifier — Longest Cycle/Day
+          show_states: true
+        graph_span: 14d
+        span:
+          end: day
+        yaxis:
+          - min: 0
+            max: 40
+            decimals: 0
+        series:
+          - entity: input_number.dehumidifier_last_cycle_minutes
+            name: Longest cycle (min)
+            type: column
+            color: '#4472c4'
+            group_by:
+              func: max
+              duration: 1d
+  - type: grid
+    cards:
+      - type: markdown
+        text_only: true
+        content: |
+          ## 4 · Basement TH Node (SHT45) — CONTROL SENSOR
+      - type: entities
+        title: Basement TH Node — Live
+        state_color: true
+        entities:
+          - entity: sensor.basement_th_node_basement_temperature
+            name: Temperature (SHT45)
+          - entity: sensor.basement_th_node_basement_humidity
+            name: RH raw — CONTROL VAR
+          - entity: sensor.basement_th_node_basement_humidity_smoothed
+            name: RH smoothed (median-5)
+          - entity: sensor.basement_th_node_basement_dew_point
+            name: Dew point (native)
+          - entity: sensor.basement_th_node_basement_absolute_humidity
+            name: Absolute humidity
+      - type: entities
+        title: Node-native rates — RAW FIRMWARE OUTPUT, different convention
+        state_color: true
+        entities:
+          - entity: sensor.basement_th_node_basement_moisture_removal_rate_30m
+            name: Node moisture removal 30m (g/m³/h)
+          - entity: sensor.basement_th_node_basement_rh_rate_15m
+            name: Node ΔRH/h 15m
+          - entity: sensor.basement_th_node_basement_rh_rate_30m
+            name: Node ΔRH/h 30m
+          - entity: sensor.basement_th_node_basement_temp_rate_30m
+            name: Node ΔT/h 30m — °C/h, NOT °F/h
+      - type: markdown
+        content: |
+          ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2** — and as of 2026-08-24 they have been read against the firmware rather than guessed at. `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, marked DIAGNOSTIC ONLY and explicitly barred from feeding control or the HA stall detector). A least-squares slope carries the **natural sign**, so negative = falling, the same convention as card 2. Only ONE real difference survives: the unit on the temperature rate.
+
+          `basement_temp_rate_30m` in particular is in **°C/h**, because the node derives its slope from the SHT45's native Celsius reading while publishing temperature in °F. The dashboard now uses `sensor.basement_temp_rate` instead — a derivative taken in HA off the node's **°F** temperature, so it is °F/h at the root rather than scaled after the fact, and it shares one formula with every other rate.
+
+          *For the record, since it is the thing people get wrong: a rate is a difference per unit time, so only the 9/5 scale applies and the +32 offset does not. 1 °C/h = 1.8 °F/h, and 0 °C/h = 0 °F/h — not 32.*
+
+          **To retire this card**, change `t_rate_30` in `esphome/basement-th-node.yaml` to publish °C/h × 1.8 with `unit_of_measurement: "°F/h"`, or delete the four node rate sensors from firmware and rely on the HA-side set. The file is in the repo — this card previously said it "is not in hand", which had stopped anyone closing the question. Per the esp-firmware-validation gate, that edit is not done until `src/main.cpp.o` compiles with 0 errors; codegen alone does not compile lambdas.
+      - type: entities
+        title: Cross-Check — Control (SHT45) vs Validation (Shelly)
+        state_color: true
+        entities:
+          - entity: binary_sensor.basement_rh_sensors_disagree
+            name: Cross-check drift flag
+          - type: divider
+          - entity: sensor.basement_rh_delta_mean_24h
+            name: ΔRH 24h mean (SHT45 − Shelly)
+          - entity: sensor.basement_dp_delta_mean_24h
+            name: ΔDewpoint 24h mean
+          - entity: sensor.basement_temp_delta_mean_24h
+            name: ΔTemp 24h mean
+          - type: divider
+          - entity: sensor.basement_rh_delta_sht45_vs_shelly
+            name: ΔRH instantaneous (5-min sample)
+          - entity: input_number.basement_rh_delta_tolerance
+            name: Drift tolerance
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: RH — Control (SHT45) vs Validation (Shelly) — guards the setpoint
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
+        yaxis:
+          - id: rh
+            decimals: 1
+            apex_config:
+              title:
+                text: '%RH'
+        series:
+          - entity: sensor.basement_th_node_basement_humidity
+            name: SHT45 raw (what the delta measures)
+            yaxis_id: rh
+            type: line
+            stroke_width: 2
+            color: '#ff9800'
+            group_by:
+              func: avg
+              duration: 5min
+          - entity: sensor.shelly_temperature_humidity_humidity
+            name: Shelly (validation only)
+            yaxis_id: rh
+            type: line
+            stroke_width: 2
+            color: '#1565c0'
+            group_by:
+              func: avg
+              duration: 5min
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Dew Point — Control (SHT45) vs Validation (Shelly)
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
+        yaxis:
+          - id: dp
+            decimals: 1
+            apex_config:
+              title:
+                text: °F
+        series:
+          - entity: sensor.basement_th_node_basement_dew_point
+            name: Control DP (SHT45, Magnus)
+            yaxis_id: dp
+            type: line
+            stroke_width: 2
+            color: '#ff9800'
+            group_by:
+              func: avg
+              duration: 5min
+          - entity: sensor.shelly_dew_point
+            name: Validation DP (Shelly, Magnus)
+            yaxis_id: dp
+            type: line
+            stroke_width: 2
+            color: '#1565c0'
+            group_by:
+              func: avg
+              duration: 5min
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Cross-Check Delta (SHT45 − Shelly) — is the bias stable?
+          show_states: true
+          colorize_states: true
+        graph_span: 12h
+        span:
+          end: hour
+        yaxis:
+          - id: rh
+            decimals: 2
+            apex_config:
+              title:
+                text: '%RH  /  °F'
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#2e7d32'
+                strokeDashArray: 4
+                label:
+                  text: agreement
+                  borderColor: '#2e7d32'
+                  style:
+                    color: '#ffffff'
+                    background: '#2e7d32'
+        series:
+          - entity: sensor.basement_rh_delta_sht45_vs_shelly
+            name: ΔRH
+            yaxis_id: rh
+            type: line
+            stroke_width: 1
+            opacity: 0.4
+            color: '#9e9e9e'
+          - entity: sensor.basement_rh_delta_mean_24h
+            name: ΔRH 24h mean
+            yaxis_id: rh
+            type: line
+            stroke_width: 3
+            color: '#c62828'
+          - entity: sensor.basement_dp_delta_mean_24h
+            name: ΔDewpoint 24h mean
+            yaxis_id: rh
+            type: line
+            stroke_width: 2
+            color: '#6a1b9a'
+          - entity: sensor.basement_temp_delta_mean_24h
+            name: ΔTemp 24h mean
+            yaxis_id: rh
+            type: line
+            stroke_width: 2
+            curve: straight
+            color: '#0288d1'
+      - type: entities
+        title: Basement TH Node — Health
+        state_color: true
+        entities:
+          - entity: binary_sensor.watchdog_basement_th_stale
+            name: Watchdog — control RH stale
+          - entity: binary_sensor.basement_th_node_node_status
+            name: Node online
+          - entity: binary_sensor.basement_th_node_basement_sensor_fault
+            name: SHT45 fault
+          - entity: binary_sensor.basement_th_node_basement_rh_stuck
+            name: RH stuck-value latch
+          - type: divider
+          - entity: sensor.basement_th_node_basement_dropped_reads
+            name: Dropped reads
+          - entity: sensor.basement_th_node_node_wifi_signal
+            name: WiFi
+          - entity: sensor.basement_th_node_node_free_heap
+            name: Free heap
+          - entity: sensor.basement_th_node_node_loop_time
+            name: Loop time
+          - entity: sensor.basement_th_node_node_uptime
+            name: Uptime
+          - entity: sensor.basement_th_node_node_reset_reason
+            name: Last reset reason
+          - entity: sensor.basement_th_node_node_esphome_version
+            name: Firmware
+          - type: divider
+          - entity: button.basement_th_node_node_restart
+            name: Restart node
+      - type: entities
+        title: Basement TH Node — Display Tuning
+        state_color: true
+        entities:
+          - entity: binary_sensor.basement_th_node_basement_display_on
+            name: Display on
+          - type: divider
+          - entity: sensor.basement_th_node_basement_lux_max_1m
+          - entity: input_number.basement_display_lux_wake
+            name: Wake threshold
+          - entity: input_number.basement_display_blank_min
+            name: Blank delay
+          - entity: input_number.basement_display_contrast_pct
+            name: Contrast
+          - type: divider
+          - entity: sensor.basement_th_node_display_max_on_probes
+            name: Max-on probes
+          - entity: sensor.basement_th_node_display_self_glow_latches
+            name: Self-glow latches
 cards: []
