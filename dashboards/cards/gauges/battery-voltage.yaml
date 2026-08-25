@@ -1,0 +1,21 @@
+# Battery Voltage - Gauge Card
+# Shows UPS/backup battery voltage
+# Dashboard: Home - Basement
+type: gauge
+entity: sensor.shellyplusuni_78421c535d68_voltmeter
+name: Battery Voltage
+min: 12
+max: 15
+needle: true
+segments:
+  - from: 12
+    color: "#db4437"
+  - from: 12.6
+    color: "#ffeb33"
+  - from: 13.1
+    color: "#43a047"
+  - from: 14.6
+    color: "#db4437"
+grid_options:
+  columns: 6
+  rows: 3

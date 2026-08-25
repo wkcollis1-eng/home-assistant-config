@@ -1,0 +1,20 @@
+# Efficiency Alert - Conditional Card
+# Only shows when efficiency deviation exceeds threshold
+# Dashboard: Energy Performance - Operations
+type: conditional
+conditions:
+  - entity: binary_sensor.hvac_efficiency_alert
+    state: "on"
+card:
+  type: custom:mushroom-template-card
+  primary: Efficiency Alert
+  icon: mdi:alert
+  grid_options:
+    columns: 4
+    rows: 1
+  color: red
+  features_position: bottom
+  vertical: true
+grid_options:
+  columns: 6
+  rows: 3
