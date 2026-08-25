@@ -35,6 +35,14 @@ jobs:
           echo "longitude: -72.81" >> secrets.yaml
           echo "elevation: 50" >> secrets.yaml
           echo "pirate_weather_api_key: dummy_key_for_ci" >> secrets.yaml
+          # packages/audit.yaml resolves shell_command.ha_audit from this key.
+          # The WHOLE command lives in secrets.yaml, not just a token, because
+          # HA's !secret cannot be used inside a string. Added 2026-08-25: this
+          # job had been SKIPPED since July - YAML Lint failed first and it never
+          # ran - so the first green lint in months surfaced a secret that CI had
+          # never had to resolve. A dummy is enough; check_config only needs the
+          # key to exist.
+          echo "ha_audit_cmd: /bin/true" >> secrets.yaml
 
       - name: Home Assistant Config Check
         uses: frenck/action-home-assistant@v1
