@@ -148,21 +148,7 @@ views:
               rows: 2
       - type: grid
         column_span: 1
-        cards:
-          - type: heading
-            heading: Master Bedroom
-            heading_style: title
-          - type: custom:mushroom-entity-card
-            entity: switch.tv_outlets
-            name: Lamp
-            icon: mdi:television
-            tap_action:
-              action: toggle
-            fill_container: true
-            layout: vertical
-            grid_options:
-              columns: 6
-              rows: 2
+        cards: []
       - type: grid
         column_span: 1
         cards:
