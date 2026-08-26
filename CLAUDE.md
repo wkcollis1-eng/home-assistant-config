@@ -441,7 +441,24 @@ MUST validate against the DEPLOYED ARTIFACT, never the documentation:
 MUST add `default: []` to every `choose:` block
 MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard
-MUST update §ENTITIES + CHANGELOG.md in same commit as any new entity
+SHOULD annotate any new entity in `entity_notes.yaml` (so `gen_reference.py`
+lists it in ENTITIES.md) and record behaviour changes in CHANGELOG.md, in the
+same commit as the entity.
+
+**NOT ENFORCED, and this used to say MUST.** Measured 2026-08-26: 236 of 410
+YAML-declared entities carry no annotation. A rule with a 236-case backlog is
+not a rule, and a check for it would open with 236 findings - the noise the
+INFO HYGIENE section says trains you to skim. `generated-doc-stale` cannot help
+either: it only asks whether ENTITIES.md matches what the generator WOULD
+write, so an unannotated entity leaves the doc "current" while the config
+references something the doc does not mention.
+
+Earned the same day: `binary_sensor.ha_eod_contention` and
+`input_number.ha_eod_contention_count` shipped in 2d1acd3 with no annotation
+and nothing caught it. Reworded rather than mechanised, because the enforcement
+table above sets the standard - be honest about which rules are mechanised,
+since a rule everyone believes is enforced and is not is worse than one known
+to rest on judgement.
 
 ---
 
