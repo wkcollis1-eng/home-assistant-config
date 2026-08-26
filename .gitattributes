@@ -18,6 +18,19 @@
 *.md    text eol=lf
 *.sql   text eol=lf
 
+# Added 2026-08-26. These fell through to core.autocrlf and had been churning
+# silently: LICENSE and custom_components/hacs/LICENSE (21 and 10 lines, 100%
+# CRLF), four .html at the repo root (index/gallery/documentation/installation,
+# 868-1171 lines each), and one .txt card snippet. The dotfiles are listed
+# because they are edited from Windows like everything else - and a
+# .gitattributes that does not govern its own line endings is the one omission
+# that would be genuinely funny.
+*.html  text eol=lf
+*.txt   text eol=lf
+LICENSE text eol=lf
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+
 # CSV: explicitly OPTED OUT of normalisation, not merely omitted.
 # 2026-08-24: the comment above said CSV was left off this list so the
 # append-only reporting data would not be rewritten on checkout. Omission does
