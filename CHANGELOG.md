@@ -5,7 +5,731 @@ All notable changes to this Home Assistant HVAC monitoring configuration.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Calendar Versioning](https://calver.org/) (YYYY.MM.DD).
 
+## PREDICTION LEDGER — standing, append-only
+
+Every prediction is written here BEFORE its data arrives, with the observation
+that would falsify it. Outcomes are filled in afterwards and never edited away.
+This exists because the one prediction pre-registered on 2026-08-25 produced the
+only clean falsification of that session; every claim formed after seeing the
+data read as confirmation. The score is the point — it is what R15's `[I]` tag
+is calibrated against.
+
+| date | prediction | pre-reg | outcome |
+|---|---|---|---|
+| 2026-08-25 | water settles ~87.8% if the dead R900 phase had come alive | yes | **FALSIFIED** — 67.4% against 67.5% / 68.5% same-hour controls |
+| 2026-08-25 | `sampling_size` 1800 puts `backup_essentials_energy_rate` at 0.80 | yes | **HIT** — steady 0.806 after restart |
+| 2026-08-25 | `sampling_size` 1800 puts `backup_essentials_mean_24h` at 0.75–0.80 | yes | **MISS**, favourable — 0.68 |
+| 2026-08-25 | symbollength 80 lifts electric capture to ~30.8% | yes | **MISS** — 35.1%; direction right, magnitude wrong |
+| 2026-08-25 | `-centerfreq=911500000` raises gas above 1.05/min | yes, with a decision rule | **WRONG** — 0.95/min over 125 min |
+| 2026-08-25 | `-centerfreq=920500000` puts 8 gas channels in the analog window | yes | **WITHDRAWN before test** — built on the EWQ filing, which the data rejected (R16) |
+| 2026-08-25 | corrected electric tick model: 10 Wh quantum -> tick every 73.5 s at 0.49 kW | yes, stated 14:49 before the data | **HIT** — 184 units in 3.75 h = 73 s measured, on load not used to fit it |
+
+**Running score: 2 hits, 3 misses, 1 falsified, 1 withdrawn.** Six of seven were
+about the SDR, and BOTH that landed were derived from a formula
+(`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
+to a short sample. Every miss was a short-sample fit. That is the whole lesson of
+2026-08-25 in one column.
+
+## [2026.08.26] - 2026-08-26
+
+Audit, harness and tooling overhaul. Started 2026-08-25 evening from a review of
+`CLAUDE.md` / `ha_audit.py` / `test_ha_audit.py`; finished 2026-08-26 morning.
+Dates below say which day each piece landed.
+
+### The audit now fails safe on same-second contention (2026-08-26)
+
+`rule_eod_collisions` only ever examined automations declared in
+`pipelines.yaml` — about 20. Every other time-triggered automation was invisible
+to the race check, so an undeclared pair sharing a second and an entity produced
+nothing at all. It now examines **all 111 time-triggered automations** [M].
+
+Widening it immediately surfaced a group nobody had been checking: `00:00:00 x2`
+(`dehumidifier_cycle_counter_reset` + `reset_automation_failure_counter`). They
+share no state — but nothing had established that.
+
+All three contention outcomes now BLOCK:
+
+| finding | was | is |
+|---|---|---|
+| `eod-race` (both write) | FAIL | FAIL |
+| `eod-read-write` (one reads what the other writes) | WARN | **FAIL** |
+| `eod-write-unmodelled` (templated target — cannot be ruled out) | WARN | **FAIL** |
+| `eod-time-unresolvable` (`at:` not a literal, so not compared) | — | new WARN |
+
+The third row is what "fail-safe" means here: when the checker cannot *prove*
+two automations do not collide, it blocks. Treating "could not check" as "no
+finding" is R8 pointed at the one rule protecting the midnight window.
+`new_pipeline.py` refuses to scaffold onto a contending second, so the common
+case never reaches the gate.
+
+`binary_sensor.ha_eod_contention` surfaces it in HA, separate from
+`ha_audit_failing` — contention is the only failure class that corrupts DATA
+rather than reporting.
+
+### Audit 18.0 s -> 3.85 s [M], which is what made a per-edit gate affordable (2026-08-25)
+
+`config_files()` is consulted at 13 sites and `known_entities()` ran twice, so
+`configuration.yaml` plus every package was re-parsed each time. Memoized
+`load()`/`text()`: **18.0 s → 3.85 s** minimum, 18.3 → 4.7 s median, both scripts
+on local disk, n=5 [M]. Against the live `H:` tree over Samba: **18.56 s → 5.68 s**,
+identical verdict [M]. Verified first that no rule mutates a loaded structure —
+every `.append`/`.update` targets a local accumulator.
+
+Peak Python allocation for a full run is 21.4 MB (tracemalloc) [M]; it runs
+inside HA Core as `shell_command`, so that is a real if modest new footprint.
+
+### Harness: coverage 9 → 29 rules proven, inventory derived not typed
+
+- Rule-id inventory is now scraped from `ha_audit.py`'s source. Three hand-kept
+  counts in `CLAUDE.md` had drifted ("32 rule ids… proves 8", "9 of 33",
+  "8 of 32") and `eod-concurrent` had fallen out of the accounting entirely —
+  present in neither `FAULTS` nor `UNCOVERED`, so invisible to `--list` while
+  looking considered. R10 inside the harness that enforces R10.
+- 20 new fault injectors. Coverage **9 of 34 → 29 of 43** testable rule ids [M].
+  Rules that had never fired in 38 nightly runs AND had no injector: 14 → 8 [M].
+- `dashboards/` added to the copied tree; it returned empty in both trees before,
+  so `entity-ref-unresolved` and `phantom-entity-id` were listed COVERED while
+  their dashboard path was never exercised.
+- Direction 2 asserts per rule that a covered rule does NOT fire on a clean tree,
+  rather than demanding the whole tree be finding-free — a genuine WARN in the
+  house no longer fails the suite, which had contradicted DoD step 2.
+
+### The suite was testing a program we do not ship (2026-08-26)
+
+Found by Bill pressing **Run ALL HA Config Checks** on the host: `SUITE FAILED
+(2)`, both lines blaming `entity-ref-unresolved`. One root cause, and the second
+line was false.
+
+`shell_command.ha_audit_tests` runs token-less, and without a token the audit has
+no live entity union, so `sun.sun` reports unresolved — so the "clean" tree was
+not clean. Direction 1 then subtracted clean rule IDS from faulty rule IDS, which
+erased the rule entirely and reported "did not fire" for a fault that had fired
+correctly with a different message.
+
+Two fixes: direction 1 compares `(rule, message)` pairs, and `run_audit()`
+recovers the token from the **existing** `ha_audit_cmd` secret and passes it to
+the child audit through the environment only. Bill asked why a second secret was
+being proposed when one already existed — correctly: a duplicated credential is
+R10 applied to a token, and the first rotation updating one and not the other
+would silently restore this exact failure.
+
+The recovery lives in the harness, not in `ha_audit.py`: the audit resolves paths
+against `HA_CONFIG`, which under the harness is a throwaway temp tree, so a
+`secrets.yaml` fallback there would have meant copying a 183-character API token
+into the system temp directory on every run. Verified the token value appears in
+0 of 376 files across the generated trees [M].
+
+### New tooling (2026-08-25)
+
+- `scripts/gate.py` — the DEFINITION OF DONE gate as one command, steps 1/1b/2/2b.
+  The verdict block is GENERATED, which is the only reliable defence against the
+  assurance-upgrade failure the verdict table exists to prevent. Replaced three
+  drifted copies of the sequence in `CLAUDE.md`. Steps 3–5 stay manual (R12).
+- `scripts/new_pipeline.py` — scaffolds all four pieces of a capture pipeline
+  from one declaration. Built because `stamp-not-snapshotted` (130) and
+  `unguarded-shell-command` (111) were the two most-fired rules across 38 nightly
+  runs — 241 of ~500 findings [M], both boilerplate omissions, every one a round
+  trip. Detection cannot make you right the first time; a generator makes the
+  wrong thing unexpressible.
+- `scripts/audit_log_stats.py` — crosses the nightly log against harness
+  coverage. Neither signal means much alone; a rule that has never fired AND has
+  no injector is one whose silence proves nothing.
+- `scripts/ha_source.py` — fetches HA core source at the pinned `.HA_VERSION` and
+  caches under `docs/vendor/` (gitignored), so R6 stops costing a hand-built URL.
+- `ha_audit.py --baseline` — reports NEW/FIXED/UNCHANGED. A pre-existing FAIL
+  still exits non-zero: a baseline shows the delta, it never blesses a failure.
+- `open_questions.yaml` + `open-question` rule — R14 made mechanical.
+- `dashboard-not-pasted` rule — the P12 gap: nothing checked that handed-over
+  dashboard YAML was ever pasted.
+- `unparseable-yaml` — the audit used to die with a traceback on one malformed
+  file, before any rule ran. A config that will not parse is when the audit is
+  most needed.
+- `duplicate-automation-id` / `duplicate-pipeline-key` — PyYAML silently keeps
+  the LAST of two identical mapping keys, so a duplicated pipeline entry simply
+  ceases to exist with no error anywhere.
+
+### Harness and hook fixes found by testing them (2026-08-25/26)
+
+- Stop hook could not stop anything — it emitted `systemMessage` only. Now
+  returns `decision: block`, standing down after 2 consecutive blocks.
+- Stop hook did not watch `dashboards/`, so dashboard edits silently skipped the
+  gate — on the one surface `CLAUDE.md` calls completely silent.
+- Stop hook could have wedged a session forever: the block counter lives in a
+  stamp file whose write failure was swallowed, so `MAX_BLOCKS` was unreachable.
+  It now refuses to block when it cannot record that it did.
+- Hooks moved to project scope, which **silently disabled every hook and deny
+  rule** — this session's project root is `C:\Users\wkcol`, so a project settings
+  file under `H:` never loads. Reverted to `~/.claude/settings.json`.
+- Hook scripts run from `C:`, not `H:`: a guard living on the drive it guards
+  cannot report that drive missing. `deploy_drift()` compares the deployed and
+  tracked copies at session start.
+- `gate.py` did not run the self-tests when `test_ha_audit.py` itself changed —
+  a broken audit reports wrong findings, a broken harness reports SUCCESS for
+  every rule at once.
+- `check_provenance.py` default mode cannot complete on `H:`: git over Samba did
+  not return inside 2 minutes on `ls-files`, and a `diff HEAD` was still running
+  after 30 [M]. Now times out at 30 s and names `--all`, which needs no git.
+
+### Corrections to this file's predecessors
+
+- `KNOWN ISSUES` claimed a 23:58:00 collision between `archive_monthly_hdd` and
+  `accumulate_filter_runtime`. Measured across all 111 time-triggered
+  automations: 23:58:00 holds `accumulate_filter_runtime` alone;
+  `archive_monthly_hdd` moved to 23:58:15 [M]. Entry kept and marked stale (R13)
+  rather than deleted — a hand-cleared "no data risk" judgement outlived the
+  arrangement it described.
+- `CLAUDE.md` said `HA_URL` enables the live check. `HA_TOKEN` does. It was
+  true-by-accident only because `HA_TOKEN` is a persistent env var on the
+  Windows box.
+- `packages/audit.yaml` asserted "the suite does not need HA_TOKEN". False, and
+  the reason the suite was failing.
+
+### End-to-end guard test on the live system (2026-08-26)
+
+Every guard had been proven only by invoking its script directly. Transcript
+evidence showed what that was worth: across all recorded sessions, `ha_guard.py`
+had produced **0** deny decisions, `ha_validate_edit.py` had **0** runs, the Stop
+hook's blocking path had **0** executions, and `binary_sensor.ha_eod_contention`
+had never lit [M]. The scripts were tested; the harness that invokes them was not.
+
+All five now proven through their real path, on the live system, everything
+reverted byte-for-byte:
+
+| guard | proof | result |
+|---|---|---|
+| `settings.json` deny rules | `Edit H:/PACKAGES.md` | blocked by the permissions layer |
+| `ha_guard.py` PreToolUse | `Edit //10.0.0.210/config/PACKAGES.md` | blocked, with its own message |
+| `ha_validate_edit.py` PostToolUse | wrote malformed YAML | caught at the edit, named file + line |
+| `binary_sensor.ha_eod_contention` | counter 0 -> 1 -> 0 via API | lit, then cleared |
+| Stop `decision: block` | ended a turn with 2 WARNs live | refused to finish, returned both |
+
+Nothing HA loads was touched: the probes used a GENERATED doc, a throwaway root
+YAML, `dashboards/views/` (the source copy HA never reads), and one live helper
+restored to its prior value.
+
+**DENY RULES ARE EVALUATED BEFORE HOOKS**, which no static check could have
+revealed. The deny rules and `ha_guard.py` covered an identical path set on `H:`,
+so the hook never ran there and its actionable message - the one naming
+`gen_reference.py` - was never what you saw. Its only live path was the
+`//10.0.0.210/config/...` UNC form, which the `H:/...` rules do not match.
+
+Fixed by adding 10 UNC deny rules, so both layers now cover both path forms.
+That redundancy is deliberate and is NOT R10: **a malformed permission rule is
+silently DROPPED rather than reported**, so a typo would leave a path unprotected
+with nothing saying so, and the hook is what catches that. The distinction is
+observable - `CLAUDE.md` now records which message means which layer caught it,
+which is a way to verify a deny rule that `claude doctor` does not provide.
+
+Also established: permission changes take effect mid-session, no restart needed.
+
+### Developer Tools > Actions (2026-08-25/26)
+
+`ha_run_all_checks`, `ha_gate`, `ha_audit_log_stats`, `ha_provenance`,
+`ha_gen_reference` (defaults to `--check`; writing is an explicit toggle).
+`new_pipeline.py` deliberately NOT exposed — it is the only script that mutates
+`automations.yaml`, and a one-click button for that with no diff and no undo is
+the wrong shape.
+
+## [2026.08.25] - 2026-08-25
+
+### `sdr_gas_stale_minutes` stays at 5 — a decision, not an oversight
+
+Analysis said raise it to ~15: gas is heard every ~62 s with a measured max gap
+of 240 s against a 300 s threshold, i.e. 20% margin, and it nuisance-tripped
+5 times in the 2 days before 2026-08-25 (08-24 01:16, 14:06, 19:35, 21:15 and
+08-25 00:03 — all brief, 4 to 94 s, all self-clearing).
+
+**Bill kept it at 5 deliberately, to monitor.** A threshold that sits just above
+normal behaviour is an instrument: it reports when gas reception degrades, which
+is exactly what is being watched while the centre frequency work settles. Widening
+it to 15 would silence the thing being measured.
+
+EXPECT: roughly 2-3 brief self-clearing trips a day at this setting. Those are
+DATA, not defects. A trip that does NOT self-clear inside a few minutes, or a
+run of them, is the signal.
+
+DO NOT "fix" this to 15 in a later session without asking. The 20% margin is
+known, intentional, and recorded here for that reason.
+
+**Separate observation, not actioned:** `packages/utility_meters.yaml:749` reads
+`| float(360)`. That fallback is reached only when the helper is unreadable, and
+360 minutes means the stale alarm effectively never fires. A detector whose
+failure mode is SILENCE is the wrong direction for "designed for no help coming"
+— a small fallback fails loud, a large one fails quiet. Flagged for Bill; not
+changed, because changing an alarm's failure behaviour was not asked for.
+
+
+### `-centerfreq` pinned. A pre-registered prediction, falsified in one hour
+
+Deployed `-centerfreq=912380000` at 08:16:10 EDT, removing the coin flip
+documented on 2026-08-24. Confirmed on the add-on command line.
+
+**The prediction was wrong, and it was recorded before the data arrived.**
+A 4.5-minute log sample read water at 87.5% (7 of 8 slots) against a 67.3%
+baseline — which matches, almost exactly, what you would see if the dead R900
+phase had come alive: (4 + 0.39)/5 = 87.8%. The stated prediction was that water
+would settle near 87–88% with four live phases, and that this would confirm the
+RF/frequency explanation carried as "leading, unconfirmed" since 2026-08-23.
+
+It did not. One hour of data, against same-clock-hour controls on the two prior
+days:
+
+```
+  meter     post-pin (1 h)   08-24 same hr   08-23 same hr
+  electric      29.1%           30.8%           29.8%
+  gas           26.3%           26.2%           25.1%
+  water         67.4%           67.5%           68.5%
+```
+
+Nothing moved. The 87.5% was luck — the binomial test at the time gave
+P = 0.22 and was right to withhold. **Four minutes is four minutes**, and this is
+the second time in four days that a short SDR sample has produced a confident
+wrong inference (2026-08-22's 7-minute antenna conclusion was the first). The
+pre-registration is the only reason this is a clean falsification rather than a
+story fitted to the result.
+
+**The phase structure is untouched, on a common epoch.** Both windows referenced
+to one t0, max grid residual 0.007 slots in each, so the absolute phase labels
+are directly comparable:
+
+```
+  phase   PRE (coin flip)      POST (pinned 912.380000)
+    0     212/213   99.5%        25/26    96.2%
+    1     213/213  100.0%        26/26   100.0%
+    2       0/212    0.0%         0/25     0.0%     <- same phase still dead
+    3     211/212   99.5%        25/25   100.0%
+    4      83/212   39.2%        10/25    40.0%
+```
+
+**What this rules out: 220,155 Hz is not the mechanism, for any meter.** The
+phase-2 blackout is not explained by the scm-vs-r900 centre frequency choice.
+That was the leading RF hypothesis and it is now dead at this scale — the dead
+channel, if it is a channel, sits further out than the 220 kHz these two values
+differ by.
+
+It is also what uniform hopping predicts for the SCM pair: shifting a ±1.18 MHz
+window by 220 kHz trades ~9% of coverage at one edge for ~9% at the other, net
+zero. Electric and gas holding still is a small confirmation of the bandwidth
+model, not merely an absence of news.
+
+**What the pin actually bought, which was always the point.** The tuning no
+longer changes underneath the instrument. Confirmed no-regression on all three
+meters, so it stays. It is also a prerequisite for the UPS outage automation
+below, which restarts the add-on after every power cut — without the pin, every
+outage would have silently re-tuned the SDR and moved all three capture rates
+with nothing in the log to say so.
+
+Counting the 2026-08-23 restart, that is now three independent draws of the coin
+with no observed change in the phase structure.
+
+**Next step revised: the sweep needs MHz-scale steps.** 220 kHz is demonstrably
+too small to test anything. A sweep across 910–920 MHz in ~1 MHz steps remains
+the discriminator for whether the hop distribution is non-uniform — the open
+question behind receiving 27.7% where a 12.2 MHz uniform span predicts 19.3%.
+
+### Watts are runtime, not money — the earlier framing was wrong for this house
+
+2026-08-24 priced the SDR stack at 4.30 W / $10.93 a year and concluded there was
+"nothing here worth saving". That is the right answer for a mains-powered host
+and the wrong one for this one: the N100 is replacing the HA Green on the DIY
+LiFePO4 UPS (via a step-up regulator), where the same 4.30 W is outage runtime.
+
+From the UPS's own instruments — `ups_monitor_last_onset_current` 1.098 A at
+13.084 V = **14.36 W** present DC load, against 53.3 Wh accessible
+(INA260 coulomb-counted):
+
+```
+  state                              UPS DC load    runtime
+  today (Green + XB7 + monitor)         14.4 W      ~223 min
+  after N100 swap, SDR running          ~24 W       ~133 min
+  after N100 swap, SDR stopped          ~20 W       ~161 min
+```
+
+**The SDR costs roughly 30 minutes of outage survival, ~17% of what remains
+after the swap.** The swap itself is the larger hit at ~90 min. Limits (R11):
+the AC→battery chain is estimated (brick 0.85–0.90 out, step-up 0.90–0.94 in,
+net ≈0.96 ±8%) and the HA Green's own draw is unknown, so the post-swap base
+carries ±2 W. Neither moves the conclusion.
+
+**And the fix is free, because the electric ERT dies with the grid.** This file
+already records it: gas is battery-powered where the electric ERT is mains-
+powered. During an outage the SDR spends 4.1 W of battery listening for a meter
+that has stopped transmitting. Gas has a 360-minute stale threshold against a
+~3-hour runtime, and water's leak detection is *designed* to survive this — the
+Leak day-bin count lives in the meter's own register, which is why it is called
+the outage backstop.
+
+The add-on is exposed as `switch.rtlamr2mqtt` (the hassio integration also
+publishes `sensor.rtlamr2mqtt_cpu_percent`, reading 12.87% — an independent
+confirmation that the +13.0 pp whole-host CPU delta measured on 08-24 is
+essentially all this add-on). So no Supervisor call is needed; the automation is
+two `switch` services keyed off `binary_sensor.ups_monitor_on_battery`.
+
+Proposed, NOT deployed — it changes house behaviour on reload and was not asked
+for. Written down so it is not re-derived.
+
+**Corrected while researching this:** the load-scaling table in
+`docs/README_HA_UPS_Integration.md` (12.2 V → 11.8 V window shrinking with load)
+does not govern any more. The deployed automation is
+`ups_graceful_shutdown_cliff_or_8_min_runtime`, which keys off runtime remaining
+and cliff detection rather than a fixed voltage window, so heavier load shortens
+runtime without eroding the shutdown margin. The `docs/` copy is behind the
+deployed system.
+
+### statistics buffers retuned 1600 -> 1800, and why the WARN only appeared today
+
+`ha_audit.py` raised `statistics-buffer-truncating` on
+`sensor.backup_essentials_energy_rate` at 88% mid-session, and on
+`sensor.backup_essentials_mean_24h` at 85% an hour later. Both live in
+`packages/backup_sizing.yaml`, both `max_age: 24h`, both fed by 1-minute
+samplers, both `sampling_size: 1600`.
+
+**Neither was truncating.** The FAIL condition is `ratio >= 0.98` with coverage
+< 0.99; steady state here is 1,440/1,600 = 0.90, so `max_age` kept governing and
+no mean was ever short. But 0.90 sits above the 0.85 WARN threshold, so both
+would have warned on **every run, for ever**, about a non-defect. This repo's own
+INFO HYGIENE note says a finding that fires every run and cannot be actioned is
+noise that trains you to skim — so the sizes were wrong for the checker even
+though they were right for the metric.
+
+1800 puts them at 0.80 and 0.75–0.80, and raises real headroom from 11% to 25%.
+A buffer that never fills is the state we want. **Needs a RESTART, not a
+reload** — statistics is not reloadable.
+
+**Projecting every statistics sensor, so this is not fixed one at a time.**
+Steady-state ratio is recoverable from live attributes without knowing the
+source cadence:
+
+    steady_state_ratio = buffer_usage_ratio / age_coverage_ratio
+
+Across all 12 statistics sensors on the instance:
+
+```
+  sensor.backup_essentials_energy_rate          0.898   WARN  -> 0.80 after restart
+  sensor.backup_essentials_mean_24h             0.840   WARN  -> 0.75-0.80
+  sensor.sem_whole_home_power_10min             0.600   ok
+  sensor.sem_whole_home_power_mean              0.600   ok
+  sensor.dehumidifier_power_max_2min            0.347   ok
+  sensor.basement_rh_delta_mean_24h             0.300   ok
+  sensor.basement_dp_delta_mean_24h             0.290   ok
+  sensor.basement_temp_delta_mean_24h           0.290   ok
+  sensor.basement_mold_limited_dp_mean_60min    0.273   ok
+  sensor.utility_electric_power_mean            0.088   ok
+  sensor.utility_electric_power_rate            0.074   ok
+  sensor.dehumidifier_running_watts_24h         0.070   ok
+```
+
+**No, this is not something all statistics sensors drift into.** Only these two,
+and only because 1600 against a 1,440-sample requirement is 11% headroom — on
+the wrong side of an 0.85 threshold. Everything else carries 40%+ slack. The
+general rule the two failures share: `sampling_size` must exceed
+`max_age / update_interval` by more than ~18% to stay under the WARN.
+
+Why `mean_24h` sits below `energy_rate` despite identical settings: its source
+is POWER, whose sampled value sometimes repeats, and HA only feeds the buffer on
+state change — the file's own comment already records gaps of 120, 180 and 420 s
+"where the value simply did not change". `energy_rate` reads a cumulative
+accumulator, which always changes, so it gets the full 1,440.
+
+**Why this had never been seen before — two independent reasons, both in the
+audit log.**
+
+1. **The rule could not run until 2026-08-23 08:47.** Every nightly run up to
+   `2026-08-23T08:45:13` reports `live-check-skipped` —
+   `http://supervisor/core/api/states: HTTP Error 401: Unauthorized` — first at
+   INFO (the R8 defect that entry describes) and later at WARN. From
+   `2026-08-23T08:47:40` the line is absent, i.e. the `ha_audit_cmd` token fix in
+   `docs/addons/enable-live-check.md` had been applied. The rule has therefore
+   been live for **two days**, not months.
+
+2. **This sensor only crossed the line this morning.**
+   `packages/backup_sizing.yaml` was modified 2026-08-24 10:03, restarting both
+   buffers. Filling a 24 h window from 10:03, the `2026-08-25T00:30` nightly run
+   saw roughly 60% — genuinely below 0.85, correctly silent. It crossed while
+   this session was running. **Tonight's 00:30 run would have caught it.**
+
+So nothing was hidden and nothing failed: the check is new, and it fired on its
+first real opportunity. It was seen ~11 hours early only because the audit was
+run by hand.
+
+Gate: sandbox copy first (R2), 2 of 2 `sampling_size: 1600` occurrences in scope
+and counted before editing (R4), reverse-and-diff byte-identical (R3),
+`validate_ha.py --strict` PASS (parse-clean), `gen_reference.py` re-run
+(PACKAGES.md 505 -> 516 lines; ENTITIES.md and AUTOMATIONS.md unchanged),
+`ha_audit.py` 0 FAIL, `check_config` **valid**.
+
+**OBSERVED after the restart, because "restarted without error" is not
+evidence:**
+
+```
+  sensor.backup_essentials_energy_rate   buf 0.88 -> 0.79   steady 0.806
+  sensor.backup_essentials_mean_24h      buf 0.85 -> 0.68   steady 0.680
+  ha_audit.py    0 FAIL, 1 WARN, 1 INFO   (both statistics WARNs cleared;
+                 the remaining WARN is the pre-existing switch.tv_outlets ref)
+  check_config   valid
+```
+
+`mean_24h` landed further below its 0.75–0.80 forecast because the restart
+rebuilt its buffer from the recorder rather than from a full 24 h of live
+samples. Neither WARN can return: the threshold is now 1,530 samples against a
+1,440 steady-state ceiling.
+
+**One transient worth recording so it is not misread next time.** Immediately
+after the restart all three `sensor.*_meter_age` read **99999**, the no-data
+sentinel, while `binary_sensor.rtlamr2mqtt_running` stayed `on`. That is not an
+SDR fault: a Core restart does not restart add-ons, and `*_meter_age` derives
+from `*_meter_last_seen`, which is empty until the first post-restart MQTT frame
+arrives. All three repopulated **50 s** later at 0.0 min with every stale
+detector `off`, and `sensor.rtlamr2mqtt_cpu_percent` reading 12.62%. Anyone
+auditing the minute after an HA restart will see three sentinels and should not
+chase them.
+
+### Two errors of mine from this session, recorded at the site
+
+1. **"The add-on log carries a literal `CenterFreq:` line."** It does not at
+   `verbosity: info`. Those lines are consumed by
+   `ProcessManager._wait_for_ready()` — whose rtlamr ready_pattern *is*
+   `GainCount`, the slog line printed immediately after `rcvr.d.Log()` — and
+   emitted with `logger.debug`. Worse, the value is unobservable in principle for
+   a run in progress: reading it costs a restart, and a restart re-rolled the
+   coin. Pinning is what made it knowable.
+2. **Echoed the HA long-lived token into a session transcript** via `env | grep`.
+   The credential rule in CLAUDE.md ("never echo the value into a log, a debug
+   URL, a commit or a chat transcript") is written about InfluxDB but plainly
+   covers this. Not in a tracked file, so no git exposure. Token to be revoked
+   and reissued at HA → Profile → Security → Long-lived access tokens.
+
+
 ## [2026.08.24] - 2026-08-24
+
+### rtlamr2mqtt: the tuned frequency is a coin flip, and `rtltcp: -s` is a no-op
+
+Re-read the add-on against the version it actually ships — the Dockerfile pins
+`go install github.com/bemasher/rtlamr@v0.9.5`, so master is the wrong artifact
+to reason from — and re-measured all three meters over 24 h.
+
+**The receiver tunes a different frequency on every add-on start, at random.**
+`protocol/decode.go RegisterProtocol()` merges each protocol into one decoder
+config. Every field is a `max()` except one:
+
+```go
+// Take the largest value for each protocol. Some values are simply overridden
+d.Cfg.CenterFreq = p.Cfg().CenterFreq        // assigned, not maxed
+d.Cfg.DataRate   = max(d.Cfg.DataRate,   p.Cfg().DataRate)
+d.Cfg.ChipLength = max(d.Cfg.ChipLength, p.Cfg().ChipLength)
+```
+
+So the last protocol registered wins the tuning. Registration walks a Go map —
+`for name := range msgType` over `type StringMap map[string]bool` — and Go
+randomises map iteration order by design. `buildcmd.py` emits
+`-msgtype=scm,scm,r900`, which collapses to two keys, so each start tunes either
+`scm/scm.go:44` **912600155** or `r900/r900.go:62` **912380000**, 50/50. A
+220,155 Hz difference decided by a coin flip. Because `sleep_for: 0` means the
+process never restarts, whichever it landed on is frozen in until the next
+add-on restart — so this is not jitter, it is a hidden configuration variable
+that changes at restarts and holds for weeks.
+
+Fixed by pinning `-centerfreq` explicitly (main.go applies the flag override
+after registration, then logs the final value via `rcvr.d.Log()`).
+
+**`rtltcp: -s <rate>` does nothing, and that retro-explains the 2026-08-23 null
+result.** After connecting, rtlamr unconditionally commands the rate itself:
+
+```go
+d.Cfg.SampleRate = d.Cfg.DataRate * d.Cfg.ChipLength   // 32768 * symbollength
+...
+rcvr.SetSampleRate(uint32(cfg.SampleRate))             // rtl_tcp command 2
+```
+
+Whatever `rtl_tcp` was started with is replaced. The 2026-08-23 experiment moved
+`rtltcp -s` from 2048000 to 2359296 and reported "no effect. A null result,
+recorded." It was not a null result about sample rate — **both arms ran at
+2359296**, because `-symbollength` stayed 72 throughout. The hourly capture
+series agrees: there is no step at 08-23 21:16 in any of the three meters. The
++1.6 °F and +0.2 pp CPU attributed to the change were measurement noise on a
+config that never changed. The real knob is `-symbollength`; `-s` should be kept
+matched to `32768 × symbollength` only so rtl_tcp starts where rtlamr is about
+to put it.
+
+**Capture rates, measured over 24 h.** The instrument is the InfluxDB write
+times of `sensor.*_meter_last_seen` — with `-unique=false` every decode
+republishes and `last_seen` is a timestamp, so that series is the frame arrival
+log. (`mean(sensor.*_meter_age)` is *not* usable here: InfluxDB writes on state
+change rather than on a clock, and that bias reads water at 12.7 s against a
+true time-weighted 23.5 s.)
+
+```
+  meter     protocol  transmit grid   capture   loss structure
+  electric  scm        11.42 s         27.7%    geometric, chi2 = 4.7 on 7 dof
+  gas       scm        30.0  s         46.7%    structured, unexplained
+  water     r900       28.00 s         67.3%    5-phase; never 2 misses in a row
+```
+
+Water at 67.3% is the 2026-08-23 phase structure reproducing exactly: phases
+0/2/4 at 100%, phase 1 dead, phase 3 at ~39% predicts 67.8%.
+
+**The electric meter's losses are memoryless, and that settles the mechanism.**
+Observed against geometric(p = 0.2771), gaps of k transmissions:
+
+```
+  k        1     2     3     4     5     6     7     8
+  obs    573   420   309   218   178   107    72    57
+  exp    581   420   304   220   159   115    83    60
+```
+
+χ² = 4.7 on 7 dof. A weak link fades, fading is correlated in time, and a
+signal-limited receiver therefore clusters its misses as an excess in the tail.
+There is no excess. Each transmission is missed independently, at the same
+probability, regardless of what happened to the one before it — which rules out
+antenna gain, antenna placement, tuner gain/AGC, USB or CPU sample loss, and
+collisions with the other two meters. None of those produce a clean geometric
+tail.
+
+What does produce exactly this is uniform frequency hopping into a fixed window.
+ERT meters are FHSS across roughly 910–920 MHz (Itron 50/51/52/53ESS FCC
+filings), so capture is received bandwidth over hop span: 2.359296 MHz / 0.2771
+implies an **8.51 MHz span** against a documented ~10 MHz. The model reproduces
+a number it was not fitted to. **Bandwidth, not signal quality, is the binding
+constraint on the electric meter** — the same conclusion 2026-08-23 reached for
+water by a completely different route, and it means antenna work has no measured
+headroom here either.
+
+**Correcting 2026-08-23: SCM does have a fixed cadence.** That entry withdrew
+the gas and electric capture rates on the grounds that "their gaps run 7, 8, 9,
+13, 16, 22, 45, 89, 117, 150, 241 s with no quantisation, so SCM does not
+transmit on a fixed cadence and there is no denominator." Over 24 h rather than
+one short sample the grid is unmistakable: electric fits 11.42 s to 0.180 slots
+rms, gas fits 30.0 s. The denominator exists and the rates above can be quoted.
+
+**The trade table, which is also the CPU answer.** Sample rate is exactly
+`32768 × symbollength`; bandwidth, CPU and (for scm) capture all scale with it.
+CPU is +13.0 pp of whole-host `processor_use` at symbollength 72 — 2.6% baseline
+over 08-14..08-20 against 15.6% on 08-23/24 — and `processor_temperature` moved
+from ~128 °F to ~146 °F.
+
+```
+  symlen   sample rate    elec capture   SDR W   host W   $/yr vs now
+     32     1,048,576        12.3%        2.87    11.29     -3.63
+     48     1,572,864        18.5%        3.45    11.86     -2.18
+     64     2,097,152        24.6%        4.02    12.43     -0.73
+     72     2,359,296        27.7%*       4.30*   12.72*     0.00     <- now
+     80     2,621,440        30.8%        4.59    13.01     +0.73
+     96     3,145,728        36.9%        5.16    13.58     +2.18
+  (* measured; the rest is the linear model extrapolated from it)
+```
+
+`librtlsdr.c rtlsdr_set_sample_rate` accepts 900001..3200000, so 96 is legal at
+the driver; whether USB 2.0 sustains it is a different question the driver does
+not answer, and dropped samples would break the linearity. That is why 96 is an
+experiment with a falsifiable prediction (36.9%) rather than a recommendation.
+
+**And 36.9% is a projection, not a ceiling — the model under it is fitted to one
+point.** `capture = BW / hop span` is what sets the 8.51 MHz denominator, and
+published ERT channel-plan figures disagree: 50 channels over 909.6–921.8 MHz is
+a 12.2 MHz span, predicting 19.3% at the current 2.359 MHz against **27.7%
+measured**. Receiving 43% more than the published plan predicts admits two
+explanations — the hop set is narrower than 12.2 MHz here, or **the hop
+distribution is non-uniform and the window currently sits in a good part of it.**
+
+The second breaks the assumption the table rests on. Under uniform hopping only
+window *width* matters; under non-uniform hopping *position* matters too, and on
+the 12.2 MHz reading the ceiling at symbollength 96 is 25.8% — worse than today,
+meaning the surplus comes from placement and widening would partly discard it.
+
+The geometric fit does not settle this: it proves the misses are independent in
+**time** and says nothing about the distribution in **frequency**. A non-uniform
+hop set still gives geometric gaps, since p is just the summed probability of the
+in-window channels.
+
+A burst test was attempted and is **inconclusive**, recorded so it is not re-run
+in the belief it settled something. One source claims a transmission repeats the
+packet on several frequencies within a second. Counting InfluxDB points per
+distinct `last_seen` timestamp gave exactly 1.000 for all three meters — but that
+is tautological: `last_seen` has 1 s resolution, so same-second decodes carry an
+identical value, cause no state change, and write one point regardless. The real
+instrument is the add-on log at `verbosity: debug`, where `Published reading`
+lines carry milliseconds.
+
+**So the sweep outranks the hardware.** Sweeping `-centerfreq` across 910–920 MHz
+is free, costs one restart per point, and discriminates directly: flat capture
+means uniform hopping, 36.9% is real, and only more spectrum helps; varying
+capture means position is a live knob — one that has been randomised at every
+restart for the life of this install, which is exactly why it has never appeared
+in any measurement taken here.
+
+**The watts reverse the recommendation, and the CPU percentage was a misleading
+proxy for cost.** Bill supplied the right instrument —
+`sensor.ha_n100_pc_current_consumption`, the Kasa plug on the host, ~15,000
+samples/day. `monitoring_load` was the wrong sensor.
+
+```
+  no SDR        (08-15..08-20)   8.416 W   n = 93,394
+  sleep_for: 60 (~50% duty)     11.433 W   ->  +3.017 W
+  sleep_for: 0  (100% duty)     12.719 W   ->  +4.303 W
+```
+
+Two duty points solve the load as `Δ = F + V·duty`: **V = 2.572 W
+rate-proportional, F = 1.731 W fixed.**
+
+**That fixed 1.73 W is the tuner that never powers down — now measured.** The
+2026-08-22 entry reasoned that SIGKILL runs no cleanup, so
+`rtlsdr_cancel_async()` and `rtlsdr_close()` never execute and the R820T2 is
+never explicitly powered down, and flagged it as "reasoning from how signals
+work, **not measured**". It is measured now: 1.73 W of SDR load survives a sleep
+window in which both processes are dead. The reasoning was right.
+
+So 2.6% → 15.6% of an N100 is **4.30 W, $10.93/yr** at $0.29/kWh — 2.2% of the
+200 W quiet-house baseline, 0.56% of the annual electricity bill. And the entire
+dynamic range of `symbollength` is ~2.3 W: dropping 72 → 32 more than halves
+electric capture to save $3.63/yr, while 72 → 96 is predicted to lift it to
+36.9% for $2.18/yr. Those are not close trades. **There is nothing here worth
+saving, and the watts are better spent buying capture.** If host CPU headroom is
+the real constraint that is a separate argument the table still serves — but it
+should be made as a CPU argument, not an energy one.
+
+Heat is a different question and the watts do not settle it: `sleep_for` was set
+to extend dongle life, not to save electricity, and `processor_temperature` moved
+~128 → ~146 °F. The dongle exposes no temperature, so the instrument stays the
+one the SDR view documents — a `*_meter_age` baseline that never returns to zero.
+
+Limits (R11): F/V rest on two duty points and the ~50% duty figure for
+`sleep_for: 60`; scaling V with symbollength assumes CPU and USB power track
+sample rate, which is plausible and unmeasured — only the 72 row is real. The
+8.416 W baseline is a true no-SDR figure: flat to ±0.03 W across 08-10..08-20,
+and the add-on first ran on 08-21.
+
+If going down anyway, the alarms have room: water is heard every ~42 s against a
+10-minute LeakNow hold, gas every ~62 s against a 360-minute stale threshold.
+
+**Left open, deliberately.**
+- Which frequency the running process is currently on — **unobservable in
+  principle, which is part of the defect rather than a gap in the work.** This
+  entry first claimed the add-on log carries a literal `CenterFreq:` line; the
+  live log disproved that the same day (R13). rtlamr does print it, immediately
+  before the slog `GainCount` line, but the add-on consumes those lines inside
+  `ProcessManager._wait_for_ready()` — whose `ready_pattern` for rtlamr *is*
+  `GainCount` — and emits each with `logger.debug`. At `verbosity: info` they are
+  dropped and unrecoverable, since `_recent_lines` is only dumped by
+  `_log_recent_output()` on timeout or early exit. `verbosity: debug` would show
+  it, but reading it costs a restart, and a restart re-rolls the coin: what you
+  read is the new draw, never the one that produced the measurements above.
+  So the value cannot be confirmed before pinning — pinning is what makes it
+  knowable. Apply the change with `verbosity: debug` for that one start, confirm
+  `CenterFreq: 912380000`, then set verbosity back.
+- Gas at 46.7% on a 30 s grid where the bandwidth model predicts ~28%, with a
+  gap histogram that over-represents even multiples (k = 2,4,6,8) and almost
+  never shows odd ones (k = 5 at 5 counts, k = 7 at 3). A multi-frame dwell
+  before hopping would do that. Unconfirmed, and gas has the widest operational
+  margin of the three, so it is not worth a restart to chase.
+- Whether the ERT hop distribution is uniform. If it is, only the width of the
+  window matters and `-centerfreq` cannot buy capture; if it is not, a sweep
+  across 910–920 MHz would find a better window. That sweep is uninterpretable
+  until the coin flip above is removed, which is the main reason to remove it.
+- ~~Wattage~~ — RESOLVED the same day. `sensor.monitoring_load` was the wrong
+  sensor; `sensor.ha_n100_pc_current_consumption` is the host plug and measures
+  it directly. 4.30 W / $10.93 a year, decomposed above. Recorded here rather
+  than deleted because "could not be measured" was wrong, and it was wrong for
+  the reason R14 names: the sensor existed and I did not know it did.
 
 ### Dehumidifier dashboard audit — 7 config fixes, 25 dashboard corrections
 
