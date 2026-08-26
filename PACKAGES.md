@@ -9,8 +9,8 @@ step with it.
 
 ```
 configuration.yaml                     7454 lines   command_line:2, counter:2, frontend:1, input_boolean:6, input_button:4 +10 more
-packages/audit.yaml                     440 lines   automation:1, input_datetime:1, input_number:2, script:3 +2 more
-packages/backup_sizing.yaml             505 lines   input_button:1, sensor:3, template:12
+packages/audit.yaml                     820 lines   automation:1, input_datetime:1, input_number:3, script:8 +2 more
+packages/backup_sizing.yaml             516 lines   input_button:1, sensor:3, template:12
 packages/energy_export_package.yaml      32 lines   automation:1, shell_command:1
 packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_meter:34
 packages/spc.yaml                      3610 lines   automation:10, input_datetime:11, input_number:49, script:2, sensor:12 +3 more
