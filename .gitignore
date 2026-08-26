@@ -73,3 +73,14 @@ esphome/.device-builder*
 # project's content. Belongs in its own repo, not vendored into this one,
 # where it would silently go stale against its source.
 baseline-repo/
+
+# ha_source.py cache of HA core source, pinned per .HA_VERSION.
+# Derived, refetchable, and large - never commit it.
+docs/vendor/
+
+# Runtime state from the audit toolchain, added 2026-08-26. Both are
+# per-machine and derived: .audit_baseline.json is the finding set gate.py
+# diffs against, .ha_audit_stamp is the Stop hook's mtime + block counter.
+# Committing either would make every machine fight over the other's state.
+.audit_baseline.json
+.claude/hooks/.ha_audit_stamp
