@@ -72,6 +72,12 @@ binary_sensor.ha_audit_failing:
 binary_sensor.ha_audit_stale:
   group: AUDIT (packages/audit.yaml)
   note: problem; no run in >2 days
+binary_sensor.ha_eod_contention:
+  group: AUDIT (packages/audit.yaml)
+  note: problem; any eod-* FAIL. Two automations touching one entity at the
+    same trigger second - last writer wins silently. Split from
+    ha_audit_failing because this is the only failure class that corrupts
+    DATA rather than reporting.
 binary_sensor.hvac_ac_running:
   group: SPC — AC (packages/spc.yaml)
   note: ''
@@ -237,6 +243,10 @@ input_number.ha_audit_fail_count:
 input_number.ha_audit_warn_count:
   group: AUDIT (packages/audit.yaml)
   note: ''
+input_number.ha_eod_contention_count:
+  group: AUDIT (packages/audit.yaml)
+  note: count of eod-* FAILs from the last audit; drives
+    binary_sensor.ha_eod_contention
 input_number.hdd_cumulative_month_auto:
   group: HDD/CDD
   note: ''
