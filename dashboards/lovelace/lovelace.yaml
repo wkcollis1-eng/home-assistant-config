@@ -2119,7 +2119,7 @@ views:
                     borderWidth: 2
                     strokeDashArray: 0
                     label:
-                      text: PSU Float setpoint (13.30 V — observed ~13.23 V)
+                      text: PSU Float setpoint (13.30 V — observed 13.197 V since the boost)
                       position: right
                       style:
                         color: '#00CA8B'
@@ -2145,8 +2145,8 @@ views:
               end: hour
             yaxis:
               - id: amps
-                min: -2.25
-                max: 2.25
+                min: -3
+                max: 1.5
                 apex_config:
                   tickAmount: 6
                   title:
@@ -2166,11 +2166,22 @@ views:
                     borderWidth: 1
                     strokeDashArray: 2
                   - 'y': -1.18
-                    borderColor: '#66BB6A'
+                    borderColor: '#9E9E9E'
                     borderWidth: 1
                     strokeDashArray: 4
                     label:
-                      text: Measured baseline (-1.18 A, May 2026)
+                      text: Pre-boost baseline (-1.18 A, May 2026)
+                      position: right
+                      style:
+                        color: '#9E9E9E'
+                        background: transparent
+                        fontSize: 10px
+                  - 'y': -2.089
+                    borderColor: '#66BB6A'
+                    borderWidth: 2
+                    strokeDashArray: 4
+                    label:
+                      text: Measured baseline (-2.089 A, 2026-08-29 [M])
                       position: right
                       style:
                         color: '#66BB6A'
@@ -2196,8 +2207,8 @@ views:
               end: hour
             yaxis:
               - id: watts
-                min: -30
-                max: 30
+                min: -40
+                max: 40
                 apex_config:
                   tickAmount: 5
                   title:
@@ -2213,11 +2224,22 @@ views:
               annotations:
                 yaxis:
                   - 'y': -14.9
-                    borderColor: '#FFA726'
+                    borderColor: '#9E9E9E'
                     borderWidth: 1
                     strokeDashArray: 4
                     label:
-                      text: Measured baseline (14.9 W, May 2026)
+                      text: Pre-boost baseline (14.9 W, May 2026)
+                      position: right
+                      style:
+                        color: '#9E9E9E'
+                        background: transparent
+                        fontSize: 10px
+                  - 'y': -26.8
+                    borderColor: '#FFA726'
+                    borderWidth: 2
+                    strokeDashArray: 4
+                    label:
+                      text: Measured baseline (26.8 W, 2026-08-29 [M])
                       position: right
                       style:
                         color: '#FFA726'
@@ -2371,7 +2393,7 @@ views:
             yaxis:
               - id: rt_axis
                 min: 0
-                max: 60
+                max: 150
                 decimals: 0
                 apex_config:
                   title:
@@ -2537,19 +2559,22 @@ views:
               ### Runtime: <font color="silver">-- Calculating...</font>
               {% endif %}
 
-              | Phase | Voltage | Validated (May 2026) |
-              | :--- | :---: | ---: |
-              | <font color="cyan">{{ '->' if phase in ['Charging','Float'] }} Charging / Float</font> | > 13.15 V | -- |
-              | <font color="lime">{{ '->' if phase == 'Settling' }} Settling</font> | 13.00–13.15 V | ~5 min |
-              | <font color="#81C784">{{ '->' if phase == 'Plateau' }} Plateau</font> | 12.65–13.00 V | ~142 min |
-              | <font color="orange">{{ '->' if phase == 'Knee' }} Knee</font> | 12.40–12.65 V | ~49 min |
-              | <font color="red">{{ '->' if phase == 'Cliff' }} Cliff</font> | 11.80–12.40 V | ~17 min |
+              | Phase | Voltage | @ 14.9 W [M] | @ 26.8 W [D] |
+              | :--- | :---: | ---: | ---: |
+              | <font color="cyan">{{ '->' if phase in ['Charging','Float'] }} Charging / Float</font> | > 13.15 V | -- | -- |
+              | <font color="lime">{{ '->' if phase == 'Settling' }} Settling</font> | 13.00–13.15 V | ~5 min | ~3 min |
+              | <font color="#81C784">{{ '->' if phase == 'Plateau' }} Plateau</font> | 12.65–13.00 V | ~142 min | ~85 min |
+              | <font color="orange">{{ '->' if phase == 'Knee' }} Knee</font> | 12.40–12.65 V | ~49 min | ~29 min |
+              | <font color="red">{{ '->' if phase == 'Cliff' }} Cliff</font> | 11.80–12.40 V | ~17 min | ~10 min |
+              | **Total to LVD** | 13.20–11.80 V | **213 min** | **128 min** |
 
               ***
               <font color="#FF9800">HA Voltage Warning (Auto 2) at **12.40 V**</font>
               <font color="#F44336">HA Graceful Shutdown (Auto 3) on **cliff_imminent** — slope-based; typical V ≈ 12.45 V</font>
               <font color="#FF7043">HA Hard Fallback (Auto 4) at **12.20 V**</font>
               <font color="#FF5722">BP-65 Hard Cutoff at **11.80 V** (102 s spec delay)</font>
+              ***
+              <font color="silver"><i>Load 2.089 A / 26.80 W since the 18 V boost went in 2026-08-29 [M, n=156]. The right-hand column is that measurement scaled by energy [D: 53.3 Wh / 25.01 W]; it does not model the extra IR sag at 2.09 A and is NOT yet confirmed by a deep discharge. Runtime Remaining above uses LIVE current and needs no correction.</i></font>
           - type: markdown
             title: UPS Thresholds
             content: |
@@ -2632,8 +2657,8 @@ views:
           - type: history-graph
             entities:
               - entity: sensor.ha_n100_pc_current_consumption
-                name: 'HA PC - Power '
-            title: HA PC - Power (12h)
+                name: N100 brick (unplugged at the jack)
+            title: HA PC - AC Fallback Path (0 W = on the boost)
             hours_to_show: 12
             refresh_interval: 60
           - type: history-graph

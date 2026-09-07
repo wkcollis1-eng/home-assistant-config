@@ -1,0 +1,435 @@
+# R14 made mechanical: every question asked of Bill lives here until he answers.
+#
+# ha_audit.py WARNs `open-question` for every entry whose `answered:` is absent
+# or null, with the days outstanding, and the session protocol reads the audit
+# verdict aloud at start-up - so an unanswered question surfaces at the top of
+# every session by a mechanism that does not depend on any session remembering.
+#
+# Fields:
+#   asked:     YYYY-MM-DD, the date the question was first put to him
+#   question:  one line, answerable in a sentence. If it needs a paragraph to
+#              ask, it is not a physical-fact question and does not belong here.
+#   blocks:    what stays unbuilt until he answers
+#   answered:  his answer, plus the date. Absent or null means outstanding.
+
+- asked: 2026-08-26
+  question: >-
+    On the LiFePO4 bank, what is connected to the busbars on the LOAD side of
+    the DROK shunt right now - is the Shelly Plus Uni still wired to the bank,
+    is the DROK panel meter still there, is the Giandel inverter connected but
+    off? And does the monitor's own supply (TB1 BATT_RAW / GND) land on the
+    busbars, or directly on the battery posts?
+  blocks: >-
+    Attribution of the measured 7.4 mA quiescent drain in
+    reports/LiFePO4_Report_2026-08-26.md S7.
+  answered: >-
+    2026-08-26, Bill: Shelly RETIRED. DROK panel meter RETIRED. Giandel inverter
+    CONNECTED BUT OFF. INA228 monitor POWERED FROM THE BUSBARS.
+
+    Consequence, and it inverts what the arithmetic suggested: in the low-side
+    topology the monitor's return runs through the shunt, so the monitor's own
+    consumption is INSIDE the measurement, not outside it. With everything else
+    retired or off, the monitor is the only load on the bus - so the measured
+    7.4 mA / 99 mW IS the monitor, and the bank's own external parasitic load is
+    effectively nil.
+
+    This also corrects a firmware [I] to an [M]: the header of
+    battery-bank-monitor.yaml assumes "Monitor ~100 mA = 8% of inverter standby"
+    in its survival-sleep note. Measured [M], it is 7.4 mA over 41 d / 1.79 M
+    samples - so the assumption is 14x high [D: 100 / 7.4]. Survival sleep is
+    even less necessary than that note argued.
+
+    NOTE the inference I had queued and did not publish was WRONG in direction:
+    from "commissioning says the monitor draws ~100 mA" and "total measured is
+    7.4 mA" I had reasoned the monitor must sit upstream of the shunt. Both
+    premises were fine; the ~100 mA was the bad one, and it was an [I] wearing
+    an [M]'s clothes. R14 earned its keep here - the question cost him one line
+    and would have cost me a wrong published claim.
+
+- asked: 2026-08-26
+  question: >-
+    Did anything change on or near the LiFePO4 bank on 2026-08-04 around
+    2:30 PM ET - a device plugged in or unplugged, a meter connected, a charger
+    left attached? And again around 2026-08-19?
+  blocks: >-
+    Explanation of the +2.9 mA step in quiescent drain in
+    reports/LiFePO4_Report_2026-08-26.md S7.
+  answered: >-
+    2026-08-26, Bill: "around August 4 I did REWIRE the battery bank, eliminated
+    stacked lugs. If I moved the ina228 from a lug you should see a short blip in
+    the data feed." No load was added or removed.
+
+    That settles the branch on physical grounds rather than statistical ones.
+    Nothing was added to the bus, the monitor did not reboot (32 days continuous
+    uptime spans 2026-08-04), and no firmware changed - so a genuine rise of
+    +2.88 mA on a 5.90 mA base [M; +49% D] has nothing to come from. What DID
+    happen is that joints in the shunt's own current path were unbolted and
+    re-landed. The step is +2.88 mA, which at
+    the 375 uOhm DROK shunt is 1.08 uV - the same order as the 0.9 uV
+    shunt-channel offset measured at commissioning (Tier 2, inputs shorted).
+    Disturbing and re-seating dissimilar-metal joints shifts thermal EMF by
+    exactly this much.
+
+    So: INSTRUMENT OFFSET SHIFT, not a load change. Recorded in the report S7 as
+    the favoured branch on physical grounds, with the residual uncertainty stated.
+
+    Two things I checked that did NOT decide it, recorded so nobody re-runs them:
+      1. The "blip" is not diagnostic. There are 82 gaps >20 s in the 2 s feed
+         across the 41-day window, ~2/day, from WiFi dropouts. The two on Aug 4
+         (36.1 s at 14:43:29 ET, 39.7 s at 14:48:45 ET) sit right at the step and
+         are slightly longer than the 25-27 s norm, but they are not outside it.
+         Suggestive, not evidence.
+      2. The voltage record CANNOT settle it. The obvious test - "a step of
+         8.78/5.90 = 1.49x [D] in load must make the voltage fall proportionally
+         faster" - is confounded, because Aug 4 is day 19 post-charge and at
+         tau2 = 3.3 d the relaxation tail still contributes more mV/day there
+         than the drain does. A joint fit of
+         two exponentials plus a broken linear term is degenerate: it returns a
+         POSITIVE pre-step slope, which is impossible in storage. No clean
+         pre-step window exists, so the test cannot be done retrospectively.
+      3. Still worth doing for the aging trend: short the INA228 inputs and
+         re-measure the offset at operating die temperature. It now serves as
+         confirmation and as a new post-rewire zero, not as the tie-breaker.
+
+- asked: 2026-08-26
+  question: >-
+    Was the Giandel 1500 W inverter actually replaced around 07:00 on
+    2026-07-05, i.e. is the unit tested at commissioning a different physical
+    inverter from the one the Shelly-era study measured?
+  blocks: >-
+    A provenance break across the whole study. If yes, the "Inverter efficiency
+    90.3% @ 440 W" figure carried in README.md, docs/index.md and every
+    Shelly-era report belongs to a unit that no longer exists, and must be
+    labelled by unit rather than carried forward. It would also mean the
+    commissioning report's 87-94% provisional efficiency and its two
+    inverter-overload trips describe a replacement roughly 8 days old, which
+    changes how those trips should be read (break-in behaviour of a new unit vs
+    a characteristic of the model).
+
+    Source of the claim is a transcript of a DIFFERENT Claude conversation that
+    Bill pasted on 2026-08-26, in which he wrote "main was on since 10 pm and
+    stays on until I have to replace the inverter around 7 am". That is his own
+    words but second-hand to this thread and about a different project's
+    analysis, so it is NOT good enough to publish a provenance correction on.
+    Asked directly 2026-08-26; he replied about the SEM meter without answering,
+    so re-asked the same day per R14.
+  answered: >-
+    2026-08-26, Bill: "inverter failed when we started the coffee maker ~6-7am.
+    surge between fridge and coffee maker blew the inverter's fuses. had to swap
+    out inverters."
+
+    YES - the commissioning-tested Giandel is a DIFFERENT PHYSICAL UNIT from the
+    one the Shelly-era study measured. Every pre-2026-07-05 inverter figure,
+    including "90.3% @ 440 W", belongs to a unit that no longer exists and must
+    be labelled by unit rather than carried forward.
+
+    THE FAILURE MODE IS THE BIGGER FINDING, and it is not bad luck. Measured on
+    the SEM's 2 s feed over 45 days [M, 2026-07-12 to 2026-08-26, n=735,124
+    aligned 2 s samples]:
+      fridge          peak 2365 W, running median 107.5 W [M, n=1,379,612]
+                      -> 22x inrush [D: 2365/107.5]
+      coffee maker    peak 1755 W, running median 1039 W   -> resistive
+      MAX SIMULTANEOUS fridge+coffee 3328 W [M, 2026-08-24 06:43:08 ET]
+      = 2.2x the Giandel's 1500 W nameplate [D: 3328/1500]
+      = 274-297 A at the DC bus at 12.9 V [D, inverter eta 87-94%]
+      -> exceeds the INA228 SUVL hardware limit of -250 A; that alert would latch
+
+    Frequency: 361 two-second samples over 1500 W on 34 distinct days out of 45
+    [M] - i.e. most days. 58% fall in 05:00-07:59 [M], and all five samples over
+    2500 W are in 05:00-06:59. The coffee hour.
+
+    So the July 5 event recurs on a near-daily schedule. It is invisible while
+    the grid carries it, and becomes a failure only when the bank and inverter
+    are carrying the load - which is precisely the unattended moment the system
+    exists for. The dashboard already warns "Individual peaks - taken at
+    different moments, do NOT add these"; this is the case where they coincided.
+
+    Blocks nothing further. Feeds a new report section and an operational
+    recommendation: during an outage the coffee circuit must be shed, or the
+    inverter must be sized for the coincident peak rather than the running load.
+
+- asked: 2026-08-31
+  question: >-
+    Does the U3V70A boost take its 12 V input from the BP-65 LOAD output (i.e.
+    behind the 11.80 V low-voltage disconnect, like the XB7), or from the raw
+    battery bus ahead of it?
+  blocks: >-
+    Whether the pack is protected below LVD now that the boost is a ~2 A load.
+    If the boost sits ahead of the BP-65, the LVD cannot shed it, the ESP's
+    survival-sleep entry window (-0.30 A < I < +0.20 A, which keys on the
+    load-collapse signature) can never be satisfied, and the pack keeps
+    draining to BMS cutoff - the one outcome the V1.7 survival design says
+    actually damages the battery. Also blocks the boost-subsystem analysis
+    section on post-shutdown behaviour.
+  answered: >-
+    2026-08-31, Bill: "12 V input from the BP-65 load output."
+
+    Closes favourably. The LVD sheds the boost with the XB7, so the pack is
+    still protected below 11.80 V and the ESP's survival-sleep entry window is
+    intact - the post-trip load collapse is now 2.09 A -> ~0.04 A instead of
+    1.18 A -> ~0.04 A, which lands further inside the -0.30/+0.20 A window than
+    the design assumed, not closer to its edge. No firmware change needed.
+
+    Two consequences worth recording: the BP-65 now switches 2.09 A [M] rather
+    than 1.18 A (rated 65 A, immaterial), and its 12.8 V / 30 s reconnect now
+    soft-starts the boost into a cold N100 - the boost brief's V2 test case,
+    still unmeasured, but structurally always AC-present, because the bus can
+    only climb to 12.8 V with the PSU live. DR-1 therefore holds by
+    construction on the reconnect path even with no EN fitted.
+
+- asked: 2026-08-31
+  question: >-
+    On the ASRock N100DC-ITX, is BIOS "Restore on AC/Power Loss" actually set
+    to "Power On"? And with HA shut down (host in soft-off) does the barrel
+    jack still read ~18 V?
+  blocks: >-
+    The unattended-recovery conclusion. With no EN/FET fitted, the 18 V rail
+    stays live through hassio.host_shutdown, so the host sees no power-loss
+    edge when AC returns and will not auto-boot unless the outage ran long
+    enough for the BP-65 LVD to collapse the rail. Confirming the BIOS setting
+    and the live-rail-after-shutdown fact settles whether that gap is real.
+  answered: >-
+    2026-08-31, Bill: "Bios set at Restore on AC/Power Loss = Power On."
+
+    This CONFIRMS the gap rather than clearing it, and upgrades it from [I] to
+    [D]. The BIOS half is correct; what is missing is the power-cycle edge it
+    waits for. With no EN and the boost fed from the LVD-protected bus, the
+    18 V rail is live whenever the bus is live [D, topology], so
+    hassio.host_shutdown leaves the board in S5 with DC still applied and
+    nothing for the BIOS to act on. Recovery therefore requires a rail
+    collapse, and the only thing that collapses it is the BP-65 LVD at 11.80 V.
+
+      long outage           LVD trips, AC returns, BP-65 reconnects, boost
+                            restarts, board sees fresh DC, boots. Works.
+      AC back after the     rail never dropped, host stays in S5, HA is down
+      shutdown but before   until someone presses the button.
+      LVD
+
+    Window width [D]: post-shutdown bus load falls to ~15 W (XB7 12.2 W +
+    monitor 0.5 W + N100 S5 through the boost), so the remaining cliff span is
+    ~17 min, at the tail of a ~2 h outage.
+
+    Fitting the EN/FET closes it: a latched EN-low shed IS the power-cycle
+    edge, and re-enable on confirmed AC return produces exactly one clean boot.
+    That is a second, independent argument for the EN work that the boost brief
+    does not make - it argues EN on BMS grounds (DR-1) only.
+
+- asked: 2026-08-31
+  question: >-
+    What is on the 12 V bus right now besides the XB7, the monitor and the new
+    boost - is the HA Green still connected and powered? And is the N100's OEM
+    19 V brick fully unplugged from the barrel jack, or just switched off at
+    the Kasa plug with the barrel still inserted?
+  blocks: >-
+    Attribution of the 14.9 W pre-boost bus load (XB7 12.2 W + monitor ~0.5 W
+    leaves ~2.2 W unaccounted), and whether two sources can meet at the N100
+    jack. sensor.ha_n100_pc_current_consumption has read 0.0 W since
+    2026-08-29 19:40 UTC, which shows no current is flowing but not whether
+    the plug is out.
+  answered: >-
+    2026-08-31, Bill: "HA Green off the bus and has been since the ASRock
+    system was installed. N100 brick unplugged from the PC jack."
+
+    Two-source hazard at the jack: CLOSED, nothing to mitigate.
+
+    Load attribution: the Green is eliminated as the candidate and the ~2.2 W
+    residual survives. It is not an artefact of the changeover - the DC bus
+    load was ~1.2 A / ~15 W in every outage test from 2026-07-18 through
+    2026-08-29 16:00 [M, n=5 events], flat across the period the Green left,
+    so whatever draws it was already there. Most likely the XB7 running above
+    the 12.2 W spot figure the boost brief cites, plus BP-65 and ideal-diode
+    quiescent. Left unattributed rather than guessed: it changes nothing
+    operationally and one bench session settles it by pulling the XB7 while
+    watching the INA260.
+
+    Also: sensor.ha_n100_pc_current_consumption now measures nothing, but the
+    plug should stay - with the brick unplugged at the jack it is the
+    documented fallback path if the boost fails. The dashboard's
+    "HA PC - Power (12h)" card is now a flat-zero panel and should say so or
+    be repointed.
+
+- asked: 2026-08-31
+  question: >-
+    What is printed on the battery label - full model number, and any stated
+    internal resistance, DCIR pulse width or 1 kHz AC-IR figure? And is the
+    10 Ah pack 4S1P of 10 Ah cells, or a parallel arrangement of smaller ones?
+  blocks: >-
+    Comparing the corrected step resistances (onset 97.59 mOhm at 250 ms,
+    recharge 100.35, settled 141.91 at 45 s, all at 86.1 F) against the pack's
+    own specification. The repo has no Cyclenbatt document - the boost design
+    brief's source list says "Cyclenbatt pack spec (10 A BMS, per owner)", i.e.
+    your word, not a datasheet. Under R16 any datasheet comparison without the
+    identifier off the physical device is [I], not [S]. The cell count also
+    decides whether the per-cell figure is 24.4 mOhm (4S1P) or half that (4S2P),
+    which is the difference between "high for a 10 Ah LFP cell" and "ordinary".
+
+- asked: 2026-09-05
+  question: >-
+    What device will actually switch the office lamp and the family room
+    lights - a smart plug, a smart bulb, or a wall relay - and does it report
+    its own state back to HA?
+  blocks: >-
+    Deployment of packages/mmwave_presence.yaml. There is no light.* entity in
+    ENTITIES.md; the only switchable load in the registry is
+    switch.dehumidifier. The automations call homeassistant.turn_on/turn_off so
+    any domain works once the id is known, but R4a (manual intervention detected
+    independently of the presence automation) needs a device that REPORTS state.
+    A dumb lamp on a non-reporting plug needs current sensing, which changes the
+    BOM, so this decides hardware and not just an entity id.
+  answered: >-
+    2026-09-05, Bill: family room is switch.family_room_2 and
+    switch.family_room_3. Office lamp TBD.
+
+    Resolved against core.entity_registry: both are TP-Link Kasa HS103 plugs on
+    the tplink integration - switch.family_room_2 is named "Lamp 1"
+    (68:FF:7B:DC:3C:D0), switch.family_room_3 is "Lamp 2" (68:FF:7B:DC:61:D7).
+    A THIRD HS103 named just "Family Room" (switch.family_room, 10.0.0.10)
+    exists in the same room and is deliberately left alone.
+
+    Three consequences, all now in packages/mmwave_presence.yaml:
+    (1) R4a is satisfiable - tplink reports real switch state, so no current
+    sensing and no BOM change. But it POLLS, so S4.3's 2 s command window is
+    too tight for this device and would read our own commands as manual
+    intervention; it is now input_number.mmw_<room>_cmd_window, default 10 s,
+    to be set from the A8 measurement.
+    (2) HS103 has no energy monitoring (that is HS110/KP115), so there is no
+    current-sensing fallback - not needed, but worth recording.
+    (3) The alarm flashes a MECHANICAL RELAY. 0.5 s half-periods are not
+    deliverable over Wi-Fi and every cycle is two relay operations; retimed to
+    1.5 s and the default flash count cut from 10 to 6.
+
+    Also corrects an error of mine: I wrote that switch.dehumidifier was the
+    only switchable load "in the registry". It was the only one in ENTITIES.md,
+    which is a curated subset. The registry holds 1,784 entities.
+
+- asked: 2026-09-05
+  question: >-
+    What will switch the OFFICE lamp - another Kasa plug, or something else?
+  blocks: >-
+    Only automation.mmw_office_presence_on / _off actually driving a load.
+    Everything else in the office chain is unblocked: the package now ships
+    input_boolean.mmw_office_lamp_stub in that position, so the state machine,
+    the latch, R4a override detection and the whole 48-72 h calibration
+    collection deploy and run today. Swapping in the real entity is a one-line
+    change in two places (script.mmw_office_lamp_set and the trigger of
+    automation.mmw_office_override_detect).
+  answered: >-
+    2026-09-05, Bill: switch.office_lamp. And, in the same exchange,
+    switch.family_room - the third family room plug I had deliberately EXCLUDED
+    on the reasoning that it was unnamed and therefore a different load. Wrong:
+    unnamed meant unnamed. All three family room plugs are the room's lighting.
+
+    Resolved against core.entity_registry: switch.office_lamp is a TP-Link Kasa
+    HS103, device "Office Lamp" (50:D4:F7:91:19:D9), same model and same
+    firmware build (1.1.4 Build 210409) as all three family room plugs. So there
+    is ONE device class across both rooms - the R4a command window, the poll
+    behaviour and the relay timing are a single set of facts, not two.
+
+    Consequences now in packages/mmwave_presence.yaml:
+    (1) The office stub (input_boolean.mmw_office_lamp_stub) is DELETED, not
+    left alongside the real entity - a stub kept next to the thing it stood in
+    for is a second source of truth for one fact, which is how they diverge.
+    (2) Seven target lists widened to three plugs; cal_class lamp covariate is
+    now the OR of all three.
+    (3) Alarm relay arithmetic revised: two operations per flash per plug x
+    three plugs x six flashes = 36 relay operations per alarm, up from 24. Each
+    flash edge is now three round trips through the tplink integration, so the
+    1.5 s half-period has less headroom. If A-testing shows the lamps stepping
+    rather than flashing together, raise the half-period before cutting the
+    count - ragged flashing reads as a malfunction, and an alarm that looks
+    broken gets ignored.
+    (4) sensor.office_lamp_signal_strength is DISABLED in the registry where its
+    family room siblings are enabled. Nothing depends on it; enable it if you
+    want Wi-Fi telemetry on that plug.
+
+- asked: 2026-09-05
+  question: >-
+    Are the office and the family room on the same Ecobee zone (climate.main_floor),
+    or different zones?
+  blocks: >-
+    The blower covariate in sensor.mmw_office_cal_class and
+    sensor.mmw_family_cal_class, which is what separates design-doc collection A
+    (quiet room) from collection B (HVAC running). Both currently read
+    climate.main_floor. If one room is on the upstairs zone, its cal_class
+    records the wrong blower state and every MOVE threshold derived from that
+    data is wrong in the direction that produces false triggers - the exact
+    failure S5.3 calls "the one people skip".
+  answered: >-
+    2026-09-05, Bill: family room is on climate.main_floor, office is on
+    climate.upstairs. Different zones - so the single-zone assumption was wrong
+    for the office and is now corrected in sensor.mmw_office_cal_class.
+
+    He also volunteered that each thermostat carries motion/occupancy sensors.
+    Resolved against the registry: binary_sensor.main_floor_motion /
+    _occupancy and binary_sensor.upstairs_motion / _occupancy, all four on
+    homekit_controller - NOT the ecobee cloud integration, so they are local
+    HomeKit accessory events (about a second) rather than a 3-minute poll.
+
+    Used as an INDEPENDENT WITNESS, never in the control path. PIR cannot see a
+    motionless person, which is the entire reason the radar exists; putting it
+    in the lighting path would reintroduce the failure R1 exists to prevent.
+    What it buys instead:
+    (1) binary_sensor.mmw_<room>_empty_corroborated - the empty class
+    restricted to intervals where two independent sensors agree the room is
+    empty. E_clutter is a tail percentile, so a few contaminated samples move
+    it. DEMONSTRATED on synthetic data: 10 minutes of mislabelled occupancy
+    inside a 90-minute empty run drove E_clutter 15.5 -> 58.5 and SM 1.86 ->
+    0.49, condemning a good gate as "OVERLAP - STOP TUNING". With
+    --corroborate the contamination is dropped and the gate is usable. That
+    false stop would have sent me to move a sensor that was fine.
+    (2) The label-contradiction detector is now non-circular - it no longer
+    asks the instrument being calibrated whether its own training data is
+    mislabelled.
+    (3) binary_sensor.mmw_<room>_dropout_candidate - thermostat occupied,
+    radar empty for 10 min. Candidate only; the thermostat is elsewhere on the
+    floor and its occupancy holds. But it is the only dropout evidence that
+    does not come from the radar itself.
+
+- asked: 2026-09-05
+  question: >-
+    Is there anything ELSE in the office that reports to Home Assistant and
+    changes when you are in there - a PC or monitor on a metered plug, a desk
+    lamp, a door sensor, anything?
+  blocks: >-
+    An independent witness for the OFFICE empty class. You confirmed the
+    upstairs Ecobee is too far from the office to see it, so
+    binary_sensor.mmw_office_empty_corroborated and _dropout_candidate have been
+    DELETED rather than left in - a witness that cannot see the room does not
+    abstain, it perjures: with you sitting motionless at the desk it would have
+    certified the room EMPTY and stamped the contaminated interval as validated.
+
+    The family room keeps its thermostat cross-check. The office now has none,
+    and E_clutter for that node rests entirely on the labelling being right. The
+    demonstrated cost: on synthetic data, 10 min of mislabelled occupancy inside
+    a 90 min empty run drove E_clutter 15.5 -> 58.5 and condemned a good gate.
+
+    Anything with a state that correlates with you being at the desk would do -
+    it does not need to be a presence sensor, only independent of the radar. If
+    the answer is "nothing", say so and the office collection proceeds on
+    labelling discipline alone, with that recorded as a known weakness rather
+    than discovered at analysis time.
+  answered: >-
+    2026-09-06, Bill: nothing. No other device in the office senses presence.
+
+    So the office node has NO independent witness and none can be manufactured.
+    Recorded as a known weakness rather than left to surface during analysis:
+
+    (1) E_clutter for the office rests entirely on labelling discipline. There
+    is no --corroborate run available for that room, and the label-contradiction
+    detector is circular by necessity - it asks the radar whether the radar's own
+    training labels are wrong. It catches the gross case and nothing subtler.
+
+    (2) Consequence for the collection: the office needs its empty-class
+    intervals to be DELIBERATE rather than incidental. A scheduled block with
+    the door shut beats hours of "probably empty" - the office SPC window at
+    03:10 already produces exactly that, and it is now the PRIMARY empty source
+    for that node rather than a secondary one.
+
+    (3) The family room keeps its main_floor thermostat cross-check, so the two
+    nodes are calibrated to different evidential standards. That asymmetry
+    belongs in the S5.8 baseline so a later reader does not assume both were
+    corroborated.
+
+    Not blocking. The office collection proceeds; the weakness is documented,
+    and if the two nodes ever disagree about method, the family room result is
+    the one with corroboration behind it.

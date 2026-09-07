@@ -1,6 +1,12 @@
 # Secrets and sensitive data
 secrets.yaml
 secrets_*.yaml
+# Any DERIVATIVE of secrets.yaml. Added 2026-09-03 after a secrets.yaml.bak
+# was created during an edit: the two patterns above match the file itself
+# but NOT .bak/.orig/.tmp/.save siblings, so an editor swap file or a
+# hand-made backup was one `git add -A` from a public remote.
+secrets.yaml.*
+secrets*.bak
 *.pem
 *.key
 

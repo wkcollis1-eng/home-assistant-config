@@ -35,6 +35,33 @@ python scripts/check_provenance.py --all <files>   # R17 gate, git-free mode
 
 Off-host gotchas, each of which has cost a session:
 - **`python3` does not exist on the Windows box.** Use `python`.
+- **Persistent notifications are NOT entities, and `/api/states` lies about
+  them by omission.** They stopped being entities in HA 2023.x; `/api/states`
+  simply has no `persistent_notification.*` rows, so "I checked and there were
+  none" is not evidence a notification did not fire — it is evidence you looked
+  somewhere that cannot hold one. Read them over the websocket:
+  `{"type": "persistent_notification/get"}`. Cost two wrong readings in one
+  session on 2026-08-31, once as a false "correct, no alert" and once as a false
+  "the automation did nothing".
+- **Adding a `shell_command:` needs `shell_command.reload`, NOT
+  `automation.reload`.** `shell_command` is set up at startup; reloading
+  automations leaves a newly declared command unregistered, and the calling
+  automation then runs and quietly does nothing. Confirmed 2026-08-31: the
+  service was absent from `/api/services` until `shell_command.reload`. Check
+  registration there before concluding a script is broken.
+- **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
+  services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
+  long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —
+  so add-on state cannot be *read* off-host. The `hassio` **services** are wide
+  open on the same token: `hassio.addon_start` / `addon_stop` /
+  `addon_restart` / `backup_partial` / `restore_partial` / `host_reboot` all
+  execute via `POST /api/services/hassio/<service>`. Measured 2026-08-31, when
+  the 401 nearly became "you'll have to click this yourself" for a restore that
+  was in fact fully drivable. Read add-on state from the `hassio`-platform
+  entities in `/api/states` instead (`binary_sensor.<addon>_running`,
+  `sensor.<addon>_cpu_percent`, `switch.<addon>`) — and note those entity ids
+  are built from the add-on NAME, so a replacement add-on gets different ones
+  and dashboards referencing the old names go unresolved.
 - **Without `HA_CONFIG`** the script looks for `/config` and reports
   `pipelines.yaml not found`.
 - **`HA_URL` alone does NOT enable the live check - `HA_TOKEN` does.**
@@ -385,7 +412,10 @@ spot mistaken for a property of the world.*
 ## Active Projects (reference only — details in respective repos)
 - **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
 - **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring
-- **DIY LiFePO4 UPS**: Powers N100DC HA host, V1.16 firmware, 53.3Wh/135min runtime
+- **DIY LiFePO4 UPS**: Powers N100DC HA host via an 18 V U3V70A boost (fitted
+  2026-08-29, EN/FET not installed). V1.16 firmware deployed, V1.17 written and
+  gated. 53.3 Wh; runtime ~128 min [D] at the measured 2.089 A / 26.80 W load
+  [M, 2026-08-29] — was ~213 min at 1.18 A
 - **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 90.3 CCF/1k HDD efficiency
 - **Dehumidifier Control**: RH-band (49%/46%), 150min max runtime, stall detection
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
@@ -923,6 +953,26 @@ Electric rate:        $0.29/kWh
 ## INFLUXDB / GRAFANA
 
 ### InfluxDB 1.x
+- **THE ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY WAY
+  BACK.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed from the
+  Community Add-ons store on **2026-08-28** because InfluxData EOL'd InfluxDB
+  1.x. It still runs, and `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still
+  pulls (HTTP 200, re-verified 2026-08-31) — but **"reinstall it" is not a
+  recovery step and never will be again.** Searching the store for "InfluxDB"
+  now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on shipping
+  InfluxDB 2.x: buckets/orgs/tokens and Flux, no `"Home Assistant"` database,
+  and no InfluxQL for the 136 dashboard refs to `bfrwayjkhasjka`. Installing
+  it looks like success and restores nothing. This exact substitution cost the
+  2026-08-31 session (see CHANGELOG). If this add-on is ever lost again:
+  `hassio.restore_partial` with `homeassistant: false` and
+  `addons: [a0d7b954_influxdb]`, and **stop any add-on holding host port 8086
+  first** or the restore comes up dead.
+- **Restoring the add-on does NOT restore the HA integration.** The config
+  entry lives in `.storage/core.config_entries`, which a partial add-on
+  restore does not touch, and there is no `influxdb:` YAML anywhere to fall
+  back on (verified 2026-08-31: absent from configuration.yaml, packages/,
+  and the whole git history). Re-add it by hand: Settings → Devices &
+  Services → InfluxDB → `configure_v1`.
 - **Host**: 10.0.0.210:8086
 - **Database**: "Home Assistant"
 - **Measurement naming**: unit of measure (e.g., "W" for Watts, "%" for percent)
@@ -961,9 +1011,21 @@ Electric rate:        $0.29/kWh
   URL  = os.environ.get("INFLUXDB_URL")  or _s.get("influxdb_url", "")
   ```
 
-  Use a READ-ONLY influx user (`GRANT READ ON "Home Assistant"`). Every reader
-  of these only runs SELECT, and retention is infinite with no backup of the
-  raw series — a leaked read-only credential cannot DROP a measurement.
+  **`ha_ro` IS NO LONGER READ-ONLY. Changed 2026-08-31 — this bullet said
+  `GRANT READ` until then.** The `influxdb` config flow validates the
+  credential with a **write probe**, so a READ-only user fails the flow with a
+  bare `cannot_connect` that names nothing. Proven both directions that day:
+  as READ, `/write` returned 403 and the flow refused; after
+  `GRANT ALL ON "Home Assistant" TO "ha_ro"` the flow created the entry
+  first try. Use `GRANT ALL`, never `GRANT WRITE` — in InfluxDB 1.x a user
+  holds ONE privilege per database, so `GRANT WRITE` silently REVOKES read
+  and breaks `spc_seed.py`.
+
+  What that costs, stated honestly: a leaked `ha_ro` can now insert and
+  overwrite points, and retention is infinite with no backup of the raw
+  series. What still holds: it **cannot DROP a measurement** — that needs
+  admin, measured 403 on 2026-08-31 with ALL PRIVILEGES held. Non-admin write
+  is the floor HA's own integration imposes; it is not a preference.
   **Never echo the value** into a log, a debug URL, a commit or a chat
   transcript; `spc_seed.py` masks it in its debug URL (line 175).
 
@@ -981,7 +1043,34 @@ Pre-aggregate daily "running watts" for SPC monitoring.
 - **Deploy**: `influx -database "Home Assistant" < spc_continuous_queries.sql`
 
 ### Grafana Dashboards (grafana/dashboards/)
-Provisioned dashboards — survive Grafana rebuilds.
+**THESE FILES ARE NOT DEPLOYED AND NEVER HAVE BEEN. Editing one changes
+nothing.** This block said "Provisioned dashboards - survive Grafana rebuilds"
+until 2026-09-03; it was false. Measured that day: all five dashboards report
+`meta.provisioned = false`, i.e. file-based provisioning loads ZERO dashboards.
+Grafana serves only its own database copies, and the drift had reached a month:
+
+```
+battery-bank   Grafana 2026-07-21   file 08-21    file newer
+energy         Grafana 2026-07-25   file 08-21    file newer
+hvac-status    Grafana 2026-07-28   file 08-21    file newer
+ups-status     Grafana 2026-08-31   file 08-21    GRAFANA newer - deploying the file REGRESSES it
+```
+
+The drift runs BOTH ways, so "just deploy them all" destroys work. Check
+direction per dashboard before touching any.
+
+What this cost: the P12 SPC re-sourcing was written to `spc_appliances.json` on
+08-22 and never landed, so the Daily series kept querying the retired `spc`
+measurement - dead since 08-21 - for thirteen days while UCL/LCL from `W` stayed
+current. The chart looked alive and was not. Nothing in this repo compares what
+Grafana serves against what the file says, and `ha_audit.py` cannot: Grafana is
+not YAML.
+
+**To actually deploy a dashboard:**
+`python3 /config/scripts/grafana_snapshot.py --deploy /config/grafana/dashboards/<f>.json`
+(overwrites by uid, pins `${DS_INFLUXDB}` placeholders to the real datasource
+uid, and prints the version it replaced). `--provstatus` prints the provisioned
+flag and served date for every dashboard - run it before believing a file is live.
 - **energy.json**: Total power stats, daily kWh, cost estimate, SEM circuits, Kasa plugs
 - **battery_bank.json**: Voltage/SOC/Power/Runtime stats, electrical trends, temperature
 - **ups.json**: Voltage/Power/Temp stats, electrical trends, temperature
@@ -1077,6 +1166,21 @@ scripts/
 │                               Carries no appliance constants. Prints a plan; writes
 │                               nothing back without --apply. Stamps *_spc_last_seed.
 ├── seed_ac_blower_energy.py    Seeds hvac_ac_blower_daily from furnace+AC correlation
+├── spc_verify.py               NIGHTLY RECONCILIATION (00:25, automation
+│                               nightly_spc_verify). Recomputes each appliance's
+│                               daily running watts from the RAW InfluxDB series
+│                               and compares it to the 23:59 capture — the only
+│                               thing checking the captures against the data they
+│                               summarise. Day alignment is read off the capture's
+│                               own last_changed, never assumed; a slot the guards
+│                               declined to overwrite reports HELD and is not
+│                               compared. Exit 0/1/2 = ok/drift/could-not-run,
+│                               deliberately distinct. `--days N` to tune bands.
+├── grafana_snapshot.py         LOCAL Grafana snapshots (every 6h, automation
+│                               grafana_snapshot_scheduled). Archival, NOT
+│                               verification — a snapshot preserves a wrong panel
+│                               faithfully. Needs `grafana_token` in secrets.yaml;
+│                               without it exits 2 and says so. `--probe` first.
 ├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
 ├── csv_manager.py              CSV utilities
 ├── fetch_bdl_degree_days.py    BDL degree day fetcher
