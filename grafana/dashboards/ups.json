@@ -3,7 +3,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -19,37 +22,77 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 46 },
-              { "color": "green", "value": 52 }
+              {
+                "color": "#db4437",
+                "value": null
+              },
+              {
+                "color": "#FF7043",
+                "value": 11.8
+              },
+              {
+                "color": "#ff9800",
+                "value": 12.2
+              },
+              {
+                "color": "#FDD835",
+                "value": 12.4
+              },
+              {
+                "color": "#43a047",
+                "value": 12.65
+              },
+              {
+                "color": "#26A69A",
+                "value": 13.15
+              }
             ]
           },
           "unit": "volt"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
       "id": 10,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Voltage",
           "query": "SELECT mean(\"value\") FROM \"V\" WHERE \"entity_id\" = 'ups_monitor_battery_voltage' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -61,37 +104,65 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": -200 },
-              { "color": "red", "value": -400 }
+              {
+                "color": "#db4437",
+                "value": null
+              },
+              {
+                "color": "#ff9800",
+                "value": -33.0
+              },
+              {
+                "color": "#43a047",
+                "value": -3.0
+              }
             ]
           },
           "unit": "watt"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
       "id": 11,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Power",
           "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'ups_monitor_battery_power' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -103,37 +174,65 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 95 },
-              { "color": "red", "value": 110 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "red",
+                "value": 110
+              }
             ]
           },
           "unit": "fahrenheit"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
       "id": 12,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Temp",
           "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'ups_monitor_battery_temperature' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -145,36 +244,65 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 1,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 0 }
+              {
+                "color": "#db4437",
+                "value": null
+              },
+              {
+                "color": "#ff9800",
+                "value": -10.0
+              },
+              {
+                "color": "#43a047",
+                "value": -3.0
+              }
             ]
           },
           "unit": "none"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
       "id": 13,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Slope",
           "query": "SELECT mean(\"value\") FROM \"mV/min\" WHERE \"entity_id\" = 'ups_monitor_voltage_slope' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -187,17 +315,27 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
       "id": 20,
       "panels": [],
       "title": "Electrical",
       "type": "row"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -209,44 +347,93 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": true,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "line" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 46 },
-              { "color": "green", "value": 52 }
+              {
+                "color": "#db4437",
+                "value": null
+              },
+              {
+                "color": "#FF7043",
+                "value": 11.8
+              },
+              {
+                "color": "#ff9800",
+                "value": 12.2
+              },
+              {
+                "color": "#FDD835",
+                "value": 12.4
+              },
+              {
+                "color": "#43a047",
+                "value": 12.65
+              },
+              {
+                "color": "#26A69A",
+                "value": 13.15
+              }
             ]
           },
           "unit": "volt"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
       "id": 1,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "min", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "max",
+            "min",
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "hideZeros": false, "mode": "single", "sort": "none" }
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Voltage",
           "query": "SELECT mean(\"value\") FROM \"V\" WHERE \"entity_id\" = 'ups_monitor_battery_voltage' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -258,10 +445,15 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": true,
@@ -273,40 +465,73 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": true,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "amp"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
       "id": 2,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "min", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "max",
+            "min",
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "hideZeros": false, "mode": "single", "sort": "none" }
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Current",
           "query": "SELECT mean(\"value\") FROM \"A\" WHERE \"entity_id\" = 'ups_monitor_battery_current' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -318,10 +543,15 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": true,
@@ -333,40 +563,73 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": true,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "watt"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
       "id": 3,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "min", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "max",
+            "min",
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "hideZeros": false, "mode": "single", "sort": "none" }
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Power",
           "query": "SELECT mean(\"value\") FROM \"W\" WHERE \"entity_id\" = 'ups_monitor_battery_power' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -378,10 +641,15 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": true,
@@ -393,40 +661,81 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": true,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "#db4437",
+                "value": null
+              },
+              {
+                "color": "#ff9800",
+                "value": -10.0
+              },
+              {
+                "color": "#43a047",
+                "value": -3.0
+              }
+            ]
           },
           "unit": "mVmin"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
       "id": 4,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "min", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "max",
+            "min",
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "hideZeros": false, "mode": "single", "sort": "none" }
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Slope",
           "query": "SELECT mean(\"value\") FROM \"mV/min\" WHERE \"entity_id\" = 'ups_monitor_voltage_slope' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -439,17 +748,27 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
       "id": 21,
       "panels": [],
       "title": "Temperature",
       "type": "row"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "bfrwayjkhasjka"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -461,45 +780,84 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": true,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "line" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "blue", "value": null },
-              { "color": "green", "value": 60 },
-              { "color": "yellow", "value": 95 },
-              { "color": "red", "value": 110 }
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "red",
+                "value": 110
+              }
             ]
           },
           "unit": "fahrenheit"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
       "id": 5,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
         },
-        "tooltip": { "hideZeros": false, "mode": "multi", "sort": "none" }
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "UPS Battery",
           "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'ups_monitor_battery_temperature' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -507,7 +865,10 @@
           "resultFormat": "time_series"
         },
         {
-          "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "bfrwayjkhasjka"
+          },
           "alias": "Ambient",
           "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'upstairs_current_temperature' AND $timeFilter GROUP BY time($__interval), \"entity_id\" fill(null)",
           "rawQuery": true,
@@ -521,12 +882,21 @@
   ],
   "preload": false,
   "schemaVersion": 42,
-  "tags": ["ups", "power"],
-  "templating": { "list": [] },
-  "time": { "from": "now-6h", "to": "now" },
+  "tags": [
+    "ups",
+    "power"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "America/New_York",
   "title": "UPS Status",
   "uid": "ups-status",
-  "version": 1
+  "version": 1,
+  "description": "UPS status. Thresholds retuned 2026-08-31: voltage was red(base)/46/52 V on a 12 V bus and therefore permanently red; power steps were descending (-200/-400 W) against a load that peaks at -32.48 W [M] and matched both; slope was red below 0 mV/min against a float slope of ~-1.8. All three now use the thresholds the system actually acts on - the ups-monitor firmware substitutions and the measured post-boost load. See DIY-LiFePO4-UPS/reports/UPS_Report_2026-08-31_Boost_Integration.md"
 }

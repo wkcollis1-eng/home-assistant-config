@@ -99,6 +99,16 @@ rules:
     max-spaces-before: 0
     min-spaces-after: 1
     max-spaces-after: 1
+    # esphome/ exempted 2026-09-08, for exactly the reason given under
+    # colons above. mmwave-bench.yaml's scramble_thresholds block sets 21
+    # values as a column-aligned table so the pairs can be read down the
+    # page; that block is the R9 proof the design doc cites. Collapsing
+    # the alignment to satisfy a style rule would make the file worse,
+    # and ESPHome's own compile is the gate that matters. Structural
+    # rules still apply to esphome/ - the missing trailing newline
+    # found in the same CI run was fixed in the file, not exempted.
+    ignore: |
+      esphome/
 
   # Hyphens
   hyphens:

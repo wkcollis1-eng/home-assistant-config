@@ -15,13 +15,15 @@ Never from memory, and never inferred from a pattern.**
 ## AUDIT (packages/audit.yaml)
 
 ```
-automation.nightly_ha_audit       00:30, guarded
-binary_sensor.ha_audit_failing    problem; fail_count > 0
-binary_sensor.ha_audit_stale      problem; no run in >2 days
+automation.nightly_ha_audit           00:30, guarded
+binary_sensor.ha_audit_failing        problem; fail_count > 0
+binary_sensor.ha_audit_stale          problem; no run in >2 days
+binary_sensor.ha_eod_contention       problem; any eod-* FAIL. Two automations touching one entity at the same trigger second - last writer wins silently. Split from ha_audit_failing because this is the only failure class that corrupts DATA rather than reporting.
 input_datetime.ha_audit_last_run
 input_number.ha_audit_fail_count
 input_number.ha_audit_warn_count
-script.ha_audit                   "Run HA Audit" — the one to call
+input_number.ha_eod_contention_count  count of eod-* FAILs from the last audit; drives binary_sensor.ha_eod_contention
+script.ha_audit                       "Run HA Audit" — the one to call
 ```
 
 ## BACKUP SIZING (packages/backup_sizing.yaml)

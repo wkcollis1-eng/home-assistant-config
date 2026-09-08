@@ -30,17 +30,56 @@ python3 scripts/ha_audit.py    # inherit the truth, do not assume it
 # OFF-HOST (Claude Code on Windows, H: over Samba) - all three are REQUIRED
 cd /h
 HA_CONFIG='H:/' HA_URL='http://10.0.0.210:8123' python scripts/ha_audit.py
+python scripts/check_provenance.py --all <files>   # R17 gate, git-free mode
 ```
 
 Off-host gotchas, each of which has cost a session:
 - **`python3` does not exist on the Windows box.** Use `python`.
+- **Persistent notifications are NOT entities, and `/api/states` lies about
+  them by omission.** They stopped being entities in HA 2023.x; `/api/states`
+  simply has no `persistent_notification.*` rows, so "I checked and there were
+  none" is not evidence a notification did not fire — it is evidence you looked
+  somewhere that cannot hold one. Read them over the websocket:
+  `{"type": "persistent_notification/get"}`. Cost two wrong readings in one
+  session on 2026-08-31, once as a false "correct, no alert" and once as a false
+  "the automation did nothing".
+- **Adding a `shell_command:` needs `shell_command.reload`, NOT
+  `automation.reload`.** `shell_command` is set up at startup; reloading
+  automations leaves a newly declared command unregistered, and the calling
+  automation then runs and quietly does nothing. Confirmed 2026-08-31: the
+  service was absent from `/api/services` until `shell_command.reload`. Check
+  registration there before concluding a script is broken.
+- **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
+  services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
+  long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —
+  so add-on state cannot be *read* off-host. The `hassio` **services** are wide
+  open on the same token: `hassio.addon_start` / `addon_stop` /
+  `addon_restart` / `backup_partial` / `restore_partial` / `host_reboot` all
+  execute via `POST /api/services/hassio/<service>`. Measured 2026-08-31, when
+  the 401 nearly became "you'll have to click this yourself" for a restore that
+  was in fact fully drivable. Read add-on state from the `hassio`-platform
+  entities in `/api/states` instead (`binary_sensor.<addon>_running`,
+  `sensor.<addon>_cpu_percent`, `switch.<addon>`) — and note those entity ids
+  are built from the add-on NAME, so a replacement add-on gets different ones
+  and dashboards referencing the old names go unresolved.
 - **Without `HA_CONFIG`** the script looks for `/config` and reports
   `pipelines.yaml not found`.
-- **Without `HA_URL`** it falls back to `http://localhost:8123`, which is the
-  Windows box, not HA. The live statistics-buffer check then cannot run and
-  reports `live-check-skipped` as a WARN. That WARN is correct and is a real
-  coverage gap (R8) - do not wave it through as an environment quirk. Set the
-  URL and re-run so the check actually executes.
+- **`HA_URL` alone does NOT enable the live check - `HA_TOKEN` does.**
+  `_live_states()` only attempts a fetch if `HA_TOKEN` or `SUPERVISOR_TOKEN` is
+  set; `HA_URL` is merely the base URL for an attempt that otherwise never
+  happens. This file said the opposite until 2026-08-25, and it was true-by-
+  accident only because `HA_TOKEN` is a persistent user env var on the Windows
+  box. Proven both directions that day: with the token, `0 FAIL, 0 WARN`;
+  with `env -u HA_TOKEN`, TWO things degrade - `live-check-skipped` (R8
+  coverage gap) **and** the `sun.sun` false positive returns, because the live
+  union is what suppresses it. The audit is not "fully offline by design"; it
+  is offline-capable and measurably worse offline.
+- **`git` on `H:` does not just refuse, it hangs.** Measured 2026-08-25: a bare
+  `git ls-files --error-unmatch` did not return inside 2 minutes and a
+  `git diff HEAD` was still running after 30. So `check_provenance.py`'s
+  DEFAULT mode cannot complete off-host at all - use
+  `--all <edited files>`, which needs no git. The script now times out at 30s
+  and names that mode rather than hanging.
 - **`git` refuses to operate on `H:`** - "dubious ownership" on the Samba
   share. Not a credential problem. Anything requiring a commit has to happen
   on the host, or with `git -c safe.directory='*'`.
@@ -99,14 +138,71 @@ is not is worse than one known to rest on judgement.
 
 | lever | covers | where |
 |---|---|---|
-| `ha_audit.py` | R5, R8, R9, and R10's doc-drift class | 32 rule ids; `scripts/test_ha_audit.py` proves 8 of them in both directions |
+| `ha_audit.py` | R5, R8, R9, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
 | Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", and running the audit at session start / after any turn that changed `H:` | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
+**The hooks run from `C:` on purpose - do not "fix" this by moving them
+into the repo.** They were briefly moved to `H:/.claude/hooks/` on 2026-08-25
+so they would be version-controlled alongside the config they guard. That made
+`ha_audit_gate.py`'s "H: is not mounted, say so and stop" message UNREACHABLE:
+if H: is gone, python cannot open the script at all, exits before a line of it
+runs, and Claude Code treats that as a non-blocking error - so the session
+starts in silence, which is the precise failure that message exists to prevent.
+**A guard that lives on the drive it guards cannot report that drive missing.**
+They run from `~/.claude/hooks/` (local, always startable); `H:/.claude/hooks/`
+holds the tracked source, and `deploy_drift()` compares the two at every
+session start so the pair cannot silently diverge.
+
+**DENY RULES RUN BEFORE HOOKS, so `ha_guard.py` is the BACKSTOP, not the
+primary.** Do not be surprised that it almost never fires. Proven end-to-end
+2026-08-26: an `Edit` on `H:/PACKAGES.md` is refused by the permissions layer
+with *"File is in a directory that is denied by your permission settings"* and
+the hook never runs. The hook's far more useful message - the one naming
+`entity_notes.yaml` and `gen_reference.py` - is therefore NOT what you will
+normally see.
+
+Both layers now cover both path forms (10 deny rules for `H:/...`, 10 for the
+`//10.0.0.210/config/...` UNC form the H: rules do not match, plus the hook
+covering `h:/`, `/h/` and the UNC). That redundancy is deliberate and is NOT
+R10: **a malformed permission rule is silently DROPPED, not reported**, so a
+typo would leave a path unprotected with nothing saying so. The hook is what
+catches that.
+
+**HOW TO TEST A DENY RULE, which `claude doctor` will not tell you.** Attempt
+the edit and read *which* message comes back:
+
+| response | meaning |
+|---|---|
+| "denied by your permission settings" | the deny rule is live |
+| `BLOCKED: ... GENERATED by scripts/gen_reference.py` | the deny rule was DROPPED; the hook caught it |
+| the edit succeeds | BOTH layers are gone - fix immediately |
+
+Permission changes take effect mid-session; no restart needed (verified
+2026-08-26 by adding the UNC rules and hitting them on the next call).
+
+**Settings live in `~/.claude/settings.json`, not a project file**, because
+this session's project root IS `C:\Users\wkcol` - which is also HOME, so that
+one file serves as both. A project-scoped settings file under `H:` never
+loads, and moving the hooks there on 2026-08-25 silently disabled every hook
+and every deny rule until it was caught. Scope advice that is correct in
+general was wrong here, and nothing announced it.
+
 **The hook guard sees the Write/Edit TOOLS only.** A write through Bash
 bypasses it; the Stop gate is the backstop, because it catches the consequence
-however the edit was made. R1-R4, R6, R7, R11-R14 remain judgement, enforced by
-the OUTPUT FORMAT making omission visible.
+however the edit was made.
+
+*Corrected 2026-08-25:* until that date the Stop gate could not stop anything.
+It emitted `systemMessage` only, which prints and lets the turn end - so the
+sole backstop behind the Bash bypass was a printed line. It now returns
+`{"decision": "block", ...}` and genuinely blocks, standing down after two
+consecutive blocks so a broken gate cannot wedge a session. It also now watches
+`dashboards/`, which it did not: editing `dashboards/views/*.yaml` never moved
+its mtime stamp, so the gate silently skipped on the one surface this file
+calls "the one place a broken entity is completely silent".
+
+R1-R4, R6, R7, R11-R14 remain judgement, enforced by the OUTPUT FORMAT making
+omission visible - except R14, which became a file on 2026-08-25 (see below).
 
 ### Aligned skills
 
@@ -245,8 +341,61 @@ that line and then not following it is the whole failure.*
 "natural experiment" to establish something a person could confirm by looking at
 a plug or a label — stop and ask instead.
 
+**MECHANISED 2026-08-25: `open_questions.yaml`.** R14's failure mode was not
+forgetting to ask, it was asking and then losing the question - so "remember to
+re-ask" was never going to hold. Every question to Bill gets an entry with
+`asked:`, `question:`, `blocks:` and `answered:`. `ha_audit.py` WARNs
+`open-question` for every unanswered one, with the days outstanding, and
+because the session protocol reads the audit verdict aloud at start-up, an
+unanswered question is now surfaced at the top of every session by a mechanism
+that does not depend on any session remembering anything. `blocks:` names what
+stays unbuilt until he answers.
+
+### R15 — Every figure carries its provenance tag
+No number enters a doc, a CHANGELOG entry or a reply without one of:
+
+    [M] measured  - carries n, the window, and the source series
+    [S] spec      - carries the document identifier AND page/section
+    [D] derived   - arithmetic on [M] or [S], with the formula shown
+    [I] inferred  - a model not yet tested; MUST carry its falsifying observation
+
+**An [I] may never justify a deployed change.** If the only support for a config
+edit is a model, the edit waits for the [M].
+*2026-08-25: the gas meter's hop set was reconstructed from plot markers and then
+reported in the same voice as the electric meter's stated 909.59-921.78 MHz. One
+was [S] and the other was [I], and nothing in the text said so. Two config
+changes were proposed on the strength of the [I] before the data refuted it.*
+
+### R16 — Identity before spec
+Before citing any datasheet, filing or manual, state the identifier read off the
+physical device and confirm the document covers THAT identifier. If they do not
+match, the claim is [I], not [S].
+*2026-08-25, twice in one day: Itron 50/51/52/53ESS channel figures quoted for a
+meter that turned out to be a Vision VM1991 with a Hunt AirPoint radio, and the
+EWQ100GDL* band plan quoted for a gas module whose behaviour matches EO9100G.
+Both were introduced to Bill as "primary sources".*
+
+### R17 — No naked ratios
+A ratio, a percentage change or an "Nx" may not be written without n and a
+significance test beside it. If the test has not been run, the number does not
+get written. `scripts/check_provenance.py` enforces this on changed lines; an
+R15 tag satisfies it.
+*2026-08-25: water "87.5%" on 8 slots, electric "56.7%" on a 5.7-minute sample,
+and "electric 1.12x / water 0.95x" from the 915.5 run - the last two were z=+0.56
+and z=-0.19, i.e. nothing, and were reported as findings.*
+
+### R18 — Never measure the instrument with itself
+Before quoting any external system's period, rate or interval, confirm the
+sampling cadence is FASTER than the quantity being measured. If it is not, the
+figure is a bound on the instrument, not a property of the world - say so.
+*2026-08-25, the same error twice in one day without noticing: the water meter's
+"28.000 s grid" was our receiver seeing every other 14 s transmission, and the
+electric counter's "86 s tick" was our 32 s sampler reading multi-unit jumps as
+single ticks. True values 14.0 s and 53.8 s. Both were the instrument's blind
+spot mistaken for a property of the world.*
+
 ## Engineering Standards (ALWAYS APPLY)
-- Measure-first: flag uncertainty before stating any figure; verify specs from primary sources; never assert ungrounded numbers
+- Measure-first: **the operational form of this is R15-R18 — follow those, not this bullet.** Flag uncertainty before stating any figure; verify specs from primary sources; never assert ungrounded numbers
 - Code review: all risks surfaced during review, before sign-off — never after
 - ESPHome firmware validation: config → codegen → `g++ -Wall` lambda check → real compile (`src/main.cpp.o` 0 errors). Codegen alone does not compile lambdas
 - HA config validation: `homeassistant-config-validator --strict` before deployment
@@ -263,7 +412,10 @@ a plug or a label — stop and ask instead.
 ## Active Projects (reference only — details in respective repos)
 - **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
 - **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring
-- **DIY LiFePO4 UPS**: Powers N100DC HA host, V1.16 firmware, 53.3Wh/135min runtime
+- **DIY LiFePO4 UPS**: Powers N100DC HA host via an 18 V U3V70A boost (fitted
+  2026-08-29, EN/FET not installed). V1.16 firmware deployed, V1.17 written and
+  gated. 53.3 Wh; runtime ~128 min [D] at the measured 2.089 A / 26.80 W load
+  [M, 2026-08-29] — was ~213 min at 1.18 A
 - **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 90.3 CCF/1k HDD efficiency
 - **Dehumidifier Control**: RH-band (49%/46%), 150min max runtime, stall detection
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
@@ -319,7 +471,24 @@ MUST validate against the DEPLOYED ARTIFACT, never the documentation:
 MUST add `default: []` to every `choose:` block
 MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard
-MUST update §ENTITIES + CHANGELOG.md in same commit as any new entity
+SHOULD annotate any new entity in `entity_notes.yaml` (so `gen_reference.py`
+lists it in ENTITIES.md) and record behaviour changes in CHANGELOG.md, in the
+same commit as the entity.
+
+**NOT ENFORCED, and this used to say MUST.** Measured 2026-08-26: 236 of 410
+YAML-declared entities carry no annotation. A rule with a 236-case backlog is
+not a rule, and a check for it would open with 236 findings - the noise the
+INFO HYGIENE section says trains you to skim. `generated-doc-stale` cannot help
+either: it only asks whether ENTITIES.md matches what the generator WOULD
+write, so an unannotated entity leaves the doc "current" while the config
+references something the doc does not mention.
+
+Earned the same day: `binary_sensor.ha_eod_contention` and
+`input_number.ha_eod_contention_count` shipped in 2d1acd3 with no annotation
+and nothing caught it. Reworded rather than mechanised, because the enforcement
+table above sets the standard - be honest about which rules are mechanised,
+since a rule everyone believes is enforced and is not is worse than one known
+to rest on judgement.
 
 ---
 
@@ -346,7 +515,43 @@ reference resolve?", "can this alarm fire?", or "is this still the metric I
 think it is?". Those are what `ha_audit.py` is for. Run both. Neither replaces
 the other.
 
+### Running any of this from the HA UI, with no terminal
+
+Developer Tools > Actions, added 2026-08-25. Each returns its output in the
+response pane AND as a notification, and each carries the
+`ha_maintenance_mode` guard:
+
+| action | what it runs |
+|---|---|
+| **Run ALL HA Config Checks** (`script.ha_run_all_checks`) | audit + self-tests + coverage, in order, reporting each separately |
+| Run HA Audit (`script.ha_audit`) | `ha_audit.py --json` |
+| Run Config Gate (`script.ha_gate`) | `gate.py` — steps 1/1b/2/2b |
+| Run HA Audit Self-Tests (`script.ha_audit_tests`) | `test_ha_audit.py` both directions |
+| HA Audit — Rule Coverage (`script.ha_audit_log_stats`) | which rules have never fired AND have no injector |
+| Run Provenance Check (`script.ha_provenance`) | R17, git-free mode |
+| Regenerate Reference Docs (`script.ha_gen_reference`) | `gen_reference.py`. **Defaults to `--check`, which writes nothing**; flip *Write the files* on to actually regenerate. The one action that writes — run it with Write ON after any RESTART that added entities, because the registry only gains them at startup and `ha_audit` FAILs on a stale generated doc. |
+
+`binary_sensor.ha_eod_contention` (device_class problem) lights whenever any
+`eod-*` FAIL is present, separately from `binary_sensor.ha_audit_failing` —
+contention is the one failure class that corrupts DATA rather than reporting,
+so it gets its own light rather than a share of a number.
+
+`new_pipeline.py` is deliberately NOT exposed as an action: it is the only
+script that mutates `automations.yaml`, and a one-click button for that with no
+diff and no undo is the wrong shape.
+
+**shell_command is not reloadable — adding or changing any of these needs a
+RESTART.**
+
 ### The gate
+
+**Run `python3 scripts/gate.py <edited files>`.** It runs steps 1, 1b, 2 and 2b
+in order, stops at the first failure, and PRINTS THE VERDICT BLOCK - generated,
+not typed, which is the only reliable defence against the assurance-upgrade
+failure the verdict table exists to prevent. Steps 3-5 stay manual because they
+touch the live instance (R12).
+
+The steps below are what it runs, kept for when you need one on its own.
 
 Run every step that applies to what you touched. Record the result inline.
 
@@ -368,7 +573,13 @@ Run every step that applies to what you touched. Record the result inline.
                python scripts/test_ha_audit.py     -> "SUITE PASSED" required
                R7 made checkable. It injects a known fault per covered rule and
                proves the rule FIRES, then proves a clean tree is SILENT.
-               9 of 33 rule ids covered; --list prints the gap, --only isolates.
+               --list prints coverage and the gap; --only isolates one rule.
+               The rule-id inventory is DERIVED from ha_audit.py's source, so
+               it cannot drift the way the three hand-kept counts in this file
+               had by 2026-08-25. Direction 2 now asserts per rule that a
+               covered rule does NOT fire on a clean tree, instead of demanding
+               the whole tree be finding-free - so a genuine WARN in the house
+               no longer fails the suite, which contradicted step 2 above.
                NOT OPTIONAL WHEN THE AUDIT ITSELF MOVED. Twice on 2026-08-24 a
                rule shipped structurally incapable of firing, and a rule that
                CANNOT fire looks exactly like a rule with nothing to report.
@@ -469,10 +680,37 @@ matters is shared state:
   new value depending on scheduling, and the result is not reproducible.
 
 `scripts/ha_audit.py` enforces this by computing each automation's read and
-write sets and comparing same-second pairs: `eod-race` (write/write) FAILS,
-`eod-read-write` WARNs, and same-second automations that share nothing report
-`eod-concurrent` as INFO. Stagger only to resolve a real contention or an
-ordering dependency — not for tidiness.
+write sets and comparing same-second pairs. **FAIL-SAFE as of 2026-08-25 — all
+three contention outcomes BLOCK:**
+
+| finding | when | severity |
+|---|---|---|
+| `eod-race` | both write the same entity | **FAIL** |
+| `eod-read-write` | one reads what the other writes | **FAIL** (was WARN) |
+| `eod-write-unmodelled` | the write target is a template, so contention **cannot be ruled out** | **FAIL** (was WARN) |
+| `eod-time-unresolvable` | `at:` is not a literal, so the automation was not compared at all | WARN |
+| `eod-concurrent` | same second, nothing shared | INFO, one line |
+
+The third row is the point of the word fail-safe: when the checker cannot
+*prove* two automations do not collide, it blocks rather than staying quiet.
+Treating "could not check" as "no finding" is R8, applied to the one rule
+protecting the midnight window.
+
+**SCOPE, corrected 2026-08-25: this now examines EVERY time-triggered
+automation — 111 of them — not just the ~20 declared in `pipelines.yaml`.**
+Until that date an undeclared pair sharing a second and an entity produced
+nothing at all, which made it a race check that could not see most races.
+Widening it immediately surfaced a group nobody had been checking:
+`00:00:00 x2` (`dehumidifier_cycle_counter_reset` +
+`reset_automation_failure_counter`). They share no state, so it is fine — but
+nothing had established that.
+
+Stagger only to resolve a real contention or an ordering dependency — not for
+tidiness. Sharing a second is still not a problem; six captures fire together
+at 23:59:00 with no interaction.
+
+`scripts/new_pipeline.py` refuses to scaffold a pipeline onto a second where
+its entities would collide, so the common case never reaches the gate at all.
 
 ### ORDERING DEPENDENCIES (these are why the staggering exists)
 
@@ -675,7 +913,12 @@ beside the code — not in a summary that has to be kept in step with it.
 ## KNOWN ISSUES
 
 ```
-23:58:00 collision              archive_monthly_hdd + accumulate_filter_runtime — separate entities, no data risk
+23:58:00 collision              STALE ENTRY, corrected 2026-08-25: there is no collision. Measured across all
+                                111 time-triggered automations — 23:58:00 holds accumulate_filter_runtime ALONE;
+                                archive_monthly_hdd has moved to 23:58:15. Kept rather than deleted (R13) because
+                                a hand-cleared "no data risk" judgement outlived the arrangement it described,
+                                which is the drift this file exists to catch. The only shared seconds in the live
+                                config are 00:00:00 x2, 23:59:00 x6 and 23:59:30 x2, none of them contending.
 _2 suffix entities              6 sensors — entity registry artifacts — canonical IDs — DO NOT DELETE
 notify_efficiency_degradation   DISABLED Feb 2026 — fixed threshold replaced by ±2σ
 Pirate Weather warm bias        reads up to 8.5°F warm on sunny afternoons — use outdoor_temp_live for CDD65
@@ -710,6 +953,26 @@ Electric rate:        $0.29/kWh
 ## INFLUXDB / GRAFANA
 
 ### InfluxDB 1.x
+- **THE ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY WAY
+  BACK.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed from the
+  Community Add-ons store on **2026-08-28** because InfluxData EOL'd InfluxDB
+  1.x. It still runs, and `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still
+  pulls (HTTP 200, re-verified 2026-08-31) — but **"reinstall it" is not a
+  recovery step and never will be again.** Searching the store for "InfluxDB"
+  now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on shipping
+  InfluxDB 2.x: buckets/orgs/tokens and Flux, no `"Home Assistant"` database,
+  and no InfluxQL for the 136 dashboard refs to `bfrwayjkhasjka`. Installing
+  it looks like success and restores nothing. This exact substitution cost the
+  2026-08-31 session (see CHANGELOG). If this add-on is ever lost again:
+  `hassio.restore_partial` with `homeassistant: false` and
+  `addons: [a0d7b954_influxdb]`, and **stop any add-on holding host port 8086
+  first** or the restore comes up dead.
+- **Restoring the add-on does NOT restore the HA integration.** The config
+  entry lives in `.storage/core.config_entries`, which a partial add-on
+  restore does not touch, and there is no `influxdb:` YAML anywhere to fall
+  back on (verified 2026-08-31: absent from configuration.yaml, packages/,
+  and the whole git history). Re-add it by hand: Settings → Devices &
+  Services → InfluxDB → `configure_v1`.
 - **Host**: 10.0.0.210:8086
 - **Database**: "Home Assistant"
 - **Measurement naming**: unit of measure (e.g., "W" for Watts, "%" for percent)
@@ -748,9 +1011,21 @@ Electric rate:        $0.29/kWh
   URL  = os.environ.get("INFLUXDB_URL")  or _s.get("influxdb_url", "")
   ```
 
-  Use a READ-ONLY influx user (`GRANT READ ON "Home Assistant"`). Every reader
-  of these only runs SELECT, and retention is infinite with no backup of the
-  raw series — a leaked read-only credential cannot DROP a measurement.
+  **`ha_ro` IS NO LONGER READ-ONLY. Changed 2026-08-31 — this bullet said
+  `GRANT READ` until then.** The `influxdb` config flow validates the
+  credential with a **write probe**, so a READ-only user fails the flow with a
+  bare `cannot_connect` that names nothing. Proven both directions that day:
+  as READ, `/write` returned 403 and the flow refused; after
+  `GRANT ALL ON "Home Assistant" TO "ha_ro"` the flow created the entry
+  first try. Use `GRANT ALL`, never `GRANT WRITE` — in InfluxDB 1.x a user
+  holds ONE privilege per database, so `GRANT WRITE` silently REVOKES read
+  and breaks `spc_seed.py`.
+
+  What that costs, stated honestly: a leaked `ha_ro` can now insert and
+  overwrite points, and retention is infinite with no backup of the raw
+  series. What still holds: it **cannot DROP a measurement** — that needs
+  admin, measured 403 on 2026-08-31 with ALL PRIVILEGES held. Non-admin write
+  is the floor HA's own integration imposes; it is not a preference.
   **Never echo the value** into a log, a debug URL, a commit or a chat
   transcript; `spc_seed.py` masks it in its debug URL (line 175).
 
@@ -768,7 +1043,34 @@ Pre-aggregate daily "running watts" for SPC monitoring.
 - **Deploy**: `influx -database "Home Assistant" < spc_continuous_queries.sql`
 
 ### Grafana Dashboards (grafana/dashboards/)
-Provisioned dashboards — survive Grafana rebuilds.
+**THESE FILES ARE NOT DEPLOYED AND NEVER HAVE BEEN. Editing one changes
+nothing.** This block said "Provisioned dashboards - survive Grafana rebuilds"
+until 2026-09-03; it was false. Measured that day: all five dashboards report
+`meta.provisioned = false`, i.e. file-based provisioning loads ZERO dashboards.
+Grafana serves only its own database copies, and the drift had reached a month:
+
+```
+battery-bank   Grafana 2026-07-21   file 08-21    file newer
+energy         Grafana 2026-07-25   file 08-21    file newer
+hvac-status    Grafana 2026-07-28   file 08-21    file newer
+ups-status     Grafana 2026-08-31   file 08-21    GRAFANA newer - deploying the file REGRESSES it
+```
+
+The drift runs BOTH ways, so "just deploy them all" destroys work. Check
+direction per dashboard before touching any.
+
+What this cost: the P12 SPC re-sourcing was written to `spc_appliances.json` on
+08-22 and never landed, so the Daily series kept querying the retired `spc`
+measurement - dead since 08-21 - for thirteen days while UCL/LCL from `W` stayed
+current. The chart looked alive and was not. Nothing in this repo compares what
+Grafana serves against what the file says, and `ha_audit.py` cannot: Grafana is
+not YAML.
+
+**To actually deploy a dashboard:**
+`python3 /config/scripts/grafana_snapshot.py --deploy /config/grafana/dashboards/<f>.json`
+(overwrites by uid, pins `${DS_INFLUXDB}` placeholders to the real datasource
+uid, and prints the version it replaced). `--provstatus` prints the provisioned
+flag and served date for every dashboard - run it before believing a file is live.
 - **energy.json**: Total power stats, daily kWh, cost estimate, SEM circuits, Kasa plugs
 - **battery_bank.json**: Voltage/SOC/Power/Runtime stats, electrical trends, temperature
 - **ups.json**: Voltage/Power/Temp stats, electrical trends, temperature
@@ -800,6 +1102,14 @@ scripts/validate_ha.py          the homeassistant-config-validator skill's
 docs/ha-validator-checks.md     what that validator checks, from the skill
 entity_notes.yaml               hand-written MEANING for entity ids; the only
                                 part of the entity reference a human maintains
+open_questions.yaml             R14 made mechanical: every question asked of
+                                Bill, with what it blocks. ha_audit WARNs
+                                `open-question` until `answered:` is filled in,
+                                so it surfaces at the top of every session.
+.audit_baseline.json            the finding set `ha_audit.py --baseline` compares
+                                against. NEW findings exit non-zero; a FAIL always
+                                does, even an unchanged one - a baseline shows the
+                                delta, it never blesses a failure.
 configuration.yaml              sensors, helpers, shell_commands
 automations.yaml                automation logic
 scripts.yaml                    bill archive seed scripts
@@ -818,10 +1128,37 @@ scripts/
 ├── climate_norms_today.py      Climate norms lookup
 ├── setback_csv.py              Setback recovery CSV logging
 ├── daily_energy_export.py      Energy CSV export to www/energy/
+├── gate.py                     THE DEFINITION OF DONE GATE, as one command.
+│                               Runs steps 1/1b/2/2b in order, stops at the
+│                               first failure, and GENERATES the verdict block.
+│                               Steps 3-5 stay manual - they touch the live
+│                               instance (R12). Use this, not the four separate
+│                               invocations; the sequence used to be written out
+│                               in three places here and had already drifted.
+├── new_pipeline.py             SCAFFOLDS a capture pipeline: automation with the
+│                               variables: snapshot, manifest entry, schedule row,
+│                               stale detector, helper names - all four pieces
+│                               from one declaration. Prints; --apply writes the
+│                               first two. Exists because stamp-not-snapshotted
+│                               (130) and unguarded-shell-command (111) were the
+│                               two most-fired rules across 38 nightly runs -
+│                               241 of ~500 findings, both boilerplate omissions
+│                               and every one of them a round trip. A generator
+│                               makes those rules unfireable; a detector can only
+│                               tell you afterwards.
+├── audit_log_stats.py          Crosses www/spc/ha_audit.log against the harness
+│                               coverage list. Neither signal is worth much
+│                               alone - a healthy config is silent too - but a
+│                               rule that has NEVER fired AND has no injector is
+│                               a rule whose silence proves nothing. That set was
+│                               14 on 2026-08-25 and is where both "structurally
+│                               incapable of firing" bugs came from.
 ├── test_ha_audit.py            R7 harness for ha_audit.py: proves each covered
 │                               rule FIRES on an injected fault and stays SILENT
-│                               on a clean tree. `--list` prints coverage (8 of 32
-│                               rule ids as of 2026-08-24), `--only RULE` isolates.
+│                               on a clean tree. `--list` prints coverage,
+│                               `--only RULE` isolates. THE RULE-ID INVENTORY IS
+│                               DERIVED from ha_audit.py's source - never write
+│                               the count down anywhere, including here.
 ├── spc_validator.py            SPC diagnostic tool (queries DB + API)
 ├── spc_seed.py                 MANUAL CLI backfill from InfluxDB. Manifest-driven —
 │                               reads pipelines.yaml, resolves each guard.live_source
@@ -829,6 +1166,21 @@ scripts/
 │                               Carries no appliance constants. Prints a plan; writes
 │                               nothing back without --apply. Stamps *_spc_last_seed.
 ├── seed_ac_blower_energy.py    Seeds hvac_ac_blower_daily from furnace+AC correlation
+├── spc_verify.py               NIGHTLY RECONCILIATION (00:25, automation
+│                               nightly_spc_verify). Recomputes each appliance's
+│                               daily running watts from the RAW InfluxDB series
+│                               and compares it to the 23:59 capture — the only
+│                               thing checking the captures against the data they
+│                               summarise. Day alignment is read off the capture's
+│                               own last_changed, never assumed; a slot the guards
+│                               declined to overwrite reports HELD and is not
+│                               compared. Exit 0/1/2 = ok/drift/could-not-run,
+│                               deliberately distinct. `--days N` to tune bands.
+├── grafana_snapshot.py         LOCAL Grafana snapshots (every 6h, automation
+│                               grafana_snapshot_scheduled). Archival, NOT
+│                               verification — a snapshot preserves a wrong panel
+│                               faithfully. Needs `grafana_token` in secrets.yaml;
+│                               without it exits 2 and says so. `--probe` first.
 ├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
 ├── csv_manager.py              CSV utilities
 ├── fetch_bdl_degree_days.py    BDL degree day fetcher

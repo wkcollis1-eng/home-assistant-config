@@ -1,6 +1,8 @@
-# rtlamr2mqtt add-on config — CORRECTED 2026-08-22 after reading the add-on source
-# (allangood/rtlamr2mqtt, rtlamr2mqtt-addon/app/*). My first version of this file
-# was wrong twice; both errors are named below so they are not repeated.
+# rtlamr2mqtt add-on config — REVISED 2026-08-24 after reading rtlamr v0.9.5
+# (the version the add-on Dockerfile pins: go install github.com/bemasher/rtlamr@v0.9.5)
+# and re-measuring all three meters over 24 h of InfluxDB last_seen timestamps.
+#
+# Errors from the 2026-08-22 pass are kept below rather than deleted (R13).
 #
 # ERROR 1 — "set listen_mode: true". DO NOT. In this add-on listen_mode is a
 #   DISCOVERY mode, not a continuous-publishing mode. meter_reader.py:
@@ -9,9 +11,7 @@
 #       else:
 #           self.reading_queue.put_nowait(reading)     # <-- only here
 #   In listen_mode readings are never enqueued, so NOTHING is published to MQTT.
-#   Every sensor would go stale and the whole SDR stack would go dark.
-#   config.py confirms the intent: "Add at least one meter or enable listen_mode
-#   to discover meter IDs", and it forces sleep_for = 0 when listen_mode is set.
+#   config.py confirms the intent and forces sleep_for = 0 when listen_mode is set.
 #
 # ERROR 2 — "remove -unique=true". Removing it does nothing. buildcmd.py adds it
 #   as the DEFAULT unless custom_parameters already contains a -unique flag:
@@ -19,36 +19,191 @@
 #           args.append('-unique=true')
 #   The override must be explicit: -unique=false.
 #
-# WHAT ACTUALLY FIXES IT: sleep_for: 0. In meter_reader.run(), _sleep_cycle() is
-# called only `if self.sleep_for > 0`, and the "all meters read" break is also
-# gated on sleep_for > 0. So with 0 the inner loop reads and enqueues forever:
-# no restart, no sleep, no SIGTERM/SIGKILL, and resolution falls to the meters'
-# own transmit interval. It is also the add-on's own default - the 60 was set here.
+# ERROR 3 (NEW, 2026-08-24) — "rtltcp: -s <rate> sets the sample rate."
+#   IT DOES NOT. rtlamr overrides it over the rtl_tcp control socket on connect.
+#   main.go, after Connect():
+#       cfg := rcvr.d.Cfg                    // SampleRate = DataRate * ChipLength
+#       flag.Visit(...)                      // only -samplerate changes cfg here
+#       rcvr.SetCenterFreq(cfg.CenterFreq)
+#       rcvr.SetSampleRate(uint32(cfg.SampleRate))   // <-- UNCONDITIONAL
+#   and protocol/decode.go Allocate():
+#       d.Cfg.SampleRate = d.Cfg.DataRate * d.Cfg.ChipLength  // 32768 * symbollength
+#   rtltcp.go maps that to rtl_tcp command 2 (sampleRate), so whatever rtl_tcp was
+#   started with is replaced. The 2026-08-23 experiment that moved rtltcp -s from
+#   2048000 to 2359296 therefore compared 2359296 against 2359296. It was recorded
+#   as "no effect, a null result". It was not a null result — it was a no-op, and
+#   the hourly capture series confirms it: no step at 08-23 21:16.
+#   The real knob is -symbollength. See the trade table below.
 
 general:
-  sleep_for: 0            # CHANGED from 60. This single line is the whole fix.
-  verbosity: info
+  sleep_for: 0            # UNCHANGED. The whole 2026-08-22 fix; do not raise it
+                          # without accepting the capture-rate cost below.
+  verbosity: info         # debug turned out to be UNNECESSARY, 2026-08-25.
+                          # The plan was one debug start to read "CenterFreq:"
+                          # out of rtlamr's startup dump. Not needed: the add-on
+                          # logs the full rtlamr command line at info, and every
+                          # value in that dump is derived from the flags with no
+                          # branch - Allocate() is SampleRate = DataRate *
+                          # ChipLength, and -centerfreq overrides unconditionally
+                          # in main.go's flag.Visit. So the command line IS the
+                          # proof. Use debug only to read output rtlamr computes
+                          # rather than is told, e.g. GainCount.
+                          # It will NOT reveal rtl_tcp sample loss at any level:
+                          # nothing drains that stdout after 'listening...'.
   listen_mode: false      # UNCHANGED. See ERROR 1 - this must stay false.
 
 custom_parameters:
-  rtltcp: -s 2048000
-  rtlamr: -unique=false   # CHANGED from -unique=true. Must be =false, not absent.
+  # >>> EXPERIMENT RUNNING - deployed 2026-08-25, symbollength 72 -> 80 <<<
+  # ONE variable: bandwidth. 32768*80 = 2,621,440 Hz, +/-1.311 MHz, x1.111 the
+  # control. -centerfreq and -unique are unchanged; the rtltcp -s move is a
+  # no-op on the result (ERROR 3) and is only kept matched so rtl_tcp starts
+  # where rtlamr is about to put it instead of retuning during startup.
   #
-  # WHY. From rtlamr's own source (flags.go, UniqueFilter.Filter), -unique
-  # suppresses any frame whose CHECKSUM matches the previous one from that meter
-  # id, held in an in-memory map. Today that map is wiped every ~2 min by the
-  # process restart, which is why every meter publishes every cycle even when
-  # the reading has not moved. With sleep_for: 0 the process never restarts, so
-  # the map PERSISTS and a meter with flat consumption goes silent.
+  #   CONTROL   symbollength 72, 24 h of 2026-08-24, and the 2026-08-25 pin
+  #             test showed the -centerfreq pin itself changes nothing:
+  #               electric 27.7%   gas ~25%   water 67.3%
+  #               host 12.72 W     SDR 4.30 W
   #
-  # That breaks the one thing your own commissioning note says matters:
-  #   "A frozen counter is the real failure mode ... 'Heard ago' is the
-  #    instrument; value change is not."
-  # With -unique=true and no restarts, water_meter_last_seen would freeze
-  # overnight, water_meter_age would climb past sdr_water_stale_minutes (60),
-  # water_meter_stale would go on - and that GATES OFF
-  # automation.sdr_water_meter_leak_now. Gas is worse: it ticks every 2-5 days
-  # in summer against a 360 min threshold.
+  #   PREDICTED symbollength 80 (capture scales linearly with bandwidth for scm,
+  #             because scm losses are memoryless - see MEASURED below):
+  #               electric 30.8%   gas 27.8%
+  #               host 13.00 W     SDR 4.59 W
+  #               water  NOT PREDICTED. Its losses are phase-structured, not
+  #                      memoryless, so widening either leaves the three good
+  #                      phases alone or lights a new one as a STEP. Measure it,
+  #                      do not model it.
+  #
+  #   REVERT IF electric lands well short of 30.8%. Above ~2.4 Msps an RTL-SDR
+  #             commonly drops samples, which breaks the linearity the whole
+  #             table rests on. NOTE YOU CANNOT SEE THAT LOSS IN THE ADD-ON LOG:
+  #             rtl_tcp reports backlog with "ll+, now N" on a stdout nobody
+  #             drains after the 'listening...' ready pattern, at any verbosity.
+  #             The capture rate IS the instrument. Revert = restore the two
+  #             lines below to 72 / 2359296.
+  rtltcp: -s 2621440      # Cosmetic only (see ERROR 3), but KEEP IT MATCHED to
+                          # 32768 * symbollength so rtl_tcp starts at the rate
+                          # rtlamr is about to demand and the override is a no-op
+                          # instead of a retune during startup.
+
+  # !!! 915500000 WAS DEPLOYED 12:03-16:20 EDT 2026-08-25 AND REVERTED: IT KILLS
+  # !!! THE GAS METER. Frames per wall-clock minute, 132 min vs 12 min:
+  # !!!     gas       1.05/min -> 0.25/min  (0.24x)  max gap 466 s
+  # !!!     electric  1.87/min -> 2.09/min  (1.12x)
+  # !!!     water     1.23/min -> 1.17/min  (0.95x)
+  # !!! binary_sensor.gas_meter_stale tripped and gas gaps ran past its 300 s
+  # !!! threshold. At 915.5 the 6 MHz analog window is 912.5-918.5 MHz; at
+  # !!! 912.38 it is 909.38-915.38. The gas ERT - an American Meter AL-425
+  # !!! module, a different device from the Vision electric meter - lives in the
+  # !!! LOW part of the band we tuned away from. Trading 76% of gas for 12% of
+  # !!! electric is not a trade worth making on a live alarm.
+  # !!! The 915.5 run is still worth every minute: it proved the water 14 s grid
+  # !!! and the parity filter, and that knowledge does not require staying there.
+  rtlamr: -unique=false -symbollength=80 -centerfreq=912380000
+  #
+  # -unique=false   MUST be explicit, not absent (ERROR 2). The rtlamr UniqueFilter
+  #                 suppresses any frame whose checksum matches the previous one
+  #                 from that id. With sleep_for: 0 the process never restarts, so
+  #                 that map persists and a flat meter would go silent - freezing
+  #                 last_seen, climbing _age past sdr_water_stale_minutes, and
+  #                 gating off automation.sdr_water_meter_leak_now.
+  #
+  # -symbollength   Currently 80 (EXPERIMENT above); 72 is the rtlamr DEFAULT
+  #                 (flags.go:43) and the control value. Stating it explicitly is
+  #                 deliberate: it is the only knob that sets sample rate, and
+  #                 therefore the only knob that sets BOTH received bandwidth and
+  #                 CPU. Legal values are exactly 8, 32, 40, 48, 56, 64, 72, 80,
+  #                 88, 96 - anything else is log.Fatal("invalid symbollength").
+  #
+  # -centerfreq=912380000   THE NEW LINE, AND THE REASON FOR THIS REVISION.
+  #                 Without it the tuned frequency is CHOSEN AT RANDOM on every
+  #                 add-on start. protocol/decode.go RegisterProtocol():
+  #                     // Take the largest value for each protocol. Some values
+  #                     // are simply overridden
+  #                     d.Cfg.CenterFreq = p.Cfg().CenterFreq        // OVERRIDE
+  #                     d.Cfg.DataRate   = max(d.Cfg.DataRate,   ...)
+  #                     d.Cfg.ChipLength = max(d.Cfg.ChipLength, ...)
+  #                 CenterFreq is assigned, not maxed - so the LAST protocol
+  #                 registered wins. And registration walks a Go map:
+  #                     for name := range msgType { ... RegisterProtocol(p) }
+  #                     type StringMap map[string]bool
+  #                 Go randomises map iteration order by design. buildcmd.py emits
+  #                 -msgtype=scm,scm,r900, which collapses to a 2-key map, so on
+  #                 every start the receiver tunes either
+  #                     scm/scm.go:44   CenterFreq: 912600155
+  #                     r900/r900.go:62 CenterFreq: 912380000
+  #                 at 50/50 - a 220,155 Hz difference decided by a coin flip.
+  #                 With sleep_for: 0 the process never restarts, so whichever it
+  #                 landed on is frozen in until the next add-on restart.
+  #
+  #                 VALUE NOW 915500000, deployed 2026-08-25 12:03 EDT. It is
+  #                 the centre of BOTH meters' documented hop ranges (electric
+  #                 909.59-921.78 -> 915.685; water 910-920 -> 915.0), and it
+  #                 immediately broke the water meter's 28 s parity filter -
+  #                 see PRIMARY SOURCES and the WATER note. rtlamr's two built-in
+  #                 centres are both ~3 MHz below where these meters live, which
+  #                 is the single most consequential finding in this file.
+  #
+  #                 SUPERSEDED VALUE: 912380000 (the r900 built-in). Rationale
+  #                 recorded because the reasoning was sound and the outcome was
+  #                 not: SCM losses are memoryless (see MEASURED below),
+  #                 which means only the WIDTH of the window matters for scm, not
+  #                 where it sits. R900 losses are phase-structured - a small set
+  #                 of discrete channels - so position DOES matter for water, and
+  #                 912380000 is the value that protects the position-sensitive
+  #                 protocol at no modelled cost to the other two.
+  #
+  #                 TESTED 2026-08-25, AND THE RATIONALE TURNED OUT TO BE MOOT.
+  #                 Deployed 08:16:10; one hour against same-clock-hour controls
+  #                 on the two prior days:
+  #                    electric  29.1%  vs  30.8% / 29.8%
+  #                    gas       26.3%  vs  26.2% / 25.1%
+  #                    water     67.4%  vs  67.5% / 68.5%
+  #                 Nothing moved. On a common epoch the R900 phase structure is
+  #                 unchanged and the SAME ABSOLUTE PHASE is still dead (0/25),
+  #                 with the partial phase still at 40%. So 220,155 Hz is not the
+  #                 mechanism for any of the three meters, and the dead R900
+  #                 channel is NOT explained by the scm-vs-r900 centre frequency.
+  #                 A pre-registered prediction that water would reach 87-88% on
+  #                 four live phases - from a 4.5 min sample reading 87.5% - was
+  #                 FALSIFIED. That sample's binomial P was 0.22; withholding was
+  #                 correct. Recorded rather than quietly dropped (R13).
+  #                 The choice of value is therefore harmless but unmotivated:
+  #                 keep 912380000 because it is measured no-regression, not
+  #                 because the reasoning above was borne out. The REASON to pin
+  #                 stands untouched - determinism - and is now load-bearing for
+  #                 the UPS outage automation, which restarts the add-on after
+  #                 every power cut and would otherwise re-roll the tuning.
+  #                 And the sweep needs MHz-scale steps: 220 kHz is demonstrably
+  #                 too small to test anything.
+  #                 CAN YOU CHECK WHICH ONE IT IS ON RIGHT NOW? NO - AND THAT IS
+  #                 PART OF THE DEFECT, NOT A GAP IN THE INVESTIGATION.
+  #                 An earlier draft of this file said the add-on log "carries a
+  #                 literal CenterFreq: <n> line". It does not, at the configured
+  #                 verbosity, and the live log disproved it on 2026-08-24 (R13).
+  #                 rtlamr does print its final config - main.go calls
+  #                 rcvr.d.Log() immediately before the slog "GainCount" line -
+  #                 but the add-on consumes those lines inside
+  #                 ProcessManager._wait_for_ready(), whose ready_pattern for
+  #                 rtlamr IS 'GainCount', and emits each one with logger.debug:
+  #                     line = line_bytes.decode(...).strip()
+  #                     if line:
+  #                         self._recent_lines.append(line)
+  #                         logger.debug('%s: %s', self.name, line)
+  #                     if self.ready_pattern in line:
+  #                         return True
+  #                 At verbosity: info those are dropped and unrecoverable -
+  #                 _recent_lines is only ever dumped by _log_recent_output(),
+  #                 which runs on timeout or early exit, i.e. never on success.
+  #                 verbosity: debug WOULD print it. But reading it costs an
+  #                 add-on restart, and a restart RE-ROLLS THE COIN. So the value
+  #                 a debug restart reveals is the new draw, never the one that
+  #                 produced the measurements below. The tuning of a run in
+  #                 progress is unobservable in principle.
+  #                 THE ONLY WAY TO KNOW IS TO PIN IT. Set verbosity: debug for
+  #                 the single start that applies this change, confirm the log
+  #                 reads CenterFreq: 912380000, then set verbosity back to info.
+  #                 (debug adds ~1 line per frame, ~5.6k/day, so it is fine for a
+  #                 confirmation window and not something to leave on.)
 
 mqtt:
   ha_autodiscovery_topic: homeassistant
@@ -56,6 +211,79 @@ mqtt:
   base_topic: rtlamr
   discovery_interval: 300
   tls_enabled: false
+
+# THE ACTUAL HARDWARE, from nameplate photos 2026-08-25 (Bill). Recorded because
+# every RF conclusion in this file depends on it and it had been ASSUMED before.
+#
+#   ELECTRIC  Vision Metering VM1991 "Vision HP-RF", CL200 240V 3W, Cat
+#             VM-2E2B1P, FW 4.159.B, 9/21, meter SN 10626149.
+#             RADIO: Hunt Technologies "AirPoint".  FCC ID Y8E-VM1991.
+#             ERT id 43344099 (on the radio barcode).
+#             *** THIS IS NOT AN ITRON ERT. *** Earlier entries in this file
+#             reasoned from "Itron 50/51/52/53ESS, 909.6-921.8 MHz, 50 channels".
+#             That is a DIFFERENT VENDOR'S METER and does not describe this one.
+#             It emits SCM-compatible frames - rtlamr decodes it and the id
+#             matches the barcode - but its channel plan is unknown here and the
+#             8.51 MHz "implied hop span" was fitted, never sourced. The FCC test
+#             report (fcc.report/FCC-ID/Y8E-VM1991/1636707) has the real numbers;
+#             both FCC mirrors 403 automated fetches, so it needs a browser.
+#   GAS       American Meter / Honeywell AL-425, Connecticut Natural Gas,
+#             MAOP 10 PSI, ANSI 400, meter 561309 / 16F278598, set 2021.
+#             ERT module id 20109304.
+#   WATER     Neptune R900 v4, model R900M, ProCoder R900i, mfg 09/17/21,
+#             SN 1571014090.  FCC ID P2SR900M, IC 4171B-R900M.
+#             CONFIRMED FROM THE MANUAL 2026-08-25, and it is a problem. The
+#             Neptune R900 MIU guide states the transmit period TWICE:
+#               Specifications: "Every 14 seconds - standard mobile message"
+#               Glossary: "transmission time ... default is approximately
+#                          fourteen (14) seconds. Custom time is not available."
+#             Measured here: 28.000 s, 2,077 gaps, rms 0.001 slots, and ZERO
+#             14 s gaps ever observed. 28 = 2 x 14 exactly.
+#             *** CONFIRMED 2026-08-25 12:03 EDT BY RETUNING TO 915.5 MHz. ***
+#             THE 28 s GRID WAS AN ARTIFACT OF THE TUNING, NOT A PROPERTY OF THE
+#             METER. Within 140 s of moving -centerfreq from 912380000 to
+#             915500000 the water gaps read 42.012, 41.991, 41.967, 14.022 s -
+#             3.001, 2.999, 2.998 and 1.002 slots on a 14.00 s grid, implying a
+#             base period of 13.997 s. A 14 s gap is IMPOSSIBLE on a 28 s grid.
+#             THE PARITY TEST, which is the strongest result in this file
+#             because it is structural rather than a rate estimate:
+#                 912.380 MHz   0 odd-multiple-of-14 gaps in 2,077
+#                 915.500 MHz   3 odd-multiple-of-14 gaps in 3
+#             Rule-of-three puts the old rate at <= 3/2077 = 0.00144, so
+#             P(all 3 odd | old regime) <= 0.00144^3 = 3.0e-9.
+#             At 912.380 the receiver was a PERFECT PARITY FILTER on this meter -
+#             2,077 for 2,077 even-indexed transmissions - and at 915.500 that
+#             filter is gone.
+#             SO THE REAL WATER CAPTURE WAS ~33.6%, NOT 67.3%. Every water figure
+#             in this file stated on the 28 s grid HALVES:
+#                 24 h baseline      67.3% -> 33.6%
+#                 pre-pin window     67.7% -> 33.9%
+#                 symlen 80 @912.38  57.5% -> 28.8%
+#             and the "5-phase structure" was really a 10-phase structure.
+#             The mechanism is not established. r900.go runs Reed-Solomon and
+#             drops bad frames silently, so a variant payload on alternate
+#             transmissions would vanish without trace. The cheap route was
+#             checked and closed: r900bcd is Parser{r900.NewParser(...)} - the
+#             same parser and the same preamble - so adding it finds nothing.
+#             The 5-phase structure would then really be a 10-phase structure.
+#             Settling this needs the IQ capture, or a decoder that logs
+#             preamble hits that fail RS.
+#
+# GEOMETRY (Bill, 2026-08-25). Antenna: bundle mast on the magnetic base, on a
+# METAL END TABLE (so it does have a ground plane), 2nd floor, ~3 ft from the PC.
+#   electric  ~15 ft below, ~10 ft horizontal  -> ~18 ft slant. VERY CLOSE.
+#   gas       opposite side of the house       -> worst path, lowest capture.
+#   water     basement, 2 floors down          -> bad path, yet 3 of 5 phases
+#                                                 at 99-100%.
+# WHAT THE GEOMETRY IMPLIES, AND IT REVERSES AN ASSUMPTION. Free-space loss at
+# 915 MHz over 5.5 m is ~46 dB, so the electric meter is almost certainly the
+# STRONGEST signal in the band at this antenna. Its ~30% capture therefore
+# cannot be a weak-signal problem. The opposite is now plausible: at that range
+# an RTL-SDR with tuner AGC can be driven into compression, and short ERT bursts
+# make the AGC pump - which would also hurt gas and water, since the AGC is
+# shared. So the -tunergain experiment should be run FIXED, and possibly
+# DOWNWARD, not upward. Water holding 99-100% on three phases through two floors
+# is further evidence its dead phase is frequency-driven, not margin-driven.
 
 meters:
   - id: 20109304
@@ -74,20 +302,700 @@ meters:
     unit_of_measurement: gal
     icon: mdi:water
 
-# EXPECTED AFTER THE CHANGE
-#   - "Sleeping for 60 seconds" / "Waking up" / "All 3 meters read" disappear
-#     from the log entirely - those lines only exist on the sleep path.
-#   - "rtl_tcp did not exit after SIGTERM, sending SIGKILL" stops. It was firing
-#     735x/day; stop() is now only reached on add-on restart. The 2.0 s SIGTERM
-#     timeout is hardcoded in process_manager.py and is NOT configurable, so
-#     removing the restarts is the only way to stop paying it.
-#   - sensor.water_meter_age should sawtooth at the R900 transmit interval
-#     (~15-30 s) instead of ~112 s, and must NOT climb past a minute overnight.
-#     If it climbs, -unique is still active.
+# ---------------------------------------------------------------------------
+# MEASURED 2026-08-24 - 24 h of InfluxDB sensor.*_meter_last_seen write times.
+# That series is the frame arrival log: with -unique=false every decode
+# republishes, and last_seen is a timestamp so it changes on every frame.
+# (Do NOT use mean(sensor.*_meter_age) for this - InfluxDB writes on state
+# change, not on a clock, so that mean is biased. It reads ~12.7 s for water
+# against a true time-weighted 23.5 s.)
 #
-# FOLLOW-ON once this is live: exclude sensor.*_meter_last_seen from the recorder
-# in configuration.yaml. Without -unique it changes on every frame - roughly
-# 4,000/day per meter, ~12,000/day total, about +20% on top of the basement
-# node's 58k rows/day. Its history has no analytical value: sensor.*_meter_age
-# derives everything from the live value, and your dongle-health chart plots
-# _age, not _last_seen.
+#   meter     protocol  transmit grid   capture   loss structure
+#   electric  scm        11.42 s         27.7%    geometric, chi2=4.7 on 7 dof
+#   gas       scm        30.0  s         46.7%    structured, not yet explained
+#   water     r900       28.00 s         67.3%    5-phase; never 2 misses in a row
+#
+# THE ELECTRIC METER LOSSES ARE MEMORYLESS, AND THAT IS THE WHOLE FINDING.
+# Observed vs geometric(p=0.2771) for gaps of k transmissions:
+#       k        1     2     3     4     5     6     7     8
+#       obs    573   420   309   218   178   107    72    57
+#       exp    581   420   304   220   159   115    83    60
+# A weak link fades, and fading is correlated in time, so a signal-limited
+# receiver clusters its misses - an excess at high k. There is no excess. Each
+# transmission is independently missed with the same probability regardless of
+# what happened to the one before it. That rules out, without needing to know
+# the mechanism: antenna gain, antenna placement, tuner gain/AGC, USB or CPU
+# sample loss, and collisions with the other meters. None of those produce a
+# clean geometric tail.
+#
+# ^^^ THAT LAST SENTENCE IS OVERSTATED, AND THE ERROR IS MINE. Corrected
+# 2026-08-25 (R13). The argument was: fading is correlated in TIME, so a
+# signal-limited link clusters its misses; there is no clustering; therefore not
+# signal-limited. That holds for a FIXED-FREQUENCY link. It does not hold here,
+# because the transmitter HOPS. On a frequency-hopping link, frequency-selective
+# fading gives every transmission an independent draw of path attenuation - so
+# per-hop SNR varies independently and the losses look MEMORYLESS IN TIME even
+# when they are entirely a margin problem.
+# So the geometric fit rules out time-correlated fading. It does NOT rule out
+# sensitivity, and therefore does not rule out antenna, placement or gain.
+# STILL SOUND: losses are independent per transmission, and the mechanism is
+# per-hop rather than a slow environmental drift.
+# WITHDRAWN: "antenna work has no measured headroom to recover the electric
+# meter" was NOT established by this data. -tunergain is back on the table as a
+# real experiment - rtlamr defaults to tuner AGC (main.go
+# `if !gainFlagSet { rcvr.SetGainMode(true) }`, and rtltcp SetGainMode(true)
+# sends tunerGainMode=0, i.e. AUTO).
+#
+# WHAT FORCED THE CORRECTION: the symbollength 80 run.
+#
+#   FIRST READ, 5.7 min / 30 slots: 56.7% capture, a 2.18x rise in electric
+#   frames/min, P = 0.0008. That number was a lucky run on top of a real effect
+#   and it did not hold - recorded rather than quietly replaced (R13).
+#
+#   AT 42 min, hour-matched against pooled symlen-72 controls on 08-23/08-24:
+#     electric  81/213 = 38.0%  vs control 122/421 = 29.0%  ratio 1.31x  P=0.0028
+#     gas       42/160 = 26.2%  vs control  81/318 = 25.5%  ratio 1.03x  P=0.44
+#     water     51/ 87 = 58.6%  vs control 114/171 = 66.7%  ratio 0.88x  P(<=)=0.071
+#   against a bandwidth ratio of 1.111x and a linear prediction of 30.8%.
+#
+# So capture is still NOT pure bandwidth/hop-span geometry - but only MILDLY
+# superlinear (1.31x on 1.111x), not the 2x the first sample suggested. The
+# LOGIC of the correction above is unaffected: memoryless losses genuinely do
+# not rule out sensitivity on a hopping link, whatever the size of this effect.
+# The EMPIRICAL WEIGHT behind it is much smaller than first written.
+#
+# AND WATER WENT DOWN, which the linear model does not predict at all. On a
+# common epoch no phase was gained or lost; the three reliable phases degraded
+# together, 99.2/100.0/99.2% -> 88.9/88.9/89.5%. That is frames being missed on
+# channels that were previously near-perfect, not a coverage change.
+# NOTE the obvious explanation FAILS: sample loss above 2.4 Msps would tax all
+# three meters uniformly, and gas is flat at 1.03x. A uniform drop does not fit.
+# What does fit electric-up / gas-flat / water-down is FILTER SHAPE - librtlsdr
+# sets the R820T2 IF bandwidth to the sample rate, so changing it moves the
+# passband ripple and gain profile, not just the width, and different meters'
+# channels sit differently under the new response.
+# Not separable without the IQ capture.
+#
+# UPDATED at 1.87 h, hour-matched against the SAME clock window on 08-23/08-24:
+#   electric  207/589 = 35.1%  vs 335/1172 = 28.6%   1.23x   P(>=) = 0.00032
+#   gas       116/447 = 26.0%  vs 224/ 890 = 25.2%   1.03x   P     = 0.37
+#   water     138/240 = 57.5%  vs 320/ 478 = 66.9%   0.86x   P(<=) = 0.00140
+# THE WATER DECLINE IS NOW ESTABLISHED. It read p=0.071 at 42 min and 0.0014 at
+# 1.87 h - recorded because the earlier line called it "neither established nor
+# dismissable" and that is no longer true (R13).
+# So symbollength 80 is a REAL TRADE, both halves significant: electric +23%,
+# water -14%, gas unchanged. Neither is operationally at risk - water at 57.5%
+# is a ~49 s mean gap against a 10-minute LeakNow hold, 12x margin - so this is
+# a preference between instruments, not a safety question.
+# AND THE CHOICE IS BINARY. Because the tuner threshold sits at 2,430,000 Hz and
+# 72 is the largest legal symbollength beneath it, there is no intermediate
+# setting: 72 (water 67%, electric 29%) or 80 (water 57%, electric 35%).
+# DO -tunergain FIRST. If AGC pumping off the very close electric meter is
+# costing frames, a fixed gain could move BOTH meters and would change this
+# decision rather than being decided by it.
+#
+# FOUND 2026-08-25 AFTER THE ABOVE WAS WRITTEN, and it reframes the whole run:
+# 72 -> 80 IS NOT AN 11% BANDWIDTH STEP. IT CROSSES A TUNER CONFIG BOUNDARY.
+# librtlsdr passes the SAMPLE RATE as the tuner bandwidth -
+#     dev->tuner->set_bw(dev, dev->bw > 0 ? dev->bw : dev->rate)
+# and tuner_r82xx.c r82xx_set_bandwidth() is a branch ladder, not continuous:
+#     static const int r82xx_if_low_pass_bw_table[] = { 1700000, ... };
+#     #define FILT_HP_BW1 350000
+#     #define FILT_HP_BW2 380000
+#     } else if (bw > r82xx_if_low_pass_bw_table[0] + FILT_HP_BW1 + FILT_HP_BW2) {
+#             // BW: 6 MHz
+#             reg_0a = 0x10; reg_0b = 0x6b; priv->int_freq = 3570000;
+# The threshold is 1,700,000 + 350,000 + 380,000 = 2,430,000 Hz.
+#     symbollength 72 -> 2,359,296  BELOW  -> fine-grained LPF, IF ~2.30 MHz
+#     symbollength 80 -> 2,621,440  ABOVE  -> 6 MHz filter,    IF  3.57 MHz
+# 72 is the largest legal symbollength under the threshold (2430000/32768 = 74.2),
+# so EVERY step above 72 lands in the 6 MHz configuration.
+#
+# CONSEQUENCE: at symbollength >= 80 the ANALOG filter is 2.3x wider than the
+# ADC samples, so out-of-band ERT channels ALIAS into the digital passband while
+# ~4 dB more noise comes with them. That is the shape of the result:
+# electric UP (aliased channels add coverage for a hopping transmitter),
+# water DOWN (nothing to gain in coverage, pays the noise), gas FLAT.
+# It is NOT "11% more bandwidth" and the linear trade table above should not be
+# read as governing anything at 80 or higher.
+#
+# YOU CANNOT SEPARATE THESE THROUGH rtl_tcp. rtlsdr_set_tuner_bandwidth() exists
+# in librtlsdr (librtlsdr.c:1010) but rtl_tcp implements commands 0x01-0x0e and
+# NONE of them is set-tuner-bandwidth, so dev->bw is always 0 and the filter is
+# welded to the sample rate. Adding one case to that switch is a ~5 line fork and
+# would allow the clean 2x2: {2.36, 2.62 Msps} x {2.4, 6 MHz filter}, which is
+# the experiment that actually separates aliased coverage from noise penalty.
+#
+# Two candidates for the electric gain, not separable from this data:
+#   (a) TUNER FILTER SHAPE. librtlsdr sets the R820T2 IF bandwidth to the sample
+#       rate (`dev->tuner->set_bw(dev, dev->bw > 0 ? dev->bw : dev->rate)`) and
+#       that filter is not brick-wall. Widening moves the roll-off outward, so
+#       channels attenuated at the edge come up to full strength - a step, not a
+#       proportional gain.
+#   (b) PROCESSING GAIN. symbollength IS samples-per-chip, so 80 vs 72 integrates
+#       11% more samples in the matched filter, ~0.45 dB. Small - but if many
+#       transmissions sat near the detection threshold, a small SNR gain flips a
+#       disproportionate number. That is a SENSITIVITY effect: exactly what the
+#       withdrawn sentence claimed could not be happening.
+# PRELIMINARY - 5.7 minutes, 30 slots. Significant, but the 24 h run governs.
+#
+# What DOES produce exactly this: frequency hopping into a fixed window.
+#
+# ##### PRIMARY SOURCES, 2026-08-25. THE FITTED SPAN WAS WRONG. #####
+# Bill supplied the two FCC documents. Earlier entries here derived an "8.51 MHz
+# implied hop span" by fitting capture = BW/span to ONE measured point, and
+# leaned on Itron figures for a meter that is not his. Both are superseded (R11,
+# R13). What the filings actually say:
+#
+#   ELECTRIC - MET Laboratories EMC30666A-FCC247 Rev.1, FCC ID Y8E-VM1991
+#     EUT Frequency Range      909.59 - 921.78 MHz   -> span 12.19 MHz
+#     Transmitter channels     50, declared "200 kHz separated" (15.247(g)),
+#                              measured channel separation 197 kHz (Plot 6)
+#     20 dB occupied BW        31.9 / 32.8 / 33.6 kHz (mid/low/high)
+#     Peak power               94.57 mW low, 59.72 mW mid, 37.65 mW high
+#     Antenna                  integral, 3 dBi, Inverted F
+#     Burst structure          Ton 5.9 ms, period 50.75 ms, duty 11.63%
+#     Certified under          15.247 FHSS.  Modulation OOK.
+#
+#   WATER - Neptune R900 MIU manual, FCC ID P2SR900M
+#     Transmitter channels     50      Channel Frequency  910 - 920 MHz
+#     Transmit period          "Every 14 seconds - standard mobile message"
+#                              "Every seven and one-half minutes - ... fixed
+#                               network message ... on an interleaved basis"
+#     "The R900 MIU avoids 914 MHz to prevent collision with the Advantage probe."
+#
+# ##### AND THE FINDING THAT MATTERS: WE ARE TUNED 3.3 MHz TOO LOW. #####
+#   electric hop range 909.59-921.78 MHz  ->  centre 915.685 MHz
+#   water    hop range 910   -920    MHz  ->  centre 915.0   MHz
+#   currently pinned                          912.380 MHz
+# BOTH meters are centred near 915.3-915.7 MHz, and rtlamr's two built-in
+# centres - scm 912.600155, r900 912.380000 - are BOTH about 3 MHz below that.
+# At symbollength 72 the Nyquist window is 911.200-913.560 MHz: the bottom fifth
+# of the electric meter's range, with everything above 913.56 MHz unreachable.
+#
+#   symlen 72: 2.359 MHz / 12.19 MHz = 19.4% uniform prediction, 27.7% measured
+#   symlen 80: 2.621 MHz / 12.19 MHz = 21.5% uniform prediction, 35.1% measured
+#
+# We beat the uniform prediction both times, and by MORE at 80 - which is what
+# the 6 MHz analog filter predicts, since at symlen>=80 it passes 909.38-915.38
+# MHz, i.e. 49% of the hop span, and the out-of-Nyquist part ALIASES into the
+# sampled band. That is now a coherent, source-backed account of the 80 result.
+#
+# THE EXPERIMENT THIS BUYS - RUN 2026-08-25 12:03 EDT, AND IT PAID.
+# -centerfreq 912380000 -> 915500000, a 3.12 MHz move, more than a whole Nyquist
+# width, against the 220 kHz that legitimately found nothing.
+#
+# WHAT IS ESTABLISHED (structural, p = 3e-9): the water meter's 28 s grid was an
+# artifact of tuning. See the WATER note above. At 912.380 the receiver filtered
+# out exactly half of that meter's transmissions, 2,077 for 2,077, and at 915.500
+# it does not. This also means the electric meter's hop set is very unlikely to
+# be uniform - a uniform hop set cannot produce a parity filter in a neighbouring
+# 50-channel FHSS system on the same band.
+#
+# WHAT IS NOT YET ESTABLISHED (rate, small n - do NOT quote these):
+#     electric  9/16 slots = 56.2%  vs 35.1% at 912.380   P(>=obs) = 0.068
+#     water     3/7  slots = 42.9%  vs 33.6% at 912.380   P(>=obs) = 0.436
+# Both point the right way and neither is significant. This is the third time
+# today a few minutes of SDR data has looked dramatic; the first two shrank by
+# roughly half when the sample grew (56.7% -> 38.0%, and 87.5% -> no effect at
+# all). The 24 h run governs. What survives regardless is the parity finding,
+# because it is a zero-versus-nonzero observation and not an estimate.
+#
+# CONSEQUENCE: antenna work, re-aiming and gain changes have no measured
+# headroom to recover the electric meter. Same conclusion the 2026-08-23 entry
+# reached for water, by a completely different route.
+#
+# NOT EXPLAINED, STATED RATHER THAN SMOOTHED OVER (R11): gas sits at 46.7% on a
+# 30 s grid where the same bandwidth model predicts ~28%, and its gap histogram
+# is strongly non-geometric with even multiples over-represented (k=2,4,6,8) and
+# odd ones nearly absent (k=5 at 5 counts, k=7 at 3). A dwell - several frames
+# sent on one channel before hopping - would do that, and the FCC material
+# mentions hop dwells of up to a minute. Unconfirmed. Gas is also the meter with
+# the largest operational margin (360 min stale threshold against a ~62 s mean
+# heard interval), so it is not worth spending a restart on.
+#
+# ALSO CORRECTED: the 2026-08-23 entry concluded "SCM does not transmit on a
+# fixed cadence and there is no denominator", from gaps of 7, 8, 9, 13, 16, 22,
+# 45, 89, 117, 150, 241 s. Over 24 h instead of one short sample the grid is
+# unmistakable - electric fits 11.42 s with 0.180 slots rms, gas fits 30.0 s.
+# The capture rates that entry withdrew can now be quoted.
+# ---------------------------------------------------------------------------
+#
+# ##### WHAT ACTUALLY LIMITS EACH METER - measured 2026-08-25 #####
+# Bill's stated priorities: electric fast (SEM accuracy), gas fast enough for
+# per-furnace-cycle heat, water slow is fine if leak detection stays viable.
+# Measured from the meter READINGS, not the frame arrivals:
+#
+#   ELECTRIC  input_number.electric_meter_scale = 0.01 kWh -> QUANTUM 10 Wh.
+#             2,009 readings/24 h, rise 2,014 units = 84 units/h = 840 W mean.
+#             *** THE 86 s FIGURE WAS WRONG. CORRECTED 2026-08-25 14:49. ***
+#             86 s was the mean interval between OBSERVED increments, and 220 of
+#             975 of those were >1 unit - i.e. the counter had advanced more than
+#             once between our samples. I read the METER'S tick rate off OUR OWN
+#             sampling cadence, which is circular (R13).
+#             TRUE tick rate: 1,604 units in 24.0 h = one unit every 53.8 s.
+#             Against 32 s capture that is 1.68x oversampled, NOT 2.7x.
+#             Independently confirmed from the 14:38 redeploy log: 10 counts in
+#             10.5 min at 0.57 kW = tick every 63 s, captured every 49 s = 1.30x.
+#             AND IT IS LOAD-DEPENDENT, so the margin is not always there:
+#                 0.30 kW  tick every 120 s      0.84 kW  tick every  43 s
+#                 0.57 kW  tick every  63 s      1.50 kW  tick every  24 s  <- under
+#                                                3.00 kW  tick every  12 s  <- under
+#             Above roughly 1.1 kW the capture is SLOWER than the counter.
+#
+#             WHAT THIS DOES NOT CHANGE: the counter is CUMULATIVE, so missing
+#             ticks loses TIME RESOLUTION, never ENERGY. The SEM conclusion below
+#             stands unaltered - the comparison is quantum-limited and the fix is
+#             a longer averaging window, not a faster radio.
+#             WHAT IT DOES CHANGE: "electric has 2.7x surplus, spend it on gas"
+#             was stated repeatedly today as a reason to accept electric losses
+#             at 911.5 and 920.5. That argument was roughly half as strong as
+#             claimed. Both those candidates are withdrawn for other reasons, so
+#             no live decision rests on it - but it was wrong when it was made.
+#             The SEM comparison is QUANTUM-limited, not capture-limited:
+#                 1-min window   14 Wh  +/-10 Wh = +/-71%
+#                 5-min window   70 Wh  +/-10 Wh = +/-14.3%
+#                15-min window  210 Wh  +/-10 Wh = +/- 4.8%
+#                60-min window  840 Wh  +/-10 Wh = +/- 1.2%
+#             CHANGELOG.md:1293 records "ratio SEM(5min)/utility p10 0.905
+#             median 1.003 p90 1.124" = -9.5%/+12.4%. That spread IS the 10 Wh
+#             quantum at a 5-minute window. The median of 1.003 says the SEM is
+#             calibrated; the spread is the utility meter's counter resolution.
+#             TO IMPROVE SEM AGREEMENT, LENGTHEN THE WINDOW, NOT THE RADIO.
+#             15 min cuts the spread ~3x; hourly cuts it ~12x. No SDR change can.
+#
+#   GAS       scale 1.0 ft3, but every observed increment is exactly +2 ft3 over
+#             64 ticks -> EFFECTIVE QUANTUM 2 ft3. Median tick interval 2,332 s
+#             in summer (DHW only); fastest observed 2 ft3 in 29 s = 248 ft3/h,
+#             which is the Navien firing and a fair proxy for burner rate.
+#             At ~248 ft3/h a furnace cycle ticks every ~29 s, so a 10-20 min
+#             cycle yields 20-40 ticks: quantum is NOT the limit, TIMING is.
+#             Capture every 57 s (at 912.380) brackets cycle start/stop to about
+#             +/-57 s, or +/-10% on a 10-min cycle. ADEQUATE BUT TIGHT.
+#             At 915.5 capture fell to every ~240 s = +/-40% on a 10-min cycle.
+#             *** GAS IS THE ONLY METER WHERE CAPTURE RATE ACTUALLY BINDS. ***
+#
+#   WATER     33.6% true capture, ~49 s mean heard interval, against a 10-minute
+#             LeakNow hold. 12x margin. Slow is genuinely fine here.
+#
+# ##### THE 915.500 RUN, RE-TESTED UNDER THE CORRECTED PLAN #####
+# Nyquist 914.19-916.81 against a gas notch of 914.81-917.01: the window lands
+# almost entirely inside the hole. Surviving gas channels: 914.21, 914.41,
+# 914.61, 914.81 = 4 of 50. Predicted 4/13 = 0.31x, measured 0.25/1.05 = 0.24x.
+#
+# SIGNIFICANCE, WHICH WAS NOT STATED AT THE TIME (12.0 min of data):
+#     gas       3.0 frames vs 12.6 expected   z = -2.70   SIGNIFICANT
+#     electric 25.1 frames vs 22.4 expected   z = +0.56   not significant
+#     water    14.0 frames vs 14.8 expected   z = -0.19   not significant
+# The "electric 1.12x" and "water 0.95x" quoted from that run were NEVER
+# significant and should not have been reported as ratios without a test (R13).
+# The gas collapse was the only real effect in it.
+#
+# WHAT SURVIVES THE CORRECTION COMPLETELY: the water parity break. 0 odd-
+# multiple-of-14 gaps in 2,077 at 912.380; 3 of 3 at 915.500; 0 of 3 back at
+# 911.500. P <= 3.0e-9. That is a WATER result and owes nothing to the gas hop
+# set. It is also now LOCATABLE: the odd-indexed water transmissions are
+# reachable from 914.19-916.81 and not from 910.19-913.69, which points at the
+# R900 alternating between two frequency sub-bands - consistent with the
+# Neptune manual's "avoids 914 MHz to prevent collision with the Advantage
+# probe" sitting right at the boundary. Untested hypothesis, recorded as such.
+#
+# BUT IT BUYS NOTHING OPERATIONALLY. Water's TOTAL capture is unchanged: 1.23/min
+# at 912.380 (57% of the even half) vs 1.17/min at 915.500 (27% of both halves),
+# against a true 4.29/min. Same number of frames, different sample. Every
+# transmission carries the leak flag, so parity is irrelevant to the only thing
+# water is used for. 915.500 costs 76% of gas and returns no usable capture.
+# DO NOT GO BACK TO IT except deliberately, to characterise the R900.
+
+# !!!!! SUPERSEDED THE SAME DAY. THE SECTION BELOW USED THE WRONG FILING. !!!!!
+# A fifth document arrived: FCC ID EO9100G (Itron grantee code EO9, device
+# ERG-5000, FCC-0200-001, 27 Oct 2006) - "Frequency Hopping Device (100G),
+# 908 - 924 MHz". The DLAS/DLRS/DLAN filings read earlier are grantee EWQ,
+# devices ERG-5003/5006, a LATER DataLogging family with a DIFFERENT band plan.
+# I picked the wrong one and stated its conclusion with far too much confidence.
+#
+# EO9100G RECONSTRUCTION. The four carrier-separation plots (p3-4) were taken at
+# 910.010 / 914.612 / 917.011 / 921.610 MHz - the EDGES OF TWO CONTIGUOUS BLOCKS -
+# and the channel-count plot (p5, CENTER 914.90 SPAN 14.80) carries markers at
+# 910.05 / 914.90 / 917.12 / 921.93 with "There are 50 channels." Stepping
+# 200 kHz (min 199, max 201 per the filing):
+#     block A  910.01 - 914.81   25 channels
+#     block B  917.01 - 921.81   25 channels
+#     notch    914.81 - 917.01   2.20 MHz            total 50. Exact.
+# Each transmission 5.887 ms, pseudo-random, all 50 used equally, never the same
+# channel twice in 20 s. EIRP 23.096 dBm @908 / 22.554 @915 / 21.99 @921.8.
+#
+# THE MEASURED DATA ARBITRATES BETWEEN THE TWO FILINGS, DECISIVELY. Gas channels
+# inside the Nyquist window at the three centres actually run today:
+#     centre   measured  rel      EO9 ch  rel      EWQ ch
+#     911.50    0.95/min 0.90       14    1.08        0
+#     912.38    1.05/min 1.00       13    1.00        0
+#     915.50    0.25/min 0.24        4    0.31        0
+# EO9 predicts 1.00 / 0.31 / 1.08 against measured 1.00 / 0.24 / 0.90. EWQ
+# predicts ZERO channels at all three and needs an elaborate leakage story.
+# THE GAS METER FOLLOWS THE EO9100G PLAN. Everything below this line that says
+# otherwise is wrong and is kept only so the error is legible (R13).
+#
+# WHAT THIS CORRECTS, PLAINLY:
+#  1. "The gas meter is not in our band" - WRONG. 13 of its 50 channels are
+#     inside the Nyquist window at 912.380 right now.
+#  2. "Every gas frame ever decoded arrived through the analog filter skirt" -
+#     WRONG. Gas is received directly, in band, like the other two.
+#  3. "Gas is disjoint from electric and water, zero overlap, one dongle cannot
+#     serve all three" - WRONG, and it was the strongest claim of the day. Gas
+#     sits ENTIRELY INSIDE the electric range. All three meters live in the same
+#     910-922 MHz stretch. One dongle serves them by design, not by luck.
+#  4. The -centerfreq=920500000 candidate is WITHDRAWN - see below.
+#  5. 915.5's collapse now has a real mechanism: its window 914.19-916.81 sits
+#     almost exactly inside the gas notch 914.81-917.01. Four channels left.
+#
+# AND 912.380 IS WITHIN ONE CHANNEL OF OPTIMAL:
+#     centre   Nyquist          gas   elec   water
+#     911.50  910.19-912.81   14/50  21.5%  26.2%   model-best
+#     912.38  911.07-913.69   13/50  21.5%  26.2%   DEPLOYED
+#     920.50  919.19-921.81   14/50  21.3%   8.1%   withdrawn: -18 pts water
+# 911.50 and 912.38 are a statistical tie - the model prefers 911.50 by one
+# channel (+8%), the measurement prefers 912.38 by 0.10 frames/min (+10%), and
+# both differences sit inside the noise on 76 and 138 frames. STAY AT 912.380.
+# The residual noted earlier - 911.5 being closer to gas yet measuring lower -
+# is now understood as this tie, not as an anomaly needing a mechanism.
+#
+# CAVEAT KEPT OPEN (R11): the label reads "100G DLT", and DLT is not among
+# EO9100G / EWQ100GDLAS / EWQ100GDLRS / EWQ100GDLAN. The band plan that matches
+# observed behaviour is the one to design against; which filing the label maps
+# to is not established.
+
+# ##### GAS PRIMARY SOURCE, 2026-08-25. THE GAS METER IS NOT IN OUR BAND. #####
+# Module identified from the meter label: Itron 100G DLT (barcode 12 20109304
+# 100G DLT), on an Itron B696-W index, American Meter AL-425 body. Itron grantee
+# code EWQ. Filings read in full: EWQ100GDLAS (FCC-5006-001-induct, 15.247 FHSS),
+# EWQ100GDLRS (FCC-5006-008), EWQ100GDLAN (FCC-5003-001). All three share one
+# band plan. NOTE: the exact DLT variant is not among them - DLAS/DLRS/DLAN are.
+#
+# THE CHANNEL MAP, from EWQ100GDLAN p5 (measured carrier separation):
+#     ch 5 = 903.010   ch 6 = 903.210   ch 64 = 914.809
+#     ch 65 = 915.011  ch 123 = 926.609 ch 124 = 926.810
+# -> f(n) = 903.010 + 0.200*(n-5) MHz, 200 kHz spacing, channels 5..124.
+#
+# TWO MODES, AND ONLY ONE OF THEM IS WHAT WE DECODE:
+#     Itron FM  - 120 channels, 903.0-926.8, 97 kHz BW. Datalogging. NOT SCM.
+#     Itron AM  -  50 channels, OOK. THIS is the SCM that rtlamr reads.
+# EWQ100GDLAN p2 states "50 channels AM Modulation / 120 channels FM Modulation".
+# The FM section submits 8 plots covering ch 5-124 continuously. The AM section
+# submits only TWO, and their markers give the endpoints:
+#     "Channels 5 to 34 AM"    markers 902.988 .. 907.829  -> ch 5 .. ch 29
+#     "Channels 100 to 124 AM" markers 921.995 .. 926.810  -> ch 100 .. ch 124
+# 25 + 25 = 50, matching the stated channel count exactly.
+#
+# *** GAS SCM HOP SET:  903.01-907.81 MHz   AND   922.01-926.81 MHz ***
+# *** DEAD ZONE BETWEEN THEM: 907.81-922.01 MHz, 14.20 MHz WIDE      ***
+#
+# AND THE CONSEQUENCE THAT ENDS THE ONE-DONGLE QUESTION:
+#     electric Y8E-VM1991  909.59-921.78   overlap with gas hop set: 0.00 MHz
+#     water    P2SR900M    910.00-920.00   overlap with gas hop set: 0.00 MHz
+# THE GAS METER AND THE OTHER TWO ARE DISJOINT IN FREQUENCY. Not close, not
+# partially overlapping - zero. Electric and water live entirely inside the gas
+# meter's 14.2 MHz dead zone. No single 2.62 MHz window, and no single 6 MHz
+# analog window, can contain a gas channel and an electric/water channel at once.
+#
+# SO EVERY GAS FRAME THIS SYSTEM HAS EVER DECODED ARRIVED THROUGH THE r82xx
+# ANALOG FILTER SKIRT. At 912.380 the analog passband is 909.38-915.38 and the
+# nearest gas channel is ch 29 at 907.81 - 1.57 MHz OUTSIDE it, with zero gas
+# channels inside either the Nyquist or the analog window at any centre we have
+# ever run. Gas gets through because it is loud: 0.26 W (24.1 dBm) conducted in
+# AM mode against the electric meter's 94.57 mW, i.e. ~4 dB hotter at the source.
+# That is the whole mechanism, and it retro-explains the frequency sweep:
+#     centre    nearest gas cluster edge     measured gas
+#     911.50            3.69 MHz               0.95/min
+#     912.38            4.57 MHz               1.05/min
+#     915.50            6.51 MHz               0.25/min
+# 915.5 collapsing is exactly right. 911.5 NOT beating 912.38 despite being
+# 0.88 MHz closer does NOT fit skirt attenuation alone - 0.95 vs 1.05 on 76 vs
+# 138 frames is inside noise, but it is not explained, and it is recorded here
+# unexplained rather than dressed up (R11, R13).
+#
+# WHAT THIS DOES NOT CHANGE. 912.380 still meets all three stated priorities
+# (see WHAT ACTUALLY LIMITS EACH METER). Gas at ~1.05/min = ~15 samples per
+# furnace cycle is adequate. But it is adequate BY LEAKAGE, not by design, and
+# that is a materially different thing to rely on than a meter you are tuned to.
+# IF GAS EVER NEEDS TO BE PROPER: -centerfreq=905400000 puts 13 of 50 gas
+# channels inside Nyquist and all 25 of the lower cluster inside the 6 MHz
+# analog window - and loses electric and water COMPLETELY. That is the second
+# dongle argument, and unlike the version dismissed earlier today it is now
+# documented rather than speculative.
+
+# !!!!! WITHDRAWN. Built on the EWQ band plan, which the data rejected. The
+# !!!!! 230 kHz "near-touch" at 921.78/922.01 is an artefact of the wrong hop
+# !!!!! set. Under EO9, 920.50 gives gas 14 channels but water only 8.1% vs
+# !!!!! 26.2% at 912.380 - eighteen points of water for one gas channel. No.
+# !!!!! The observation was a good one and it is what forced the re-check.
+# ##### REOPENED 2026-08-25 BY AN OBSERVATION OF BILL'S: THE 922 MHz EDGE. #####
+# "looks like the overlap would be closest to 920". Correct, and it is the only
+# place in the 902-928 band where the gas meter comes near another meter:
+#     LOW  side  gas ch29 907.81 -> electric 909.59      gap 1.78 MHz
+#     HIGH side  electric 921.78 -> gas ch100 922.01     gap 0.230 MHz   <<<
+# 230 kHz. Everywhere else they are megahertz apart. Every centre frequency
+# tested on 2026-08-25 (911.5 / 912.38 / 915.5) sat in the middle of the gas
+# meter's 14.2 MHz dead zone with ZERO gas channels inside either the 2.62 MHz
+# Nyquist window OR the 6 MHz analog window - the nearest gas channel was
+# 1.57 MHz outside the analog passband. The whole sweep was conducted somewhere
+# the gas meter does not transmit, which is why it only ever moved gas by skirt
+# attenuation.
+#
+# COVERAGE NEAR THE EDGE (gas channels counted exactly; electric/water as
+# fraction of documented range, uniform-density approximation):
+#     centre  sl   Nyquist         analog 6MHz   gasNy gasAN  eNy  wNy
+#     912.38  80  911.07-913.69  909.38-915.38     0     0    22%  26%   <- today
+#     920.00  80  918.69-921.31  917.00-923.00     0     5    22%  13%
+#     920.50  80  919.19-921.81  917.50-923.50     0     8    21%   8%   <- candidate
+#     921.00  80  919.69-922.31  918.00-924.00     2    10    17%   3%
+#     921.50  80  920.19-922.81  918.50-924.50     5    13    13%   0%
+#
+# THE CANDIDATE: -centerfreq=920500000, symbollength 80 unchanged.
+# It is the first configuration in which the gas meter is inside the tuner at
+# all - 8 gas channels sit in the 6 MHz analog passband instead of the nearest
+# one being 1.57 MHz outside it. Electric barely moves (22% -> 21% Nyquist) and
+# has 2.7x surplus over its 86 s counter tick regardless. Water is the payer:
+# 26% -> 8% Nyquist, roughly a 3x cut, taking it from heard-every-49 s to
+# heard-every-~2.5 min against a 10-minute LeakNow hold. Still viable, with less
+# margin. 921.00 is rejected because it puts water at 3% = ~7 min, too close.
+#
+# WHY SYMBOLLENGTH 96 IS TEMPTING AND NOT BEING TAKEN YET: 80 and 96 both exceed
+# the r82xx 2,430,000 Hz threshold so both get the SAME 6 MHz analog filter, and
+# 96 buys 3.146 MHz of Nyquist for the same skirt - strictly more coverage.
+# But 32768*96 = 3,145,728 S/s, and the RTL2832U drops samples for many dongles
+# above ~2.56 MS/s. Untested here, and it would be a second variable. One at a
+# time.
+#
+# PREDICTION RECORD FOR THE DAY, STATED BEFORE THIS RUNS (R11): three centre-
+# frequency predictions were made on 2026-08-25 and ONE was right. Water's dead
+# phase coming alive: falsified. Symbollength 80 electric ~30.8%: came in 35.1%.
+# 911.5 helping gas: wrong, it fell. This prediction differs in KIND rather than
+# in confidence - it is not "shift the window and hope", it is "put the meter
+# inside the passband for the first time". That is worth one run to find out.
+#
+# DECISION RULE, checkable in about an hour:
+#     KEEP    gas above ~1.05/min (today's leakage rate) and clearly rising
+#     ABORT   water below 0.40/min (heard slower than 2.5 min) - leak margin
+#     ABORT   electric below 0.70/min - that is its own 86 s counter tick
+# NOT YET DEPLOYED.
+
+# ##### THE CENTRE-FREQUENCY SEARCH IS FINISHED. 912380000 IS THE ANSWER. #####
+# Four centres measured at symbollength 80, frames per wall-clock minute:
+#
+#     centre     gas    elec   water   note
+#     911.500   0.95*   1.76    1.18   worse on ALL THREE (80 min, 76 gas frames)
+#     912.380   1.05    1.87    1.23   BEST for gas; keep
+#     915.500   0.25    2.09    1.17   electric peak, but gas collapses to 0.24x
+#     (912.600155 and 912.380000 are rtlamr's own defaults, 220 kHz apart,
+#      and measured indistinguishable - see the pin test)
+#     * 0.91x the 912.380 reference
+#
+# The gradient does NOT continue downward. Going lower from 912.380 loses gas
+# AND electric AND water, so 912.380 is a genuine local peak rather than the
+# lucky side of a slope. Going higher gains electric and kills gas. There is no
+# measured centre where all three are best, and since electric and gas pull in
+# opposite directions there probably is none.
+#
+# AND IT DOES NOT MATTER, WHICH IS THE POINT. Against the stated priorities -
+# electric fast for SEM accuracy, gas fast enough for per-furnace-cycle heat,
+# water slow if leak detection stays viable - 912.380 already satisfies all
+# three with margin (see WHAT ACTUALLY LIMITS EACH METER above):
+#     electric  32 s capture vs an 86 s counter tick   2.7x oversampled
+#     gas       57 s capture vs a 10-20 min cycle      ~15 samples/cycle
+#     water     49 s heard   vs a 10-min LeakNow hold  12x
+# Electric's extra 0.22 frames/min at 915.5 converts into NOTHING, because the
+# meter's counter only advances every 86 s. A second dongle would buy the same
+# nothing. STOP TUNING THE RADIO. The remaining wins are elsewhere: compare SEM
+# to the utility at 15-min or hourly windows rather than 5-min (+/-14% -> +/-4.8%
+# -> +/-1.2%, free), raise sdr_gas_stale_minutes from 5 to ~15, and deploy the
+# UPS outage automation.
+#
+# THE OPTIMISATION THAT FOLLOWS. Electric has roughly 2.7x surplus over its own
+# 86 s counter tick and that surplus is WASTED - it cannot improve SEM agreement.
+# Gas is the binding constraint. So the correct move for these priorities is to
+# spend electric's surplus on gas: tune LOWER, toward where the gas ERT lives,
+# and accept it as long as electric's mean gap stays comfortably under 86 s.
+# Candidate: -centerfreq=911500000 (Nyquist 910.19-912.81, analog 908.5-914.5 at
+# symlen 80). ACCEPT IF gas frames/min rises and electric mean gap stays < 60 s.
+# REVERT IF electric mean gap approaches 86 s, because past that point you start
+# missing genuine counter ticks and the SEM comparison degrades for real.
+#
+# THE TRADE TABLE. Sample rate = 32768 * symbollength, exactly. Bandwidth and
+# CPU both scale with it, and for scm so does capture (capture = BW / hop span).
+# Predicted capture = 27.7% * symbollength/72. CPU delta measured at 72 is
+# +13.0 pp of whole-host processor_use (2.6% baseline 08-14..08-20 -> 15.6% on
+# 08-23/24), scaled linearly.
+#
+#   symlen   sample rate    bandwidth    elec capture   SDR W   host W   $/yr vs now
+#      32     1,048,576     +/-0.52 MHz     12.3%        2.87    11.29    -3.63
+#      48     1,572,864     +/-0.79 MHz     18.5%        3.45    11.86    -2.18
+#      56     1,835,008     +/-0.92 MHz     21.5%        3.73    12.15    -1.45
+#      64     2,097,152     +/-1.05 MHz     24.6%        4.02    12.43    -0.73
+#      72     2,359,296     +/-1.18 MHz     27.7%*       4.30*   12.72*    0.00   <- now
+#      80     2,621,440     +/-1.31 MHz     30.8%        4.59    13.01    +0.73
+#      88     2,883,584     +/-1.44 MHz     33.8%        4.87    13.29    +1.45
+#      96     3,145,728     +/-1.57 MHz     36.9%        5.16    13.58    +2.18
+#   (* = measured. rtltcp -s should be set to the sample rate column.)
+#
+# WATTS, MEASURED 2026-08-24 from sensor.ha_n100_pc_current_consumption - the
+# Kasa plug on the host, ~15,000 samples/day. This replaces the earlier note
+# that wattage "could not be measured": monitoring_load is the wrong sensor
+# (host + UPS outlet + router on one feed), the PC plug is the right one.
+#
+#   no SDR       (08-15..08-20)  8.416 W   n=93,394
+#   sleep_for:60 (~50% duty)    11.433 W   -> +3.017 W
+#   sleep_for:0  (100% duty)    12.719 W   -> +4.303 W
+#
+# Two duty points solve the load into fixed and rate-proportional parts,
+# delta = F + V*duty:  V = 2.572 W, F = 1.731 W.
+#
+# THAT FIXED 1.73 W IS THE TUNER THAT NEVER POWERS DOWN, NOW MEASURED. The
+# 2026-08-22 entry reasoned that SIGKILL runs no cleanup, so rtlsdr_cancel_async()
+# and rtlsdr_close() never execute and librtlsdr's tuner power-down never runs -
+# and flagged it explicitly as "reasoning from how signals work, not measured".
+# It is measured now: 1.73 W of the SDR load survives a sleep window in which
+# both processes are dead. The reasoning was right.
+#
+# LIMITS (R11): F/V rest on two duty points and the CHANGELOG's ~50% duty figure
+# for sleep_for: 60. Scaling V with symbollength assumes CPU and USB power are
+# proportional to sample rate, which is plausible and NOT measured - only the 72
+# row is real. The 8.416 W baseline is a true no-SDR figure: it is flat to
+# +/-0.03 W across 08-10..08-20 and the add-on first ran on 08-21.
+#
+# librtlsdr accepts anything in 900001..3200000 (librtlsdr.c
+# rtlsdr_set_sample_rate), so 96 is legal at the driver. Whether USB 2.0
+# sustains it is a separate question the driver does not answer: above ~2.4 Msps
+# dropped samples are common, and dropped samples would break the linearity in
+# the table. That is precisely why 96 is an EXPERIMENT with a falsifiable
+# prediction (36.9%) and not a recommendation. If capture lands well short of
+# 36.9%, the link is dropping samples and the answer is to go back to 72.
+#
+# BUT 36.9% IS A PROJECTION, NOT A CEILING, AND THE MODEL UNDER IT IS SHAKY.
+# Added 2026-08-24 rather than leaving the figure looking harder than it is.
+# capture = BW / hop span is fitted to ONE measured point, which is what sets
+# the 8.51 MHz denominator. Published ERT channel-plan figures do not agree:
+# 50 channels over 909.6-921.8 MHz is a 12.2 MHz span, which predicts 19.3% at
+# the current 2.359 MHz - against 27.7% measured. Receiving 43% MORE than the
+# published plan predicts admits only two explanations:
+#   (a) this meter's hop set is narrower than 12.2 MHz, or
+#   (b) the hop distribution is NON-UNIFORM and the window currently sits in a
+#       favourable part of it.
+# (b) breaks the assumption the whole table rests on. Under uniform hopping only
+# the WIDTH of the window matters and position is irrelevant; under (b) position
+# matters too, possibly more than width. On the 12.2 MHz reading the ceiling at
+# symbollength 96 is 25.8% - WORSE than today - which would mean the surplus is
+# coming from placement and widening would partly throw it away.
+#
+# The geometric fit does NOT settle this. It proves the misses are independent
+# in TIME; it says nothing about how the hop set is distributed in FREQUENCY. A
+# non-uniform hop set still yields geometric gaps, because p is just the summed
+# probability of the in-window channels.
+#
+# A burst test was attempted and is INCONCLUSIVE (recorded so it is not re-run
+# in the belief it settled something). One source claims a transmission repeats
+# the packet on several frequencies inside one second. Counting InfluxDB points
+# per distinct last_seen timestamp gave exactly 1.000 for all three meters - but
+# that is tautological: last_seen has 1 s resolution, so same-second decodes
+# carry an identical value, produce no HA state change, and write one point
+# regardless. The test discriminates nothing. The real instrument is the add-on
+# log at verbosity: debug, where "Published reading" lines carry milliseconds.
+#
+# THE DONGLE (Bill, 2026-08-24): Nooelec NESDR SMArt v5. RTL2832U + R820T2,
+# 0.5 PPM TCXO, aluminium enclosure, vendor-rated "up to 3.2 MSPS".
+# Three consequences, and none of them were assumed before he said which it is:
+#
+#  1. 3.2 MSPS IS THE CHIP CEILING, NOT A WORKING RATE. symbollength 96 asks for
+#     3,145,728 Hz - 98.3% of the rated maximum. STEP TO 80 (2,621,440 Hz) FIRST,
+#     not 96. It is the same experiment with the same sign, 11% more bandwidth
+#     for ~0.29 W, and it leaves headroom to attribute a bad result to the change
+#     rather than to the dongle falling off a cliff. Only go to 96 if 80 is clean.
+#
+#  2. THE TCXO IS THE ONE PIECE OF GOOD NEWS FOR THE SWEEP. 0.5 PPM at 912 MHz
+#     is +/-456 Hz, against ~240 kHz channel spacing - three orders of margin. So
+#     the tuned window really lands where -centerfreq says, sweep steps are
+#     accurate, -freqcorrection is unnecessary, and thermal drift cannot smear
+#     the result. A stock 1-2 PPM dongle would still be fine here; the TCXO just
+#     removes the question.
+#
+#  3. THE ALUMINIUM ENCLOSURE PARTLY ANSWERS THE ORIGINAL sleep_for ARGUMENT.
+#     sleep_for: 60 was set to cut dongle heat and extend life. This part is
+#     already heatsinked, which is most of what a duty cycle was buying - and the
+#     watts say the duty cycle costs $10.93/yr of capture to save nothing.
+#
+# A LATENT STALL HAZARD, RELEVANT TO PUSHING THE SAMPLE RATE UP. rtl_tcp reports
+# consumer backlog by printf from inside its USB callback (rtl_tcp.c:189,
+# "ll+, now %d"), and it silently discards the OLDEST queued buffer once the
+# queue reaches llbuf_num+2 (default 500+2) - the drop itself prints nothing.
+# Meanwhile the add-on drains rtl_tcp's stdout only until the 'listening...'
+# ready pattern: MeterReader holds self.rtltcp purely for lifecycle (stop,
+# start_with_retry, is_alive) and never calls read_line on it. So the pipe has
+# roughly 64 KiB of OS buffer plus asyncio's StreamReader high-water mark, and
+# then rtl_tcp blocks writing to a pipe nobody reads - inside the callback that
+# services USB. That is self-amplifying: backlog -> prints -> full pipe ->
+# blocked callback -> more backlog.
+# On a healthy system it never fires, because the print is in the `else` branch
+# taken only when the queue is non-empty, and a consumer that keeps up leaves it
+# empty. It becomes reachable exactly when the rate is pushed past what the host
+# can consume. Code path verified; whether it manifests here is NOT verified.
+# The instrument already exists: all three *_meter_age staleness detectors would
+# catch the silence.
+#
+# THEREFORE THE SWEEP OUTRANKS THE HARDWARE. Sweeping -centerfreq across
+# 910-920 MHz is free, costs one restart per point, and discriminates directly:
+# flat capture => uniform hopping, 36.9% is real, and only more spectrum helps;
+# varying capture => position is a live knob. That knob has been randomised at
+# every restart for the life of this install, which is why it has never shown up
+# in any measurement taken here.
+#
+# THE CPU PERCENTAGE WAS A MISLEADING PROXY FOR COST, AND THE WATTS REVERSE THE
+# RECOMMENDATION. 2.6% -> 15.6% of an N100 sounds like something worth chasing.
+# It is 4.30 W, $10.93/yr at $0.29/kWh, against a 200 W quiet-house baseline -
+# 2.2% of baseline power and 0.56% of the annual electricity bill. And the
+# ENTIRE dynamic range of the symbollength knob is about 2.3 W:
+#
+#   72 -> 32   more than halves electric capture (27.7% -> 12.3%)   saves 1.43 W  = $3.63/yr
+#   72 -> 96   predicted to lift it 27.7% -> 36.9%                  costs 0.86 W  = $2.18/yr
+#
+# Those are not close trades. There is nothing here worth saving, and the watts
+# are better spent buying capture than hoarded. If CPU headroom on the host is
+# the real constraint that is a different argument and the table still serves
+# it - but it should be made as a CPU argument, not an energy one.
+#
+# HEAT IS A SEPARATE QUESTION AND THE WATTS DO NOT SETTLE IT. sleep_for was
+# originally set to extend dongle life, not to save electricity, and
+# system_monitor_processor_temperature moved ~128 -> ~146 F across the change.
+# The dongle exposes no temperature through librtlsdr, so the instrument for
+# that remains the one the SDR view already documents: a rising *_meter_age
+# baseline that never returns to zero.
+#
+# THE ALARM MARGINS QUOTED ALL OVER THIS FILE AND IN CHANGELOG.md ARE WRONG.
+# Corrected 2026-08-25 (R6, R13). packages/utility_meters.yaml:749 reads
+#     {{ states('sensor.gas_meter_age') | float(0)
+#        > states('input_number.sdr_gas_stale_minutes') | float(360) }}
+# and 360 is the FALLBACK, reached only if the helper is unreadable. The DEPLOYED
+# helpers read 5.0:
+#     input_number.sdr_gas_stale_minutes       5.0
+#     input_number.sdr_water_stale_minutes     5.0
+#     input_number.sdr_electric_stale_minutes  5.0
+# So the gas stale threshold is 5 MINUTES, not 360. Against a measured max gap of
+# 224.5 s at 912.380 that is 25% margin, NOT "one to two orders of magnitude".
+# binary_sensor.gas_meter_stale had already tripped 5 times in the 2 days before
+# any change today - brief 4-94 s trips - so gas was ALWAYS marginal here.
+# The 360 figure appears in CHANGELOG.md at lines 105, 450 and 854 and was read
+# off the fallback rather than the helper. It was inherited and repeated
+# repeatedly during the 2026-08-25 session before anyone checked the live value:
+# exactly the failure R6 exists to prevent, committed while citing R6.
+#
+# If going DOWN anyway: water is heard every ~42 s and gas every ~62 s, against
+# 5-minute stale thresholds and a 10-minute LeakNow hold. At symbollength 48
+# gas would scale to roughly 93 s, still two orders inside its alarm. Water does
+# NOT scale linearly and must not be predicted that way - its losses are
+# phase-structured, not memoryless, so narrowing the window either leaves the
+# three good phases intact or knocks one out as a step. That one has to be
+# measured, not modelled.
+#
+# WHAT WOULD ACTUALLY FIX THE ELECTRIC METER: more spectrum, which one RTL-SDR
+# cannot give. Two dongles on different centres, or a wider-bandwidth SDR, are
+# the only routes to a step change. Everything in this file is rearranging 2.36
+# MHz of coverage across a ~10 MHz hop span.

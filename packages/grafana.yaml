@@ -1,0 +1,104 @@
+# ===============================================================
+# GRAFANA — local dashboard snapshots
+#
+# A snapshot is an ARCHIVE, not a check. It freezes what a panel displayed,
+# wrong values included. The thing that actually verifies the SPC numbers is
+# automation.nightly_spc_reconciliation / scripts/spc_verify.py, which compares
+# two independent computations of the same quantity. Keep the two ideas apart.
+#
+# The 2026-07-22 attempt at this failed because it asked Grafana for an
+# EXTERNAL snapshot, published to a hosted service Grafana Labs has retired
+# (www/snapshot_update.log holds the 500). Local snapshots have no such
+# dependency, which is the only kind worth having here.
+#
+# Needs a Grafana service-account token in secrets.yaml as `grafana_token`.
+# Without it the script exits 2 and says so rather than failing silently.
+# ===============================================================
+
+shell_command:
+  # NOTE: `--probe` (reachability, snapshot API state, visible dashboards) is a
+  # CLI flag, deliberately NOT a shell_command. Every shell_command in this
+  # config has exactly one automation call site, and ha_audit's
+  # dead-shell-command rule enforces that; a hand-run diagnostic would sit here
+  # permanently WARNing. Nothing is lost - the exit-2 path of the command below
+  # already prints the same setup guidance into the notification. To probe:
+  #   python3 /config/scripts/grafana_snapshot.py --probe
+  #
+  # Snapshot every dashboard the token can see.
+  # Exit 1 = a snapshot failed; exit 2 = could not run (no token/unreachable).
+  #
+  # --expires 604800 (7 days) is NOT cosmetic. Snapshots live in Grafana's own
+  # SQLite inside the add-on data volume, which is inside every nightly backup.
+  # At 4 runs/day across ~12 dashboards an unexpiring set adds ~48 rows/day
+  # FOREVER — it would grow the add-on and every backup without bound and
+  # nothing would ever notice. 7 days keeps ~28 per dashboard, which is the
+  # useful look-back window anyway. Raise it if you want more history; do not
+  # set it to 0.
+  grafana_snapshot: "python3 /config/scripts/grafana_snapshot.py --expires 604800"
+
+automation:
+  # ===============================================================
+  # GRAFANA SNAPSHOTS — every 6 hours
+  # Replaces the automation deleted after the 2026-07-22 failure, which asked
+  # for an external snapshot and could never have worked.
+  #
+  # 00:40/06:40/12:40/18:40 deliberately: clear of the 00:00 pair, and clear of
+  # the 00:15 energy export / 00:20 buffer backup / 00:25 reconciliation /
+  # 00:30 audit run so a snapshot never contends with the nightly chain.
+  #
+  # Notification ids are STABLE, so a still-missing token refreshes one
+  # notification rather than stacking a new one every six hours.
+  # ===============================================================
+  - id: grafana_snapshot_scheduled
+    alias: "Grafana Snapshots (Every 6 Hours)"
+    description: "Local Grafana dashboard snapshots; archival, not verification"
+    mode: single
+    trigger:
+      - platform: time_pattern
+        hours: "/6"
+        minutes: 40
+    condition:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard.
+      - condition: state
+        entity_id: input_boolean.ha_maintenance_mode
+        state: "off"
+    action:
+      - service: shell_command.grafana_snapshot
+        response_variable: snap
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ snap.returncode | int(0) == 2 }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  notification_id: grafana_snapshot_setup
+                  title: "Grafana Snapshots Need a Token"
+                  message: >
+                    Snapshots cannot run yet. This is setup, not a fault.
+
+
+                    {{ snap.stdout }}
+
+
+                    Grafana > Administration > Users and access > Service
+                    accounts > Add service account > role Editor > Add token.
+                    Put it in secrets.yaml as `grafana_token:` (gitignored —
+                    never in a tracked file), then run
+                    `python3 /config/scripts/grafana_snapshot.py --probe`.
+          - conditions:
+              - condition: template
+                value_template: "{{ snap.returncode | int(0) == 1 }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  notification_id: grafana_snapshot_failed
+                  title: "Grafana Snapshot Failed"
+                  message: >
+                    At least one dashboard did not snapshot. Archival only —
+                    this does NOT affect the SPC data or its verification.
+
+
+                    {{ snap.stdout }}
+        # returncode 0 = every dashboard snapshotted. Silence is success.
+        default: []

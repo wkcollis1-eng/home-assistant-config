@@ -21,6 +21,7 @@ import argparse
 import io
 import json
 import os
+import posixpath
 import re
 import sys
 from datetime import datetime
@@ -38,22 +39,70 @@ class Tolerant(yaml.SafeLoader):
 Tolerant.add_multi_constructor("!", lambda l, s, n: {"__tag__": s})
 
 findings = []
-def fail(rule, msg): findings.append(("FAIL", rule, msg))
-def warn(rule, msg): findings.append(("WARN", rule, msg))
-def info(rule, msg): findings.append(("INFO", rule, msg))
+# EVERY FINDING CARRIES ITS OWN FIX. 2026-08-25: acting on a finding meant
+# opening this file (13,900 tokens) to recover the remedy the rule already
+# knew, because the knowledge lived inside a prose sentence. `fix` makes the
+# report self-sufficient - the session acts from the verdict and never needs
+# the audit source in context. A rule with no fix= is a rule that has not
+# finished being written.
+def fail(rule, msg, fix=None): findings.append(("FAIL", rule, msg, fix))
+def warn(rule, msg, fix=None): findings.append(("WARN", rule, msg, fix))
+def info(rule, msg, fix=None): findings.append(("INFO", rule, msg, fix))
+
+
+# PARSE MEMOIZATION (2026-08-25). config_files() is consulted at 13 call sites
+# and known_entities() ran twice, so configuration.yaml (7,415 lines) plus
+# every package was re-parsed on each one. Measured before/after in the commit
+# that added this.
+#
+# SAFETY: handing out the same object twice is only safe if no rule mutates a
+# loaded structure. Audited 2026-08-25 - every .append/.update/.setdefault in
+# this file targets a LOCAL accumulator (cand, seen, called, guarded, vals),
+# never a value returned by load(). If that ever stops being true the fix is to
+# deep-copy on return, NOT to drop the cache and re-introduce the cost.
+_ABSENT = object()
+_load_cache = {}
+_text_cache = {}
 
 
 def load(rel, default=None):
-    p = P(*rel.split("/"))
-    if not os.path.exists(p):
-        return default
-    with io.open(p, encoding="utf-8") as fh:
-        return yaml.load(fh, Loader=Tolerant)
+    v = _load_cache.get(rel, _ABSENT)
+    if v is _ABSENT:
+        p = P(*rel.split("/"))
+        if os.path.exists(p):
+            # A SINGLE MALFORMED FILE MUST NOT TAKE THE WHOLE AUDIT DOWN.
+            # Found 2026-08-25 while fault-testing rule_dashboard_pasted: an
+            # injected view with bad indentation raised yaml.ParserError out of
+            # load() and killed the run before any rule executed. The nightly
+            # 00:30 job would have logged a traceback instead of a verdict -
+            # and a config that will not parse is precisely when this audit is
+            # most needed, not least. Report it as a FAIL and keep going.
+            try:
+                with io.open(p, encoding="utf-8") as fh:
+                    v = yaml.load(fh, Loader=Tolerant)
+            except yaml.YAMLError as exc:
+                where = getattr(exc, "problem_mark", None)
+                fail("unparseable-yaml",
+                     "%s does not parse%s: %s"
+                     % (rel,
+                        " (line %d)" % (where.line + 1) if where else "",
+                        str(getattr(exc, "problem", exc)).strip()),
+                     fix="fix the YAML - every rule that reads %s was SKIPPED "
+                         "this run, so its findings are absent, not clean" % rel)
+                v = _ABSENT
+        else:
+            v = _ABSENT
+        _load_cache[rel] = v
+    return default if v is _ABSENT else v
 
 
 def text(rel):
-    p = P(*rel.split("/"))
-    return io.open(p, encoding="utf-8").read() if os.path.exists(p) else ""
+    v = _text_cache.get(rel, _ABSENT)
+    if v is _ABSENT:
+        p = P(*rel.split("/"))
+        v = io.open(p, encoding="utf-8").read() if os.path.exists(p) else ""
+        _text_cache[rel] = v
+    return v
 
 
 def config_files():
@@ -202,7 +251,7 @@ def _registry_by_uid():
     return out
 
 
-def rule_unique_id_not_entity_id():
+def rule_unique_id_not_entity_id(ents):
     """A unique_id that is not the entity_id is a trap for every consumer.
 
     Inert on its own — HA is happy — but it reads like an entity_id and gets
@@ -219,7 +268,11 @@ def rule_unique_id_not_entity_id():
     correct. slugify(name) is the fallback for entities not yet registered.
     """
     by_uid = _registry_by_uid()
-    live = known_entities()
+    # 2026-08-25: this called known_entities() itself, so it never saw the LIVE
+    # union main() adds - the same sun.sun false-positive class already fixed
+    # for entity-ref-unresolved was still reachable here. Take the set every
+    # other rule takes.
+    live = ents
     text = ""
     # dashboards/ added 2026-08-22. It had never been scanned by any rule, and
     # that is not academic: the runtime-per-HDD control chart plotted
@@ -269,29 +322,91 @@ def _automations():
     return autos
 
 
-def _writes(a):
+# Service calls that CHANGE state. Widened 2026-08-25: the set was
+# set_value/set_datetime/increment/decrement only, so a race expressed as
+# select_option or turn_on/turn_off was invisible to eod-race - the rule that
+# exists to catch exactly that. turn_on/off are included despite being the
+# noisiest: a write/write FAIL is expensive (R7), so the clean tree is proven
+# silent with them in before this ships.
+_WRITE_VERBS = (".set_value", ".set_datetime", ".increment", ".decrement",
+                ".select_option", ".turn_on", ".turn_off", ".toggle",
+                ".set_temperature", ".set_hvac_mode", ".set_percentage")
+
+
+def _svc_targets(o):
+    """Entity ids a service-call dict aims at, across all three schemas.
+
+    `target.entity_id` is current, bare `entity_id:` is the legacy form still
+    present in this config, and `data.entity_id` appears in older scripts. The
+    first version read only `target`, so a legacy-form write was modelled as
+    writing nothing at all.
+    """
     out = set()
+    for src in (o.get("target") or {}, o, o.get("data") or {}):
+        e = src.get("entity_id") if isinstance(src, dict) else None
+        for x in ([e] if isinstance(e, str) else (e or [])):
+            if isinstance(x, str) and re.match(r"^[a-z_]+\.[a-z0-9_]+$", x):
+                out.add(x)
+    return out
+
+
+def _walk_services(a):
+    """Every (service_name, dict) pair anywhere in an automation."""
+    found = []
     def rec(o):
         if isinstance(o, dict):
             svc = o.get("service") or o.get("action")
-            if isinstance(svc, str) and (".set_value" in svc or ".set_datetime" in svc
-                                         or ".increment" in svc or ".decrement" in svc):
-                t = o.get("target") or {}
-                e = t.get("entity_id") if isinstance(t, dict) else None
-                for x in ([e] if isinstance(e, str) else (e or [])):
-                    if x:
-                        out.add(x)
+            if isinstance(svc, str):
+                found.append((svc, o))
             for v in o.values():
                 rec(v)
         elif isinstance(o, list):
             for v in o:
                 rec(v)
     rec(a)
+    return found
+
+
+def _writes(a):
+    out = set()
+    for svc, o in _walk_services(a):
+        if any(v in svc for v in _WRITE_VERBS):
+            out |= _svc_targets(o)
     return out
 
 
+def _unmodelled_writes(a):
+    """Write-shaped calls whose target this rule could NOT resolve.
+
+    THE TRIPWIRE (R7, same pattern as shell-command-multi-call). A write whose
+    entity comes from a template or a script variable cannot be compared
+    against another automation's reads, so eod-race is silent on it - and a
+    silent race check is indistinguishable from a clean one. Rather than
+    pretend the coverage exists, name the call so the gap is visible at the
+    moment it becomes reachable.
+    """
+    out = set()
+    for svc, o in _walk_services(a):
+        if any(v in svc for v in _WRITE_VERBS) and not _svc_targets(o):
+            out.add(svc)
+    return out
+
+
+# Template idioms that READ an entity. `states(` alone missed is_state() and
+# state_attr(), both of which rule_entity_refs_resolve already understood - so
+# the audit knew these were reads everywhere except in the race check.
+_READ_IDIOMS = (r"states\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+                r"is_state\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+                r"state_attr\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+                r"states\[\s*'([a-z_]+\.[a-z0-9_]+)'")
+
+
 def _reads(a):
-    return set(re.findall(r"states\(\s*'([a-z_]+\.[a-z0-9_]+)'", json.dumps(a, default=str)))
+    blob = json.dumps(a, default=str)
+    out = set()
+    for pat in _READ_IDIOMS:
+        out |= set(re.findall(pat, blob))
+    return out
 
 
 
@@ -756,6 +871,56 @@ def rule_liveness_coverage(man):
 _concurrent_ok = []
 
 
+# The EOD schedule table is hand-maintained prose. It lived only in CLAUDE.md
+# until 2026-08-25, and the check for it was `at not in doc` over the WHOLE
+# FILE - so any time string mentioned in any paragraph satisfied it, and moving
+# the table out of CLAUDE.md would have silently failed every row instead of
+# saying it could no longer find the table. Both halves are fixed here: the
+# rows are parsed as rows, and the table may live in any of these files.
+_EOD_DOCS = ("CLAUDE.md", "docs/eod-timing.md")
+
+
+def _eod_doc_times():
+    """(set_of_HH:MM:SS, filename) for the EOD table, or (None, None)."""
+    # Take the RICHEST file, not the first. Returning the first match would
+    # let a single stray "HH:MM:SS word" line left behind in CLAUDE.md shadow
+    # the real table after it moved to docs/ - the rule would then read three
+    # rows, believe them, and report every other pipeline as undocumented.
+    # A table has rows; three is the floor.
+    best, where = None, None
+    for rel in _EOD_DOCS:
+        t = text(rel)
+        if not t:
+            continue
+        times = set(re.findall(r"^(\d{2}:\d{2}:\d{2})\s+\S", t, re.M))
+        if len(times) >= 3 and (best is None or len(times) > len(best)):
+            best, where = times, rel
+    return (best, where) if best else (None, None)
+
+
+def _at_times(a):
+    """Every fixed HH:MM:SS this automation triggers on.
+
+    Templated and entity-driven times are deliberately not returned - they
+    cannot be compared for equality, and rule_eod_collisions reports them
+    separately rather than pretending they were checked.
+    """
+    trg = a.get("trigger") or a.get("triggers") or []
+    if isinstance(trg, dict):
+        trg = [trg]
+    out = []
+    for t in trg:
+        if not isinstance(t, dict):
+            continue
+        if (t.get("platform") or t.get("trigger")) != "time":
+            continue
+        at = t.get("at")
+        for x in ([at] if isinstance(at, str) else (at or [])):
+            if isinstance(x, str) and re.match(r"^\d{2}:\d{2}:\d{2}$", x):
+                out.append(x)
+    return out
+
+
 def rule_eod_collisions(man):
     """Same-second automations that actually contend, and doc drift.
 
@@ -789,7 +954,16 @@ def rule_eod_collisions(man):
             continue
         seen.setdefault(at, []).append(name)
 
-    for at, names in sorted(seen.items()):
+    # EVERY time-triggered automation, not just the declared pipelines. The
+    # manifest map above is still what the DOC check uses; contention is a
+    # property of the whole config, and scoping it to 20 of ~100 automations
+    # was a race check that could not see most races.
+    seen_all = {}
+    for aid, a in sorted(autos.items()):
+        for at in _at_times(a):
+            seen_all.setdefault(at, []).append(aid)
+
+    for at, names in sorted(seen_all.items()):
         if len(names) < 2:
             continue
         contend = False
@@ -798,6 +972,22 @@ def rule_eod_collisions(man):
                 a, b = autos.get(names[i]), autos.get(names[j])
                 if not a or not b:
                     continue
+                for who, auto in ((names[i], a), (names[j], b)):
+                    um = _unmodelled_writes(auto)
+                    if um:
+                        # FAIL from 2026-08-25. This is the UNPROVABLE case: the
+                        # write target is a template, so the checker cannot tell
+                        # whether it collides. Fail-safe means the case we cannot
+                        # prove safe blocks - treating "could not check" as "no
+                        # finding" is the exact R8 inversion, applied to the one
+                        # rule protecting the midnight window.
+                        fail("eod-write-unmodelled",
+                             "%s: %s calls %s with a templated entity target, so "
+                             "contention with the %d other automation(s) at this "
+                             "second CANNOT BE RULED OUT"
+                             % (at, who, ", ".join(sorted(um)), len(names) - 1),
+                             fix="give the call an explicit target.entity_id so the "
+                                 "race check can see it, or move it off %s" % at)
                 wa, wb = _writes(a), _writes(b)
                 ww = wa & wb
                 rw = (wa & _reads(b)) | (wb & _reads(a))
@@ -807,8 +997,18 @@ def rule_eod_collisions(man):
                          % (at, names[i], names[j], ", ".join(sorted(ww))))
                 elif rw:
                     contend = True
-                    warn("eod-read-write", "%s: %s and %s share %s (one reads what the "
-                         "other writes)" % (at, names[i], names[j], ", ".join(sorted(rw))))
+                    # FAIL, not WARN, from 2026-08-25. Whether the reader sees
+                    # the old or the new value depends on scheduling, so the
+                    # result is not reproducible - and a defect you cannot
+                    # reproduce is one you cannot debug at 23:59 six months
+                    # from now. Blocking is the point.
+                    fail("eod-read-write",
+                         "%s: %s and %s share %s - one reads what the other writes "
+                         "in the same second, so the value read is whichever the "
+                         "scheduler got to first"
+                         % (at, names[i], names[j], ", ".join(sorted(rw))),
+                         fix="stagger one of them by 15s, or have the reader use a "
+                             "value snapshotted in its own variables: block")
         if not contend:
             # Counted, not enumerated. CLAUDE.md's EOD section is explicit that
             # sharing a trigger second is not a problem, so one line per group
@@ -816,12 +1016,41 @@ def rule_eod_collisions(man):
             # ran, which is the only thing it was ever telling you.
             _concurrent_ok.append((at, len(names)))
 
-    doc = text("CLAUDE.md")
-    for at, names in sorted(seen.items()):
-        if at and at not in doc:
-            warn("eod-undocumented",
-                 "%s (%s) is not in CLAUDE.md's EOD TIMING SEQUENCE"
-                 % (at, ", ".join(sorted(names))))
+    # Templated trigger times cannot be compared for equality, so say so rather
+    # than let their absence read as "checked, clean" (R8).
+    untimed = sorted(aid for aid, a in autos.items()
+                     if not _at_times(a)
+                     and any(isinstance(t, dict)
+                             and (t.get("platform") or t.get("trigger")) == "time"
+                             for t in (a.get("trigger") or a.get("triggers") or [])
+                             if isinstance(t, dict)))
+    if untimed:
+        warn("eod-time-unresolvable",
+             "%d automation(s) have a time trigger whose `at` is not a literal "
+             "HH:MM:SS (%s), so they were NOT compared for contention"
+             % (len(untimed), ", ".join(untimed[:5])),
+             fix="these are excluded from the race check by construction - "
+                 "confirm by hand that none of them writes an entity another "
+                 "automation touches at the same moment")
+
+    times, where = _eod_doc_times()
+    if times is None:
+        # R8: the check did not run, so its findings are absent, not clean.
+        warn("eod-doc-uncheckable",
+             "no EOD schedule table found in any of %s - the trigger times in "
+             "pipelines.yaml were NOT checked against the documentation"
+             % ", ".join(_EOD_DOCS),
+             fix="restore the table of `HH:MM:SS  automation_name  stale_detector` "
+                 "rows, or add its new home to _EOD_DOCS in ha_audit.py")
+    else:
+        for at, names in sorted(seen.items()):
+            if at and at not in times:
+                warn("eod-undocumented",
+                     "%s (%s) is not a row in the EOD schedule table in %s"
+                     % (at, ", ".join(sorted(names)), where),
+                     fix="add `%s  %s  <stale_detector>` to THE SCHEDULE in %s "
+                         "(hand-maintained - nothing generates it)"
+                         % (at, sorted(names)[0], where))
 
 
 def rule_stamp_snapshotted(man):
@@ -1131,11 +1360,337 @@ def rule_backup_coverage(man):
 
 
 
+ENTITY_RE = re.compile(r"(?<![\w.])(?:sensor|binary_sensor|input_boolean|"
+                       r"input_button|input_number|input_datetime|switch|light|"
+                       r"climate|counter|automation|script|person|sun|weather)"
+                       r"\.[a-z0-9_]+")
+
+
+def rule_duplicate_ids():
+    """Duplicate automation ids and duplicate pipeline keys.
+
+    NOTHING CAUGHT THIS BEFORE 2026-08-25. PyYAML silently keeps the LAST of
+    two identical mapping keys, so a duplicated pipeline entry does not error -
+    the earlier one just ceases to exist, with no log line anywhere. Two
+    automations sharing an `id:` is the same shape: HA resolves it, quietly,
+    and one of them is not the one you edited.
+
+    Found while testing new_pipeline.py --apply twice, but the rule is not
+    about that script - a hand-edit, a bad merge, or a copy-paste does it just
+    as easily, and this is exactly the class of silent drift pipelines.yaml
+    exists to end.
+    """
+    # STRUCTURAL, NOT TEXTUAL. The first cut of this rule regexed `id:` at any
+    # indentation and produced a FALSE FAIL on the live config: `id: scheduled`
+    # x6 and `id: startup` x6 are TRIGGER ids, which are meant to repeat -
+    # they are the labels trigger.id reads inside a choose. Counting the parsed
+    # list needs no indentation guessing, and automations.yaml being a LIST is
+    # what makes it safe: PyYAML preserves duplicate list entries. Caught by
+    # direction 2 of test_ha_audit.py, 2026-08-25, before it ever ran on H:.
+    cfg = load("automations.yaml")
+    seq = cfg if isinstance(cfg, list) else []
+    seen = {}
+    for a in seq:
+        if isinstance(a, dict) and isinstance(a.get("id"), (str, int)):
+            k = str(a["id"])
+            seen[k] = seen.get(k, 0) + 1
+    for aid, n in sorted(seen.items()):
+        if n > 1:
+            fail("duplicate-automation-id",
+                 "automations.yaml declares id: %s %d times - HA keeps one and "
+                 "the others are silently inert" % (aid, n),
+                 fix="delete the duplicate block; the one you edited may not be "
+                     "the one HA loads")
+
+    ptxt = text("pipelines.yaml")
+    body = ptxt.split("pipelines:", 1)[1] if "pipelines:" in ptxt else ""
+    keys = {}
+    for m in re.finditer(r"^  ([a-z0-9_]+):\s*$", body, re.M):
+        keys[m.group(1)] = keys.get(m.group(1), 0) + 1
+    for k, n in sorted(keys.items()):
+        if n > 1:
+            fail("duplicate-pipeline-key",
+                 "pipelines.yaml declares %s: %d times - PyYAML keeps the LAST "
+                 "one and the rest vanish with no error" % (k, n),
+                 fix="delete the duplicate key; every rule in this audit is "
+                     "reading only the last copy")
+
+
+def rule_open_questions():
+    """R14: a question asked of Bill that never got answered must not go quiet.
+
+    R14 already failed once, on 2026-08-24, and the failure mode was not
+    forgetting to ask - it was asking, getting a reply about something else,
+    and treating that as licence to infer. Cost: a 13-day natural-experiment
+    search and a coincident-step test over 843 events to establish something he
+    could have said in one word.
+
+    A rule whose enforcement is "remember to re-ask" will fail that way again,
+    so the question becomes a file. Because the session protocol reads this
+    audit's verdict aloud at start-up, an unanswered question is now surfaced
+    at the top of every session by a mechanism that does not depend on any
+    session remembering anything.
+    """
+    q = load("open_questions.yaml")
+    if q is None:
+        return          # no file, no questions - not a finding
+    if not isinstance(q, list):
+        warn("open-questions-malformed",
+             "open_questions.yaml is not a list of entries",
+             fix="each entry needs asked:, question:, blocks:, and answered: "
+                 "(absent or null until he answers)")
+        return
+    for i, e in enumerate(q):
+        if not isinstance(e, dict):
+            continue
+        if e.get("answered") not in (None, "", False):
+            continue
+        asked, txt = e.get("asked"), (e.get("question") or "(no text)")
+        age = ""
+        try:
+            d = datetime.strptime(str(asked), "%Y-%m-%d")
+            age = " - %d days outstanding" % (datetime.now() - d).days
+        except (ValueError, TypeError):
+            pass
+        warn("open-question",
+             "UNANSWERED since %s%s: %s (blocks: %s)"
+             % (asked, age, txt, e.get("blocks") or "unstated"),
+             fix="R14 - put this question at the TOP of the next reply, in one "
+                 "line, and leave the dependent work unbuilt. Do NOT substitute "
+                 "a statistical proxy. Set answered: in open_questions.yaml.")
+
+
+class _KeepTag(yaml.SafeLoader):
+    """Like Tolerant, but PRESERVES the scalar a `!tag` carries.
+
+    Tolerant discards it (`{"__tag__": suffix}`), which is right for shape
+    checks and useless here: resolving a yaml-mode dashboard means following
+    `!include <path>`, and the path IS the discarded value.
+    """
+    pass
+
+
+def _keep_tag(loader, suffix, node):
+    if isinstance(node, yaml.ScalarNode):
+        return {"__tag__": suffix, "__value__": loader.construct_scalar(node)}
+    return {"__tag__": suffix}
+
+
+_KeepTag.add_multi_constructor("!", _keep_tag)
+
+
+def _rel_include(base_file, inc):
+    """Resolve a Lovelace `!include` against the INCLUDING FILE'S directory.
+
+    CORRECTED 2026-09-07, by HA rejecting the first attempt. The two include
+    contexts do NOT share a base directory:
+      * configuration.yaml's includes  -> relative to the CONFIG ROOT
+      * a Lovelace dashboard file's    -> relative to THAT FILE'S directory
+    Assuming the first rule for the second produced a doubled path segment:
+    "Unable to read file /config/dashboards/dashboards/views/view-....yaml".
+    """
+    d = posixpath.dirname(base_file)
+    return posixpath.normpath(posixpath.join(d, inc) if d else inc)
+
+
+def _collect_includes(obj, out):
+    """Every `!include`d path reachable inside a parsed structure."""
+    if isinstance(obj, dict):
+        tag = obj.get("__tag__")
+        if isinstance(tag, str) and tag.startswith("include") and "__value__" in obj:
+            out.add(str(obj["__value__"]).replace("\\", "/"))
+            return
+        for v in obj.values():
+            _collect_includes(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _collect_includes(v, out)
+
+
+def _yaml_mode_view_files():
+    """View files served DIRECTLY by a yaml-mode Lovelace dashboard.
+
+    WHY THIS EXISTS (2026-09-07). rule_dashboard_pasted assumes every dashboard
+    is storage-mode: UI-managed in .storage, so a repo view only becomes live
+    once a human pastes it and export_dashboards.py re-exports it. A dashboard
+    registered in configuration.yaml under `lovelace: dashboards:` with
+    `mode: yaml` inverts that completely - HA loads THE FILE, there is nothing
+    to paste, and export_dashboards.py (which reads .storage) will never export
+    it no matter what anyone does.
+
+    Such a view would warn forever, and both remedies the rule offers assert
+    something false: pasting defeats the mode the dashboard was created in, and
+    blanket `ahead-of-live` annotations would declare a live file permanently
+    ahead of live AND blind the rule to genuinely un-pasted entities added to
+    that same file later. So the fix belongs here, in the rule's model of the
+    world, not in an annotation on the data.
+
+    FAILS SAFE, deliberately. Any parse error, missing file, or absent lovelace
+    block returns an empty set - which means every view is checked exactly as
+    before. A bug in this helper can only make the audit STRICTER, never blinder.
+    """
+    try:
+        cfg = yaml.load(text("configuration.yaml"), _KeepTag) or {}
+    except Exception:
+        return set()
+    lace = cfg.get("lovelace")
+    if not isinstance(lace, dict):
+        return set()
+    dashboards = lace.get("dashboards")
+    if not isinstance(dashboards, dict):
+        return set()
+    views = set()
+    for entry in dashboards.values():
+        if not isinstance(entry, dict) or entry.get("mode") != "yaml":
+            continue
+        fn = entry.get("filename")
+        if not isinstance(fn, str):
+            continue
+        # `filename:` in configuration.yaml IS config-root-relative; the
+        # includes INSIDE it are not. See _rel_include.
+        seen, queue = set(), [posixpath.normpath(fn.replace("\\", "/"))]
+        while queue:
+            rel = queue.pop()
+            if rel in seen:
+                continue
+            seen.add(rel)
+            body = text(rel)
+            if not body:
+                continue
+            try:
+                parsed = yaml.load(body, _KeepTag)
+            except Exception:
+                continue
+            found = set()
+            _collect_includes(parsed, found)
+            resolved = {_rel_include(rel, f) for f in found}
+            views |= resolved
+            queue.extend(resolved)
+    return views
+
+
+def rule_dashboard_pasted():
+    """A dashboard edit is not done when the file is written.
+
+    dashboards/ is a SOURCE copy HA never loads; the live dashboards are
+    UI-managed in .storage/lovelace.*, which is correctly off-limits. So the
+    workflow ends with a human pasting YAML into the raw editor - and NOTHING
+    checked that the paste happened.
+
+    P12 is what that gap produces: two rows were repointed at
+    utility_electric_power_avg, every gate passed, and the live card went on
+    reading the superseded utility_electric_power_mean - showing a 60-min mean
+    from the old sensor beside a delta computed from the new one, arithmetic
+    that did not close on screen. Bill caught it by eye.
+
+    THE TEST: an entity referenced in dashboards/views/ that appears in NO
+    exported live dashboard has not been pasted. LIMIT (stated, not papered
+    over): the comparison is against the UNION of all exports, so a paste into
+    the wrong dashboard still reads as done. Declare a deliberate ahead-of-live
+    reference with a `# ha_audit: ahead-of-live <entity_id>` comment in the
+    view file - R9, the exception lives with the data.
+
+    EXCEPTION, and it is structural rather than declared: a view served by a
+    yaml-mode dashboard (see _yaml_mode_view_files) is live BY BEING THE FILE.
+    There is no paste step to verify, so it is excluded here and reported as
+    INFO instead - a silent exemption is how a check quietly stops checking.
+    """
+    served_by_yaml = _yaml_mode_view_files()
+    all_views = [f for f in _dashboard_files() if f.startswith("dashboards/views/")]
+    skipped = sorted(f for f in all_views if f in served_by_yaml)
+    views = [f for f in all_views if f not in served_by_yaml]
+    exports = [f for f in _dashboard_files() if f.startswith("dashboards/lovelace/")]
+    if skipped:
+        info("dashboard-yaml-mode",
+             "%s served directly by a yaml-mode dashboard - nothing to paste, "
+             "and export_dashboards.py reads .storage so it will never appear "
+             "in an export; excluded from the paste check"
+             % ", ".join(skipped),
+             fix="none needed. To put one back under the paste check, remove "
+                 "its dashboard entry from `lovelace: dashboards:` in "
+                 "configuration.yaml and manage it in the UI instead")
+    if not views:
+        return
+    if not exports:
+        warn("dashboard-export-missing",
+             "dashboards/views/ exists but dashboards/lovelace/ has no export, "
+             "so no paste could be verified and .storage/lovelace.* has no backup",
+             fix="run python3 scripts/export_dashboards.py and commit the result")
+        return
+    livetext = "".join(text(f) for f in exports)
+    live = set(ENTITY_RE.findall(livetext))
+    for v in views:
+        t = text(v)
+        allowed = set(re.findall(r"#\s*ha_audit:\s*ahead-of-live\s+([a-z_]+\.[a-z0-9_]+)", t))
+        missing = sorted(set(ENTITY_RE.findall(t)) - live - allowed)
+        if missing:
+            warn("dashboard-not-pasted",
+                 "%s references %s, which appears in no exported live dashboard "
+                 "- the repo copy is ahead of what HA actually renders"
+                 % (v, ", ".join(missing[:6]) + ("..." if len(missing) > 6 else "")),
+                 fix="paste the view into the dashboard's raw configuration "
+                     "editor, then re-run scripts/export_dashboards.py. If the "
+                     "difference is deliberate, add `# ha_audit: ahead-of-live "
+                     "<entity_id>` to %s" % v)
+
+
+def _baseline_report(path, summary):
+    """NEW / FIXED / UNCHANGED against a stored finding set.
+
+    WHY THIS EXISTS. DEFINITION OF DONE step 2 reads "0 FAIL required, WARN
+    count must not INCREASE" - a comparison made by eye, against a number read
+    at session start and carried in the head for the rest of the session. It
+    was the one gate in the whole protocol enforced by memory. This makes "did
+    I make it worse" an exit code.
+
+    A PRE-EXISTING FAIL STILL BLOCKS. A baseline is a way to see the delta, not
+    a way to bless a FAIL by writing it down - so any FAIL exits non-zero even
+    when it is unchanged. Otherwise the first `--baseline` write silently
+    converts every outstanding failure into an approved one.
+
+    INFO IS EXCLUDED. eod-concurrent's message carries live counts, so keeping
+    it would churn the baseline on unrelated changes and train you to
+    re-baseline without reading it - which is how a baseline stops meaning
+    anything.
+    """
+    cur = sorted("%s|%s|%s" % (f[0], f[1], f[2]) for f in findings if f[0] != "INFO")
+    nfail = sum(1 for f in findings if f[0] == "FAIL")
+    if not os.path.exists(path):
+        with io.open(path, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump({"written": datetime.now().isoformat(timespec="seconds"),
+                       "findings": cur}, fh, indent=1)
+        print("BASELINE WRITTEN  %s  (%d finding(s) recorded)" % (path, len(cur)))
+        print(summary)
+        return 1 if nfail else 0
+    try:
+        with io.open(path, encoding="utf-8") as fh:
+            prev = json.load(fh).get("findings") or []
+    except (OSError, ValueError) as exc:
+        print("FAIL  baseline-unreadable       %s: %s" % (path, exc))
+        return 1
+    pset, cset = set(prev), set(cur)
+    new, fixed = sorted(cset - pset), sorted(pset - cset)
+    for k in new:
+        print("NEW    %s" % k.replace("|", "  ", 2))
+    for k in fixed:
+        print("FIXED  %s" % k.replace("|", "  ", 2))
+    print("\n%d NEW, %d FIXED, %d UNCHANGED   (baseline %s)"
+          % (len(new), len(fixed), len(cset & pset), path))
+    print(summary)
+    if new:
+        print("\nNEW findings block. Fix them, or re-baseline DELIBERATELY once "
+              "you have read every line above.")
+    return 1 if (new or nfail) else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quiet", action="store_true", help="failures only")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--log", metavar="FILE", help="append the human report to FILE")
+    ap.add_argument("--baseline", metavar="FILE",
+                    help="report NEW/FIXED/UNCHANGED against a stored finding "
+                         "set; writes FILE if it does not exist")
     args = ap.parse_args()
 
     man = load("pipelines.yaml")
@@ -1159,7 +1714,7 @@ def main():
 
     rule_manifest_matches_config(man)
     rule_entities_resolve(man, ents)
-    rule_unique_id_not_entity_id()
+    rule_unique_id_not_entity_id(ents)
     rule_liveness_coverage(man)
     rule_generated_docs(ents)
     rule_doc_ids(ents)
@@ -1167,7 +1722,11 @@ def main():
     rule_choose_has_default()
     rule_fabricated_limit_constants()
     rule_chart_window_vs_recorder()
-    rule_statistics_buffer(_live_states())
+    # 2026-08-25: this re-fetched /api/states, a SECOND full dump. Worse, if
+    # the second call failed while the first succeeded the report said the live
+    # check was skipped AFTER other rules had already consumed live data. One
+    # fetch, one truth.
+    rule_statistics_buffer((_live, _live_err))
     rule_eod_collisions(man)
     rule_stamp_snapshotted(man)
     rule_latched_guards(man)
@@ -1175,6 +1734,9 @@ def main():
     rule_shell_commands_guarded()
     rule_buffer_health(man)
     rule_backup_coverage(man)
+    rule_duplicate_ids()
+    rule_open_questions()
+    rule_dashboard_pasted()
 
     if _concurrent_ok:
         info("eod-concurrent",
@@ -1185,7 +1747,7 @@ def main():
     order = {"FAIL": 0, "WARN": 1, "INFO": 2}
     findings.sort(key=lambda f: (order[f[0]], f[1], f[2]))
     n = {"FAIL": 0, "WARN": 0, "INFO": 0}
-    for sev, _r, _m in findings:
+    for sev, _r, _m, _fx in findings:
         n[sev] += 1
     npipe = len(man.get("pipelines") or {})
     summary = ("%d FAIL, %d WARN, %d INFO across %d pipelines"
@@ -1200,8 +1762,10 @@ def main():
                 os.makedirs(d, exist_ok=True)
             with io.open(args.log, "a", encoding="utf-8") as fh:
                 fh.write("\n===== %s =====\n" % datetime.now().isoformat(timespec="seconds"))
-                for f in findings:
-                    fh.write("%-5s %-24s %s\n" % f)
+                for sev, rule, msg, fx in findings:
+                    fh.write("%-5s %-24s %s\n" % (sev, rule, msg))
+                    if fx and sev != "INFO":
+                        fh.write("      fix: %s\n" % fx)
                 fh.write(summary + "\n")
         except OSError as exc:
             print("WARN could not write log: %s" % exc, file=sys.stderr)
@@ -1213,16 +1777,24 @@ def main():
         json.dump({"fail": n["FAIL"], "warn": n["WARN"], "info": n["INFO"],
                    "pipelines": npipe, "summary": summary,
                    "ran_at": datetime.now().isoformat(timespec="seconds"),
-                   "findings": [{"severity": a, "rule": b, "message": c}
-                                for a, b, c in findings]},
+                   "findings": [{"severity": a, "rule": b, "message": c,
+                                "fix": d}
+                                for a, b, c, d in findings]},
                   sys.stdout, separators=(",", ":"))
         sys.stdout.write("\n")
         return 1 if n["FAIL"] else 0
 
-    for sev, rule, msg in findings:
+    if args.baseline:
+        return _baseline_report(args.baseline, summary)
+
+    for sev, rule, msg, fx in findings:
         if args.quiet and sev != "FAIL":
             continue
         print("%-5s %-24s %s" % (sev, rule, msg))
+        # The fix belongs next to the finding, not in this file's source.
+        # INFO is excluded: an INFO that needs an action is a WARN (R8).
+        if fx and sev != "INFO":
+            print("      fix: %s" % fx)
     print("\n" + summary)
     return 1 if n["FAIL"] else 0
 

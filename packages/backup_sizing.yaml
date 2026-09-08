@@ -449,6 +449,17 @@ sensor:
   # converges (28% spread, against 293% at 1 h) - short windows swing with
   # whether a furnace call is inside them. sampling_size covers 1,440 one-minute
   # samples with headroom so max_age stays the binding limit.
+  #
+  # SIZING RETUNED 2026-08-25, 1600 -> 1800 on BOTH statistics sensors here.
+  # 1600 was correct in the sense that matters - 1,440 < 1,600, so max_age kept
+  # governing and the mean was never truncated. But 1,440/1,600 = 0.90 sits above
+  # ha_audit's statistics-buffer-truncating WARN threshold of 0.85, so it would
+  # have warned on every run, for ever, about a condition that was not a defect.
+  # This file's own INFO HYGIENE principle says a finding that fires every run
+  # and cannot be actioned is noise that trains you to skim. 1800 puts the two at
+  # 0.80 and 0.75-0.80, silences the permanent WARN, and raises real headroom
+  # from 11% to 25%. A buffer that never fills is the state we want.
+  # Projected from live attributes: steady-state ratio = buffer_usage / age_coverage.
   # SUPERSEDED 2026-08-24 by sensor.backup_essentials_avg_24h, which integrates
   # rather than point-sampling. Kept defined so its history survives; do not use
   # it for runtime. It point-samples POWER once a minute, so its answer depends
@@ -470,7 +481,7 @@ sensor:
     state_characteristic: average_linear
     max_age:
       hours: 24
-    sampling_size: 1600
+    sampling_size: 1800
 
   # --- THE runtime instrument (P18) --------------------------------------
   # Accumulates power*dt on every update of backup_essentials_load, so a 0.5 s
@@ -500,5 +511,5 @@ sensor:
     state_characteristic: change_second
     max_age:
       hours: 24
-    sampling_size: 1600
+    sampling_size: 1800
     precision: 12

@@ -59,11 +59,40 @@ shell_command:
   ha_audit: !secret ha_audit_cmd
 
   # --- the audit's own test suite -----------------------------------------
-  # No secret needed, unlike ha_audit above: the suite does not need HA_TOKEN.
-  # Without HA_URL the throwaway tree it builds simply reports
-  # live-check-skipped, which the harness expects - so the whole command can
-  # live here in tracked YAML. Writes only to the system temp dir, never
-  # /config. shell_command is NOT reloadable; this needs a RESTART.
+  # Writes only to the system temp dir, never /config. shell_command is NOT
+  # reloadable; changing this needs a RESTART.
+  #
+  # CORRECTED 2026-08-25: this comment used to read "the suite does not need
+  # HA_TOKEN... which the harness expects". Both halves were false, and Bill
+  # found it by pressing the button: the suite reported SUITE FAILED (2), both
+  # lines blaming entity-ref-unresolved.
+  #
+  # Without a token the audit under test has no live entity union, so `sun.sun`
+  # reports as unresolved (CLAUDE.md SESSION PROTOCOL documents this) - which
+  # means entity-ref-unresolved fires on the CLEAN tree and its two-direction
+  # test is compromised. So the suite audits a token-less configuration while
+  # shell_command.ha_audit, the thing that actually runs at 00:30, carries a
+  # token: the harness is testing a program we do not ship.
+  #
+  # RESOLVED 2026-08-25, and NOT the way this comment first proposed. The first
+  # fix drafted here was a second secret (ha_audit_tests_cmd) carrying its own
+  # copy of the token. Bill asked why, given ha_audit_cmd already has one - and
+  # he was right: a second copy of a credential is R10 applied to a secret, and
+  # the first rotation that updated one and not the other would leave this
+  # suite quietly testing a token-less audit again, which is the exact failure
+  # being fixed.
+  #
+  # Instead, test_ha_audit.py recovers the token from the EXISTING ha_audit_cmd
+  # secret and passes it to the child audit through the environment only. So
+  # this command needs no token, no change, and no restart - it is correct as
+  # written.
+  #
+  # WHY THE HARNESS AND NOT ha_audit.py: the audit resolves every path against
+  # HA_CONFIG, which under the harness is a THROWAWAY TREE in the system temp
+  # dir. A secrets.yaml fallback inside the audit would find nothing there, and
+  # "fixing" that would mean copying a 183-character API token into a temp
+  # directory on every run. Verified 2026-08-25 that the token value appears in
+  # 0 of 376 files across the generated trees.
   ha_audit_tests: "python3 /config/scripts/test_ha_audit.py --json"
 
   # Mirrors every live dashboard from .storage/lovelace.* into
@@ -74,6 +103,31 @@ shell_command:
   # resolve entity references against - and a dashboard is the one place a
   # broken entity is completely silent.
   export_dashboards: "python3 /config/scripts/export_dashboards.py --json"
+
+  # --- the rest of the toolchain, runnable from the UI (2026-08-25) -------
+  # Each is plain text out, surfaced in the Actions response pane and in a
+  # notification. None of them writes to the config: gate.py runs steps 1/1b/
+  # 2/2b only, and check_provenance.py --all is read-only by construction.
+  #
+  # new_pipeline.py is deliberately ABSENT. It is the one script that mutates
+  # automations.yaml and pipelines.yaml, and a one-click button for that in a
+  # UI with no diff and no undo is the wrong shape - it stays a CLI command
+  # with an explicit --apply and a timestamped backup.
+  ha_gate: "python3 /config/scripts/gate.py --baseline /config/.audit_baseline.json"
+  ha_audit_log_stats: "python3 /config/scripts/audit_log_stats.py"
+  ha_provenance: "python3 /config/scripts/check_provenance.py --all /config/CLAUDE.md"
+
+  # gen_reference.py, in its two modes. Separate names on purpose - see the
+  # patch note: one templated command string would be a per-NAME guard hole
+  # and a shell-injection surface at the same time.
+  #
+  # THE ONLY ACTION IN THIS PACKAGE THAT WRITES. It rewrites ENTITIES.md,
+  # AUTOMATIONS.md and PACKAGES.md. Those are documentation - HA never loads
+  # them - so this is safe with HA up, and it is the step you need right after
+  # a RESTART, when new entities first appear in the registry and the
+  # generated docs go stale.
+  ha_gen_reference_check: "python3 /config/scripts/gen_reference.py --check"
+  ha_gen_reference_write: "python3 /config/scripts/gen_reference.py"
 
 input_number:
   # Written by script.ha_audit. Plain numbers rather than parsing the summary
@@ -92,6 +146,19 @@ input_number:
     step: 1
     mode: box
     icon: mdi:alert
+
+  # Contention gets its own counter rather than being read out of the FAIL
+  # total. Two automations writing the same entity in the same second is the
+  # one failure class that corrupts DATA rather than just reporting - last
+  # writer wins, silently, and the loser leaves no trace anywhere. It is worth
+  # a light of its own on the dashboard, not a share of a number.
+  ha_eod_contention_count:
+    name: "HA EOD Contention Count"
+    min: 0
+    max: 999
+    step: 1
+    mode: box
+    icon: mdi:call-split
 
 input_datetime:
   ha_audit_last_run:
@@ -115,6 +182,30 @@ template:
           warn: "{{ states('input_number.ha_audit_warn_count') }}"
           last_run: "{{ states('input_datetime.ha_audit_last_run') }}"
 
+      # SAME-ENTITY / SAME-SECOND CONTENTION. Split out from ha_audit_failing
+      # deliberately: this is the only failure class that silently corrupts
+      # DATA. eod-race (both write), eod-read-write (one reads what the other
+      # writes) and eod-write-unmodelled (target is a template, so it CANNOT
+      # be ruled out) are all FAIL as of 2026-08-25 - the unprovable case
+      # blocks, which is what fail-safe means.
+      #
+      # No availability: block, same reasoning as the others - a health
+      # indicator that can go unavailable fails in the direction that hides
+      # the fault.
+      - name: "HA EOD Contention"
+        unique_id: ha_eod_contention
+        device_class: problem
+        icon: mdi:call-split
+        state: >
+          {{ states('input_number.ha_eod_contention_count') | float(0) > 0 }}
+        attributes:
+          count: "{{ states('input_number.ha_eod_contention_count') }}"
+          last_run: "{{ states('input_datetime.ha_audit_last_run') }}"
+          meaning: >-
+            Two or more automations write, or read-and-write, the same entity
+            at the same trigger second. Last writer wins silently. Stagger one
+            of them - see CLAUDE.md EOD TIMING SEQUENCE.
+
       # Separate from the FAIL check on purpose: an audit that has not run in
       # days is its own failure, and it is invisible if you only watch the
       # FAIL count (which would sit at its last good value forever).
@@ -131,6 +222,281 @@ template:
           {% endif %}
 
 script:
+  # ------------------------------------------------------------------------
+  # The rest of the toolchain, 2026-08-25. Same shape each time:
+  #   guard -> run -> notify -> return the raw response
+  # The guard is if/then/stop, never a bare condition:, because a failing bare
+  # condition aborts a script SILENTLY and for a hand-run action that reads
+  # exactly like "ran, found nothing" (earned 2026-08-21).
+  # ------------------------------------------------------------------------
+
+  ha_gen_reference:
+    alias: "Regenerate Reference Docs (ENTITIES / AUTOMATIONS / PACKAGES)"
+    icon: mdi:file-refresh
+    mode: single
+    fields:
+      write:
+        name: "Write the files"
+        description: >-
+          Leave OFF to only CHECK whether anything would change (writes
+          nothing). Turn ON to actually regenerate the three docs. Run it with
+          this ON after any RESTART that added entities - the registry only
+          gains them at startup, and ha_audit FAILs on a stale generated doc.
+        required: false
+        default: false
+        selector:
+          boolean:
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                stdout: "Skipped: input_boolean.ha_maintenance_mode is on."
+                returncode: -1
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      # DEFAULT IS THE READ-ONLY PATH. `write` is absent when the action is
+      # invoked with no data at all, so default(false) is what makes a bare
+      # click harmless.
+      - if:
+          - condition: template
+            value_template: "{{ write | default(false) | bool }}"
+        then:
+          - service: shell_command.ha_gen_reference_write
+            response_variable: res
+          - service: persistent_notification.create
+            data:
+              notification_id: ha_gen_reference
+              title: >
+                {{ '❌' if (res.returncode | default(1)) != 0 else '📝' }}
+                Reference docs regenerated
+              message: >
+                ```
+
+                {{ res.stdout | default('(no output)') }}
+
+                ```
+
+
+                Commit ENTITIES.md, AUTOMATIONS.md and PACKAGES.md.
+          - stop: "regenerated"
+            response_variable: res
+      - service: shell_command.ha_gen_reference_check
+        response_variable: res
+      - service: persistent_notification.create
+        data:
+          notification_id: ha_gen_reference
+          title: >
+            {{ '⚠️' if (res.returncode | default(0)) != 0 else '✅' }}
+            Reference docs {{ 'STALE' if (res.returncode | default(0)) != 0 else 'current' }}
+          message: >
+            Checked only — nothing was written.
+
+
+            ```
+
+            {{ res.stdout | default('(no output)') }}
+
+            ```
+
+
+            {% if (res.returncode | default(0)) != 0 %}
+            Re-run this action with **Write the files** turned on.
+            {% endif %}
+      - stop: "checked"
+        response_variable: res
+
+  ha_gate:
+    alias: "Run Config Gate"
+    icon: mdi:gate-open
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                stdout: "Skipped: input_boolean.ha_maintenance_mode is on."
+                returncode: -1
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      - service: shell_command.ha_gate
+        response_variable: res
+      - service: persistent_notification.create
+        data:
+          notification_id: ha_gate
+          title: >
+            {{ '❌' if (res.returncode | default(1)) != 0 else '✅' }} Config Gate
+          message: >
+            ```
+
+            {{ res.stdout | default('(no output)') }}
+
+            ```
+      - stop: "gate complete"
+        response_variable: res
+
+  ha_audit_log_stats:
+    alias: "HA Audit — Rule Coverage vs Nightly Log"
+    icon: mdi:chart-box-outline
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                stdout: "Skipped: input_boolean.ha_maintenance_mode is on."
+                returncode: -1
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      - service: shell_command.ha_audit_log_stats
+        response_variable: res
+      - service: persistent_notification.create
+        data:
+          notification_id: ha_audit_log_stats
+          title: "📊 Audit rule coverage"
+          message: >
+            Rules that have never fired AND have no fault injector prove
+            nothing by their silence.
+
+
+            ```
+
+            {{ res.stdout | default('(no output)') }}
+
+            ```
+      - stop: "log stats complete"
+        response_variable: res
+
+  ha_provenance:
+    alias: "Run Provenance Check (R17)"
+    icon: mdi:tag-check
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                stdout: "Skipped: input_boolean.ha_maintenance_mode is on."
+                returncode: -1
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      - service: shell_command.ha_provenance
+        response_variable: res
+      - service: persistent_notification.create
+        data:
+          notification_id: ha_provenance
+          title: >
+            {{ '⚠️' if (res.returncode | default(0)) != 0 else '✅' }} R17 provenance
+          message: >
+            ```
+
+            {{ res.stdout | default('(no output)') }}
+
+            ```
+      - stop: "provenance complete"
+        response_variable: res
+
+  ha_run_all_checks:
+    alias: "Run ALL HA Config Checks"
+    icon: mdi:playlist-check
+    mode: single
+    sequence:
+      # One button for the whole suite. Runs them in dependency order and keeps
+      # going on failure, because a partial picture chosen by the first
+      # failure is worse than the whole one - each step reports separately.
+      - if:
+          - condition: state
+            entity_id: input_boolean.ha_maintenance_mode
+            state: "on"
+        then:
+          - variables:
+              skipped:
+                summary: "Skipped: input_boolean.ha_maintenance_mode is on."
+          - stop: "maintenance mode is on"
+            response_variable: skipped
+      - service: script.ha_audit
+        response_variable: audit_res
+      # CALL THE SCRIPTS, NOT THE RAW COMMANDS. Calling shell_command directly
+      # here gave each of those names a SECOND call site, and
+      # rule_shell_commands_guarded checks guards per-NAME - so a future
+      # unguarded call to either would have been masked by the guarded one.
+      # The audit's shell-command-multi-call tripwire reported exactly that the
+      # first time this script was written. Going through the scripts keeps one
+      # call site per command and lets each carry its own maintenance guard.
+      - service: script.ha_audit_tests
+        response_variable: tests_res
+      - service: script.ha_audit_log_stats
+        response_variable: stats_res
+      - variables:
+          combined:
+            audit_summary: "{{ audit_res.summary | default('(no audit result)') }}"
+            audit_fail: "{{ audit_res.fail | default(-1) }}"
+            audit_warn: "{{ audit_res.warn | default(-1) }}"
+            contention: "{{ states('input_number.ha_eod_contention_count') }}"
+            # script.ha_audit_tests returns {summary, passed, covered,
+            # total_rule_ids, failures} - NOT the raw shell {stdout, returncode}.
+            # Reading .returncode here printed '?' and made an unknown self-test
+            # result look like a cosmetic gap. R8: absent must not resemble clean.
+            tests_passed: "{{ tests_res.passed | default('DID NOT REPORT') }}"
+            tests_summary: "{{ tests_res.summary | default('SELF-TESTS DID NOT REPORT - treat rule coverage as UNKNOWN') }}"
+            tests_covered: "{{ tests_res.covered | default('?') }} of {{ tests_res.total_rule_ids | default('?') }}"
+            tests_failures: "{{ tests_res.failures | default('') }}"
+      - service: persistent_notification.create
+        data:
+          notification_id: ha_run_all_checks
+          title: >
+            {{ '❌' if (audit_res.fail | default(1)) > 0
+                     or tests_res.passed is not defined
+                     or not tests_res.passed else '✅' }}
+            All checks — {{ audit_res.summary | default('?') }}
+          message: >
+            **Audit** — {{ audit_res.summary | default('?') }}
+
+
+            **Same-second contention** —
+            {{ states('input_number.ha_eod_contention_count') }}
+            (any value above 0 means two automations touch one entity at the
+            same trigger second; last writer wins silently)
+
+
+            **Self-tests** —
+            {%- if tests_res.summary is defined %}
+            {{ tests_res.summary }}
+            ({{ tests_res.covered }} of {{ tests_res.total_rule_ids }} testable rule ids covered)
+            {%- if tests_res.failures %}
+
+
+            FAILURES: {{ tests_res.failures }}
+            {%- endif %}
+            {%- else %}
+            ⚠️ **DID NOT REPORT.** Rule coverage is UNKNOWN — a rule that cannot
+            fire looks exactly like a rule with nothing to report (R7/R8).
+            Run "Run HA Audit Self-Tests" on its own to see why.
+            {%- endif %}
+
+
+            **Coverage**
+
+            ```
+
+            {{ stats_res.stdout | default('(none)') }}
+
+            ```
+      - stop: "all checks complete"
+        response_variable: combined
+
   ha_audit:
     alias: "Run HA Audit"
     icon: mdi:clipboard-check
@@ -229,6 +595,20 @@ script:
       - service: input_number.set_value
         target: {entity_id: input_number.ha_audit_warn_count}
         data: {value: "{{ report.warn }}"}
+      # Counted with an explicit loop rather than selectattr/select('match'):
+      # this has to keep working across HA template-engine changes, and a
+      # namespace loop is the form with no version risk.
+      - service: input_number.set_value
+        target: {entity_id: input_number.ha_eod_contention_count}
+        data:
+          value: >
+            {% set ns = namespace(n=0) %}
+            {% for f in report.findings %}
+              {% if f.severity == 'FAIL' and f.rule[:4] == 'eod-' %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n }}
       - service: input_datetime.set_datetime
         target: {entity_id: input_datetime.ha_audit_last_run}
         data: {datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"}

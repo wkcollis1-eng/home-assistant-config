@@ -2346,6 +2346,28 @@ sensor:
 
   # Trailing-24h mean of compressor-on watts — feeds ONLY the live
   # out-of-control check above, never the nightly calendar-day capture.
+  #
+  # sampling_size 33000 -> 60000 (2026-09-07). Measured buffer_usage_ratio had
+  # reached 0.85, i.e. ~28,050 samples in 24 h. age_coverage_ratio was still
+  # 1.0, so max_age WAS still governing at that moment — but that is precisely
+  # the window in which to act. Once the buffer reaches 1.00 the oldest samples
+  # are evicted BEFORE they age out, and the statistic silently stops being
+  # "the last 24 hours" and becomes "the last 33,000 samples". Nothing goes
+  # unavailable and nothing is logged; the averaging window just quietly
+  # shortens — and it shortens most on the days the fridge works hardest,
+  # which are exactly the days the out-of-control check matters.
+  #
+  # WHY 85 % WAS NOT COMFORTABLE. sensor.fridge_power_when_on is
+  # availability-gated on power > threshold, so it only publishes WHILE THE
+  # COMPRESSOR RUNS — the sample count scales with daily RUNTIME, not with wall
+  # clock. The 0.85 reading was taken in September; summer duty is materially
+  # higher, so the remaining 15 % would have been consumed by the season rather
+  # than by any configuration change. 60000 puts present usage near 47 %,
+  # leaving roughly 2x headroom against the hottest-day case.
+  #
+  # Same failure mode as the 2026-08-07 dehumidifier note above (2000 -> 4000),
+  # where truncation biased the daily statistic by -0.56 W. That one was caught
+  # only after it had skewed a chart; this one was caught before.
   - platform: statistics
     name: "Fridge Running Watts 24h"
     unique_id: fridge_running_watts_24h
@@ -2353,7 +2375,7 @@ sensor:
     state_characteristic: mean
     max_age:
       hours: 24
-    sampling_size: 33000
+    sampling_size: 60000
     precision: 1
 
   - platform: history_stats
@@ -3062,6 +3084,92 @@ automation:
       - service: shell_command.spc_buffer_export
 
   # ===============================================================
+  # NIGHTLY SPC RECONCILIATION — trust but verify
+  # Recomputes each appliance's daily running watts straight from the raw
+  # InfluxDB power series and compares it against the 23:59 capture. Two
+  # INDEPENDENT computations of the same quantity; nothing else in this config
+  # checks the captures against the data they summarise.
+  #
+  # This exists because that gap has bitten twice and both times went unnoticed
+  # for a MONTH: the InfluxDB CQs 9.0 W away from the HA charts, and the SPC
+  # panels four hours off the captures (P12). Re-running this check over
+  # 2026-08-19..21 still reproduces the second one (fridge -5.8 %, ac -4.9 %)
+  # and shows it clean from 08-22 on, which is how the bands below were set.
+  #
+  # A Grafana snapshot cannot do this job: it preserves whatever the chart
+  # showed, wrong values included.
+  #
+  # 00:25 — after the 00:20 buffer backup has flushed and before the 00:30
+  # audit, so a drift line is already in the log when the audit runs. Shares
+  # its second with nothing (audit eod-concurrent groups: 00:00:00, 23:59:00,
+  # 23:59:30).
+  # ===============================================================
+  - id: nightly_spc_verify
+    alias: "Nightly SPC Reconciliation"
+    description: "Recompute SPC daily watts from raw InfluxDB and compare to the captures"
+    mode: single
+    trigger:
+      - platform: time
+        at: "00:25:00"
+    condition:
+      # CLAUDE.md: MUST wrap every shell_command call with this guard.
+      - condition: state
+        entity_id: input_boolean.ha_maintenance_mode
+        state: "off"
+    action:
+      - service: shell_command.spc_verify
+        response_variable: verify
+      - choose:
+          # returncode 2 = the checker itself failed. Reported separately
+          # because an alert that blames the data for a broken checker sends
+          # you looking in the wrong place.
+          - conditions:
+              - condition: template
+                value_template: "{{ verify.returncode | int(0) == 2 }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  notification_id: spc_verify_error
+                  title: "⚠️ SPC Reconciliation Could Not Run"
+                  message: >
+                    spc_verify.py failed to complete, so the captures went
+                    UNVERIFIED last night. This says nothing about whether the
+                    SPC data is good — only that nothing checked it.
+
+
+                    {{ verify.stderr | default('(no stderr)') }}
+
+
+                    Most likely: InfluxDB unreachable from the HA container, or
+                    influxdb_* missing from secrets.yaml. Reproduce with
+                    `python3 /config/scripts/spc_verify.py`.
+          - conditions:
+              - condition: template
+                value_template: "{{ verify.returncode | int(0) == 1 }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  notification_id: spc_verify_drift
+                  title: "⚠️ SPC Reconciliation Drift"
+                  message: >
+                    One or more SPC captures disagree with the raw InfluxDB
+                    power series by more than their band. The capture and the
+                    chart are summarising something the raw data does not
+                    support.
+
+
+                    {{ verify.stdout }}
+
+
+                    Full history: /config/www/spc/spc_verify_history.csv
+                    (append-only). Re-run by hand with
+                    `python3 /config/scripts/spc_verify.py --days 14` to see
+                    whether this is one bad night or a standing offset.
+        # returncode 0 = every comparable appliance inside its band. Silence is
+        # the success case; no notification is deliberate.
+        default: []
+
+  # ===============================================================
   # SPC CAPTURE WATCHDOG — notification
   # Mirrors notify_runtime_per_hdd_capture_stale in automations.yaml,
   # including the 2-hour debounce: the opportunity gate is computed from
@@ -3607,3 +3715,11 @@ shell_command:
   # Nightly rolling-buffer backup (see automation.nightly_buffer_backup).
   # Append-only; the script never opens the CSV for writing or truncation.
   spc_buffer_export: "python3 /config/scripts/spc_buffer_export.py >> /config/www/spc/buffer_backup.log 2>&1"
+
+  # Nightly SPC reconciliation (see automation.nightly_spc_verify).
+  # Unlike spc_seed.py this DOES work as a shell_command: it reads the InfluxDB
+  # credentials from secrets.yaml when INFLUXDB_* is unset, which is exactly the
+  # case HA's shell_command environment presents. Exits 1 on drift, and the
+  # automation notifies on that returncode - so stdout is NOT redirected away
+  # here; the script appends its own log.
+  spc_verify: "python3 /config/scripts/spc_verify.py"

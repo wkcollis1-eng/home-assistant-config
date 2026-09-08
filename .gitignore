@@ -1,6 +1,12 @@
 # Secrets and sensitive data
 secrets.yaml
 secrets_*.yaml
+# Any DERIVATIVE of secrets.yaml. Added 2026-09-03 after a secrets.yaml.bak
+# was created during an edit: the two patterns above match the file itself
+# but NOT .bak/.orig/.tmp/.save siblings, so an editor swap file or a
+# hand-made backup was one `git add -A` from a public remote.
+secrets.yaml.*
+secrets*.bak
 *.pem
 *.key
 
@@ -73,3 +79,22 @@ esphome/.device-builder*
 # project's content. Belongs in its own repo, not vendored into this one,
 # where it would silently go stale against its source.
 baseline-repo/
+
+# ha_source.py cache of HA core source, pinned per .HA_VERSION.
+# Derived, refetchable, and large - never commit it.
+docs/vendor/
+
+# Runtime state from the audit toolchain, added 2026-08-26. Both are
+# per-machine and derived: .audit_baseline.json is the finding set gate.py
+# diffs against, .ha_audit_stamp is the Stop hook's mtime + block counter.
+# Committing either would make every machine fight over the other's state.
+.audit_baseline.json
+.claude/hooks/.ha_audit_stamp
+
+# Claude Code LOCAL settings - the "local" scope in the settings cascade, which
+# is gitignored by convention everywhere else. Tracking it in a PUBLIC repo
+# published the machine's allow-list. Untracked 2026-08-26; it holds no
+# secrets (29 allow rules, no tokens) but it is per-machine and does not belong
+# to the config. The project-scope .claude/settings.json IS tracked and should
+# stay so - that one is the shared policy.
+.claude/settings.local.json

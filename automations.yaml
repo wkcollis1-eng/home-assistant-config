@@ -3685,7 +3685,9 @@
 #   XIAO ESP32-C3 + INA260   — voltage/current/power/Ah telemetry (I2C)
 #   DS18B20                  — battery temperature (1-Wire)
 #   Victron BP-65            — hardware LVD at 11.80V (always active)
-#   HA Green                 — executes software shutdown
+#   ASRock N100DC-ITX        — executes software shutdown (was the HA Green;
+#                              migrated 2026-08, and fed from the 12 V bus via
+#                              the 18 V U3V70A boost since 2026-08-29)
 #
 # Binary sensor → automation map:
 #   ups_monitor_on_battery        ON  → Auto 1: outage start notify
@@ -3710,12 +3712,27 @@
 #   Cliff    : ~17 min  (< 12.40V, −30 to −58 mV/min)
 #   Total to LVD: ~213 min at 1.18A / 15.0W average (INA260 coulomb-counted, May 2026)
 #
+# SUPERSEDED 2026-08-29 — the 18 V boost put the N100DC host on the 12 V bus.
+# Measured load is now 2.089 A / 26.80 W steady, 2.533 A / 32.48 W peak
+# [M, n=156 5 s samples, 2026-08-29 23:46:30–23:59:30Z]. The durations above
+# scale by 0.60 [D: 53.3 Wh / 25.01 W outage mean]:
+#   Settling ~3 min · Plateau ~85 min · Knee ~29 min · Cliff ~10 min
+#   Total to LVD: ~128 min  (was ~213)
+# [D], NOT re-measured: the scaling does not model the extra IR sag at 2.09 A,
+# which crosses each threshold at a higher SoC. Only a deep discharge at the
+# new load closes it. sensor.ups_monitor_runtime_remaining_minutes divides by
+# LIVE current and needs no correction — these comments did.
+#
 # Shutdown timing — May 6 2026 outage validation (Rev 2):
 #   v3 graceful shutdown VALIDATED via cliff_imminent (slope-based) path, NOT voltage_critical.
 #   cliff_imminent fired at V=12.431V / 13:39:41 UTC; hassio.host_shutdown called at 13:40:11;
 #   last HA sample 13:40:17. voltage_critical (12.20V) not crossed until 13:48:07 — 8 min
 #   after HA was already down. Auto 4 was not exercised and remains as structural backstop.
-#   cliff_imminent at ~12.43V provides ~17 min to BP-65 LVD — sufficient for ~15 min HA shutdown.
+#   cliff_imminent at ~12.43V provided ~17 min to BP-65 LVD at the 1.18 A load —
+#   ~10 min [D] at the 2.089 A load since 2026-08-29. Still sufficient: the May
+#   test had the host down 6 s after the service call (13:40:11 → 13:40:17); the
+#   '~15 min HA shutdown' figure this line used to cite was a budget, not a
+#   measurement, and it never applied to the observed sequence.
 # ===============================================================
 
 # ---------------------------------------------------------------
@@ -3790,7 +3807,8 @@
           {% else %}
           Runtime: estimating…
           {% endif %}
-          Validated cliff duration: ~17 min at 1.18A load.
+          Cliff duration ~10 min at the measured 2.089A load
+          (was ~17 min at 1.18A, validated May 2026).
           Graceful shutdown initiating.
 
 # ---------------------------------------------------------------
@@ -3802,10 +3820,12 @@
 #   • runtime_remaining_minutes < 8   (coulomb-counter derived estimate — structural backup only)
 #
 # Validated cliff timing (INA260, May 2026):
-#   Cliff phase: ~17 min from 12.40V to BP-65 LVD (11.80V).
+#   Cliff phase: ~17 min from 12.40V to BP-65 LVD (11.80V) at 1.18 A;
+#                ~10 min [D] at the 2.089 A load measured 2026-08-29.
 #   Slope: −30 mV/min at cliff entry, accelerating to −58 mV/min at LVD.
-#   HA Green shutdown sequence: ~15 min observed.
-#   cliff_imminent fired at ~12.43V with ~17 min to LVD — sufficient margin.
+#   Host shutdown sequence: 6 s observed (host_shutdown 13:40:11, last sample
+#                13:40:17). The '~15 min' this block used to claim was a budget.
+#   cliff_imminent fired at ~12.43V — margin still ample at the new load.
 #
 # Why cliff_imminent is the primary trigger (validated May 2026):
 #   cliff_imminent fired at 13:39:41 UTC (V=12.431), ~3 min before voltage_warning
@@ -3880,7 +3900,8 @@
         title: "🔴 UPS: Graceful Shutdown Initiating"
         message: >
           {% if trigger.id == 'warning_trigger' %}
-          Cliff entry threshold reached (12.40V). ~17 min to BP-65 LVD.
+          Cliff entry threshold reached (12.40V). ~10 min to BP-65 LVD
+          at the current 26.8W load.
           {% elif trigger.id == 'cliff_trigger' %}
           Cliff imminent — slope below −10 mV/min.
           {% else %}
@@ -3891,10 +3912,13 @@
           {% if rt not in ['unknown', 'unavailable', 'none'] and rt | float(-1) > 0 %}
           Runtime remaining: ~{{ rt | float(0) | round(0) | int(0) }} min.
           {% endif %}
-          HA Green shutting down in 30 s.
+          Host shutting down in 30 s.
 
     # 30s stability buffer.
-    # At ~12.43V with a ~17 min cliff, 30s costs <3% of available shutdown window.
+    # At ~12.43V the cliff is ~10 min at the 2.089 A load (was ~17 min at 1.18 A),
+    # so 30 s now costs ~5% of the shutdown window rather than <3%. Kept: the
+    # observed shutdown takes 6 s, and the bounce-abort this delay buys is worth
+    # more than 30 s of a 600 s margin.
     # A brief recovery bounce will abort shutdown at the revalidation step.
     - delay: "00:00:30"
 
@@ -3925,7 +3949,7 @@
 #
 # This is the final HA software safety net above BP-65 hardware LVD.
 # ESPHome threshold: critical_voltage = 12.20V.
-# At 12.20V: ~10 min to BP-65 LVD.
+# At 12.20V: ~10 min to BP-65 LVD at 1.18 A; ~6 min [D] at the 2.089 A load.
 # May 6 measured: V<12.20 at 13:48:07 → BP-65 trip ~13:58:30 = ~10.4 min.
 # (Slope steepens −34→−58 mV/min through this window; linear projection overstates the time.)
 #
@@ -3952,9 +3976,10 @@
       data:
         title: "🔴 UPS CRITICAL — Emergency Shutdown"
         message: >
-          Voltage critical threshold (12.20V) reached. ~10 min to BP-65 LVD.
+          Voltage critical threshold (12.20V) reached. ~6 min to BP-65 LVD
+          at the current 26.8W load.
           Voltage: {{ states('sensor.ups_monitor_battery_voltage') | float(0) | round(2) }}V.
-          HA Green performing emergency shutdown NOW.
+          Host performing emergency shutdown NOW.
           BP-65 hardware LVD at 11.80V is the final backstop.
 
     # Immediate shutdown — no delay at this voltage level.

@@ -1,0 +1,980 @@
+type: sections
+max_columns: 2
+title: New UPS Dashboard
+path: new-ups-dashboard
+sections:
+  - type: grid
+    cards:
+      - type: gauge
+        entity: sensor.ups_monitor_battery_voltage
+        name: UPS Battery
+        min: 10.5
+        max: 15
+        needle: true
+        segments:
+          - from: 10.5
+            color: '#db4437'
+          - from: 11.8
+            color: '#FF7043'
+          - from: 12.2
+            color: '#ff9800'
+          - from: 12.4
+            color: '#FDD835'
+          - from: 12.65
+            color: '#43a047'
+          - from: 13.15
+            color: '#26A69A'
+      - type: gauge
+        entity: sensor.ups_monitor_battery_temperature
+        name: UPS Temperature
+        min: 50
+        max: 95
+        needle: true
+        unit: °F
+        segments:
+          - from: 50
+            color: '#ff9800'
+          - from: 60
+            color: '#43a047'
+          - from: 85
+            color: '#ff9800'
+          - from: 90
+            color: '#db4437'
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_on_battery
+        name: On Battery
+        icon: mdi:power-plug-off
+        tap_action:
+          action: more-info
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: sensor.ups_monitor_discharge_phase
+        name: Discharge Phase
+        icon: mdi:state-machine
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: sensor.ups_monitor_runtime_remaining_minutes
+        name: Runtime Remaining
+        icon: mdi:battery-clock
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_xfinity_modem_online
+        name: Modem Online
+        icon: mdi:router-network
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_knee_approaching
+        name: Knee Approaching
+        icon: mdi:trending-down
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_cliff_imminent
+        name: Cliff Imminent
+        icon: mdi:alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_voltage_warning
+        name: Voltage Warning
+        icon: mdi:battery-alert-variant-outline
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_voltage_critical
+        name: Voltage Critical
+        icon: mdi:battery-alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: switch.ups_outlet
+        name: UPS Outlet (Test — cuts AC to PSU)
+        icon: mdi:battery-charging
+        tap_action:
+          action: toggle
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_battery_fully_charged
+        name: Fully Charged
+        icon: mdi:battery-check
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_ina260_healthy
+        name: INA260
+        icon: mdi:chip
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.ups_monitor_ds18b20_healthy
+        name: DS18B20
+        icon: mdi:thermometer
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: UPS Battery Voltage (24h)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: voltage
+            min: 11.7
+            max: 13.5
+            apex_config:
+              tickAmount: 6
+              title:
+                text: Volts
+        apex_config:
+          chart:
+            height: 315
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 11.8
+                borderColor: '#FF5722'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: BP-65 Hard Cutoff (11.80 V — 102 s spec delay)
+                  position: right
+                  style:
+                    color: '#FF5722'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 12.2
+                borderColor: '#FF7043'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: HA Hard Fallback (12.20 V — Auto 4)
+                  position: right
+                  style:
+                    color: '#FF7043'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 12.4
+                borderColor: '#FF9800'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Voltage Warning (12.40 V — Auto 2)
+                  position: right
+                  style:
+                    color: '#FF9800'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 12.65
+                borderColor: '#F44336'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Cliff V Gate (12.65 V — Auto 3 armed if slope<-10)
+                  position: right
+                  style:
+                    color: '#F44336'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 13.15
+                borderColor: '#26C6DA'
+                borderWidth: 1
+                strokeDashArray: 3
+                label:
+                  text: On-Battery Trip (13.15 V — Auto 1)
+                  position: right
+                  style:
+                    color: '#26C6DA'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 13.3
+                borderColor: '#00CA8B'
+                borderWidth: 2
+                strokeDashArray: 0
+                label:
+                  text: PSU Float setpoint (13.30 V — observed 13.197 V since the boost)
+                  position: right
+                  style:
+                    color: '#00CA8B'
+                    background: transparent
+                    fontSize: 11px
+        series:
+          - entity: sensor.ups_monitor_battery_voltage
+            name: Battery Voltage
+            color: '#1A89F5'
+            stroke_width: 3
+            yaxis_id: voltage
+            float_precision: 3
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Battery Current (24h)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: amps
+            min: -3
+            max: 1.5
+            apex_config:
+              tickAmount: 6
+              title:
+                text: Amps
+        apex_config:
+          chart:
+            height: 315
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#888888'
+                borderWidth: 1
+                strokeDashArray: 2
+              - 'y': -1.18
+                borderColor: '#9E9E9E'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: Pre-boost baseline (-1.18 A, May 2026)
+                  position: right
+                  style:
+                    color: '#9E9E9E'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': -2.089
+                borderColor: '#66BB6A'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Measured baseline (-2.089 A, 2026-08-29 [M])
+                  position: right
+                  style:
+                    color: '#66BB6A'
+                    background: transparent
+                    fontSize: 10px
+        series:
+          - entity: sensor.ups_monitor_battery_current
+            name: Current
+            color: '#66BB6A'
+            stroke_width: 2
+            yaxis_id: amps
+            float_precision: 4
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Battery Power (24h)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: watts
+            min: -40
+            max: 40
+            apex_config:
+              tickAmount: 5
+              title:
+                text: Watts
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': -14.9
+                borderColor: '#9E9E9E'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: Pre-boost baseline (14.9 W, May 2026)
+                  position: right
+                  style:
+                    color: '#9E9E9E'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': -26.8
+                borderColor: '#FFA726'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Measured baseline (26.8 W, 2026-08-29 [M])
+                  position: right
+                  style:
+                    color: '#FFA726'
+                    background: transparent
+                    fontSize: 10px
+        series:
+          - entity: sensor.ups_monitor_battery_power
+            name: Power
+            color: '#FFA726'
+            stroke_width: 2
+            yaxis_id: watts
+            float_precision: 3
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Voltage Slope — EMA-Smoothed (mV/min)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: slope
+            min: -70
+            max: 5
+            apex_config:
+              tickAmount: 5
+              title:
+                text: mV/min
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#555555'
+                borderWidth: 1
+                strokeDashArray: 2
+              - 'y': -3
+                borderColor: '#FF9800'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Knee threshold (-3 mV/min)
+                  position: right
+                  style:
+                    color: '#FF9800'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': -10
+                borderColor: '#F44336'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Cliff threshold (-10 mV/min — Auto 3 trigger)
+                  position: right
+                  style:
+                    color: '#F44336'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': -58
+                borderColor: '#9C27B0'
+                borderWidth: 1
+                strokeDashArray: 3
+                label:
+                  text: Peak observed cliff (-58 mV/min, May 2026)
+                  position: right
+                  style:
+                    color: '#9C27B0'
+                    background: transparent
+                    fontSize: 10px
+        series:
+          - entity: sensor.ups_monitor_voltage_slope
+            name: Slope (EMA)
+            color: '#AB47BC'
+            stroke_width: 2
+            yaxis_id: slope
+            float_precision: 2
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Temperature — Last 24 Hours
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        yaxis:
+          - id: temp
+            min: 55
+            apex_config:
+              title:
+                text: °F
+        apex_config:
+          chart:
+            height: 315
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+        series:
+          - entity: sensor.ups_monitor_battery_temperature
+            name: Battery Enclosure
+            color: '#00CA8B'
+            stroke_width: 2
+            yaxis_id: temp
+            float_precision: 1
+            show:
+              in_header: true
+          - entity: sensor.shellyhtg3_54320456fd9c_temperature
+            name: Ambient
+            color: '#F7D88B'
+            stroke_width: 2
+            opacity: 0.7
+            yaxis_id: temp
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Operational View — Runtime Remaining vs Wh Consumed
+          show_states: true
+          colorize_states: true
+        graph_span: 6h
+        update_interval: 30s
+        all_series_config:
+          stroke_width: 2
+          type: line
+          curve: smooth
+        series:
+          - entity: sensor.ups_monitor_runtime_remaining_minutes
+            name: Runtime Remaining (min)
+            color: '#c0392b'
+            yaxis_id: rt_axis
+            show:
+              in_header: true
+              legend_value: true
+          - entity: sensor.ups_monitor_wh_delivered_this_outage
+            name: Wh Consumed
+            color: '#2980b9'
+            yaxis_id: wh_axis
+            show:
+              in_header: true
+              legend_value: true
+        yaxis:
+          - id: rt_axis
+            min: 0
+            max: 150
+            decimals: 0
+            apex_config:
+              title:
+                text: Runtime Remaining (min)
+                style:
+                  color: '#c0392b'
+          - id: wh_axis
+            opposite: true
+            min: 0
+            max: 80
+            decimals: 2
+            apex_config:
+              title:
+                text: Wh Consumed
+                style:
+                  color: '#2980b9'
+        apex_config:
+          chart:
+            height: 315
+          tooltip:
+            shared: true
+          annotations:
+            yaxis:
+              - yAxisIndex: 0
+                'y': 8
+                strokeDashArray: 4
+                borderColor: '#c0392b'
+                label:
+                  text: >-
+                    Auto 3 runtime fallback (< 8 min — cliff path usually fires
+                    first)
+                  style:
+                    color: '#c0392b'
+                    background: transparent
+              - yAxisIndex: 1
+                'y': 53.3
+                strokeDashArray: 3
+                borderColor: '#2980b9'
+                label:
+                  text: Capacity 53.3 Wh (May 2026, INA260)
+                  style:
+                    color: '#2980b9'
+                    background: transparent
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Discharge Curve — Voltage vs Ah Consumed
+          show_states: true
+          colorize_states: true
+        graph_span: 6h
+        update_interval: 10s
+        all_series_config:
+          stroke_width: 2
+          type: line
+          curve: smooth
+        series:
+          - entity: sensor.ups_monitor_battery_voltage
+            name: Voltage (V)
+            color: '#1A89F5'
+            yaxis_id: v_axis
+            show:
+              in_header: true
+              legend_value: true
+          - entity: sensor.ups_monitor_ah_delivered_this_outage
+            name: Ah Consumed
+            color: '#e67e22'
+            yaxis_id: ah_axis
+            show:
+              in_header: true
+              legend_value: true
+        yaxis:
+          - id: v_axis
+            min: 11.5
+            max: 13.4
+            decimals: 2
+            apex_config:
+              title:
+                text: Voltage (V)
+                style:
+                  color: '#27ae60'
+          - id: ah_axis
+            opposite: true
+            min: 0
+            max: 5
+            decimals: 3
+            apex_config:
+              title:
+                text: Ah Consumed
+                style:
+                  color: '#e67e22'
+        apex_config:
+          chart:
+            height: 315
+          tooltip:
+            shared: true
+            x:
+              show: true
+          annotations:
+            yaxis:
+              - yAxisIndex: 0
+                'y': 12.65
+                strokeDashArray: 4
+                borderColor: '#F44336'
+                label:
+                  text: Cliff V Gate 12.65 V (Auto 3)
+                  style:
+                    color: '#F44336'
+                    background: transparent
+              - yAxisIndex: 0
+                'y': 12.4
+                strokeDashArray: 4
+                borderColor: '#e67e22'
+                label:
+                  text: Warning 12.40 V (Auto 2)
+                  style:
+                    color: '#e67e22'
+                    background: transparent
+              - yAxisIndex: 0
+                'y': 12.2
+                strokeDashArray: 4
+                borderColor: '#c0392b'
+                label:
+                  text: Critical 12.20 V (Auto 4 fallback)
+                  style:
+                    color: '#c0392b'
+                    background: transparent
+              - yAxisIndex: 0
+                'y': 11.8
+                strokeDashArray: 2
+                borderColor: '#7f8c8d'
+                label:
+                  text: BP-65 LVD 11.80 V
+                  style:
+                    color: '#7f8c8d'
+                    background: transparent
+              - yAxisIndex: 1
+                'y': 4.18
+                strokeDashArray: 3
+                borderColor: '#e67e22'
+                label:
+                  text: Capacity 4.18 Ah (May 2026)
+                  style:
+                    color: '#e67e22'
+                    background: transparent
+      - type: markdown
+        title: Estimated Runtime
+        content: >
+          {% set phase = states('sensor.ups_monitor_discharge_phase') %}
+
+          {% set rt = states('sensor.ups_monitor_runtime_remaining_minutes') |
+          float(-1) %}
+
+
+          {% set phase_color =
+            'cyan'    if phase in ['Charging', 'Float'] else
+            'lime'    if phase == 'Settling' else
+            '#81C784' if phase == 'Plateau' else
+            'orange'  if phase == 'Knee' else
+            'red'     if phase == 'Cliff' else 'silver' %}
+
+          ### Status: <font color="{{ phase_color }}">{{ phase }}</font>
+
+
+          {% if rt > 0 %}
+
+          ### Runtime: <font color="{{ phase_color }}">{{ (rt // 60) | int(0)
+          }}h {{ (rt % 60) | int(0) }}m</font>
+
+          {% elif phase in ['Charging', 'Float'] %}
+
+          ### Runtime: <font color="cyan">-- On AC Power</font>
+
+          {% else %}
+
+          ### Runtime: <font color="silver">-- Calculating...</font>
+
+          {% endif %}
+
+
+          | Phase | Voltage | @ 14.9 W May | @ 26.9 W Sep 1 |
+
+          | :--- | :---: | ---: | ---: |
+
+          | <font color="cyan">{{ '->' if phase in ['Charging','Float'] }}
+          Charging / Float</font> | > 13.15 V | -- | -- |
+
+          | <font color="lime">{{ '->' if phase == 'Settling' }} Settling</font>
+          | 13.00–13.15 V | ~5 min | none — starts loaded at 12.97 V |
+
+          | <font color="#81C784">{{ '->' if phase == 'Plateau' }}
+          Plateau</font> | 12.65–13.00 V | ~142 min | **~43 min [M]** |
+
+          | <font color="orange">{{ '->' if phase == 'Knee' }} Knee</font> |
+          12.40–12.65 V | ~49 min | ~20 min [D] |
+
+          | <font color="red">{{ '->' if phase == 'Cliff' }} Cliff</font> |
+          11.80–12.40 V | ~17 min | not measured |
+
+          | **Shutdown fires** | ~12.45 V | ~155 min | **~60–70 min [D]** |
+
+
+          ***
+
+          <font color="#FF9800">HA Voltage Warning (Auto 2) at **12.40
+          V**</font>
+
+          <font color="#F44336">HA Graceful Shutdown (Auto 3) on
+          **cliff_imminent** — slope-based; typical V ≈ 12.45 V</font>
+
+          <font color="#FF7043">HA Hard Fallback (Auto 4) at **12.20 V**</font>
+
+          <font color="#FF5722">BP-65 Hard Cutoff at **11.80 V** (102 s spec
+          delay)</font>
+
+          ***
+
+          <font color="silver"><i>Load 26.91 W / 2.111 A [M, n=615, 51 min,
+          2026-09-01 outage test]. Right-hand column MEASURED on that test: 54
+          min on battery, 12.97 → 12.565 V, 1.833 Ah / 23.37 Wh = 43.8% of
+          capacity. It replaces an energy-scaled projection that said ~85 min of
+          plateau; the real figure is ~43, because on the flat LFP plateau the
+          extra IR sag at 2.11 A dominates — 12.65 V is now reached at ~35%
+          depth against ~69% in May. Knee is part-measured (11 min of it) and
+          part-extrapolated at −8.5 mV/min. NOTHING below 12.565 V has been
+          measured at this load. Energy alone gives ~123 min to LVD, but the
+          ladder trips on volts and fires far sooner. Runtime Remaining above
+          divides by LIVE current and needs no correction.</i></font>
+      - type: markdown
+        title: UPS Thresholds
+        content: >
+          {% set v = states('sensor.ups_monitor_battery_voltage') | float(0) |
+          round(3) %}
+
+          {% set cliff = states('binary_sensor.ups_monitor_cliff_imminent') %}
+
+
+          | Threshold | Trigger | Active |
+
+          | :--- | :---: | :--- |
+
+          | <font color="#00CA8B">PSU Float</font> | 13.30 V setpoint | {{ '→
+          Normal' if v >= 13.15 else '' }} |
+
+          | <font color="#26C6DA">On-Battery (Auto 1)</font> | V < 13.15 V, 10 s
+          | {{ '→ On Battery' if v < 13.15 and v > 12.40 else '' }} |
+
+          | <font color="#FF9800">Voltage Warning (Auto 2)</font> | V < 12.40 V,
+          30 s + I<-0.10 A | {{ '→ Warning' if v <= 12.40 and v > 12.20 else ''
+          }} |
+
+          | <font color="#F44336">**Cliff Imminent (Auto 3)**</font> | slope<-10
+          mV/min, V<12.65, 60 s | {{ '→ Shutdown' if cliff == 'on' else '' }} |
+
+          | <font color="#FF7043">Hard Fallback (Auto 4)</font> | V < 12.20 V,
+          10 s + I<-0.10 A | {{ '→ Emergency' if v <= 12.20 and v > 11.80 else
+          '' }} |
+
+          | <font color="#FF5722">BP-65 Hardware LVD</font> | V < 11.80 V, 12 s
+          alarm + 90 s | {{ '→ Hard Cutoff' if v <= 11.80 else '' }} |
+
+
+          ***
+
+          <center><font color="silver"><i>Current Voltage: {{ v }}
+          V</i></font></center>
+        grid_options:
+          rows: auto
+      - type: entities
+        title: Device Health & Controls
+        entities:
+          - entity: sensor.ups_monitor_wifi_signal
+            name: WiFi Signal
+            icon: mdi:wifi
+          - entity: sensor.ups_monitor_esp32_internal_temperature
+            name: ESP32 Temp
+            icon: mdi:thermometer
+          - entity: sensor.ups_monitor_uptime
+            name: Uptime
+            icon: mdi:clock-outline
+          - entity: binary_sensor.ups_monitor_ina260_alert
+            name: INA260 Alert
+            icon: mdi:alert-circle
+          - entity: sensor.ups_monitor_voltage_slope
+            name: Voltage Slope (EMA)
+            icon: mdi:trending-down
+          - entity: sensor.tv_room_ups_monitor_apparent_ri
+            name: Apparent Ri
+            icon: mdi:omega
+          - entity: sensor.ups_monitor_last_recharge_step_resistance
+            name: Last Recharge Resistance
+            icon: mdi:omega
+          - type: divider
+          - entity: button.ups_monitor_reset_last_outage_data
+            name: Reset Last Outage Data
+            action_name: RESET
+          - entity: button.ups_monitor_reset_lifetime_counters
+            name: Reset Lifetime Counters
+            action_name: RESET
+      - type: history-graph
+        title: Battery Voltage (12H)
+        hours_to_show: 12
+        refresh_interval: 30
+        logarithmic_scale: false
+        entities:
+          - entity: sensor.ups_monitor_battery_voltage
+            name: Voltage (V)
+      - type: history-graph
+        title: Battery Current -- Charge (+) / Discharge (-) -- 12 h
+        hours_to_show: 12
+        refresh_interval: 30
+        entities:
+          - entity: sensor.ups_monitor_battery_current
+            name: Current (A)
+      - type: history-graph
+        title: Battery Power (12 h)
+        hours_to_show: 12
+        refresh_interval: 30
+        entities:
+          - entity: sensor.ups_monitor_battery_power
+            name: Power (W)
+      - type: history-graph
+        title: Voltage Slope -- mV/min (12 h)
+        hours_to_show: 12
+        refresh_interval: 60
+        entities:
+          - entity: sensor.ups_monitor_voltage_slope
+            name: Slope (mV/min)
+      - type: history-graph
+        entities:
+          - entity: sensor.ha_n100_pc_current_consumption
+            name: N100 brick (unplugged at the jack)
+        title: HA PC - AC Fallback Path (0 W = on the boost)
+        hours_to_show: 12
+        refresh_interval: 60
+      - type: history-graph
+        entities:
+          - entity: sensor.ups_outlet_current_consumption
+            name: UPS - Power
+        title: UPS/Kasa Plug - Power (12h)
+        hours_to_show: 12
+        refresh_interval: 60
+      - type: markdown
+        title: Outage Data
+        content: >
+          {% set ah   = states('sensor.ups_monitor_last_outage_ah') | float(0)
+          %} {% set wh   = states('sensor.ups_monitor_last_outage_wh') |
+          float(0) %} {% set dur  =
+          states('sensor.ups_monitor_last_outage_duration') | float(0) %} {% set
+          pct  = states('sensor.ups_monitor_last_outage_capacity_used') |
+          float(0) %} {% set minv =
+          states('sensor.ups_monitor_last_outage_min_voltage') | float(0) %} {%
+          set strv = states('sensor.ups_monitor_last_outage_start_voltage') |
+          float(0) %} {% set chrg =
+          states('sensor.ups_monitor_last_recharge_peak_current') | float(0) %}
+          {% set fltv = states('sensor.ups_monitor_last_float_voltage') |
+          float(0) %} {% set cnt  = states('sensor.ups_monitor_total_outages') |
+          int(0) %} {% set ir   =
+          states('sensor.tv_room_ups_monitor_apparent_ri') | float(0) %} {% set
+          ir_tc = states('sensor.ups_monitor_last_recharge_step_resistance') |
+          float(0) %} {% set ah_o =
+          states('sensor.ups_monitor_ah_delivered_this_outage') | float(0) %} {%
+          set wh_o = states('sensor.ups_monitor_wh_delivered_this_outage') |
+          float(0) %} {% set ah_l =
+          states('sensor.ups_monitor_ah_delivered_lifetime') | float(0) %} {%
+          set wh_l = states('sensor.ups_monitor_wh_delivered_lifetime') |
+          float(0) %}
+
+          **Last Outage**{% if cnt > 0 %} *(#{{ cnt }})*{% endif %}
+
+
+          | Metric | Value |
+
+          | :--- | ---: |
+
+          | Duration | {{ dur | round(1) }} min |
+
+          | Ah Used | {{ ah | round(4) }} Ah |
+
+          | Wh Used | {{ wh | round(3) }} Wh |
+
+          | Capacity Used | {{ pct | round(1) }}% of 4.18 Ah |
+
+          | Start Voltage | {{ '%.3f V' | format(strv) if strv > 0 else '---' }}
+          |
+
+          | Min Voltage | {{ '%.3f V' | format(minv) if minv > 0 else '---' }} |
+
+          | Peak Recharge | {{ '%.3f A' | format(chrg) if chrg > 0 else '---' }}
+          |
+
+          | Apparent Ri | {{ '%.1f mOhm' | format(ir) if ir > 0 else '---' }} |
+
+          | Last Recharge Resistance | {{ '%.1f mOhm' | format(ir_tc) if ir_tc >
+          0 else '---' }} |
+
+
+          ***
+
+          **This Outage** *(live if on battery)*
+
+
+          | Metric | Value |
+
+          | :--- | ---: |
+
+          | Ah | {{ ah_o | round(4) }} Ah |
+
+          | Wh | {{ wh_o | round(3) }} Wh |
+
+
+          ***
+
+          **Lifetime Totals**
+
+
+          | Metric | Value |
+
+          | :--- | ---: |
+
+          | Ah Delivered | {{ ah_l | round(2) }} Ah |
+
+          | Wh Delivered | {{ wh_l | round(1) }} Wh |
+
+
+          ***
+
+          **PSU & Battery Health** *(baseline: Ri = 96.6 mΩ at 78 °F, May 2026)*
+
+
+          | Metric | Value |
+
+          | :--- | ---: |
+
+          | Last Float Voltage | {{ '%.3f V' | format(fltv) if fltv > 0 else
+          '---' }} |
+
+          | Apparent Ri (raw) | {{ '%.1f mOhm' | format(ir) if ir > 0 else '---'
+          }} |
+
+          | Last Recharge Resistance | {{ '%.1f mOhm' | format(ir_tc) if ir_tc >
+          0 else '---' }} |
+    column_span: 2
+cards: []
+header:
+  card:
+    type: markdown
+    text_only: true
+    content: '# UPS System Status'
+badges:
+  - type: custom:mushroom-template-badge
+    entity: sensor.ups_monitor_discharge_phase
+    content: '{{ states(''sensor.ups_monitor_discharge_phase'') }}'
+    icon: >-
+      {% set p = states('sensor.ups_monitor_discharge_phase') %} {% if p in
+      ['Charging','Float'] %}mdi:power-plug {% elif p == 'Settling'
+      %}mdi:battery-check {% elif p == 'Plateau' %}mdi:battery-70 {% elif p ==
+      'Knee' %}mdi:battery-30 {% elif p == 'Cliff' %}mdi:battery-alert {% else
+      %}mdi:battery-outline{% endif %}
+    color: >-
+      {% set p = states('sensor.ups_monitor_discharge_phase') %} {% if p in
+      ['Charging','Float'] %}#00bcd4 {% elif p == 'Settling' %}#cddc39 {% elif p
+      == 'Plateau' %}#4caf50 {% elif p == 'Knee' %}#ff9800 {% elif p == 'Cliff'
+      %}#f44336 {% else %}#9e9e9e{% endif %}
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: sensor.ups_monitor_wifi_signal
+    show_entity_picture: false
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: sensor.ups_monitor_voltage_slope
+    show_entity_picture: false
+icon: mdi:battery-charging
