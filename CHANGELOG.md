@@ -23,12 +23,889 @@ is calibrated against.
 | 2026-08-25 | `-centerfreq=911500000` raises gas above 1.05/min | yes, with a decision rule | **WRONG** — 0.95/min over 125 min |
 | 2026-08-25 | `-centerfreq=920500000` puts 8 gas channels in the analog window | yes | **WITHDRAWN before test** — built on the EWQ filing, which the data rejected (R16) |
 | 2026-08-25 | corrected electric tick model: 10 Wh quantum -> tick every 73.5 s at 0.49 kW | yes, stated 14:49 before the data | **HIT** — 184 units in 3.75 h = 73 s measured, on load not used to fit it |
+| 2026-08-26 | the +2.9 mA step in bank quiescent drain on 2026-08-04 is a real load change, not INA228 offset drift — so a short-input offset re-measurement will show the offset has NOT moved by ≥2 mA | yes, stated before asking Bill and before any re-measurement | **WRONG** — same day. Bill: he rewired the bank that afternoon to eliminate stacked lugs, nothing added or removed. Nothing on the bus can consume +50% (the monitor is the only load, no reboot, no firmware change) while joints in the shunt's own current path were re-landed. 2.88 mA = 1.08 µV at 375 µΩ, the same order as the chip's 0.9 µV offset. The short-input test is still worth running, but as confirmation and a new zero — not as the tie-breaker |
+| 2026-09-07 | gates 0 and 1 will REFUSE the scrambled static-sensitivity values, because PR Table 7 marks them "-(not settable)" | yes — written into `mmwave-bench.yaml`'s scramble button comment before the button was ever pressed | **WRONG** — `g0_still` and `g1_still` took 62 and 64 and reverted cleanly with the other 19. "Not settable" describes what the module ACTS on, not what it will accept and store. The write path reaches gates the radar ignores |
 
-**Running score: 2 hits, 3 misses, 1 falsified, 1 withdrawn.** Six of seven were
+**Running score: 2 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
 to a short sample. Every miss was a short-sample fit. That is the whole lesson of
 2026-08-25 in one column.
+
+The 2026-08-26 miss is a different species and worth its own line: it was not a
+bad fit, it was **a physical question answered statistically**. The prediction
+reasoned from the shape of the step (sharp, one hour) against the shape of a
+temperature drift (gradual) — sound as far as it went, and useless, because the
+actual cause was a man with a wrench, which no amount of signal shape reveals.
+R14 exists for exactly this and the question had already been filed; the
+prediction was made anyway, in the gap before the answer came back. **The lesson
+is not "predict better" but "do not pre-register against an outstanding R14
+question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.09.07] - 2026-09-07
+
+First bench session with the LD2410C on real hardware. The rig went from "does
+the UART answer" to a working presence-to-lamp path in one evening, and the
+value was almost entirely in what it falsified: **six defects, four of them in
+code that has never run in production and would have shipped.**
+
+### The bench rig
+
+- `esphome/mmwave-bench.yaml` rebuilt: §4.2 control logic on-node, R9
+  commissioned-state push, engineering-mode keeper, a threshold scrambler for
+  testing the push, and the lamp wired through to `switch.office_lamp`.
+- New yaml-mode dashboard — `dashboards/mmwave-bench.yaml` plus
+  `dashboards/views/view-mmwave-bench.yaml`, registered under `lovelace:` in
+  `configuration.yaml`. The only file-driven dashboard here; every other one
+  stays storage-mode and is unaffected.
+
+### Defects found, with the measurement that found them
+
+- **`UART healthy` and `Self-test passed` sat at `unknown` for 6 min 43 s after
+  every boot.** They gated on the `Radar firmware` text sensor, measured at
+  **403 s** to populate — the slowest datum on the bus. Gate frames prove the
+  same thing in seconds. Now 15 s.
+- **A publish-on-change guard meant `uart_healthy` and `path_disagree` could
+  never publish `false`.** A template binary sensor that has never published
+  reads `false` internally while HA shows `unknown`, so `ok != state` was
+  `false != state` and never fired. `path_disagree` could therefore ONLY leave
+  `unknown` by reporting a fault — a health indicator invisible until it fails.
+  **The same defect is in production** on `lux_stale` and its own
+  `path_disagree`, and is NOT fixed there.
+- **The §4.2 light decision was discarded, not deferred.** A node booting into
+  an occupied room consumed the empty→occupied edge before its light sensor had
+  a value, never commanded the lamp, and could not revisit it until the room had
+  been empty for a full idle timeout. **Production has the same race** with the
+  VEML7700 on a 10 s poll and a 90/300 s timeout.
+- **The R9 push turns engineering mode off and nothing put it back.** 21 config-
+  mode entries and exits, and engineering mode is volatile (PR §2.2.5).
+  Photodiode and all 18 gate energies `unknown` for 5 min 21 s, unreported.
+  **Production fires that push at boot**, so every production startup kills the
+  telemetry §6.1 exists to sample. Fixed on the bench with a keeper switch plus
+  a reconciler after two narrower attempts failed — a fixed delay lost a race
+  with asynchronous UART writes, and a bounded window handled pushes but was
+  blind to `Radar restart`.
+- **`push_on_boot` had `restore_mode: ALWAYS_OFF`** — it switched itself off
+  during boot, before the boot-push condition was evaluated. A boot flag that
+  reset at boot, structurally unable to fire, and silent about it.
+- **`switch.radar_bluetooth` is not a readback.** It read `off` while the module
+  was connected to the Hi-Link app and `on` after a reflash with the radio
+  untouched. §5.0 step 0.4's entire off→reboot→confirm round trip reads that
+  switch, so it passed regardless of what the module did. Criterion moved to the
+  app, which the same session proved usable: **UART and BLE coexist** — 10 polls
+  over 30 s with the app connected, zero stale reads.
+
+### Measured
+
+- **R9 proven end to end.** All 21 commissioned values scrambled to distinct
+  wrong numbers, node rebooted, boot push restored **21/21** from the
+  substitutions. ~2 s for 21 writes. A completely mis-configured radar rebuilt
+  from version control.
+- **End-to-end latency 567 ms and 777 ms** — presence edge to lamp physically
+  on. Node decision 278–777 ms, HA → Kasa ~290 ms. Inside R2's 1000 ms budget.
+  Two-path skew 2 ms.
+- **No static clutter.** 279 s of verified vacancy: empty-room gate floor 3–7
+  counts against thresholds of 30–40.
+- **Through-wall false triggers, diagnosed and separated.** Three lamp events
+  came from a person in the BATHROOM next door — 7.4–10.3 ft, gates 3–4, move
+  energy 52 and 100. Office entry is gates 0–2. Move gate capped at 2.
+- **§6.1's SPC window closes correctly** — 24 s after boot,
+  `(now − start + 1440) % 1440` = 20. The `on_time` open half and the midnight
+  wrap the `+1440` exists for remain untested.
+
+### Other
+
+- `sensor.fridge_running_watts_24h` `sampling_size` 33000 → 60000.
+  `buffer_usage_ratio` had reached 0.85 with `age_coverage_ratio` still 1.0 —
+  the window in which to act. The source is gated on compressor runtime, so the
+  count scales with duty, and that reading was taken in September.
+- `scripts/ha_audit.py`: `rule_dashboard_pasted` now skips views served by a
+  yaml-mode dashboard. Its model assumed every dashboard was storage-mode, which
+  stopped being true this session. Fails safe — any parse problem returns an
+  empty set and every view is checked as before, so a bug there can only make
+  the audit stricter. The exemption is reported as INFO, because a silent skip
+  is how a check quietly stops checking.
+
+### Open
+
+- **§3.6's 5.6 m acceptance target is incompatible with capping the move gate
+  at 2 (3.75 m).** Both cannot hold. Unresolved, and the most consequential open
+  item in the design document.
+- Bench geometry does not transfer. Every threshold here is redone against the
+  final mount.
+- Production still carries the boot-push telemetry kill and the
+  publish-on-change defect. `radar_autorecover` and `path_disagree`'s `true`
+  branch have never fired. All 20 automations in `packages/mmwave_presence.yaml`
+  remain unrun. R4a manual-override detection is unimplemented.
+
+## [2026.09.03] - 2026-09-03
+
+Grafana snapshots brought up end to end. Four defects found and fixed, three of
+them mine, and the feature works while delivering LESS than its name implies -
+which is the part worth reading.
+
+### secrets.yaml did not parse, and it was one character
+
+`grafana_token:glsa_...` with **no space after the colon**. YAML requires
+`key: value`, so the whole file failed to load - not just the Grafana key. That
+takes down `spc_verify.py`, `spc_seed.py` and HA's own config load: a
+one-character paste error in a credential file is a config-wide outage waiting
+for the next restart. Everything else about the paste was clean - LF endings,
+trailing newline, 46-char `glsa_` token, no stray quotes or whitespace.
+
+**Check that a secrets file PARSES after editing it, not just that the key looks
+right.** Nothing else does: it is gitignored so no pre-commit hook sees it, and
+`check_config` still reported `valid` because HA was running on the copy it
+loaded at boot.
+
+### A plaintext-credential file, one `git add -A` from a public remote
+
+Backing up `secrets.yaml` before the fix produced `secrets.yaml.bak`, and the
+script comment asserting it was "gitignored by secrets* rule" was **wrong**.
+`.gitignore` had `secrets.yaml` and `secrets_*.yaml`; neither matches
+`secrets.yaml.bak`. Deleted, and the class closed rather than the instance:
+added `secrets.yaml.*` and `secrets*.bak`, which also covers `.orig`, `.swp`
+and `.save` - editor swap files nobody creates deliberately. All seven shapes
+verified. This is the exact hazard this file already documents for `scripts/`;
+the pattern list was one derivative short.
+
+### The 403 was not a permissions problem, and said it was
+
+`POST /api/snapshots` returned a bare `403 forbidden` for all five dashboards.
+The obvious reading - wrong service-account role - was wrong. Diagnosis added to
+the script proved the token held `snapshots:create`, `snapshots:delete`,
+`snapshots:read` and `dashboards:create`, with `snapshotEnabled: true`
+server-side.
+
+The real cause was the payload: it blanked `id` and `uid` before POSTing.
+**Grafana authorises snapshot creation by checking read permission against the
+dashboard the payload names, so a payload naming no dashboard authorises against
+nothing and is refused.** Sending the model with its uid intact - what Grafana's
+own "Local Snapshot" button does - took it to 5/5 first try.
+
+Kept as a diagnosis path in the script, because "403 forbidden" while holding the
+correct role sends you to Administration to re-check a role that was never it.
+
+### Two more of mine
+
+- `all(snapshot(u) ...)` **short-circuits**. The first failure skipped the other
+  four dashboards, so the first run reported one failure and looked like a
+  single-dashboard problem when all five were failing. Replaced with a full pass
+  plus an `n/m succeeded` line.
+- `--expires` defaulted to **0 = never**. Snapshots live in Grafana's SQLite
+  inside the add-on data volume, which is inside every nightly backup: 4 runs/day
+  x 5 dashboards, unexpiring, grows the backup forever and nothing would flag it.
+  Now `--expires 604800` (7 days, ~28 per dashboard).
+
+### SPC charts stale: the guards were right, my checker was not
+
+Reported as "spc charts are not up to date", with a reasonable suspicion that
+running grafana_snapshot.py against the live system had caused it. It had not,
+and the timeline settles it without needing to trust the mechanism: the AC and
+furnace gap begins at the 23:59 capture on 09-02, the snapshot script first ran
+mid-morning 09-03, and fridge - same script, same dashboards - is unaffected.
+`grafana_snapshot.py` only issues GET /api/dashboards/uid and POST /api/snapshots;
+it never writes InfluxDB or HA.
+
+**The charts are stale because the captures correctly declined.** Read off the
+recorder at the guard's own evaluation instant, 23:59:00 on 09-02:
+
+```
+ac_runtime_today      0.3344 h   guard needs >= 0.5   -> skip
+furnace_runtime_today 0.3351 h   guard needs >= 1.0   -> skip
+latched watts         2239.8 / 772.9  -> both in band
+```
+
+The AC ran 20 minutes. September shoulder season: HVAC barely runs, guards skip
+so a low-confidence day never poisons a slot, chart shows a gap. Same class as
+the 08-08..18 "loss" that was a vacation. `notify_spc_capture_stale` stayed
+correctly silent because there was no capture OPPORTUNITY to miss.
+
+En route, a wrong answer worth recording. An InfluxDB `LAST()` over a
+`GROUP BY time(1d,-4h)` bucket reported `ac_runtime_today` as 0.4999937 h for
+09-02, i.e. 23 ms under the 0.5 h guard - a spectacular near-miss story that was
+an artifact of bucket boundaries, not the value the guard read. The recorder at
+23:59:00 says 0.3344 h. **When a number decides whether something fired, read it
+from the source that thing read, at the instant it read it** - not from a
+re-aggregation whose window you chose.
+
+### The HELD guard in spc_verify.py did not work [M]
+
+`furnace` and `ac` day_1 carried `last_changed` of 2026-09-02T21:48:34Z - 17:48
+local, matching the `home-assistant.log.fault` stamp, i.e. an HA restart
+replaying restore_state. Not a capture. The other three carried 03:59:00Z =
+23:59 local, the real thing.
+
+The HELD test compared only the DATE of `last_changed`, so a restart on the
+right day made a value carried over from the PREVIOUS day look freshly captured.
+The 09-03 run therefore compared 09-01's held AC number against 09-02's raw data
+and printed `ac OK -2.19%`. Only the band's slack kept that from being a false
+DRIFT, and either way it was a check silently passing stale data - the worst
+possible failure for a thing whose whole job is catching stale data.
+
+Fixed: the timestamp must now fall within +/- 5 min of 23:59:00 local on the day
+being verified, not merely on that date. Re-run over 09-02 now reports
+`furnace HELD` and `ac HELD` where it had reported OK. The docstring claimed
+this behaviour from the start; it did not have it.
+
+### ROOT CAUSE: Grafana never loaded the P12 fix, and P12 was marked RESOLVED
+
+The report was precise and it was the precision that solved it: axis current to
+9/2, UCL/LCL continuous to 9/2, **Daily points stopping at 8/20**, cooling
+efficiency perfect. Two series from one panel behaving differently rules out
+every data-layer explanation at once - and every layer had already measured
+healthy.
+
+`GET /api/dashboards/uid/spc-appliances` shows what Grafana actually serves:
+
+```
+uid=spc-appliances   version=12   provisioned=False   updated=2026-07-28
+   A Daily  SELECT "running_watts" FROM "spc" WHERE entity_id='sem_fridge_power'
+   B Mean   SELECT MOVING_AVERAGE("running_watts", 7) FROM "spc" ...
+   C UCL    SELECT MEAN("value") FROM "W"  WHERE entity_id='fridge_running_watts_upper'
+   D LCL    SELECT MEAN("value") FROM "W"  ...
+```
+
+Daily and Mean read **`spc`** - the continuous-query measurement P12 RETIRED,
+last written 2026-08-21. UCL/LCL read `W`, which is current. Cooling Efficiency
+reads `kWh/CDD` for all four series and never touched `spc`. Every symptom, exactly.
+
+**`grafana/dashboards/spc_appliances.json` (2026-08-22) already contains the
+corrected queries against `W`.** It has `uid: spc-appliances`, the same uid
+Grafana serves, and Grafana still reports `provisioned=False`. So the P12
+re-sourcing was written to the repo file and NEVER DEPLOYED, while P12 sits in
+the closed list as RESOLVED. The chart has been reading a dead measurement for
+thirteen days and the only thing that noticed was the owner looking at it.
+
+**The lesson, and it is the same one twice.** P12's own entry records the
+InfluxDB CQs sitting 9.0 W from the HA charts for a month, and the SPC panels
+four hours off for a month. This is the third instance of the same failure and
+the most embarrassing kind: not a wrong number, but a fix that was authored,
+recorded as done, and never landed. Editing the file under `grafana/dashboards/`
+does nothing on its own - **nothing in this repo verifies that what Grafana
+serves matches what the file says**, and `ha_audit.py` has no rule that could.
+
+Contributing: the provisioning provider points at `/config/grafana/dashboards`,
+and that path is what the Grafana add-on would have to see from inside its own
+container. Nothing has ever confirmed it does. If it does not, provisioning
+silently loads zero dashboards - no error, no log anyone reads - and Grafana
+serves its database copies forever.
+
+Latent, found while checking: **four files in that directory share
+`uid: energy`** (energy.json, energy_ENHANCED_1_2_5_6.json,
+energy_complete_dynamic_rate.json, energy_updated__7-24.json), plus stale
+duplicates of Battery Bank and UPS Status under old random uids. Turning
+provisioning on without deleting those would have four files racing for one uid,
+last writer winning, nondeterministically. Fix the directory BEFORE fixing the
+loader.
+
+### Diffing before deploying, which was the right call
+
+Asked to diff the three stale dashboards before deploying them. One would have
+caused a regression, so the caution earned itself immediately.
+
+```
+battery-bank  file newer 08-21 vs 07-21   7 = 7 panels    0 query diffs
+energy        file newer 08-21 vs 07-25   16 vs 19        2 query diffs   DO NOT DEPLOY
+hvac-status   file newer 08-21 vs 07-28   11 = 11         0 query diffs
+ups-status    GRAFANA newer               9 = 9           0 query diffs
+```
+
+**`energy.json` is a trap.** Deploying it would REMOVE two panels that exist only
+in Grafana ("Cost by Circuit (Auto 1h / 1d) - D", "Energy by Circuit (Auto 1h /
+1d)") and STRIP the dynamic-rate targets from two more: the served version
+carries `last("value") ... electricity_effective_rate` and
+`SPREAD("value") * $rate`, and the file has nothing at those refIds. That is the
+work behind `energy_complete_dynamic_rate.json`, archived earlier the same day as
+a duplicate uid. **The rate logic lives in Grafana and is absent from the repo
+file.** A blanket "deploy the newer file" would have destroyed it, and the file
+being a month newer by mtime would have been the argument for doing so.
+
+`battery-bank` and `hvac-status` have ZERO query differences, so deploying them
+buys nothing measurable. Neither was deployed. Note the diff compares panels and
+query text, NOT layout, colours or thresholds - "0 differences" means the queries
+match, not that the files are identical.
+
+**The direction is backwards and that is the real fix.** These files have never
+deployed once, and for `energy` and `ups-status` Grafana is AHEAD of them. They
+are not a source; they should be a MIRROR of what is live, on the same
+"GENERATED - do not hand-edit" contract `export_dashboards.py` already uses for
+Lovelace. Then the repo records reality instead of diverging from it in silence,
+and `--deploy` remains for the deliberate case. Not built - offered as a
+decision.
+
+### I broke the live script, and the automation caught it
+
+A patch to `grafana_snapshot.py` was mangled by the same shell-heredoc backslash
+handling that had already bitten once this session: `\n` inside a string became
+a real newline, leaving an unterminated literal. The file was left
+syntactically invalid ON DISK, live, wired to an automation.
+
+The 6-hourly automation fired minutes later, got a non-zero exit, and raised
+"Grafana Snapshot Failed". Repaired and verified 5/5 within minutes, notification
+dismissed. The alert did its job.
+
+Two things to keep from it. First: **a patch applied to a live file is a
+deployment, and it needs a syntax check in the same breath** - `py_compile` ran
+AFTER the write, so there was a window where the automation could fire against a
+broken file, and it did. Second, a defect in the alerting: a `SyntaxError` cannot
+be caught by the script's own try/except because the module never parses, so it
+exits 1 and reports as "at least one dashboard did not snapshot" - the exit-1
+DRIFT-equivalent - when the truth is exit 2, "could not run". The distinction
+this file argued for two entries ago is defeated by the one failure mode that
+skips the interpreter. Not yet fixed.
+
+### Observation, unverified
+
+`spc-appliances` reported version 13 immediately after `--deploy` and again on
+re-read, then version 14 after a snapshot run. If creating a snapshot bumps the
+SOURCE dashboard's version, the automation adds four version increments a day and
+the "which is newer" comparison in `--diffall` becomes unreliable - it would
+report GRAFANA newer forever. Flagged, not chased.
+
+### Fixed, and the bigger finding underneath
+
+`spc_appliances.json` deployed to Grafana: version 12 -> 13, six
+`${DS_INFLUXDB}` placeholders pinned to `bfrwayjkhasjka`. Verified by re-reading
+what Grafana serves: every Daily series now reads `FROM "W"` against the correct
+`*_day_1` entity, no `spc` anywhere, and InfluxDB holds 29 fridge points through
+09-02 23:59 for it to draw.
+
+**Provisioning has never worked.** All five dashboards report
+`meta.provisioned = false`. The repo's `grafana/dashboards/` has been decorative
+for its whole existence, and CLAUDE.md claimed the opposite - "Provisioned
+dashboards - survive Grafana rebuilds" - which is now corrected. Three more
+dashboards are serving July copies while newer August files sit unread:
+
+```
+battery-bank  Grafana 07-21  file 08-21     hvac-status  Grafana 07-28  file 08-21
+energy        Grafana 07-25  file 08-21     ups-status   Grafana 08-31  file 08-21  <- REVERSED
+```
+
+`ups-status` drifts the other way, so a blanket deploy would destroy work. The
+direction has to be checked per dashboard. Left for a decision rather than
+bulldozed.
+
+New capability, because the gap was structural and not a one-off:
+`grafana_snapshot.py --deploy <file>` pushes a repo dashboard by uid and pins
+datasource placeholders; `--provstatus` prints the provisioned flag and served
+date for every dashboard. **Run `--provstatus` before believing a file is live.**
+
+Directory cleaned first, because enabling provisioning onto the old contents
+would have been worse than leaving it off: four files shared `uid: energy` and
+would have raced last-writer-wins, and three stale July exports under random
+uids (`ad8fk4k`, `ad97tbt`, `adz9h9s`) would have created duplicate dashboards.
+Six files moved to `grafana/_archive_dashboards/` - outside the provisioning
+path, since providers scan recursively - leaving exactly one file per live uid.
+
+**The lesson worth more than the fix.** Three times now the same shape: a
+correct value computed, recorded as done, and never reaching the thing that
+displays it. The CQs 9.0 W off for a month; the panels four hours off for a
+month; and this, thirteen days on a dead measurement. `spc_verify.py` closes the
+first two - it compares two computations of the same number. It does NOT close
+this one, because the number was right and the chart was asking a different
+question. **What is missing is a check that what Grafana serves matches what the
+repo says**, and that is now the obvious next piece of work.
+
+### Grafana SPC staleness: measured end to end, unresolved at the glass
+
+Reported as "spc charts have not updated in 4 days, only cooling eff is current",
+which correctly rejected the earlier seasonal-guard explanation: fridge and
+dehumidifier had been running, so "the appliance did not run" cannot cover them.
+
+Measured every layer rather than argue. Grafana's OWN query API, via a new
+`--diag` mode that runs the panel queries through `/api/ds/query`:
+
+```
+datasources: exactly ONE - uid=bfrwayjkhasjka, default=true, url=10.0.0.210:8086
+fridge  day_1   200  32 points  newest 09-02 23:59
+cooling day_1   200  27 points  newest 09-02 23:59
+ac      day_1   200  20 points  newest 09-01 23:59
+furnace day_1   200  20 points  newest 09-01 23:59
+```
+
+Fridge and cooling receive IDENTICAL freshness, so "only cooling eff is current"
+has no basis anywhere in the data path. Also checked and healthy: raw InfluxDB,
+the HA capture buffers (all 7 slots of fridge/dehumidifier/hwh shifted at 09-02
+23:59), the `*_spc_capture_stale` binary sensors, every limit sensor, and
+long-term statistics (newest bucket 09-03 07:00). Nothing is 4 days stale.
+
+Unresolved, and left that way rather than guessed at: the discrepancy is at the
+presentation layer, which is not measurable from here. Two candidates named for
+the next session - a stale browser page, or the five `(snapshot)` dashboards
+this session added to the Grafana dashboard list a few hours before the report,
+which are layout-only and would render wrong if opened by mistake.
+
+### Two real findings from that investigation
+
+- **AC and furnace ARE two days behind**, last capture 09-01, because the 09-02
+  guards declined: `ac_runtime_today` 0.3344 h against a 0.5 h requirement,
+  `furnace_runtime_today` 0.3351 h against 1.0 h, read from the recorder at the
+  guard's own 23:59:00 evaluation instant. **If the AC was in fact running that
+  day, the runtime sensors are under-reporting and that is the real bug** -
+  upstream of the charts, and not investigated yet.
+- **The SPC panels declare `"uid": "${DS_INFLUXDB}"`**, not `bfrwayjkhasjka` - an
+  artifact of a "share externally" dashboard export. It resolves today ONLY
+  because exactly one InfluxDB datasource exists and it is marked default. Add a
+  second (an InfluxDB v2 datasource during any migration trial, say) and every
+  SPC panel silently retargets. Worth pinning to the real uid before, not after.
+
+### What these snapshots actually are: LAYOUT, not data
+
+Measured, not assumed - `--inspect` on a created snapshot reports **0 of 11
+panels carrying `snapshotData`**. A snapshot only freezes numbers if each panel
+carries its query results, and Grafana's UI button collects those client-side
+before posting. Posting a dashboard model server-side stores structure; the
+panels re-query the live datasource when viewed.
+
+So today's snapshots preserve **what the dashboard looked like**, not **what it
+showed**. Completing the data freeze means executing every panel's queries via
+`/api/ds/query` and attaching the frames - precisely what the abandoned
+2026-07-22 script was already doing when it died at the external-snapshot step.
+That half of it was sound.
+
+Worth weighing before building it: with InfluxDB retention infinite, any past
+window can be re-rendered from source at any time, so a frozen copy earns its
+keep mainly for **sharing with someone who has no Grafana access**, or for
+preserving a view whose queries later change. Left as a decision, not assumed.
+
+## [2026.08.31] - 2026-08-31
+
+InfluxDB recovered from backup after the add-on was deleted and replaced with a
+different product. History intact back to 2026-05-31; the 2d 2.6h hole closed
+from the recorder. Off-host session, Claude Code over Samba.
+
+### The add-on was not lost to the crash — it was delisted the day before
+
+The reported symptom was "PC crashed, lost InfluxDB, reinstalled it, can't get
+it running." Three separate things, and only one was the crash:
+
+1. **2026-08-28** — the Community Add-ons team archived `a0d7b954_influxdb`
+   and removed it from the store, because InfluxData EOL'd InfluxDB 1.x.
+2. **Between 2026-08-29 05:40 and 2026-08-30 04:46** — the crash, the delete,
+   and the reinstall. The two automatic backups bracket it exactly: 08-29 holds
+   `a0d7b954_influxdb.tar.gz` at 1,062,926,511 bytes, 08-30 holds
+   `47c55538_influxdbv2.tar.gz` and no 1.x at all.
+3. Because the store no longer had "InfluxDB", the reinstall produced
+   `47c55538_influxdbv2` **v0.0.4** — InfluxDB **2.7.1**, a different product.
+   It was running and healthy (`/health` = "ready for queries and writes") and
+   had **never been onboarded** (`/api/v2/setup` → `"allowed": true`: no org,
+   no bucket, no token). That is the whole of "can't get it running."
+
+**The lesson worth keeping: "it won't reinstall" and "the reinstall worked but
+nothing works" are the same finding when an add-on has been delisted.** The
+store substituting a same-named different product is silent, and the new
+add-on's health check passes while answering for nothing.
+
+### What was done
+
+`hassio.addon_stop` on `47c55538_influxdbv2` first — it held host port 8086 and
+the restore would have come up dead behind it. Then `hassio.restore_partial`,
+slug `79bfb6fb` (the 2026-08-29 05:39 backup), `homeassistant: false`,
+`addons: [a0d7b954_influxdb]`. Surgical: no config, no recorder DB, no other
+add-on. Backups are `"protected": true` and the key is in `.storage/backup`.
+
+Then `hassio.addon_start`, a reload of the `hassio` config entry to repopulate
+the add-on sensors, and the integration re-added by hand through the
+`configure_v1` flow — a partial add-on restore does not restore
+`.storage/core.config_entries`, and there is no `influxdb:` YAML to fall back
+on (absent from configuration.yaml, packages/, and the entire git history).
+
+### Verified, not assumed
+
+- `X-Influxdb-Version: 1.8.10` on 8086; `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still pulls (HTTP 200)
+- `"Home Assistant"`: 646 measurements, W and % from 2026-05-31, kWh from 2026-06-27 — matching the dates this file already recorded
+- `sensor.influxdb_cpu_percent` 0.01 / `sensor.influxdb_memory_percent` 2.88 back, clearing both `entity-ref-unresolved` WARNs the session opened with
+- HA writing again: 189 new W points in 10 minutes, last write 6 s old
+- `ha_audit.py`: **0 FAIL, 0 WARN, 1 INFO across 20 pipelines**
+
+### Backfill: 2,732,350 points, and the bug that nearly poisoned it
+
+Gap 2026-08-29 09:40Z → 2026-08-31 12:20Z refilled from the recorder via the
+history API. 2,732,350 points written, 3,791 skipped (`unavailable`/`unknown`,
+which HA never writes), 0 errors, 54 s. W counts run 297k–340k per 12h bucket
+across the former hole with no zeros.
+
+The safety property that made it safe to run at all: it writes ONLY to
+`(measurement, entity_id)` pairs that already existed, so it cannot invent a
+series. **That guarantee nearly failed.** `SHOW SERIES` returns measurement
+names *already line-protocol escaped* (`CCF/1k\ HDD`), while a live
+`unit_of_measurement` is raw (`CCF/1k HDD`). The two never compare equal, so
+five series were being silently dropped from the target set — and had the
+comparison been made to succeed by re-escaping on write instead of unescaping
+on read, the double-escape would have created five **parallel junk series**
+next to the real ones. Caught before the run by asking why the two forms
+differed rather than making them match. Series cardinality after: 1396 → 1397,
+and the +1 is `_probe`, not backfill.
+
+Fidelity checked against the real schema rather than assumed: tags `domain` +
+`entity_id` (object_id, not the full entity_id); numeric states get `value`
+only; non-numeric get a `state` string plus a mapped `value` (`on`/`home` → 1,
+`off` → 0, observed in the existing data, not guessed); `spc` excluded because
+the retired CQs wrote it, never HA.
+
+### `ha_ro` is no longer read-only — R10 doc drift closed
+
+The `influxdb` config flow validates with a **write probe**, so the read-only
+user this file mandated fails it with a bare `cannot_connect` naming nothing.
+`GRANT ALL ON "Home Assistant" TO "ha_ro"` — deliberately `ALL`, not `WRITE`:
+InfluxDB 1.x holds one privilege per database, so `GRANT WRITE` would have
+silently revoked read and broken `spc_seed.py`. Bill made the call after the
+trade was stated.
+
+Cost, stated plainly: a leaked `ha_ro` can now insert and overwrite points
+against infinite retention with no raw-series backup. Still holds: it cannot
+`DROP` a measurement — that needs admin, **measured 403 on 2026-08-31 while
+holding ALL PRIVILEGES**. `CLAUDE.md` updated; it claimed `GRANT READ` until
+this entry.
+
+### The reported 8/8–8/18 "data loss" was a vacation
+
+Raw `W` is complete and correct for those days: 480k–560k points every day
+across the whole of August, no gap anywhere. What looked like loss was the
+`spc` CQ measurement carrying only 3 of 5 appliances on 08-09 and 08-12..17 —
+and the CQ was `MEAN(power) WHERE power > threshold`, so **a day nothing runs
+produces no row at all.** `sem_ac_power` measured max **exactly 0.0 W** on each
+of those days and the furnace only idled at ~50 W against the 830–860 W it
+draws when firing. Bill confirmed: vacation, AC off.
+
+Nothing to import, and the recorder could not have helped regardless
+(`purge_keep_days: 14`, empty before ~08-20). Filed here because the data
+already said "empty house" before anyone said it, and a backfill run on that
+suspicion would have invented occupancy that did not happen.
+
+### SPC charts "not updating" was the InfluxDB outage, not the SPC pipeline
+
+The `spc` measurement does stop after 08-21 — correctly. P12 retired the CQs and
+re-sourced the panels; `spc_appliances.json` queries `W` and `kWh/CDD` from the
+HA sensors and does not reference `spc` at all. All 24 plotted entities exist
+(the `*_day_1` six are `input_number`, not `sensor`) and are continuous through
+08-31 once the restore and backfill landed.
+
+### Trust-but-verify: the captures are EXACT, and the alignment was the trap
+
+Recomputing each appliance's daily running watts from the raw series and
+comparing to the 23:59 capture:
+
+```
+fridge     -0.01 %      furnace  -0.00 %      ac  +0.00 %
+hwh_recirc -0.04 %      dehumidifier +2.06 %
+```
+
+Four of five agree to four decimal places, because both sides are the unweighted
+mean of the SAME above-threshold samples. **An earlier pass in this session
+reported "±2–5 %, definitional" and that was wrong** — it was day-misalignment
+in the checking script, not scatter in the data. Recorded because the wrong
+answer was the *plausible* one: it looked like a small honest offset, and
+choosing the alignment by "which fits better" reproduced it. The fix is that
+alignment is now READ from the capture's own `last_changed` rather than assumed.
+
+The dehumidifier's +2.06 % is the one real offset and is BY DESIGN: its capture
+reads the STEADY series (spc.yaml, "2026-08-07: reads the STEADY series, not the
+full-run one"), a fixed in-run window excluding compressor ramp, which
+legitimately sits above a full-run gated mean. Do not "fix" it.
+
+**The check reproduces the historical defect.** Run over 08-19..21 it flags
+fridge −5.8 %/−5.2 % and ac −4.9 %/−3.5 %, and clean from 08-22 on — i.e. it
+independently rediscovers the "SPC panels four hours off the captures" bug on
+exactly the dates P12 says it existed and was fixed. That is the calibration
+evidence for the bands, and the reason to believe the check can catch a real one.
+
+### New: scripts/spc_verify.py + automation.nightly_spc_verify (00:25)
+
+Two independent computations of the same quantity, compared nightly. Nothing had
+ever checked the captures against the data they summarise, and that gap went
+unnoticed for a month twice (CQs 9.0 W off; panels 4 h off).
+
+Design points worth keeping: capture side comes from `.storage/core.restore_state`
+so it needs no token and works while HA is down (same contract as
+`spc_buffer_export.py`); a slot the guards declined to overwrite reports **HELD**
+and is not compared, rather than inventing divergence; `--days N` reads historical
+captures back out of InfluxDB instead of comparing old raw means against today's
+capture, and labels a missing point **NO-POINT** because write-on-change means an
+unchanged capture writes nothing — absence there is not evidence of a miss.
+
+Exit codes 0/1/2 = ok / drift / could-not-run. **2 is deliberately distinct from
+1**: if a crash also exited 1, the automation would raise "SPC Reconciliation
+Drift" for a broken checker, and an alert that lies about its own cause is worse
+than no alert. The automation notifies differently for each.
+
+### New: scripts/grafana_snapshot.py + automation.grafana_snapshot_scheduled
+
+Rebuilds the capability abandoned on 2026-07-22, using **local** snapshots.
+`www/snapshot_update.log` records why the original died — it asked for an
+`external` snapshot, published to a hosted service Grafana Labs has retired, so
+it could never have worked. It ran exactly once and was deleted; the script and
+automation are both unrecoverable (07-12 backup predates creation, 08-29
+postdates deletion).
+
+Stated plainly because it was the operating assumption going in: **a snapshot
+cannot verify anything.** It freezes what a panel displayed, wrong values
+included, and would have archived both month-long bugs above without flagging
+either. It is an archive. `spc_verify.py` is the check.
+
+Probed from inside the container: Grafana **13.2.0**, `/api/health` database ok
+at `a0d7b954-grafana:3000`. Blocked on one thing only Bill can supply — a
+service-account token in `secrets.yaml` as `grafana_token`. Until then the
+automation exits 2 and raises a single stable-id setup notification rather than
+failing silently or stacking one every six hours.
+
+`--probe` is a CLI flag and deliberately NOT a shell_command: every
+shell_command here has exactly one automation call site and `ha_audit`'s
+`dead-shell-command` rule enforces it, so a hand-run diagnostic would sit there
+WARNing forever.
+
+### Two orphaned automations removed
+
+`update_grafana_snapshots_every_6_hours` (created 07-22, ran once, failed) and
+`backup_input_numbers_weekly` (deliberately removed 2026-08-23, superseded by
+`nightly_buffer_backup`, documented at automations.yaml:3463). Both were
+registry entries with no config, reading `unavailable`. Removed via the
+entity-registry websocket API behind a guard that refuses to touch anything
+still present in `automations.yaml` — verified against a live automation first,
+because the websocket registry list omits `capabilities` and the first version
+of that guard was silently inert.
+
+`automation.dehumidifier_rh_stall_shutdown` is `off`, not orphaned — a
+deliberate disable, left alone.
+
+### Left open
+
+- **`_probe` measurement** (1 point) from the grant verification. `DROP` needs
+  admin, which this session did not hold: `influx -execute 'DROP MEASUREMENT "_probe"'`.
+  Note `ha_ro` holding ALL PRIVILEGES still cannot drop it — measured 403.
+- **Grafana token.** `grafana_snapshot.py` is deployed, wired and connectivity-
+  proven, but cannot snapshot until `grafana_token` exists in `secrets.yaml`.
+  The snapshot POST path is therefore the one thing in this session NOT verified
+  against the live system.
+- **STALE-FLUSH warnings** in `www/spc/buffer_backup.log` — 19 occurrences since
+  08-23, 4 of them on 08-30 naming `hdd_day_1`, `expected_runtime_sum_month`,
+  `runtime_per_hdd_day_1`, `water_overnight_min_day_1`. Pre-existing, not
+  investigated this session.
+- **`47c55538_influxdbv2` still installed**, stopped. Uninstall at leisure.
+- **The dead end itself.** InfluxDB 1.x is EOL and its add-on is frozen. This
+  restored the status quo; it did not buy a future. No migration plan yet.
+
+### 18 V boost subsystem — post-installation review, and the instruments it moved
+
+The Pololu U3V70A boost went on the 12 V bus 2026-08-29 ~16:50 ET, taking the
+ASRock N100DC-ITX off its own AC brick. EN/FET not installed. Analysis is off-host
+from InfluxDB; full write-up in `DIY-LiFePO4-UPS/reports/UPS_Report_2026-08-31_Boost_Integration.md`.
+
+**What the load did.** AC at the UPS outlet 16.832 -> 30.554 W [M, n=91,940 /
+20,794, t=1077]. Net cost of the extra conversion stage over the OEM brick:
++1.21 W at the wall, $3.08/yr [D]. Battery discharge during the 2026-08-29 test
+26.80 W / 2.089 A steady, 32.48 W / 2.533 A peak [M, n=156]. Runtime to LVD
+~128 min [D: 53.3 Wh / 25.01 W], was ~213. Bus float 13.2325 -> 13.1970 V
+[M, t=-2390]; margin to the 13.15 V on-battery trip fell from 73.0 to 23.3 mV,
+with zero of 26,413 post-boost samples below 13.16 V.
+
+**Nothing electrical is out of spec.** No false on-battery, no BMS pressure
+(2.089 A against a 10 A rating), no XB7 disturbance in the record, and the pack's
+own resistance is unchanged — the recharge-step reads 102.9 mOhm against a
+96.6 mOhm May baseline [M]. What degraded is the instrumentation around it.
+
+#### Changed
+
+- **`sensor.ups_apparent_internal_resistance` and
+  `sensor.ups_ir_temperature_compensated` RETIRED** (configuration.yaml). Second
+  copy of a quantity the firmware already computes three ways from the live
+  measured current, and it divided by a hardcoded `typical_i = 1.18` A against a
+  measured 1.956 A [M]. It was also about to wake up: its availability guard needs
+  `last_float_voltage`, which ups-monitor V1.17 will start writing — it would have
+  published 198.1 mOhm where the truth is 119.5 [D], against a 96.6 mOhm dashboard
+  baseline. R10: the answer to a second copy is deletion. A tombstone comment
+  records why at the site. **Needs `template.reload` + `gen_reference.py`; both
+  entities are still in the registry until then.**
+
+- **UPS notification text now states the measured load** (automations.yaml, three
+  automations, five user-visible lines). Auto 2 and Auto 3 said "~17 min to BP-65
+  LVD" and Auto 4 said "~10 min"; at 26.8 W those are ~10 min and ~6 min [D].
+  "HA Green" replaced with "Host" — the machine being shut down has been the
+  N100DC since the August migration. **Needs `automation.reload`.**
+
+- **Comment blocks corrected, not deleted** (automations.yaml): the validated
+  phase durations, the cliff-to-LVD margin, and the 30 s stability-delay
+  justification all now carry both loads, with the May figures kept. One claim was
+  retired rather than rescaled: the "~15 min HA shutdown" budget these blocks cited
+  was never a measurement — the May test had the host down 6 s after the service
+  call (13:40:11 -> 13:40:17).
+
+- **CLAUDE.md** Active Projects: UPS line now records the boost, the un-fitted
+  EN/FET, and ~128 min rather than 135.
+
+- **Dashboard** (`dashboards/views/ups.yaml`, `dashboards/cards/ups-post-boost-2026-08-31.yaml`).
+  Regenerated from the deployed `.storage` artifact, not retyped: 6 of 31 cards
+  changed, 25 verified byte-identical. Current axis -2.25/2.25 -> -3.0/1.5 A and
+  power -30/30 -> -40/40 W — both were clipping the measured peaks during exactly
+  the event they exist to show. Superseded baselines kept and greyed rather than
+  overwritten. Runtime axis 60 -> 150 min. Phase table gains a measured-load column
+  tagged [D]. **NOT LIVE until pasted into the raw configuration editor.**
+
+#### Written, gated, not deployed
+
+`ups-monitor-v1-17.yaml` (DIY-LiFePO4-UPS repo). 153 diff lines, 7 of them code:
+rectifier deadband -0.05 -> -0.20 A as a substitution; a once-per-event latch on
+the onset capture; `onset_float_i_max` 0.05 -> 0.20; `battery_fully_charged` gated
+on `on_battery_threshold_v` instead of a nameplate-derived 13.25 V. Passed a
+`riscv32-esp-elf-g++ -Wall -Wextra` compile of the changed lambdas (0 errors) and
+an R2 two-direction replay of the measured traces. `src/main.cpp.o` remains OPEN —
+nothing off-host closes it.
+
+#### Three defects found that predate the boost
+
+1. `binary_sensor.ups_monitor_battery_fully_charged` has **never once been on** —
+   98 writes across all InfluxDB history, max 0. Threshold 13.25 V against a PSU
+   whose highest recorded bus voltage is 13.2705 V [M]. That silently killed
+   `last_float_voltage` and the whole HA-side PSU-drift chain.
+2. The onset-Ri capture has no latch — it re-fires every ~2.4 s for a whole outage
+   and the last sample wins. Observed 165.1 -> 188.9 mOhm across one 14.7 min test
+   [M]; run to LVD it would publish ~616 mOhm [D], six times the ohmic value, with
+   no plausibility band.
+3. The rectified Ah/Wh integrators had an 8.3-sigma deadband that the boost's noise
+   turned into 2.1 sigma. Drift on AC with no outage: 0.212 -> 43.3 mAh/day [M].
+   Runtime was never affected (`ah_delivered_outage.reset()` fires at outage start),
+   but the lifetime counters have no reset and are the cycle-count proxy.
+
+#### V1.17 flashed and validated, and it falsified my own phase table the same night
+
+Bill flashed ups-monitor V1.17 at 19:26 EDT (config hash 0xf52e01a0 -> 0xed866142)
+and ran a 54-minute outage test at 00:05:47 UTC. All four changes validated [M]:
+
+| change | evidence |
+| :--- | :--- |
+| `fully_charged` gate -> 13.15 V | **0 -> 1 at 23:37:30Z**, 11 min after boot (600 s delayed_on). Max across all prior history was 0, n 98 -> 101. `last_float_voltage` = 13.1972 V, written for the first time in the system's life |
+| onset one-shot latch | **one** publish, at +43 s: 97.586 mOhm. Nothing across the remaining 54 min. V1.16 would have republished every 60 s, climbing toward ~298 mOhm |
+| `onset_float_i_max` -> 0.20 | `onset_capture_quality_good` = **on** (was off). The [I] resolved in favour |
+| deadband -> -0.20 A | **zero writes** to `ah_delivered_this_outage` across 35 min of pre-outage float. Under -0.05 A it wrote every few seconds |
+
+**The pack is healthy and, for the first time, three methods agree**: onset step
+97.59 mOhm, recharge step 100.35 mOhm, May baseline 96.6 mOhm - within 4 % at
+83-86 degF. They could not agree before because the onset instrument was broken.
+
+Load reconfirmed at **26.91 W / 2.111 A** [M, n=615 over 51 min] against
+26.80 W / 2.089 A from the 14.7-minute test - agreement to 0.4 %.
+
+**WHAT THE TEST FALSIFIED, recorded rather than replaced.** The phase-duration
+column published that afternoon was energy-scaled and said plateau ~85 min. The
+test measured **~43 min - 2.0x out**. The r1 text flagged that the scaling "does
+not model the extra IR sag at 2.089 A" and published the numbers anyway. On the
+flat LFP plateau that sag is the dominant term, not a correction: 12.65 V is now
+reached at ~35 % depth against ~69 % in May [M]. Energy scales with load; voltage
+thresholds do not. The energy figure did survive - 123 min measured against 128
+projected - and is irrelevant, because the ladder trips on volts.
+
+Consequence, and it makes the unattended-recovery gap WORSE: the graceful
+shutdown fires at ~60-70 min [D], not ~117, with only ~45-50 % of the pack used.
+So the window in which AC can return and leave the host in S5 is on the order of
+**45+ minutes, not the ~17 min** stated earlier - roughly three times wider, and
+sitting where grid restoration is most likely.
+
+**A FURTHER DEFECT, in an instrument the earlier entry vouched for.**
+`apparent_ri` published 67.31 mOhm. The settled-step lambda reads
+`ina260_voltage.state` and `ina260_current.state` - two INDEPENDENTLY published
+5 s averages - and at an AC cut the voltage moves first, so the "at rest" branch
+latched 13.0510 V (the sample straddling the cut) instead of the 13.1970 V float.
+Replaying the raw series reproduces 67.31 against the firmware's 67.3143692, to
+0.005 mOhm. With the correct float the same sample is 141.94. The 08-29 sample of
+122.0 implies a rest_v of 13.133, also below float - so the series
+140.5 / 122.0 / 67.3 mOhm is not pack behaviour, it is where the 5 s boundaries
+fell. The onset capture never had this bug: it reads both registers raw inside one
+100 ms poll, which is why it agreed with the recharge step and the May baseline
+while apparent_ri disagreed with all three.
+
+**PSU headroom, measured.** Recharge peak +2.847 A at 13.120 V plus ~26.9 W of
+load = **64.3 W out of a 60 W supply** (107 % of nameplate) drawn from 75 W at the
+wall at 86 % efficiency, tapering to ~54 W within 60 s. The boost design brief
+predicted recharge would fall from 4.5 A to ~2.8 A - measured 2.847 A, so that
+estimate was right; it assumed ~1.7 A of loads against a real ~2.05 A, which is
+why the total now exceeds nameplate.
+
+Ladder behaved correctly: `knee_approaching` on 00:53:55 -> off 00:56:02,
+`cliff_imminent` and `voltage_warning` never fired, no shutdown. Outage #18.
+
+#### Changed
+
+- **`dashboards/lovelace/ups_dashboard.yaml`** - the complete view, updated in
+  place (not a snippet). Axes widened, superseded baselines greyed rather than
+  overwritten, runtime axis 60 -> 150 min, N100 plug card retitled, and the phase
+  table's projected column **replaced with the measurement** plus a footer naming
+  what is still unmeasured. 30 of 31 cards byte-identical on the last edit.
+  Written through Bash because `dashboards/lovelace/**` is deny-listed; that rule
+  exists because the directory is the only backup of `.storage/lovelace.*`, and it
+  does not apply to this file because there is no live `ups_dashboard` for it to
+  be a backup of. It is a hand-maintained working copy sitting in the generated
+  mirror - `dashboards/views/` is where it belongs.
+- **`dashboards/views/ups.yaml` and `dashboards/cards/ups-post-boost-2026-08-31.yaml`
+  DELETED** - superseded duplicates of the above. R10: the answer to a second copy
+  is removal.
+
+#### Written, gated, not flashed
+
+`ups-monitor-v1-18.yaml`. 73 diff lines, 3 of them code: the `apparent_ri` rest
+baseline now rejects a candidate more than 20 mV from the held value (~8 sigma of
+float noise, self-healing after 5 consecutive rejections), and the header phase
+durations are replaced with the measurement. `riscv32-esp-elf-g++ -Wall -Wextra`
+-> 0 errors. R2 replay: V1.17 latches 13.0510 V / 67.31 mOhm, V1.18 latches
+13.1970 V / 141.91 mOhm; across 25 min of ordinary float, 1,491 samples adopted
+and 0 rejected. `src/main.cpp.o` still open.
+
+#### The Grafana UPS dashboard had been showing a permanent false alarm
+
+Found while sweeping for anything else still describing the old load.
+`grafana/dashboards/ups.json` carried thresholds that could not discriminate on a
+12 V bus, and Grafana's model (base colour applies below the first numeric step;
+otherwise the LAST step whose value <= the reading wins) made three of them read
+as alarms at all times:
+
+| Panel | Steps | What it displayed |
+| :--- | :--- | :--- |
+| Battery Voltage (stat + timeseries) | red(base) / yellow 46 V / green 52 V | 13.2 V < 46, so base applied: **red 100 % of 30,006 float samples** [M] |
+| Battery Power | green(base) / yellow -200 W / red -400 W — descending, malformed | -26.8 W matches both, last wins: **red 100 % of 30,882 samples** [M] |
+| Voltage Slope | red(base) / green 0 mV/min | float slope is ~-1.8 mV/min: **red 43.4 % of the time** [M] |
+
+The 46/52 V pair is a 48 V-system default that was never retuned; it did not come
+from `battery_bank.json`, which has sensible 12.0/12.4 V steps. Nothing was wrong
+with the data or the queries — the colour was simply decoupled from the readings,
+which is the INFO HYGIENE failure in another surface: an alarm that is always on
+is an alarm nobody reads.
+
+**Retuned to the thresholds the system already acts on**, not to new numbers:
+the firmware substitutions (11.80 / 12.20 / 12.40 / 12.65 / 13.15 V; knee slope
+-3, cliff slope -10 mV/min), with the colours ported from the HA gauge card so
+the two surfaces agree. Power uses the measured load: -33 W (below the -32.48 W
+peak) and **-3.0 W** for the discharge boundary rather than 0 W — float power noise
+is sd 0.3075 W with an observed min of -2.405 W [M, n=30,879], so a boundary at 0
+flickers 43 % of the time at rest. -3.0 W is [D: 3.0 / 0.3075 = 9.8] sigma of that noise and the real
+discharge is [D: 26.80 W / 3.0 W = 8.9] beyond it. The first attempt used 0 W and the two-direction replay
+caught it.
+
+Verified by replaying the real series through Grafana's own threshold algorithm:
+voltage red 100 % -> on-AC colour 100 % at float and a distinct colour during the
+08-29 outage; power red 100 % -> green 100 % at float, orange 100 % on battery;
+slope 43.4 % red -> 99.8 % normal at float, and during the outage it separates
+cliff (57 %) from knee (21 %) from normal (21 %). R3: 5 of 11 panels changed, each
+differing **only** in its thresholds block, every query untouched.
+
+Unlike the HA dashboard, this file **is** loaded — it is provisioned from
+`/config/grafana/dashboards`, so it takes effect on Grafana's next poll.
+
+#### Open, and stated as open
+
+- **Unattended recovery is guaranteed only for outages deep enough to reach LVD.**
+  BIOS is correctly set to Power On, but with no EN shed the 18 V rail survives
+  `hassio.host_shutdown`, so the host sits in S5 with DC applied and there is no
+  power-cycle edge when AC returns. The gap is ~17 min wide [D] at the tail of a
+  ~2 h outage. Fitting the EN/FET closes it — a second, independent argument for
+  that work which the boost design brief does not make.
+- The ~128 min runtime, the ~10 min cliff and the ~3% capacity derate at 2.09 A are
+  all [D], scaled from a 14.7-minute test that reached 11.4% depth. Nothing below
+  12.79 V has been measured at the new load.
+- ~2.2 W of the pre-boost 14.9 W bus load remains unattributed. Bill confirmed the
+  HA Green has been off the bus since the ASRock install, which removes the obvious
+  candidate; the load was flat across the period it left [M, n=5 outage tests].
+- Boost design brief section 10 (V1/V2/V5) untouched by telemetry. Q1's answer adds
+  one: the BP-65's 12.8 V reconnect now soft-starts the boost into a cold N100.
 
 ## [2026.08.26] - 2026-08-26
 
@@ -229,6 +1106,51 @@ Also established: permission changes take effect mid-session, no restart needed.
 `new_pipeline.py` deliberately NOT exposed — it is the only script that mutates
 `automations.yaml`, and a one-click button for that with no diff and no undo is
 the wrong shape.
+
+### `open_questions.yaml` created, and immediately non-empty (2026-08-26 PM)
+
+The R14 mechanism had a schema in `ha_audit.py` (`rule_open_questions`) and an
+entry in `CLAUDE.md`, but no file — so it had never fired on a real question.
+It has now: the LiFePO4 battery-bank report published 2026-08-26 blocked on two
+facts about the physical installation, and both are recorded there rather than
+inferred.
+
+| # | question | blocks |
+|---|---|---|
+| 1 | what is connected to the busbars on the LOAD side of the DROK shunt, and does the monitor's own supply land on the busbars or on the battery posts | attribution of the measured 7.49 mA quiescent drain |
+| 2 | did anything change at the bank on 2026-08-04 ~14:30 ET, and again ~2026-08-19 | explanation of a +2.9 mA step in that drain |
+
+Both were tempting to infer. Q1 especially: the commissioning file notes the
+monitor draws ~100 mA, the total measured drain is 7.49 mA, and the arithmetic
+practically writes the conclusion that the monitor sits upstream of the shunt.
+That is exactly the shape R14 was written about — an inference from a number
+standing in for a fact Bill can confirm by looking at a lug — so it is in the
+report as an open question, not as a claim.
+
+**The audit went 0 WARN → 2 WARN, then back to 0 WARN when he answered the same
+session.** Both answers are recorded in the file with what they unblocked.
+
+**Q1's answer was the opposite of the standing inference, and that is the whole
+value of the rule.** Shelly retired, DROK meter retired, inverter off, monitor
+powered from the busbars — so the monitor's return runs through the shunt and the
+measured 7.4 mA *is* the monitor. The inference had run the other way, from
+"commissioning says the monitor draws ~100 mA" plus "the total is 7.4 mA" to
+"the monitor must sit upstream of the shunt." Valid logic, bad premise: the
+~100 mA was an **[I] wearing an [M]'s clothes**, a survival-sleep design note
+that was never measured, and it is 14x high.
+
+**Q2's answer settled in one sentence what two analyses could not settle at all.**
+He rewired the bank on 2026-08-04 to eliminate stacked lugs. The +2.9 mA step is
+an instrument offset shift — 1.08 uV at the 375 uOhm shunt, the same order as its
+0.9 uV commissioning offset — not a load change. Recorded in the report with the
+two failed discriminators (the "blip" is indistinguishable from 82 routine Wi-Fi
+dropouts; the voltage record cannot separate load from offset at day 19
+post-charge because the relaxation tail dominates).
+
+*Verdicts for the change: `validate_ha.py --strict open_questions.yaml` → PASS
+(parse-clean); `ha_audit.py` → 0 FAIL, 2 WARN, 1 INFO; `check_config` → valid.
+HA does not load this file — it is a Claude Code manifest — so `check_config`
+proves only that nothing else broke.*
 
 ## [2026.08.25] - 2026-08-25
 

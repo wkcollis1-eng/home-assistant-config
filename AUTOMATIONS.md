@@ -52,6 +52,7 @@ dehumidifier_rh_stall_shutdown         time_pattern                             
 dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_humidity +1 more             single     automations.yaml
 dehumidifier_stamp_last_off            state:switch.dehumidifier                                           single     automations.yaml
 dehumidifier_stamp_last_on             state:switch.dehumidifier                                           single     automations.yaml
+grafana_snapshot_scheduled             time_pattern                                                        single     grafana.yaml
 hvac_1f_recovery_end                   template                                                            single     automations.yaml
 hvac_1f_recovery_start                 template                                                            single     automations.yaml
 hvac_1f_recovery_stuck_clear           state:input_boolean.hvac_1f_recovering                              single     automations.yaml
@@ -67,6 +68,7 @@ hvac_2f_setback_stuck_clear            state:input_boolean.hvac_2f_setback_activ
 hvac_setback_midnight_audit            01:00:00                                                            single     automations.yaml
 nightly_buffer_backup                  00:20:00                                                            single     spc.yaml
 nightly_ha_audit                       00:30:00                                                            single     audit.yaml
+nightly_spc_verify                     00:25:00                                                            single     spc.yaml
 notify_ac_short_cycling                state:binary_sensor.hvac_ac_short_cycling_alert                     single     automations.yaml
 notify_cdd_capture_stale               state:binary_sensor.cdd_capture_stale                               single     automations.yaml
 notify_climate_norms_failure           state:sensor.climate_norms_today                                    single     automations.yaml
@@ -120,4 +122,4 @@ watchdog_reload_sem                    state:binary_sensor.watchdog_sem_stale   
 watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale                              single     watchdog.yaml
 ```
 
-111 automations.
+113 automations.

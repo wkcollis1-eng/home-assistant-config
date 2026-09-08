@@ -162,6 +162,36 @@ script: !include scripts.yaml
 scene: !include scenes.yaml
 
 # ===============================================================
+# LOVELACE — one yaml-mode dashboard alongside the storage-mode ones
+# ===============================================================
+# Added 2026-09-07 for the mmWave bench rig.
+#
+# `mode: storage` is the DEFAULT and is stated explicitly here so that adding
+# this block changes nothing about the existing dashboards: Overview, Energy
+# Performance, SDR Utility Meters and Map stay UI-managed, still live in
+# .storage, and are still exported to dashboards/lovelace/ by
+# scripts/export_dashboards.py. Removing this whole block returns HA to exactly
+# its previous behaviour.
+#
+# The single yaml-mode entry below is the exception, and it exists because a
+# storage-mode dashboard cannot be updated from a file — every change has to be
+# pasted into the raw configuration editor by hand, which is how the bench view
+# ended up live in .storage but absent from git.
+#
+# TRADE: a yaml-mode dashboard cannot be edited in the UI. For a bench rig
+# whose discipline is "the YAML is the record" (R9) that is the right way
+# round. Do not convert the others.
+lovelace:
+  mode: storage
+  dashboards:
+    mmwave-bench:
+      mode: yaml
+      title: mmWave Bench
+      icon: mdi:test-tube
+      show_in_sidebar: true
+      filename: dashboards/mmwave-bench.yaml
+
+# ===============================================================
 # LIVE WEATHER (Updates every 10 minutes)
 # ===============================================================
 rest:
@@ -6216,44 +6246,30 @@ template:
           {% else %}
             0
           {% endif %}
-      # In configuration.yaml template: section
-      - name: "UPS Apparent Internal Resistance"
-        unique_id: ups_apparent_internal_resistance
-        unit_of_measurement: "mΩ"
-        state_class: measurement
-        icon: mdi:omega
-        availability: >
-          {{ states('sensor.ups_monitor_last_outage_start_voltage') not in ['unknown','unavailable']
-             and states('sensor.ups_monitor_last_float_voltage') not in ['unknown','unavailable']
-             and states('sensor.ups_monitor_last_outage_start_voltage') | float(0) > 0
-             and states('sensor.ups_monitor_last_float_voltage') | float(0) > 0 }}
-        state: >
-          {% set v_float = states('sensor.ups_monitor_last_float_voltage') | float(0) %}
-          {% set v_start = states('sensor.ups_monitor_last_outage_start_voltage') | float(0) %}
-          {% set i_load  = states('sensor.ups_monitor_last_outage_ah') | float(0) %}
-          {% set typical_i = 1.18 %}
-          {% if v_float > v_start and typical_i > 0 %}
-            {{ (((v_float - v_start) / typical_i) * 1000) | round(1) }}
-          {% else %}
-            {{ None }}
-          {% endif %}
-
-      # Temperature-compensated version (adjust for DS18B20 reading at trip time)
-      - name: "UPS IR Temperature Compensated"
-        unique_id: ups_ir_temp_compensated
-        unit_of_measurement: "mΩ"
-        state_class: measurement
-        icon: mdi:omega
-        state: >
-          {% set r_raw = states('sensor.ups_apparent_internal_resistance') | float(0) %}
-          {% set t_f   = states('sensor.ups_monitor_battery_temperature') | float(72) %}
-          {% set t_c   = (t_f - 32) * 5 / 9 %}
-          {% set factor = 1 + 0.008 * (25 - t_c) %}
-          {% if r_raw > 0 %}
-            {{ (r_raw / factor) | round(1) }}
-          {% else %}
-            {{ None }}
-          {% endif %}
+      # RETIRED 2026-08-31 - sensor.ups_apparent_internal_resistance and
+      # sensor.ups_ir_temperature_compensated lived here. Deleted, not fixed (R10:
+      # the answer to a second copy is always removal). Recorded rather than tidied
+      # away, because the reason matters and the entity ids will outlive the code:
+      #
+      #   1. SECOND COPY. The UPS-Monitor firmware already computes this three ways
+      #      from the LIVE measured current -- apparent_ri (settled step, V1.16),
+      #      last_onset_step_resistance and last_recharge_step_resistance. The
+      #      dashboard already read the firmware's version, not this one.
+      #   2. STALE CONSTANT. It divided by a hardcoded `typical_i = 1.18` A. The
+      #      measured onset current has been 1.956 A [M, sensor.ups_monitor_last_
+      #      onset_current, 2026-08-29] since the 18 V boost went on the bus, so it
+      #      would have read high by [D: 1.956 / 1.18 = 1.66].
+      #   3. IT WAS ABOUT TO WAKE UP. Its availability guard needs
+      #      last_float_voltage, which was never written because
+      #      binary_sensor.ups_monitor_battery_fully_charged has never once been on
+      #      (threshold 13.25 V against a PSU that has never exceeded 13.2705 V [M]).
+      #      ups-monitor V1.17 fixes that threshold -- which would have brought this
+      #      sensor back to life publishing 198.1 mOhm where the truth is 119.5 [D],
+      #      against a 96.6 mOhm dashboard baseline. A dead wrong number is harmless;
+      #      a live one that looks like battery degradation is not.
+      #
+      # `i_load` was also assigned from last_outage_ah and never used.
+      # Full analysis: DIY-LiFePO4-UPS/reports/UPS_Report_2026-08-31_Boost_Integration.md
 
       # === dp removal / ingress — SAME rate, split by machine state ===
       # 2026-08-07 SIGN FIX. Both are now plain pass-throughs of

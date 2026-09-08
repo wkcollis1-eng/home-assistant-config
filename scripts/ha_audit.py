@@ -21,6 +21,7 @@ import argparse
 import io
 import json
 import os
+import posixpath
 import re
 import sys
 from datetime import datetime
@@ -1459,6 +1460,115 @@ def rule_open_questions():
                  "a statistical proxy. Set answered: in open_questions.yaml.")
 
 
+class _KeepTag(yaml.SafeLoader):
+    """Like Tolerant, but PRESERVES the scalar a `!tag` carries.
+
+    Tolerant discards it (`{"__tag__": suffix}`), which is right for shape
+    checks and useless here: resolving a yaml-mode dashboard means following
+    `!include <path>`, and the path IS the discarded value.
+    """
+    pass
+
+
+def _keep_tag(loader, suffix, node):
+    if isinstance(node, yaml.ScalarNode):
+        return {"__tag__": suffix, "__value__": loader.construct_scalar(node)}
+    return {"__tag__": suffix}
+
+
+_KeepTag.add_multi_constructor("!", _keep_tag)
+
+
+def _rel_include(base_file, inc):
+    """Resolve a Lovelace `!include` against the INCLUDING FILE'S directory.
+
+    CORRECTED 2026-09-07, by HA rejecting the first attempt. The two include
+    contexts do NOT share a base directory:
+      * configuration.yaml's includes  -> relative to the CONFIG ROOT
+      * a Lovelace dashboard file's    -> relative to THAT FILE'S directory
+    Assuming the first rule for the second produced a doubled path segment:
+    "Unable to read file /config/dashboards/dashboards/views/view-....yaml".
+    """
+    d = posixpath.dirname(base_file)
+    return posixpath.normpath(posixpath.join(d, inc) if d else inc)
+
+
+def _collect_includes(obj, out):
+    """Every `!include`d path reachable inside a parsed structure."""
+    if isinstance(obj, dict):
+        tag = obj.get("__tag__")
+        if isinstance(tag, str) and tag.startswith("include") and "__value__" in obj:
+            out.add(str(obj["__value__"]).replace("\\", "/"))
+            return
+        for v in obj.values():
+            _collect_includes(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _collect_includes(v, out)
+
+
+def _yaml_mode_view_files():
+    """View files served DIRECTLY by a yaml-mode Lovelace dashboard.
+
+    WHY THIS EXISTS (2026-09-07). rule_dashboard_pasted assumes every dashboard
+    is storage-mode: UI-managed in .storage, so a repo view only becomes live
+    once a human pastes it and export_dashboards.py re-exports it. A dashboard
+    registered in configuration.yaml under `lovelace: dashboards:` with
+    `mode: yaml` inverts that completely - HA loads THE FILE, there is nothing
+    to paste, and export_dashboards.py (which reads .storage) will never export
+    it no matter what anyone does.
+
+    Such a view would warn forever, and both remedies the rule offers assert
+    something false: pasting defeats the mode the dashboard was created in, and
+    blanket `ahead-of-live` annotations would declare a live file permanently
+    ahead of live AND blind the rule to genuinely un-pasted entities added to
+    that same file later. So the fix belongs here, in the rule's model of the
+    world, not in an annotation on the data.
+
+    FAILS SAFE, deliberately. Any parse error, missing file, or absent lovelace
+    block returns an empty set - which means every view is checked exactly as
+    before. A bug in this helper can only make the audit STRICTER, never blinder.
+    """
+    try:
+        cfg = yaml.load(text("configuration.yaml"), _KeepTag) or {}
+    except Exception:
+        return set()
+    lace = cfg.get("lovelace")
+    if not isinstance(lace, dict):
+        return set()
+    dashboards = lace.get("dashboards")
+    if not isinstance(dashboards, dict):
+        return set()
+    views = set()
+    for entry in dashboards.values():
+        if not isinstance(entry, dict) or entry.get("mode") != "yaml":
+            continue
+        fn = entry.get("filename")
+        if not isinstance(fn, str):
+            continue
+        # `filename:` in configuration.yaml IS config-root-relative; the
+        # includes INSIDE it are not. See _rel_include.
+        seen, queue = set(), [posixpath.normpath(fn.replace("\\", "/"))]
+        while queue:
+            rel = queue.pop()
+            if rel in seen:
+                continue
+            seen.add(rel)
+            body = text(rel)
+            if not body:
+                continue
+            try:
+                parsed = yaml.load(body, _KeepTag)
+            except Exception:
+                continue
+            found = set()
+            _collect_includes(parsed, found)
+            resolved = {_rel_include(rel, f) for f in found}
+            views |= resolved
+            queue.extend(resolved)
+    return views
+
+
 def rule_dashboard_pasted():
     """A dashboard edit is not done when the file is written.
 
@@ -1479,9 +1589,26 @@ def rule_dashboard_pasted():
     the wrong dashboard still reads as done. Declare a deliberate ahead-of-live
     reference with a `# ha_audit: ahead-of-live <entity_id>` comment in the
     view file - R9, the exception lives with the data.
+
+    EXCEPTION, and it is structural rather than declared: a view served by a
+    yaml-mode dashboard (see _yaml_mode_view_files) is live BY BEING THE FILE.
+    There is no paste step to verify, so it is excluded here and reported as
+    INFO instead - a silent exemption is how a check quietly stops checking.
     """
-    views = [f for f in _dashboard_files() if f.startswith("dashboards/views/")]
+    served_by_yaml = _yaml_mode_view_files()
+    all_views = [f for f in _dashboard_files() if f.startswith("dashboards/views/")]
+    skipped = sorted(f for f in all_views if f in served_by_yaml)
+    views = [f for f in all_views if f not in served_by_yaml]
     exports = [f for f in _dashboard_files() if f.startswith("dashboards/lovelace/")]
+    if skipped:
+        info("dashboard-yaml-mode",
+             "%s served directly by a yaml-mode dashboard - nothing to paste, "
+             "and export_dashboards.py reads .storage so it will never appear "
+             "in an export; excluded from the paste check"
+             % ", ".join(skipped),
+             fix="none needed. To put one back under the paste check, remove "
+                 "its dashboard entry from `lovelace: dashboards:` in "
+                 "configuration.yaml and manage it in the UI instead")
     if not views:
         return
     if not exports:
