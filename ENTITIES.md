@@ -89,6 +89,8 @@ sensor.dehumidifier_avg_cycle_minutes
 sensor.dehumidifier_current
 sensor.dehumidifier_dew_point_margin
 sensor.dehumidifier_duty_cycle_24h
+sensor.dehumidifier_energy_daily                 utility_meter on sensor.dehumidifier_energy, daily cycle
+sensor.dehumidifier_energy_monthly               utility_meter on sensor.dehumidifier_energy, monthly cycle
 sensor.dehumidifier_hold_time                    only valid for conditions_cleared stops
 sensor.dehumidifier_pull_down_rate
 sensor.dehumidifier_runtime_today

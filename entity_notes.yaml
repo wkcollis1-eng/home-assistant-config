@@ -397,6 +397,12 @@ sensor.dehumidifier_duty_cycle_24h:
 sensor.dehumidifier_energy:
   group: KASA PLUGS
   note: ''
+sensor.dehumidifier_energy_daily:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: utility_meter on sensor.dehumidifier_energy, daily cycle
+sensor.dehumidifier_energy_monthly:
+  group: DEHUMIDIFIER (configuration.yaml)
+  note: utility_meter on sensor.dehumidifier_energy, monthly cycle
 sensor.dehumidifier_hold_time:
   group: DEHUMIDIFIER (configuration.yaml)
   note: only valid for conditions_cleared stops

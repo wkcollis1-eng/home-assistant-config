@@ -553,7 +553,7 @@ input_number:
     min: 0
     max: 50
     step: 0.0001
-    unit_of_measurement: "Thm"
+    unit_of_measurement: "therm"
     mode: box
     icon: mdi:water-boiler
 
@@ -3444,7 +3444,7 @@ template:
           {% if last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
             false
           {% else %}
-            {% set d = last | as_datetime %}
+            {% set d = last | as_datetime | as_local %}
             {{ true if d is none else (now() - d).days > 35 }}
           {% endif %}
 
@@ -3456,7 +3456,7 @@ template:
           {% if last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
             false
           {% else %}
-            {% set d = last | as_datetime %}
+            {% set d = last | as_datetime | as_local %}
             {{ true if d is none else (now() - d).days > 35 }}
           {% endif %}
 
@@ -3468,7 +3468,7 @@ template:
           {% if last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
             false
           {% else %}
-            {% set d = last | as_datetime %}
+            {% set d = last | as_datetime | as_local %}
             {{ true if d is none else (now() - d).days > 35 }}
           {% endif %}
 
@@ -6869,10 +6869,12 @@ utility_meter:
   dehumidifier_energy_daily:
     source: sensor.dehumidifier_energy
     name: "Dehumidifier Energy Daily"
+    unique_id: dehumidifier_energy_daily
     cycle: daily
   dehumidifier_energy_monthly:
     source: sensor.dehumidifier_energy
     name: "Dehumidifier Energy Monthly"
+    unique_id: dehumidifier_energy_monthly
     cycle: monthly
 
 # PLATFORM SENSORS
