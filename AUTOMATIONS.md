@@ -36,7 +36,7 @@ csv_yearly_rotation                    00:03:00                                 
 daily_energy_csv_export                00:15:00                                                            single     energy_export_package.yaml
 daily_hvac_summary                     22:00:00                                                            single     automations.yaml
 database_maintenance_weekly            03:00:00                                                            single     automations.yaml
-database_size_monitor                  05:00:00                                                            single     automations.yaml
+database_size_monitor                  numeric_state                                                       single     automations.yaml
 dehumidifier_auto_off                  time_pattern, template                                              single     automations.yaml
 dehumidifier_auto_on                   state:binary_sensor.dehumidifier_should_run +1 more                 single     automations.yaml
 dehumidifier_cycle_counter_reset       00:00:00                                                            single     automations.yaml

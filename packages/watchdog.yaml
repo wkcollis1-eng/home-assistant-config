@@ -157,16 +157,6 @@ template:
             {{ (now() - sensor.last_updated).total_seconds() > threshold }}
           {% endif %}
         attributes:
-          last_updated: >
-            {% set sensor = states.sensor.battery_bank_monitor_battery_voltage %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
-          seconds_since_update: >
-            {% set sensor = states.sensor.battery_bank_monitor_battery_voltage %}
-            {% if sensor %}
-              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
-            {% else %}
-              -1
-            {% endif %}
           threshold_minutes: "{{ states('input_number.watchdog_threshold_battery_bank') }}"
 
       # --- Ecobee Thermostats (either sensor stale triggers) ---
@@ -182,12 +172,6 @@ template:
           {% set main_stale = main is none or main.state in ['unavailable', 'unknown'] or (now() - main.last_updated).total_seconds() > threshold %}
           {{ upstairs_stale or main_stale }}
         attributes:
-          upstairs_last_updated: >
-            {% set sensor = states.sensor.upstairs_current_temperature %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
-          main_floor_last_updated: >
-            {% set sensor = states.sensor.main_floor_current_temperature %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
           upstairs_stale: >
             {% set sensor = states.sensor.upstairs_current_temperature %}
             {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
@@ -220,16 +204,6 @@ template:
             {{ (now() - sensor.last_updated).total_seconds() > threshold }}
           {% endif %}
         attributes:
-          last_updated: >
-            {% set sensor = states.sensor.ups_monitor_battery_voltage %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
-          seconds_since_update: >
-            {% set sensor = states.sensor.ups_monitor_battery_voltage %}
-            {% if sensor %}
-              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
-            {% else %}
-              -1
-            {% endif %}
           threshold_minutes: "{{ states('input_number.watchdog_threshold_ups') }}"
 
       # --- SEM Meter ---
@@ -246,16 +220,6 @@ template:
             {{ (now() - sensor.last_updated).total_seconds() > threshold }}
           {% endif %}
         attributes:
-          last_updated: >
-            {% set sensor = states.sensor.sem_whole_home_power %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
-          seconds_since_update: >
-            {% set sensor = states.sensor.sem_whole_home_power %}
-            {% if sensor %}
-              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
-            {% else %}
-              -1
-            {% endif %}
           threshold_minutes: "{{ states('input_number.watchdog_threshold_sem') }}"
 
       # --- Basement TH Node (dehumidifier control sensor) ---
@@ -276,16 +240,6 @@ template:
             {{ (now() - sensor.last_updated).total_seconds() > threshold }}
           {% endif %}
         attributes:
-          last_updated: >
-            {% set sensor = states.sensor.basement_th_node_basement_humidity %}
-            {{ sensor.last_updated if sensor else 'unknown' }}
-          seconds_since_update: >
-            {% set sensor = states.sensor.basement_th_node_basement_humidity %}
-            {% if sensor %}
-              {{ (now() - sensor.last_updated).total_seconds() | int(0) }}
-            {% else %}
-              -1
-            {% endif %}
           threshold_minutes: "{{ states('input_number.watchdog_threshold_basement_th') }}"
           node_status: "{{ states('binary_sensor.basement_th_node_node_status') }}"
           rh_stuck: "{{ states('binary_sensor.basement_th_node_basement_rh_stuck') }}"

@@ -2904,10 +2904,28 @@
       weekday:
         - sun
   action:
-    # Repack rewrites the entire DB file (~800 MB of eMMC writes per pass) and
-    # reclaims little at a steady-state 14-day retention. Changed 2026-07-03:
-    # purge stays weekly; repack only on the FIRST Sunday of the month
-    # (~42 GB/yr -> ~10 GB/yr of repack writes).
+    # Repack rewrites the entire DB file and reclaims little at a steady-state
+    # 14-day retention. Changed 2026-07-03: purge stays weekly; repack only on
+    # the FIRST Sunday of the month.
+    #
+    # CORRECTED 2026-09-09. This note said "~800 MB of eMMC writes per pass"
+    # and "~42 GB/yr -> ~10 GB/yr". Both are stale by 5.5x [M, n=1 measurement]: the DB is
+    # 4400.7 MiB [M, sensor.recorder_db_size, 2026-09-09], so one pass now
+    # rewrites ~4.4 GB. Weekly would be ~229 GB/yr; monthly is ~53 GB/yr [D].
+    # The 2026-07-03 decision was therefore MORE right than the note claimed,
+    # not less - the saving is 176 GB/yr, not 32.
+    #
+    # "eMMC" WAS TRUE, FOR DIFFERENT HARDWARE. Answered by Bill 2026-09-09:
+    # the eMMC was the retired HA Green. This host is an ASRock N100DC-ITX,
+    # 8 GB RAM, 480 GB NVMe. Both cross-check against the running system -
+    # Supervisor reports disk_total 439.4 GB and the influxdb container's
+    # memory_limit is 7.59 GiB [M, 2026-09-09].
+    #
+    # SO THE WEAR ARGUMENT NO LONGER APPLIES. On an NVMe of this class 53 GB/yr
+    # of repack writes is negligible for endurance. KEEP IT MONTHLY ANYWAY, for
+    # the OTHER reason above: at steady-state 14-day retention a repack reclaims
+    # little, so it is mostly unearned I/O - pointless rather than harmful.
+    # Right decision, now for the right reason.
     - service: recorder.purge
       data:
         keep_days: 14
@@ -3440,22 +3458,39 @@
 
 - id: database_size_monitor
   alias: "Database Size Monitor"
-  description: "Weekly database health check reminder"
+  description: "Alert when the recorder database exceeds its size budget"
+  # REWRITTEN 2026-09-09. This fired every Monday at 05:00 and wrote a fixed
+  # string to the log. It read nothing, so it could not fail - R7 with the
+  # input removed entirely, and R8's "absent findings must never look like
+  # clean findings" in one automation. It had run every week for months and
+  # could never once have told you anything.
+  #
+  # Meanwhile sensor.recorder_db_size has existed all along (SQL integration,
+  # pragma page_count * page_size) and NOTHING watched it.
+  #
+  # Threshold 6144 MiB against 4400.7 MiB measured 2026-09-09 [M] - about 40%
+  # headroom, so it fires on a real regression rather than on normal growth.
+  # If it fires, find the top recorder writers BEFORE raising the threshold;
+  # the five watchdog sensors alone were 79,000 rows/day until 2026-09-09.
   trigger:
-    - platform: time
-      at: "05:00:00"
-  condition:
-    - condition: time
-      weekday:
-        - mon
+    - platform: numeric_state
+      entity_id: sensor.recorder_db_size
+      above: 6144
+      for:
+        minutes: 30
   action:
+    - service: persistent_notification.create
+      data:
+        title: "⚠️ Recorder DB over budget"
+        message: >
+          home-assistant_v2.db is {{ states('sensor.recorder_db_size') | float(0) | round(0) | int(0) }} MiB,
+          over the 6144 MiB budget. Disk free: {{ states('sensor.system_monitor_disk_free') }} GiB.
+          Identify the top recorder writers before raising the threshold.
     - service: system_log.write
       data:
-        message: >
-          Weekly database check: home-assistant_v2.db size monitoring.
-          If HA is sluggish, consider running manual VACUUM via SSH.
-        level: info
-
+        level: warning
+        message: >-
+          Recorder DB {{ states('sensor.recorder_db_size') | float(0) | round(0) | int(0) }} MiB exceeds the 6144 MiB budget.
 # ===============================================================
 # DATA BACKUP & ROTATION
 # ===============================================================
