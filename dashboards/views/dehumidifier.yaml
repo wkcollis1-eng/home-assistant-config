@@ -1092,16 +1092,11 @@ sections:
           - entity: sensor.basement_th_node_basement_rh_rate_30m
             name: Node ΔRH/h 30m
           - entity: sensor.basement_th_node_basement_temp_rate_30m
-            name: Node ΔT/h 30m — °C/h, NOT °F/h
+            name: Node ΔT/h 30m
       - type: markdown
         content: |
-          ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2** — and as of 2026-08-24 they have been read against the firmware rather than guessed at. `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, marked DIAGNOSTIC ONLY and explicitly barred from feeding control or the HA stall detector). A least-squares slope carries the **natural sign**, so negative = falling, the same convention as card 2. Only ONE real difference survives: the unit on the temperature rate.
-
-          `basement_temp_rate_30m` in particular is in **°C/h**, because the node derives its slope from the SHT45's native Celsius reading while publishing temperature in °F. The dashboard now uses `sensor.basement_temp_rate` instead — a derivative taken in HA off the node's **°F** temperature, so it is °F/h at the root rather than scaled after the fact, and it shares one formula with every other rate.
-
-          *For the record, since it is the thing people get wrong: a rate is a difference per unit time, so only the 9/5 scale applies and the +32 offset does not. 1 °C/h = 1.8 °F/h, and 0 °C/h = 0 °F/h — not 32.*
-
-          **To retire this card**, change `t_rate_30` in `esphome/basement-th-node.yaml` to publish °C/h × 1.8 with `unit_of_measurement: "°F/h"`, or delete the four node rate sensors from firmware and rely on the HA-side set. The file is in the repo — this card previously said it "is not in hand", which had stopped anyone closing the question. Per the esp-firmware-validation gate, that edit is not done until `src/main.cpp.o` compiles with 0 errors; codegen alone does not compile lambdas.
+          ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2.** `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, DIAGNOSTIC ONLY, barred from feeding control or the HA stall detector). A least-squares slope carries the natural sign — negative = falling — same convention as card 2.
+          Since 2026-09-10 `t_rate_30` publishes in **°F/h** (internal slope stays °C/h, scaled ×1.8 at publish — a rate takes the 9/5 factor only, no +32 offset, so 0 °C/h = 0 °F/h). All four now share both the sign convention and the unit family of card 2. The charts still use the HA-side `sensor.basement_temp_rate` — a derivative taken directly off the node's °F temperature.
       - type: entities
         title: Cross-Check — Control (SHT45) vs Validation (Shelly)
         state_color: true
