@@ -568,12 +568,6 @@ sensor.hvac_1f_runtime_per_hdd_today:
 sensor.hvac_2f_runtime_per_hdd_today:
   group: EFFICIENCY MONITORING
   note: ''
-sensor.hvac_ac_blower_energy:
-  group: HVAC COOLING EFFICIENCY (configuration.yaml)
-  note: cumulative kWh (integration sensor)
-sensor.hvac_ac_blower_power:
-  group: HVAC COOLING EFFICIENCY (configuration.yaml)
-  note: furnace power when AC >100W, else 0
 sensor.hvac_building_load_ua_12m:
   group: ENERGY METRICS
   note: ''

@@ -1194,7 +1194,6 @@ scripts/
 │                               to the gate sensor it averages, and queries THAT.
 │                               Carries no appliance constants. Prints a plan; writes
 │                               nothing back without --apply. Stamps *_spc_last_seed.
-├── seed_ac_blower_energy.py    Seeds hvac_ac_blower_daily from furnace+AC correlation
 ├── spc_verify.py               NIGHTLY RECONCILIATION (00:25, automation
 │                               nightly_spc_verify). Recomputes each appliance's
 │                               daily running watts from the RAW InfluxDB series
@@ -1350,17 +1349,6 @@ happened while HA or the SDR was down). LeakNow is the immediate signal;
 Leak is the one that survives your stack being off.
 ```
 
-### P8 — hvac_ac_blower_daily / _monthly were never created [LOW]
-```
-RESTORED 2026-08-22: this entry was accidentally deleted earlier the same day
-when P9 was inserted over the top of it. Recording that because a PENDING item
-that vanishes silently is worse than one that is never written.
-Documented in ENTITIES as utility meters; present in no config file and no
-registry entry. scripts/seed_ac_blower_energy.py seeds _daily, so it seeds
-nothing. sensor.hvac_ac_blower_power and _energy DO exist. Commented out in
-ENTITIES rather than guessing. Create the meters or retire the script.
-```
-
 ### INFO HYGIENE (2026-08-23)
 
 **An INFO that fires every run and cannot be actioned is noise, and noise
@@ -1396,6 +1384,8 @@ P4    phantom entity references                                  RESOLVED
 P5    fabricated limit constants                                 RESOLVED
 P6    statistics sampling_size                                   RESOLVED
 P7    R900 leak sensors                                          RESOLVED
+P8    hvac_ac_blower_* chain retired — it existed, was not
+      "never created"; deliberately removed, see CHANGELOG      RESOLVED
 P10   rtlamr2mqtt duty cycle                                     DEPLOYED
 P12   InfluxDB CQs retired, Grafana SPC re-sourced               RESOLVED
 P13   statistics-buffer check                                    RESOLVED

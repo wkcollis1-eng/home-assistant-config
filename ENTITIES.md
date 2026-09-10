@@ -187,13 +187,6 @@ sensor.hvac_cdd65_today                 [pipeline: capture_daily_cooling_kwh_cdd
 sensor.hvac_hdd65_today
 ```
 
-## HVAC COOLING EFFICIENCY (configuration.yaml)
-
-```
-sensor.hvac_ac_blower_energy  cumulative kWh (integration sensor)
-sensor.hvac_ac_blower_power   furnace power when AC >100W, else 0
-```
-
 ## KASA PLUGS
 
 ```

@@ -45,6 +45,89 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.10] - 2026-09-10
 
+### Registry cleanup — 9 orphaned entities deleted
+
+Read-only audit of all 91 `unknown`/`unavailable` live entities plus 248 registry
+entries with no state (live `/api/states` + the three `.storage` registries,
+cross-referenced against every config surface). The 248 are all
+`disabled_by: integration`/`user` — not orphans. Of the 91, nine were true
+orphans: `restored: true` husks whose YAML definitions were retired weeks-to-
+months ago, with zero inbound references. Deleted via the UI (`.storage` is not
+hand-editable):
+
+```
+sensor.dehumidifier_dp_drop_rate_60min      template    retired 2026-08-07
+sensor.dehumidifier_rh_drop_rate_60min      template    retired 2026-08-07
+sensor.dehumidifier_dp_mean_60min           statistics  retired 2026-08-07
+sensor.dehumidifier_rh_mean_60min           statistics  retired 2026-08-07
+sensor.ups_apparent_internal_resistance     template    retired 2026-08-31 (this file, that day's entry)
+sensor.ups_ir_temperature_compensated       template    retired 2026-08-31
+sensor.sem_total_power_mean                  statistics  source sensor.sem_total_power renamed to
+                                                         sensor.sem_whole_home_power; the live
+                                                         replacement is sensor.sem_whole_home_power_mean
+sensor.hvac_ac_blower_power                  template    chain removed by a prior entry
+sensor.hvac_ac_blower_energy                 integration ("Removed unused template/integration sensors")
+```
+
+Follow-through: removed the two `hvac_ac_blower_*` blocks from
+`entity_notes.yaml` — they were the last references, and `ha_audit.py` raised
+`entity-note-orphan` on both after the deletions. `ENTITIES.md` regenerated; the
+"HVAC COOLING EFFICIENCY" section is gone (it held only those two).
+
+Verified: `ha_audit.py` → `0 FAIL, 1 WARN` (the standing battery-label
+open-question), identical to session start. `validate_ha.py --strict
+entity_notes.yaml` → PASS (parse-clean). The `ENTITIES.md` diff is a single hunk
+— no collateral change.
+
+Off-host limitation hit: `gen_reference.py` raised `ValueError: max() empty` in
+`render_automations` when run from Windows/Samba. It had already written
+`ENTITIES.md`; `AUTOMATIONS.md`/`PACKAGES.md` were left untouched, which is
+correct (no automation or package changed this session). Re-run on the host for
+a full regen.
+
+CLAUDE.md corrected (same session): P8 moved from PENDING to Closed with the text
+fixed — the `_daily`/`_monthly` meters existed and carried long-term statistics
+through 2026-07-23; "were never created" was wrong, the whole chain was a
+deliberate removal. FILE MAP line for the deleted `scripts/seed_ac_blower_energy.py`
+removed.
+
+Second pass — dead config entries and file cruft removed:
+- `met` "Home" and `nws` "06424" weather integrations deleted (REST
+  `DELETE /api/config/config_entries/entry`, `require_restart: false`). Both had
+  ZERO enabled entities and zero references. The outdoor-temp fallback ladder in
+  `hvac_outdoor_temp_hartford_proxy` is live -> `weather.pirateweather` ->
+  `weather.local_weather_2` (NWS/KHFD) -> `weather.home` (Open-Meteo); `met` was
+  not in it. Post-delete: `weather.forecast_home` -> 404, proxy healthy at 82.4 F
+  on "Live API (10min)". `nws` "KHFD" KEPT — it owns `weather.local_weather_2`.
+- Duplicate `template` "Lamp 1 Energy" config entry (`01KDGW1V9...`) deleted; the
+  real `sensor.lamp_1_energy` (`01KDGVP97...`) untouched. Removed
+  `sensor.lamp_1_energy_2`.
+- `sensor.lamp_1_power_2`, `sensor.lamp_1_cost_2` — orphaned registry entries
+  (`config_entry_id: null`, legacy YAML template sensors with no YAML left)
+  removed via the WS API (`config/entity_registry/remove`); the UI hides Delete
+  for a disabled entity. Both now in `deleted_entities`; live API returns 404.
+- `scripts/.verify_*.tmp` x24 deleted — April 2026 `test_ha_audit.py` residue,
+  gitignored (`.gitignore` line 67).
+- `.storage/core.device_registry.20260805_233154.migration_backup` (43 KB, the
+  Aug 5 migration safety copy) deleted.
+- `ha_audit.py` after all live-instance changes: still `0 FAIL, 1 WARN` (battery
+  open-question), no WARN increase.
+
+First-pass backlog corrections (claims that were wrong on inspection):
+- HA Repairs is EMPTY. `.storage/repairs.issue_registry` is a persisted ledger,
+  not the live queue — every row is `is_persistent: false`, shown only while the
+  raising integration re-registers it each boot. 7 rows are stale-resolved
+  (created Dec 2025 - Jul 2026), 1 is dismissed (`2026.9.1`). Nothing queued.
+- `tplink` "Family Room HS103" x3 are three distinct MACs (`68:ff:7b:dc:67:47` /
+  `:3c:d0` / `:61:d7`), i.e. three real plugs — not a duplicate. Left alone.
+
+Deferred by owner for further consideration:
+- `sensor.bills_iphone_*` x21 (`unavailable`, iOS sensors not enabled in the
+  companion app).
+- Recorder DB size (~4.4 GB) `exclude:` tuning, and the unfiltered InfluxDB
+  write set (retention infinite, `options: {}` = no filter). Both want a
+  sandbox first.
+
 ### Cutover to InfluxDB 1.12.4 COMPLETED. Production is now the fork; 1.8.10 retired.
 
 **Current state: `local_influxdb112` (InfluxDB 1.12.4) serves the house on
