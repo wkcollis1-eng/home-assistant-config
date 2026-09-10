@@ -1199,8 +1199,8 @@ views:
               - entity: sensor.system_monitor_network_throughput_in_enp1s0
           - type: entities
             entities:
-              - entity: sensor.influxdb_cpu_percent
-              - entity: sensor.influxdb_memory_percent
+              - entity: sensor.influxdb_1_12_local_fork_cpu_percent
+              - entity: sensor.influxdb_1_12_local_fork_memory_percent
               - entity: sensor.grafana_cpu_percent
               - entity: sensor.grafana_memory_percent
   - title: HVAC Performance
@@ -2559,14 +2559,14 @@ views:
               ### Runtime: <font color="silver">-- Calculating...</font>
               {% endif %}
 
-              | Phase | Voltage | @ 14.9 W [M] | @ 26.8 W [D] |
+              | Phase | Voltage | @ 14.9 W May | @ 26.9 W Sep 1 |
               | :--- | :---: | ---: | ---: |
               | <font color="cyan">{{ '->' if phase in ['Charging','Float'] }} Charging / Float</font> | > 13.15 V | -- | -- |
-              | <font color="lime">{{ '->' if phase == 'Settling' }} Settling</font> | 13.00–13.15 V | ~5 min | ~3 min |
-              | <font color="#81C784">{{ '->' if phase == 'Plateau' }} Plateau</font> | 12.65–13.00 V | ~142 min | ~85 min |
-              | <font color="orange">{{ '->' if phase == 'Knee' }} Knee</font> | 12.40–12.65 V | ~49 min | ~29 min |
-              | <font color="red">{{ '->' if phase == 'Cliff' }} Cliff</font> | 11.80–12.40 V | ~17 min | ~10 min |
-              | **Total to LVD** | 13.20–11.80 V | **213 min** | **128 min** |
+              | <font color="lime">{{ '->' if phase == 'Settling' }} Settling</font> | 13.00–13.15 V | ~5 min | none — starts loaded at 12.97 V |
+              | <font color="#81C784">{{ '->' if phase == 'Plateau' }} Plateau</font> | 12.65–13.00 V | ~142 min | **~43 min [M]** |
+              | <font color="orange">{{ '->' if phase == 'Knee' }} Knee</font> | 12.40–12.65 V | ~49 min | ~20 min [D] |
+              | <font color="red">{{ '->' if phase == 'Cliff' }} Cliff</font> | 11.80–12.40 V | ~17 min | not measured |
+              | **Shutdown fires** | ~12.45 V | ~155 min | **~60–70 min [D]** |
 
               ***
               <font color="#FF9800">HA Voltage Warning (Auto 2) at **12.40 V**</font>
@@ -2574,7 +2574,7 @@ views:
               <font color="#FF7043">HA Hard Fallback (Auto 4) at **12.20 V**</font>
               <font color="#FF5722">BP-65 Hard Cutoff at **11.80 V** (102 s spec delay)</font>
               ***
-              <font color="silver"><i>Load 2.089 A / 26.80 W since the 18 V boost went in 2026-08-29 [M, n=156]. The right-hand column is that measurement scaled by energy [D: 53.3 Wh / 25.01 W]; it does not model the extra IR sag at 2.09 A and is NOT yet confirmed by a deep discharge. Runtime Remaining above uses LIVE current and needs no correction.</i></font>
+              <font color="silver"><i>Load 26.91 W / 2.111 A [M, n=615, 51 min, 2026-09-01 outage test]. Right-hand column MEASURED on that test: 54 min on battery, 12.97 → 12.565 V, 1.833 Ah / 23.37 Wh = 43.8% of capacity. It replaces an energy-scaled projection that said ~85 min of plateau; the real figure is ~43, because on the flat LFP plateau the extra IR sag at 2.11 A dominates — 12.65 V is now reached at ~35% depth against ~69% in May. Knee is part-measured (11 min of it) and part-extrapolated at −8.5 mV/min. NOTHING below 12.565 V has been measured at this load. Energy alone gives ~123 min to LVD, but the ladder trips on volts and fires far sooner. Runtime Remaining above divides by LIVE current and needs no correction.</i></font>
           - type: markdown
             title: UPS Thresholds
             content: |
@@ -5722,16 +5722,11 @@ views:
               - entity: sensor.basement_th_node_basement_rh_rate_30m
                 name: Node ΔRH/h 30m
               - entity: sensor.basement_th_node_basement_temp_rate_30m
-                name: Node ΔT/h 30m — °C/h, NOT °F/h
+                name: Node ΔT/h 30m
           - type: markdown
             content: |
-              ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2** — and as of 2026-08-24 they have been read against the firmware rather than guessed at. `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, marked DIAGNOSTIC ONLY and explicitly barred from feeding control or the HA stall detector). A least-squares slope carries the **natural sign**, so negative = falling, the same convention as card 2. Only ONE real difference survives: the unit on the temperature rate.
-
-              `basement_temp_rate_30m` in particular is in **°C/h**, because the node derives its slope from the SHT45's native Celsius reading while publishing temperature in °F. The dashboard now uses `sensor.basement_temp_rate` instead — a derivative taken in HA off the node's **°F** temperature, so it is °F/h at the root rather than scaled after the fact, and it shares one formula with every other rate.
-
-              *For the record, since it is the thing people get wrong: a rate is a difference per unit time, so only the 9/5 scale applies and the +32 offset does not. 1 °C/h = 1.8 °F/h, and 0 °C/h = 0 °F/h — not 32.*
-
-              **To retire this card**, change `t_rate_30` in `esphome/basement-th-node.yaml` to publish °C/h × 1.8 with `unit_of_measurement: "°F/h"`, or delete the four node rate sensors from firmware and rely on the HA-side set. The file is in the repo — this card previously said it "is not in hand", which had stopped anyone closing the question. Per the esp-firmware-validation gate, that edit is not done until `src/main.cpp.o` compiles with 0 errors; codegen alone does not compile lambdas.
+              ℹ️ **These four are computed in ESPHome firmware, not by the canonical derivative set on card 2.** `esphome/basement-th-node.yaml` computes them as **60 s least-squares slopes over a 180-sample ring** (Rev 2.2, DIAGNOSTIC ONLY, barred from feeding control or the HA stall detector). A least-squares slope carries the natural sign — negative = falling — same convention as card 2.
+              Since 2026-09-10 `t_rate_30` publishes in **°F/h** (internal slope stays °C/h, scaled ×1.8 at publish — a rate takes the 9/5 factor only, no +32 offset, so 0 °C/h = 0 °F/h). All four now share both the sign convention and the unit family of card 2. The charts still use the HA-side `sensor.basement_temp_rate` — a derivative taken directly off the node's °F temperature.
           - type: entities
             title: Cross-Check — Control (SHT45) vs Validation (Shelly)
             state_color: true
