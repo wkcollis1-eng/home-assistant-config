@@ -263,8 +263,8 @@
     decides whether the per-cell figure is 24.4 mOhm (4S1P) or half that (4S2P),
     which is the difference between "high for a 10 Ah LFP cell" and "ordinary".
   answered: >-
-  2026-09-10, Bill: no documentation on the physical battery other than 4S1P.
-  
+    2026-09-10, Bill: no documentation on the physical battery other than 4S1P.
+
 - asked: 2026-09-05
   question: >-
     What device will actually switch the office lamp and the family room
