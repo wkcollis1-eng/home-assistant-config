@@ -4,7 +4,11 @@
 - Retired engineer, East Hampton CT (Climate Zone 5A)
 - Maintains 6 public GitHub repos: `home-assistant-config`, `Residential-HVAC-Performance-Baseline-`, `Lifepo4-Battery-Banks`, `DIY-LiFePO4-UPS`, `Tools`, plus 1 other
 - Expertise: KiCad PCB design, ESPHome/Home Assistant firmware, LiFePO4 battery systems, residential energy monitoring
-- Works from Windows, using Claude Code over Samba share to HA host (ASRock N100DC-ITX)
+- Works from Windows, using Claude Code over Samba share to HA host
+  (**ASRock N100DC-ITX, 8 GB RAM, 480 GB NVMe** - per Bill 2026-09-09; cross-checks
+  against Supervisor `disk_total` 439.4 GB and a 7.59 GiB container memory limit [M]).
+  **Any "eMMC" in an older note refers to the RETIRED HA Green, not this host** - so
+  flash-wear arguments inherited from that era do not apply here.
 - Unit owner at Edgewater Hill (mixed-use planned community)
 
 ## Design Philosophy — the one sentence
@@ -955,8 +959,8 @@ Electric rate:        $0.29/kWh
 ### InfluxDB 1.x
 - **THE ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY WAY
   BACK.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed from the
-  Community Add-ons store on **2026-08-28** because InfluxData EOL'd InfluxDB
-  1.x. It still runs, and `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still
+  Community Add-ons store on **2026-08-28**. It still runs, and
+  `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still
   pulls (HTTP 200, re-verified 2026-08-31) — but **"reinstall it" is not a
   recovery step and never will be again.** Searching the store for "InfluxDB"
   now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on shipping
@@ -967,6 +971,31 @@ Electric rate:        $0.29/kWh
   `hassio.restore_partial` with `homeassistant: false` and
   `addons: [a0d7b954_influxdb]`, and **stop any add-on holding host port 8086
   first** or the restore comes up dead.
+- **CORRECTED 2026-09-08: InfluxDB 1.x IS NOT END-OF-LIFE. This section said it
+  was, and the claim was load-bearing and false.** The add-on's own README says
+  the maintainers stopped because InfluxData EOL'd 1.x - authoritative for why
+  THEY stopped, not for whether 1.x is EOL. The two were conflated here (R16).
+  Measured 2026-09-08 from primary sources:
+
+      influxdata/influxdb releases   v1.12.4 2026-04-13 ; v1.12.3 2026-03-12
+      endoflife.date                 latest 1.x = 1.13.0 ; EOL date: NONE
+      Docker Official Images         influxdb:1.12 rebuilt 2026-08-25
+      what runs here                 1.8.10, released 2021-10-11
+
+  **The abandoned thing is the ADD-ON, not the database.** The OSS line went
+  1.8.10 (2021) then 1.11.7, 1.12.x, 1.13.0 - 1.9/1.10/1.11.0-.6 were never
+  public OSS, which is the whole five-year gap. The false claim drove the
+  2026-08-31 session to the v2 add-on that restored nothing, and on 2026-09-08
+  nearly drove a 171-query rewrite onto VictoriaMetrics.
+
+  **Side-by-side sandbox on a copy of the real DB (CHANGELOG 2026.09.08):**
+  1.12.4 opens 1.8.10 data with no migration, identical query results,
+  IDENTICAL TSM bytes, +12% write throughput, working `ha_ro` auth, and
+  WORKING ROLLBACK after an unclean kill. Cost: 15-22% slower on a mixed
+  dashboard load, confined to `GROUP BY "entity_id"` with no `GROUP BY time()`
+  bucket - 4 of 170 live Grafana queries, ~+18 ms each. NOT DEPLOYED; tested on
+  Windows builds, not on the N100.
+
 - **Restoring the add-on does NOT restore the HA integration.** The config
   entry lives in `.storage/core.config_entries`, which a partial add-on
   restore does not touch, and there is no `influxdb:` YAML anywhere to fall

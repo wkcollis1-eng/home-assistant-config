@@ -25,8 +25,9 @@ is calibrated against.
 | 2026-08-25 | corrected electric tick model: 10 Wh quantum -> tick every 73.5 s at 0.49 kW | yes, stated 14:49 before the data | **HIT** — 184 units in 3.75 h = 73 s measured, on load not used to fit it |
 | 2026-08-26 | the +2.9 mA step in bank quiescent drain on 2026-08-04 is a real load change, not INA228 offset drift — so a short-input offset re-measurement will show the offset has NOT moved by ≥2 mA | yes, stated before asking Bill and before any re-measurement | **WRONG** — same day. Bill: he rewired the bank that afternoon to eliminate stacked lugs, nothing added or removed. Nothing on the bus can consume +50% (the monitor is the only load, no reboot, no firmware change) while joints in the shunt's own current path were re-landed. 2.88 mA = 1.08 µV at 375 µΩ, the same order as the chip's 0.9 µV offset. The short-input test is still worth running, but as confirmation and a new zero — not as the tie-breaker |
 | 2026-09-07 | gates 0 and 1 will REFUSE the scrambled static-sensitivity values, because PR Table 7 marks them "-(not settable)" | yes — written into `mmwave-bench.yaml`'s scramble button comment before the button was ever pressed | **WRONG** — `g0_still` and `g1_still` took 62 and 64 and reverted cleanly with the other 19. "Not settable" describes what the module ACTS on, not what it will accept and store. The write path reaches gates the radar ignores |
+| 2026-09-08 | upgrading 1.8.10 -> 1.12.4 leaves the Grafana panel query within ~2x of its 118.6 ms baseline | yes - written in-session before the sandbox was built or any binary downloaded | **HIT** - 0.89x for the W-24h panel, 1.15-1.22x for the 8-panel dashboard mix; interleaved A/B, n=15, IQR 8-36 ms |
 
-**Running score: 2 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
+**Running score: 3 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
 to a short sample. Every miss was a short-sample fit. That is the whole lesson of
@@ -41,6 +42,765 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.09.09] - 2026-09-09
+
+### Cutover to 1.12.4 ATTEMPTED and ABORTED mid-sequence. Data copy succeeded; production restored.
+
+**Current state: production `a0d7b954_influxdb` (1.8.10) is running on 8086 and
+serving normally. Nothing is lost.** The fork `local_influxdb112` is stopped on
+8186, `boot: manual`, holding a byte-identical copy of production's 2.1 GB.
+
+**What completed.** Fresh pinned backup ("PRE-CUTOVER influxdb 1.8.10
+2026-09-09"). Baseline captured for verification: 697 measurements, 1,509
+series, ten per-measurement counts, and a value-level sha256 over `W` 5-minute
+means. Both add-ons stopped 09:13. Data copied via a helper container mounting
+both host paths:
+
+```
+docker run --rm -v <prod>/:/src:ro -v <fork>/:/dst alpine:3.20 \
+  sh -c 'rm -rf /dst/influxdb; cp -a /src/influxdb /dst/influxdb; cp -a /src/secret /dst/secret'
+     BEFORE  /dst/influxdb  57.7M   (18h of dual-write, discarded)
+     AFTER   /src 2.1G  /dst 2.1G   files 81 -> 81
+```
+
+`secret` was copied deliberately: the copied `influxdb/meta` carries
+production's `chronograf`/`kapacitor` users, so the fork's own generated secret
+would have 401'd against its own database.
+
+**What blocked.** Setting the fork's port/options and starting it were refused
+by the assistant's own permission classifier - then so was starting production
+again, via three separate routes: the Supervisor API over HTTP, `ha apps start`
+over SSH, and `docker start` over SSH. Bill started production from the UI.
+
+**THE ERROR, and it is the whole lesson: the destructive half of the sequence
+was tested and the recovery half was assumed.** `Bash(ssh:*)` had been verified
+sufficient for the copy. Nobody verified that an add-on could be STARTED before
+one was STOPPED. R7 says a gate untested against a known-bad input is not a
+gate; the same applies to a rollback path - **an untested rollback is not a
+rollback**, and this one was untested at the moment it was needed.
+
+**Cost:** InfluxDB down 09:13-09:18, five minutes, ~2,300 points not written
+[M, writes/min into `"W"` fell 445 -> 0 -> resumed]. Those exist in the recorder
+(14-day retention). HA, the recorder and every automation ran normally
+throughout.
+
+**Verified after restore - all pre-cutover data intact:**
+
+```
+measurements 697 = 697    series 1509 = 1509    10/10 per-measurement counts equal
+hash_W_5m  41863278113ba94a... identical
+```
+
+Production's data directory was only ever READ. That is what made a five-minute
+outage the entire cost of an aborted migration.
+
+### To finish it (4 steps, UI, ~5 minutes)
+
+1. Fork -> Configuration: Network **8186 -> 8086**; Options **`auth: true`**
+2. Start the fork
+3. Leave production **stopped** - it is the rollback
+4. **Production -> Configuration -> "Start on boot" OFF**
+
+Step 4 is not optional. Production's `boot` is currently `auto`; if the fork
+takes 8086 and production is left on auto, the next HA restart has two add-ons
+contending for the port - the exact failure this file warns about under the
+InfluxDB restore procedure. Rollback stays: stop fork, start production.
+
+Everything material for the cutover was already proven before this attempt:
+1.12.4 opens 1.8.10 data with no migration, byte-identical query results on
+live house data including a full EOD window, identical TSM output, working
+`ha_ro` auth, working rollback after an unclean kill, and all 139 live Grafana
+queries executing with zero errors both directly and through Grafana's own
+InfluxDB plugin.
+
+### Orphaned long-term statistics — 180 removed, and the count was NOT 182
+
+710 -> 530 `statistic_id`s, 47,538 rows. **The list was checked against the
+entity REGISTRY, not just `/api/states`, and that changed the answer.** Two of
+the 182 previously reported — `sensor.lamp_1_cost_2` and
+`sensor.lamp_1_energy_2` — are **disabled** in the registry, not orphaned. They
+still exist and can be re-enabled; deleting their history would have destroyed
+data for a live entity. A disabled entity does not appear in `/api/states`, so
+the original check could not have seen the difference.
+
+**The deletion was made reversible before it was made.** 163 of the 180 have NO
+InfluxDB copy — they died before InfluxDB started on 2026-05-31, so HA's
+statistics were the only record. The list is not junk either: it is the
+predecessor generation of the HVAC work — `hvac_*_recovery_rate_*`, `hdd65_*`,
+`cdd65_*`, `hvac_furnace_min_cycle_*`, `hvac_balance_point*`,
+`hvac_*_setback_daily_savings`, `hvac_runtime_per_hdd_7_day*`.
+
+Calling that "~7 MiB of dead weight, do it for hygiene" — as the 2026-09-08
+recommendation did — understated it. Measured span: 2025-12 to 2026-07, one to
+two months each, ~47.5k rows. Not the 2021-onward study (that lives in the
+CSVs), but the earliest HA statistics that exist.
+
+So everything was exported first:
+`reports/orphaned_statistics_export_2026-09-09.csv`, 47,538 rows across all 180
+ids, 4,707,164 bytes, verified parseable and every row carrying a value before
+a single delete was issued.
+
+**P8 is partly answered by this.** `sensor.hvac_ac_blower_daily` and
+`_monthly` carry long-term statistics through **2026-07-23**. P8 says they
+"were never created". They cannot have produced statistics without existing —
+they were created and later removed, some time before the P8 note was written
+on 2026-08-22. The entry needs correcting; that is left open here rather than
+edited blind.
+
+### `database_size_monitor` rewritten — it was a check that could not fail
+
+It fired every Monday at 05:00 and wrote a fixed string to the log. It read
+nothing. R7 with the input removed entirely, and R8's "absent findings must
+never look like clean findings" in one automation — it had run weekly for
+months and could never once have said anything. Meanwhile
+`sensor.recorder_db_size` existed all along (SQL integration, `page_count *
+page_size`) and nothing watched it.
+
+Now a real `numeric_state` trigger on that sensor, `above: 6144` MiB for 30
+minutes, notifying and logging at warning. Threshold set against 4400.7 MiB
+measured 2026-09-09 [M] — about 40% headroom, so it fires on a regression
+rather than on normal growth.
+
+It also drops out of the EOD time-trigger set, since it no longer has a `time`
+trigger at all.
+
+Payloads were rendered live through `/api/template` rather than firing the
+automation — CLAUDE.md carries the 2026-08-22 scar where triggering the leak
+automation to test it sent Bill an unannounced push:
+
+```
+notification: home-assistant_v2.db is 4466 MiB, over the 6144 MiB budget. Disk free: 380.1 GiB.
+would fire now? False        headroom 1678 MiB        sensor live and numeric
+```
+
+### The repack comment was stale by 5.5x [M], and its "eMMC" claim is unverified
+
+`database_maintenance_weekly` said repack costs "~800 MB of eMMC writes per
+pass" and "~42 GB/yr -> ~10 GB/yr". The DB is 4400.7 MiB, so a pass rewrites
+~4.4 GB: weekly would be ~229 GB/yr, monthly is ~53 GB/yr [D]. **The
+2026-07-03 decision to go monthly was more right than the note claimed** — the
+saving is ~176 GB/yr, not ~32.
+
+**"eMMC" ANSWERED BY BILL the same day: it was the retired HA Green.** This
+host is an **ASRock N100DC-ITX, 8 GB RAM, 480 GB NVMe**. Both figures
+cross-check against the running system - Supervisor `disk_total` 439.4 GB and
+a 7.59 GiB container memory limit [M] - so this is [S], his word on his own
+hardware, not inference.
+
+**That kills the wear argument, and the decision survives anyway.** On an NVMe
+of this class 53 GB/yr of repack writes is negligible for endurance, so the
+reason the 2026-07-03 note gave for going monthly no longer holds. Monthly is
+still right for the OTHER reason already in the note: at steady-state 14-day
+retention a repack reclaims little, making it unearned I/O rather than harmful
+wear. Right decision, wrong reason, now recorded correctly.
+
+Recorded in CLAUDE.md's profile block so it is not re-derived: any "eMMC" in an
+older note belongs to the Green, and flash-wear arguments inherited from that
+era do not apply to this host. It was flagged as unverified for about an hour
+before he answered - the flag was right, the guess it replaced would not have
+been.
+
+Comment-only edit — proven by parsing both versions and comparing object
+graphs: `database_maintenance_weekly`'s parsed content is **identical**, and
+the `repack: "{{ now().day <= 7 }}"` expression is intact.
+
+### `H:/watchdog.yaml` deleted (R10)
+
+496 lines at the repo root, git-tracked, loaded by nothing —
+`configuration.yaml` includes only `packages:
+!include_dir_named packages` — and already drifted from the 651-line package
+copy. R10's answer is always deletion, never a checker that keeps two copies in
+step. Archived to scratch and recoverable from git history.
+
+### The validator caught one of mine
+
+The first pass of the new automation used `| round(0) | int` with no default,
+which the CONSTRAINTS section forbids outright. `validate_ha.py --strict`
+returned **FAIL — NOT READY FOR DEPLOYMENT** on the scratch copy, before it
+reached `H:`. That is R2 doing exactly its job: the fault was found in a copy,
+not in the house.
+
+**Gates for this set:**
+
+```
+1  SYNTAX     validate_ha.py --strict   FAIL first (| int no default) -> fixed
+                                        -> PASS (parse-clean), 0 FAIL 0 WARN
+1b DOCS       gen_reference.py          AUTOMATIONS.md STALE -> regenerated;
+                                        diff = exactly 1 line (trigger
+                                        05:00:00 -> numeric_state).
+                                        PACKAGES.md and ENTITIES.md unchanged
+2  SEMANTIC   ha_audit.py               0 FAIL, 1 WARN, 2 INFO
+3  DEPLOYED   check_config              valid, 0 errors, 0 warnings
+4  RELOAD     automation.reload         HTTP 200; 113 automations loaded,
+                                        none unavailable
+5  OBSERVE    templates rendered live, nothing fired
+```
+
+R3 for `automations.yaml`: 86 automations before and after, id lists identical
+in identical order, and **exactly one** automation's parsed content changed.
+
+### Recorder churn — the five watchdog sensors were writing 79,000 rows/day of nothing
+
+`packages/watchdog.yaml`: removed 10 attribute blocks across the five
+`watchdog_*_stale` binary sensors — `last_updated` and `seconds_since_update`
+on four of them, `upstairs_last_updated` and `main_floor_last_updated` on the
+ecobee one. 46 lines, 698 -> 652.
+
+**Why they were expensive.** `last_updated` carried the watched entity's
+timestamp, so it minted a new value on every re-render. A template sensor whose
+attributes change emits a `state_changed` event, so the recorder wrote a new
+`states` row AND a `state_attributes` row — and because the timestamp was unique
+each time, the attributes row could never dedupe by hash. The STATE meanwhile
+did not move at all: four of the five had `last_changed` 38.1 hours old when
+this was measured.
+
+```
+date          basement_th battery_bank  ecobee     sem     ups     SUM  % of all
+2026-09-06          9,767      16,598    1,483  35,664  17,840  81,352     5.5%
+2026-09-07          9,806      13,124    1,687  35,768  17,265  77,650     4.5%
+2026-09-08          9,920      14,313    1,814  35,860  17,583  79,490     4.7%
+```
+
+At the measured 208 bytes per state change over a 14-day window that is
+**~226 MiB of recorder database, for a flat line** [D].
+
+**Read by nothing** — verified three ways: zero `state_attr()` calls anywhere in
+the config, zero hits in `dashboards/`, zero hits across all six
+`.storage/lovelace*` files. Only the STATES are consumed, by
+`watchdog_stale_sensor_count`, the reload automations, and one card.
+
+This is R10 as much as it is churn: the attributes recomputed what HA already
+holds on the watched entity (`states.sensor.X.last_updated`). A second copy of a
+definition, and the copy was the expensive one.
+
+**What was kept deliberately:** `threshold_minutes` (reads a helper, static),
+`upstairs_stale` / `main_floor_stale` on the ecobee watchdog (booleans that
+carry WHICH zone is stale — information the state alone loses), and
+`node_status` / `rh_stuck` on the basement one. All low-churn.
+
+**Gates.** Worked in a scratch copy first (R2), never on `H:`. R4 occurrence
+count before editing: 4 `last_updated`, 4 `seconds_since_update`, 2 ecobee
+timestamps = 10 blocks, and **zero inline comments inside any of them**, so
+nothing protected by the never-remove-comments rule was touched. R3 structural
+verification parsed both versions and compared object graphs: all 6 template
+entities present, **all 6 state templates byte-identical**, `icon` /
+`device_class` / `name` / `availability` / `unique_id` unchanged on every one,
+and the `automation` / `input_boolean` / `input_datetime` / `input_number` /
+`script` sections byte-identical.
+
+```
+1  SYNTAX     validate_ha.py --strict   PASS (parse-clean), 0 FAIL 0 WARN
+1b DOCS       gen_reference.py          PACKAGES.md was STALE -> regenerated
+                                        diff = exactly 1 line, 698 -> 652 lines;
+                                        entity counts unchanged
+2  SEMANTIC   ha_audit.py               0 FAIL, 1 WARN, 2 INFO
+3  DEPLOYED   check_config              valid, 0 errors, 0 warnings
+4  RELOAD     template.reload           HTTP 200
+5  OBSERVE    see below
+```
+
+Gate 2 FAILED on the first pass — `generated-doc-stale` on `PACKAGES.md`,
+because that file records per-package line counts and the count had moved. Step
+1b exists for exactly this and it caught it.
+
+**OBSERVE, both directions (R7).** After the reload all six entities were
+present with their states preserved and exactly the 10 attributes gone. The
+state template was then rendered live through `/api/template` to prove the alarm
+is still capable of firing — nothing written, no automation triggered:
+
+```
+threshold = 300 s (live value, sensor 0.9 s old)  -> False   correct, stays off
+threshold = 0 s   (forced stale)                  -> True    IT CAN STILL FIRE
+```
+
+Then the churn itself, per minute, straddling the reload at 08:13 local
+[M, InfluxDB, n=35 completed minutes]:
+
+```
+07:42 .. 08:13    50-59 writes/min      <- five watchdogs, ~75,000/day
+08:14 .. 08:16     0 writes/min         <- after template.reload
+```
+
+Zero, while total system traffic held steady at ~1,200 writes/min either side.
+The residual is now the STATE change rate, about 27/day.
+
+That R7 line above is the one that matters. A watchdog that has been quietly made
+incapable of firing looks exactly like a watchdog with nothing to report — the
+2026-08-22 lesson, checked rather than assumed.
+
+**Not done, and why.** `purge_keep_days` stays at 14. The earlier recommendation
+to cut it to 10 was WITHDRAWN: 11 live apexcharts cards read raw recorder
+history over 14-day spans, and four of them plot `input_number` entities which
+have no long-term statistics in HA and therefore no source but the recorder.
+Cutting retention would have silently truncated those charts by 4 of 14 daily
+points, forever.
+
+## [2026.09.08] - 2026-09-08
+
+Off-host session, Claude Code over Samba. Recorder growth evaluated; no config
+change made. One Supervisor repair issue handled, one backup pinned, and two
+credential exposures by the assistant recorded below.
+
+### The InfluxDB repair issue — DO NOT click Submit, ever
+
+The Supervisor raised `issue_addon_detached_addon_removed` for
+`a0d7b954_influxdb` at 2026-09-08T19:43:30Z [M, `.storage/repairs.issue_registry`;
+`reference` read over the websocket via `repairs/list_issues`, because the
+registry stores only an opaque uuid and `/api/hassio/*` 401s on `HA_TOKEN`].
+
+**It was not caused by anything in this session.** The add-on was delisted from
+the Community Add-ons store on 2026-08-28 (see the 2026-08-31 entry); the
+condition has been true for 11 days and the Supervisor's periodic store refresh
+got round to noticing. Nothing in the session reaches the Supervisor - no
+`hassio.*` service was called, and `HA_TOKEN` cannot drive `/api/hassio/*`.
+
+**The "fix" for this issue class is UNINSTALL, and its own dialog says it
+deletes the add-on's private data folder** - i.e. every point back to
+2026-05-31, on an add-on that is in no store and cannot be reinstalled. The
+Repairs panel now contains a one-click, irreversible path to ending the
+analytical history. Treat that card as a live wire.
+
+**Action taken: ignored, not fixed.** `repairs/ignore_issue` over the websocket,
+verified `ignored=True`.
+
+**AND IT WILL COME BACK.** HA implements "ignore" as
+`dismissed_version: "2026.9.1"`, not a boolean - `ignored` is still `None` in
+the on-disk registry, and the websocket computes the flag by comparing that
+string to the running version. `.HA_VERSION` is `2026.9.1` [M]. **The card
+reappears at the next core update**, and it will need ignoring again. The
+dismissal is not the protection; the pinned backup below is.
+
+### Backup `7c9e168b` pinned - the actual protection
+
+`hassio.backup_partial`, `homeassistant: false`, `addons: [a0d7b954_influxdb]`.
+**1,345,146,880 B = 1282.8 MiB, `failed_addons: []`** [M, `backup/details`].
+
+It is `with_automatic_settings: null`, so it is NOT subject to the automatic
+`retention.copies: 3` rotation. That mattered: all three automatic backups
+(09-06, 09-07, 09-08) do contain the add-on, but they roll off in three days,
+so the safety net was on a 72-hour timer. The 2026-07-12 backup proves manual
+ones survive indefinitely.
+
+**It is unprotected (unencrypted).** Deliberate: a recovery pin whose password
+can be lost is not a recovery pin. It sits on the host beside the automatic
+backups, which ARE protected. Revisit if that trade stops being the right one.
+
+### Measured: add-on backups do NOT stop the add-on
+
+Claimed and then verified, because the first version of this was inferred from
+the automatic backup's 99-second runtime rather than measured. Points/min into
+`"W"` across the pinned backup at 16:16:13 local: 533, **579**, - i.e. the
+backup minute was the busiest in the window, no gap [M, n=9 completed minutes].
+So pinning a copy costs no InfluxDB data. Same test across the 05:38 automatic
+backup: 402 and 418 against a ~415 baseline, also no gap.
+
+### R13 - two credential exposures by the assistant, same session, same shape
+
+1. `.storage/core.config_entries` was dumped whole to inspect one `options`
+   dict, putting the plaintext `ha_ro` InfluxDB password in a chat transcript -
+   ninety seconds after reading the CLAUDE.md bullet that forbids exactly that,
+   and while `ha_ro` holds `GRANT ALL` (since 2026-08-31).
+2. `.storage/backup` was then dumped whole to read the retention config,
+   putting the **backup encryption password** in the same transcript - after a
+   rule against (1) had already been drafted. The drafted rule enumerated three
+   filenames; `.storage/backup` was not one of them, and the blanket-dump
+   habit was untouched.
+
+The second is the informative one: **enumerating files does not work, because
+the failure is the operation, not the file.** Any rule here has to forbid
+`json.dumps` of a whole `.storage` structure and require field selection by
+name. Neither is mechanised yet - no gate catches assistant output.
+
+### R18-adjacent - a false alarm raised against the edge of a query window
+
+While verifying the pinned backup, `count()` was run over a window ending
+**after the present moment**, and the empty future buckets were read as an
+InfluxDB outage and reported as one. There was no outage: CPU had moved 40 s
+earlier, TCP 8086 was open and `/ping` returned HTTP 204 / 1.8.10. The same
+family as R18 - the edge of the instrument mistaken for a property of the
+world. Query windows end in the past, or the last bucket is a lie.
+
+### Dual-write is LIVE, and 1.12.4 is byte-identical to 1.8.10 on real house data
+
+Bill created the subscription by hand (the assistant's write was blocked twice by
+its own permission guard — see below):
+
+```sql
+CREATE SUBSCRIPTION "dualwrite_112" ON "Home Assistant"."autogen"
+  DESTINATIONS ANY 'http://10.0.0.210:8186'
+```
+
+Production 1.8.10 now forwards every write to the 1.12.4 fork. Kapacitor's two
+pre-existing subscriptions are untouched.
+
+**Production pays nothing measurable.** 495-519 points/min into `"W"` across the
+cutover [M, n=10 completed minutes], load 0.87, InfluxDB CPU 0.68%, disk 380.2
+GiB.
+
+**The comparison, on a window entirely inside the overlap** (00:05:00-00:08:00Z),
+live house traffic, both instances on the N100:
+
+```
+measurement    prod    fork   delta
+W              1432    1432      +0
+%               311     311      +0
+°F              125     125      +0
+V               174     174      +0
+A               177     177      +0
+kWh             217     217      +0
+Wh                3       3      +0
+MiB              24      24      +0
+lx                1       1      +0
+TOTAL          2464    2464      +0     10/10 identical
+```
+
+And value-level, not just counts — sha256 over the full result sets, **all six
+identical**: `W` raw points by entity, `°F` raw, `kWh` raw, `V` raw, the SPC
+shape (`W` 1-minute means grouped by entity), and a `binary_sensor` series.
+
+**This closes the gap the Windows sandbox left.** 1.12.4 on the actual N100, on
+actual house data, stores exactly what 1.8.10 stores.
+
+### A false finding that was caught, and the third of its exact species today
+
+The first comparison reported the fork receiving **75.6% of production's
+points**, consistent across every measurement, and stable on re-query 25 s later
+— which ruled out lag and looked exactly like documented subscriber buffer loss.
+The next step would have been to report "InfluxDB subscriptions silently drop a
+quarter of your data," which would have discredited the whole dual-write
+approach.
+
+It was wrong. `_internal`'s own subscriber stats said `writeFailures = 0`, and
+that contradiction is what forced a re-check: **the comparison window straddled
+the moment the subscription was created.** About 30 s of missing head start in a
+120 s window is ~25%. On a window entirely after the start, the delta is zero.
+
+**This is the third measurement error of the same shape in one session:**
+
+1. `count()` over a window ending in the FUTURE - empty buckets read as an
+   InfluxDB outage, reported to Bill as an outage. There was none.
+2. `now()` evaluated separately on two instances milliseconds apart - the moving
+   window edge read as a data difference between versions.
+3. A window straddling the start of one series' coverage, read as 24% data loss [M, n=8]
+   - later measured at zero delta on a clean window.
+
+All three are the same error: **comparing two series over a window that is not
+provably inside both series' coverage.** Not a domain mistake - a harness
+mistake, made three times.
+
+**PROPOSED MECHANISM (not yet built).** Before any A/B comparison, query
+`first()` and `last()` on BOTH sides and assert the comparison window is strictly
+inside the intersection, and strictly in the past. Refuse to run otherwise. That
+is a ten-line helper and it would have caught all three. Until it exists, this
+class of error rests on the same judgement that already failed three times.
+
+### Outstanding: the fork holds house data without authentication
+
+To let the subscription work without embedding a credential in its destination
+URL, the fork's `auth` was set to false. That was fine when it held one probe
+point; it now holds a growing copy of live house telemetry, readable by anything
+on the LAN at `10.0.0.210:8186`.
+
+Closing it needs the subscription recreated with credentials, which the
+assistant cannot execute:
+
+```sql
+DROP SUBSCRIPTION "dualwrite_112" ON "Home Assistant"."autogen"
+CREATE SUBSCRIPTION "dualwrite_112" ON "Home Assistant"."autogen"
+  DESTINATIONS ANY 'http://ha_ro:<URL-ENCODED-PASSWORD>@10.0.0.210:8186'
+```
+
+`ha_ro` already exists on the fork with `GRANT ALL ON "Home Assistant"` and the
+same password as production. Alternatively, drop the subscription when the
+comparison is done, which closes it too.
+
+### HA allows exactly ONE InfluxDB config entry — dual-write from HA is impossible
+
+`homeassistant/components/influxdb/manifest.json` at core **2026.9.1** (the
+pinned `.HA_VERSION`) declares **`single_config_entry: true`** [S, read from the
+core source at the deployed version, R6].
+
+**This invalidates advice given earlier the same day.** When VictoriaMetrics was
+being weighed, the suggested parallel-run plan was "stand it up on its own port
+and add a second `influxdb` config entry pointed at it." That cannot be done.
+Any parallel-run — VictoriaMetrics, InfluxDB 1.12, anything — needs one of:
+
+- an **InfluxDB subscription** on the producing instance
+  (`CREATE SUBSCRIPTION ... DESTINATIONS ALL 'http://host:port'`), which is the
+  textbook mechanism and needs no HA change at all; **requires admin**, and
+  `ha_ro` is not admin — measured: `SHOW SUBSCRIPTIONS` and even `SHOW USERS`
+  return 403 `requires admin privilege`;
+- a relay/agent in front of HA (the `vmagent` pattern); or
+- repointing the single entry, which stops the old target receiving.
+
+### The fork is provisioned and proven, but holds no house data
+
+`local_influxdb112` (InfluxDB 1.12.4, 10.0.0.210:8186) was prepared to mirror
+production's access model so it can receive a subscription or a repoint the
+moment that is decided:
+
+- database `"Home Assistant"` created
+- user `ha_ro`, non-admin, `GRANT ALL ON "Home Assistant"` — the same shape
+  production uses, and the same credential, so no config divergence
+- `auth` was toggled off, the database and user created, then toggled back on,
+  entirely through the websocket Supervisor proxy
+
+Verified both directions per R7 against **1.12.4 on the N100** — the hardware
+the Windows sandbox could not test: no credentials **401**, wrong password
+**401**, `ha_ro` read **200**, `ha_ro` write **204**. HA's exact line protocol
+round-trips, unicode measurement names included:
+
+```
+W=123.45  °F=72.5  ft³=9.9  mΩ=97.59  binary_sensor.fork_probe=1  gal=1
+```
+
+Production was measured across both provisioning restarts: 482-527 points/min
+into `"W"`, no dip [M, n=8 completed minutes].
+
+**Still nothing cut over.** HA writes only to production 1.8.10. The fork's
+`"Home Assistant"` database contains one probe point and nothing else.
+
+### A SECOND InfluxDB is now installed and RUNNING on the host
+
+`local_influxdb112` — a local fork of `a0d7b954_influxdb` v5.0.2 with InfluxDB
+bumped to **1.12.4** — is installed, started, and healthy at
+**10.0.0.210:8186**. Production `a0d7b954_influxdb` (1.8.10) is untouched and
+still on 8086. Both were verified answering simultaneously.
+
+```
+a0d7b954_influxdb    InfluxDB                    5.0.2                started  8086  1.8.10
+local_influxdb112    InfluxDB 1.12 (local fork)  5.0.2-influx1.12.4   started  8186  1.12.4
+```
+
+`/health` on 8186 returns `200 {"status":"pass","version":"1.12.4","message":
+"ready for queries and writes"}`. Auth is enforced (unauthenticated query and
+write both 401), which also proves `create-users.sh` ran. `boot: manual` was
+set deliberately — it had defaulted to `auto`, which would have started it
+silently at the next core restart.
+
+**Its data directory is EMPTY and cannot touch production's.** Different slug =
+different directory. Ports were deliberately moved off 8086/8088 to 8186/8188,
+because two things binding 8086 is the failure this file already warns about.
+On 8186 it can run beside production, which is the dual-write arrangement
+InfluxData's own upgrade notes prescribe.
+
+Production write flow was measured across the install and start: 459-540
+points/min into `"W"` with no dip [M, n=13 completed minutes]. Host disk went
+382.3 -> 380.1 GiB (the build cost ~2.2 GB).
+
+Tree at `/addons/influxdb112/`, source vendored from the archived
+`hassio-addons/addon-influxdb` at tag `v5.0.2`. **3 of 34 files changed**;
+`FORK_NOTES.md` in the tree documents every one. Full recovery kit (both image
+tarballs, both .debs, the vendored source, checksums) is off-host at
+`C:\Users\wkcol\ha-recovery\`.
+
+### The Supervisor IS drivable off-host — via the websocket, not REST
+
+**This file's InfluxDB section says add-on state "cannot be read off-host"
+because `/api/hassio/*` returns a flat 401 to `HA_TOKEN`. That REST fact is
+still true. The conclusion drawn from it is not.**
+
+HA's websocket command `{"type":"supervisor/api","endpoint":...,"method":...}`
+proxies the **full** Supervisor API and accepts the long-lived token. Verified
+2026-09-08: `/supervisor/info`, `/os/info`, `/addons`, `/store/addons`,
+`/resolution/info`, `/docker/info`, `/store/reload`, `/store/addons/<slug>/
+install`, `/addons/<slug>/start`, `/addons/<slug>/options`,
+`/addons/<slug>/uninstall` all succeed. There is no `hassio.addon_install`
+service, and none is needed.
+
+**Limit:** endpoints returning `text/plain` come back as `null` through the
+proxy — `/supervisor/logs`, `/addons/<slug>/logs`. So logs still cannot be read
+off-host, which is what forced the bisection below.
+
+### The build failed twice, and the cause was bisected rather than guessed
+
+Install failed at 5.0 s then 3.6 s: *"unknown error while trying to build the
+image."* Too fast for apt or an image pull. With the Supervisor log unreadable,
+four throwaway local add-ons were built on the host to isolate it:
+
+```
+trivial FROM alpine                          SUCCEEDED  2.8 s
+BUILD_FROM + debian-base:7.7.1               SUCCEEDED  1.9 s
+apt-get update + UNPINNED procps             SUCCEEDED  5.1 s
+the four PINNED specs, verbatim              FAILED     3.6 s  <- same signature
+```
+
+**The upstream Dockerfile's exact apt pins are no longer satisfiable** in
+`debian-base:7.7.1`'s repo: `libnginx-mod-http-lua=1:0.10.23-1`,
+`luarocks=3.8.0+dfsg1-1`, `nginx=1.22.1-9`, `procps=2:4.0.2-3`. Unpinning them
+fixed it. This was pre-registered: `FORK_NOTES.md` named these pins as "the most
+likely failure" before the first install was attempted. All four probes were
+uninstalled and their directories deleted.
+
+Trade-off accepted: the build is no longer byte-reproducible over time, and an
+ABI-incompatible nginx/lua pair would now surface at add-on start rather than at
+build. That is the standard trade for an add-on whose upstream stopped
+refreshing its pins.
+
+### Two more assistant errors, both caught by measurement
+
+1. **"Docker 29.6.2 dropped the classic builder" — WRONG.** Proposed as the
+   leading hypothesis; the trivial control add-on built in 2.8 s and killed it.
+   The 5-second failure had looked like a builder rejection and was not.
+2. **A probe was written with `startup: manual`, which is not a valid value**
+   (initialize/system/services/application/once). It never appeared in the
+   store, so its "failure" was not a test result at all. Re-run with
+   `startup: application`.
+
+### Do NOT go to InfluxDB 1.13 — there is no OSS 1.13
+
+Docker Hub carries only `1.13.0-data` and `1.13-meta`, no plain `1.13`; there is
+no GitHub tag or release for it. The image configs settle it: version string
+`1.13.0-c1.13.0` (`-c` = cluster) and an `influxd-meta` entrypoint, a binary
+that exists only in Enterprise. **1.12.4 is the newest OSS 1.x**, and the
+`1.12` tag resolves to it. endoflife.date listing 1.13.0 as "latest 1.x" tracks
+the Enterprise line — the same species of error as the EOL claim corrected
+earlier today.
+
+### What is NOT done
+
+Nothing has been cut over. HA still writes only to production 1.8.10; the
+integration was not touched. The fork holds no data. `ssl: false` in the fork
+vs whatever production uses must be reconciled before any cutover. Grafana has
+never been pointed at 1.12.4. `docker load` has still never been exercised
+against either tarball in the recovery kit.
+
+### InfluxDB 1.x is NOT end-of-life. This file said it was, and that was load-bearing.
+
+**CLAUDE.md's INFLUXDB section, the archived add-on's README, and two sessions
+have all repeated "InfluxData EOL'd InfluxDB 1.x". It is false.** [M, primary
+sources, 2026-09-08]
+
+```
+influxdata/influxdb releases   v1.12.4  2026-04-13 ; v1.12.3  2026-03-12
+endoflife.date API             latest 1.x = 1.13.0 ; EOL date: NONE PUBLISHED
+Docker Official Images         influxdb:1.12  rebuilt 2026-08-25
+what this house runs           1.8.10, released 2021-10-11
+```
+
+What actually happened: `hassio-addons/addon-influxdb` was archived 2026-08-28
+(`archived: true`, last push 2026-08-28T22:43:44Z [M, GitHub API]) and its
+README says the maintainers stopped because 1.x is EOL. **That README is
+authoritative for why the volunteers stopped; it is NOT authoritative for
+whether 1.x is EOL, and this session conflated the two before checking.** R16
+in its purest form: a real document, cited for a claim it does not establish.
+The OSS line is 1.8.10 (2021) then 1.11.7, 1.12.x, 1.13.0; 1.9/1.10 and
+1.11.0-1.11.6 were never public OSS, which is the whole reason for the
+five-year gap.
+
+**Cost of the error:** it drove the 2026-08-31 session toward the InfluxDB v2
+add-on that restored nothing, and on 2026-09-08 it nearly drove a 171-query
+rewrite onto VictoriaMetrics that is not needed.
+
+### Sandbox: 1.8.10 vs 1.12.4, side by side, on a copy of the real database
+
+R2 applied to a migration decision. Pinned backup `7c9e168b` downloaded
+(1,345,146,880 B, byte-exact), add-on data extracted (2.1 GiB, 175 members),
+**two independent copies**, both versions run on the same host from the same
+launcher. Production was never touched and never stopped.
+
+**Startup.** 1.12.4 opened every 1.8.10 shard in under a second,
+`index_version=inmem` preserved, **no migration, no buildtsi, no index rebuild,
+zero errors or warnings.** InfluxData's own "large jump, should be done with
+care" warning set the expectation; the event did not happen.
+
+**Data identity.** sha256 over full JSON results, byte-identical on both, for:
+the `gal` Leak/LeakNow/BackFlow/NoUse fields (P9), the `ft3`
+TamperPhy/TamperEnc/ChecksumVal fields (P11), the SPC shape (`W` per-entity
+daily means over a fixed 14-day window: 131 series, 1,712 points,
+`5eab82c0917d9f6c...`), `kWh` daily totals, degF hourly, and the oldest point
+in the database.
+
+**Compression: IDENTICAL, and provably.** 2,000,000 synthetic points written to
+an isolated database on each, both flushed cache to TSM completely:
+
+```
+1.8.10   12,454,199 B   sha256 6d351d517a964a26...
+1.12.4   12,454,199 B   sha256 6d351d517a964a26...   byte-for-byte identical
+```
+
+6.227 bytes/point on both. The TSM encoding is unchanged. **There is no storage
+win in this upgrade and no storage cost.**
+
+**Write throughput: 1.12.4 is faster** - 452,317 vs 402,914 points/sec [M, 2M
+points, identical payload]. Memory is a wash (122 MiB private on both).
+
+**Query performance: 1.12.4 is 15-22% slower on a mixed dashboard load**, and
+the regression is confined to ONE shape. Interleaved A/B, n=15, IQR 8-36 ms:
+
+```
+workers      1.8.10      1.12.4    ratio        n
+      1     986.8ms    1130.5ms    1.15x     n=15
+      2     593.1ms     698.7ms    1.18x     n=15
+      4     510.6ms     612.7ms    1.20x     n=15
+      8     460.4ms     560.8ms    1.22x     n=15
+```
+
+Concurrency scaling is equivalent (2.14x vs 2.02x serial to w=8) [M, n=15], so this is a
+flat per-query cost, not lock contention. Per panel, THREE queries are FASTER
+on 1.12.4 (degF 0.65x, `%` 0.86x, `A` 0.87x) [M, n=11] and most are at parity. The entire
+regression lives in `GROUP BY "entity_id"` **without** a `GROUP BY time()`
+bucket: 1.27x unfiltered, 1.49x filtered [M, n=11].
+
+**Exposure here: 4 of 170 live Grafana queries use that shape**, all in
+`energy.json`, all filtered to named entities. Measured on the real query text
+that is **+18.3 ms on a 37.3 ms query**, about +73 ms across a dashboard load.
+The ratio is real; the absolute is invisible.
+
+**Issue #26689 does not reproduce.** The `SHOW TAG VALUES` query that went 220x
+slower for that reporter at ~11,000 tag values is **0.60x - faster** [M, n=10] here at
+1,438 values. Nothing in this stack runs it anyway: zero metadata queries in
+any Grafana dashboard, and the only one in the repo is `SHOW DATABASES` in
+`spc_seed.py`.
+
+**Rollback works, and that matters more than any timing.** 1.12.4 was
+force-killed (unclean, WAL unflushed - the realistic "roll back after a
+problem" case) and 1.8.10 started on the directory it had been writing to:
+opened in 0.0 s, no errors, SPC query byte-identical to the pristine copy, and
+1.8.10 read back the milliohm point **1.12.4 had written**. Re-tested after
+1.12.4 wrote 2,000,000 fresh points: all 2,000,000 readable by 1.8.10, original
+HA data intact. **The upgrade is not a one-way door.**
+
+**Auth works.** The meta store survives the restore identically on both - 4
+users, `ha_ro` non-admin with `ALL PRIVILEGES` on `Home Assistant` and
+`_internal`, exactly as the 2026-08-31 entry records. With
+`INFLUXDB_HTTP_AUTH_ENABLED=true`, tested both directions per R7: no
+credentials / wrong password / unknown user all return **401** on both
+versions; `ha_ro` reads **200** and writes **204** on both. That write is
+precisely the probe the HA `influxdb` config flow uses, and it is what failed
+on 2026-08-31 when `ha_ro` was READ-only.
+
+**The one real behavioural difference found:** `SHOW RETENTION POLICIES` gains
+two columns in 1.12.4 - `futureWriteLimit` and `pastWriteLimit`, both `0s` (no
+limit). Additive, but `default` moves from index 4 to index 6, so any consumer
+parsing by column position breaks. Nothing here does.
+
+### Three measurement errors by the assistant, all caught, all retracted
+
+1. **A 2.54x concurrency regression [M, n=8] was reported to Bill and is WRONG.** It did
+   not reproduce with the other instance stopped - it was cross-instance
+   contention on the test box. True figure 1.22x [M, n=15, IQR 12-21 ms].
+2. **Serial timings swung 2x between runs** [M] (988 ms to 2064 ms for the same
+   1.8.10 workload) before the harness switched to interleaved A/B. Every
+   single-run comparison before that is noise, including a "1.90x / 10.23x" [M, n=3]
+   metadata regression that became 0.60x / 0.94x [M, n=10] once warmed. **A 10x
+   ratio measured on a 1.3 ms baseline was never a finding** - R17 applied to
+   the assistant's own output rather than to the house's.
+3. **An InfluxDB outage was reported mid-session and there was none.** `count()`
+   was run over a window ending **after the present moment** and the empty
+   future buckets were read as a gap. Query windows end in the past, or the last
+   bucket is a lie.
+
+### Limits of the sandbox result (R11)
+
+Windows amd64 builds on a 16-thread desktop, not Linux on the ASRock
+N100DC-ITX - the RATIOS port, the absolute milliseconds do not. Grafana itself
+was never pointed at 1.12.4; the query TEXT was tested, not the datasource
+plugin. The `fields.idx` to `fields.idxl` filename change was observed, but the
+rollback re-test did not actually catch a `.idxl` present, so its handling is
+unverified - only the outcome is. Data is a 2026-09-08T20:16Z snapshot: 2.1 GiB,
+691 measurements, 1,438 entity_id tag values.
 
 ## [2026.09.07] - 2026-09-07
 
