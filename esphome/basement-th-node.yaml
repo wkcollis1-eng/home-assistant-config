@@ -511,11 +511,17 @@ sensor:
   - platform: template
     name: "Basement Temp Rate 30m"
     id: t_rate_30
-    unit_of_measurement: "°C/h"
+    # Published in °F/h so this series lands in the same InfluxDB measurement as
+    # every other rate (basement_dp_rate, basement_temp_rate, the dp removal/
+    # ingress pair). The internal global g_t_slope_30 stays °C/h — it is derived
+    # from the SHT4x native Celsius reading and feeds the page_rates OLED
+    # deadband (T_DB 0.020 °C/h); the noise-floor note above is about that
+    # global and is unchanged. 1 °C/h = 1.8 °F/h (scale only, no +32 offset).
+    unit_of_measurement: "°F/h"
     accuracy_decimals: 4
     entity_category: diagnostic
     update_interval: 60s
-    lambda: 'return id(g_t_slope_30);'
+    lambda: 'return id(g_t_slope_30) * 1.8f;'
   # Rev 2.4: lifetime dropped-read count. Flat = healthy. A slow steady climb is
   # a degrading connection (corroding crimp, marginal QT seat) reporting itself
   # long before the 60 s staleness watchdog would ever fire. Take the rate in HA.
