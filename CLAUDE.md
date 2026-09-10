@@ -78,15 +78,22 @@ Off-host gotchas, each of which has cost a session:
   coverage gap) **and** the `sun.sun` false positive returns, because the live
   union is what suppresses it. The audit is not "fully offline by design"; it
   is offline-capable and measurably worse offline.
-- **`git` on `H:` does not just refuse, it hangs.** Measured 2026-08-25: a bare
-  `git ls-files --error-unmatch` did not return inside 2 minutes and a
-  `git diff HEAD` was still running after 30. So `check_provenance.py`'s
-  DEFAULT mode cannot complete off-host at all - use
-  `--all <edited files>`, which needs no git. The script now times out at 30s
-  and names that mode rather than hanging.
-- **`git` refuses to operate on `H:`** - "dubious ownership" on the Samba
-  share. Not a credential problem. Anything requiring a commit has to happen
-  on the host, or with `git -c safe.directory='*'`.
+- **`git` on `H:` WORKS as of 2026-09-10 - both bullets that stood here were
+  stale.** They said git "does not just refuse, it hangs" (measured 2026-08-25:
+  `git ls-files --error-unmatch` did not return inside 2 minutes, `git diff HEAD`
+  was still running after 30), so `check_provenance.py`'s DEFAULT mode "cannot
+  complete off-host at all"; and that git refuses `H:` with "dubious ownership".
+  Re-measured 2026-09-10 off-host, n=1 each: `status` 1.4 s, `diff HEAD` 0.24 s,
+  `ls-files --error-unmatch` 0.10 s, `check_provenance.py` DEFAULT mode 0.34 s.
+  Ownership is settled by `safe.directory = *` in the global `~/.gitconfig`.
+  What caused the 08-25 hang was never established, so `check_provenance.py`
+  keeps its 30 s timeout (line 46) and `--all <files>` stays the git-free
+  fallback. Cost of the stale text: a session repeated it and routed a commit
+  through `C:\repos` for no reason. **`H:` is the LIVE config and a checkout of
+  the same repo: never run a git command that rewrites its working tree
+  (checkout, stash, reset --hard, pull over local edits) without asking.** To
+  catch up after a push made elsewhere, `git fetch && git reset --mixed
+  origin/master` moves HEAD and touches no file.
 
 Read the verdict aloud in your first message: FAIL/WARN/INFO counts, and name
 every FAIL and WARN. You are inheriting whatever the last session and the
