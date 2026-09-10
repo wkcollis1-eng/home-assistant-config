@@ -43,6 +43,61 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.10] - 2026-09-10
+
+### Cutover to InfluxDB 1.12.4 COMPLETED. Production is now the fork; 1.8.10 retired.
+
+**Current state: `local_influxdb112` (InfluxDB 1.12.4) serves the house on
+`10.0.0.210:8086`, `boot: auto`. `a0d7b954_influxdb` (1.8.10) is stopped,
+still installed, "Start on boot" OFF.** The 2026-09-09 attempt that aborted
+mid-sequence (5-min outage, fork parked on 8186) is finished.
+
+**Verified after cutover [M, 2026-09-10]:**
+
+```
+:8086 /ping                X-Influxdb-Version: 1.12.4      (was 1.8.10)
+:8086 unauthenticated qry  401                             auth enforced
+:8186                      connection refused              fork moved off it
+HA writes into "W"         2,330 points / 5 min            ~466/min, in the
+                                                           445-540/min pre-cutover band
+old add-on entity          sensor.influxdb_cpu_percent = unavailable   1.8.10 stopped
+new add-on entity          sensor.influxdb_1_12_local_fork_cpu_percent = 0.4 / mem 3.34%
+```
+
+**HA needed no change.** The `influxdb` config entry still points at
+`10.0.0.210:8086` as `ha_ro`; the fork took that port, so the integration
+followed with nothing touched. `secrets.yaml influxdb_url` unchanged. Grafana
+followed too — datasource `bfrwayjkhasjka` resolves to `:8086`.
+
+**The `auth: false` exposure from 2026-09-09 is closed.** On 8186 the fork held
+a copy unauthenticated; on 8086 as production it enforces auth (measured 401 on
+an unauthenticated query). `ha_ro` `GRANT ALL ON "Home Assistant"` carries over.
+
+**`dualwrite_112` subscription (prod 1.8.10 -> fork on 8186) dropped.** Its
+destination port is closed and the fork is now production; the subscription had
+no remaining purpose.
+
+**Add-on entity ids changed, as CLAUDE.md warns.** `sensor.influxdb_cpu_percent`
+/ `_memory_percent` (the 1.8.10 add-on) are gone; the fork's are
+`sensor.influxdb_1_12_local_fork_*`. The Overview dashboard was repointed and
+`dashboards/lovelace/lovelace.yaml` reflects the new names (0 stale refs).
+
+### Rollback path
+
+Stop `local_influxdb112`, then restore the pinned backup **"PRE-CUTOVER influxdb
+1.8.10 2026-09-09"** into the stopped-but-installed `a0d7b954_influxdb` and start
+it. Because 1.8.10 is still installed the rollback is "restore + start", not
+"reinstall from a store that no longer carries it". Both add-ons want 8086, so
+whichever is being brought up must be the only one running.
+
+### Not re-measured
+
+Query performance on the live N100 post-cutover. The 2026-09-08 sandbox (Windows
+build) found 1.12.4 15-22% slower on `GROUP BY "entity_id"` without a `GROUP BY
+time()` bucket — 4 of 170 live Grafana queries, ~+18 ms on a 37 ms query [M,
+n=15]. Ratios port to the N100; absolute milliseconds do not. Worth one
+interleaved A/B on the real box now that it is the only instance.
+
 ## [2026.09.09] - 2026-09-09
 
 ### Cutover to 1.12.4 ATTEMPTED and ABORTED mid-sequence. Data copy succeeded; production restored.
