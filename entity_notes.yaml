@@ -24,6 +24,9 @@ automation.sdr_water_meter_leak_now:
 automation.sdr_water_meter_leak_now_cleared:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: says when it ends
+automation.watchdog_reset_failed:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: failure-only notice; still stale 10 min after onset
 binary_sensor.ac_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: season-aware via runtime_today

@@ -16,5 +16,5 @@ packages/grafana.yaml                   105 lines   automation:1, shell_command:
 packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_meter:34
 packages/spc.yaml                      3726 lines   automation:11, input_datetime:11, input_number:49, script:2, sensor:12 +3 more
 packages/utility_meters.yaml           1296 lines   automation:5, input_boolean:1, input_datetime:1, input_number:25 +3 more
-packages/watchdog.yaml                  652 lines   automation:8, input_boolean:5, input_datetime:5, input_number:6 +2 more
+packages/watchdog.yaml                  693 lines   automation:8, input_boolean:5, input_datetime:5, input_number:6 +2 more
 ```

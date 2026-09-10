@@ -26,6 +26,7 @@ is calibrated against.
 | 2026-08-26 | the +2.9 mA step in bank quiescent drain on 2026-08-04 is a real load change, not INA228 offset drift — so a short-input offset re-measurement will show the offset has NOT moved by ≥2 mA | yes, stated before asking Bill and before any re-measurement | **WRONG** — same day. Bill: he rewired the bank that afternoon to eliminate stacked lugs, nothing added or removed. Nothing on the bus can consume +50% (the monitor is the only load, no reboot, no firmware change) while joints in the shunt's own current path were re-landed. 2.88 mA = 1.08 µV at 375 µΩ, the same order as the chip's 0.9 µV offset. The short-input test is still worth running, but as confirmation and a new zero — not as the tie-breaker |
 | 2026-09-07 | gates 0 and 1 will REFUSE the scrambled static-sensitivity values, because PR Table 7 marks them "-(not settable)" | yes — written into `mmwave-bench.yaml`'s scramble button comment before the button was ever pressed | **WRONG** — `g0_still` and `g1_still` took 62 and 64 and reverted cleanly with the other 19. "Not settable" describes what the module ACTS on, not what it will accept and store. The write path reaches gates the radar ignores |
 | 2026-09-08 | upgrading 1.8.10 -> 1.12.4 leaves the Grafana panel query within ~2x of its 118.6 ms baseline | yes - written in-session before the sandbox was built or any binary downloaded | **HIT** - 0.89x for the W-24h panel, 1.15-1.22x for the 8-panel dashboard mix; interleaved A/B, n=15, IQR 8-36 ms |
+| 2026-09-10 | with `watchdog_reload_ecobee` now reloading BOTH thermostats, main-floor stale episodes clear within ~1 min of the reload the way upstairs ones already do (upstairs-only n=78, longest 1.0 min; main-floor-only n=82, median 10.6 min while the reload missed them; InfluxDB since 08-01) — so `watchdog_reset_failed` sends NO Ecobee notice in the 7 days after the automation reload. Falsified by any Ecobee reset-failed notice, or any main-floor episode lasting >= 10 min, that is not a genuine HomeKit outage | yes — written after the file edit and BEFORE `automation.reload`, zero post-change episodes observed | pending |
 
 **Running score: 3 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
@@ -44,6 +45,100 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.10] - 2026-09-10
+
+### Watchdog — notify only when a reset FAILS; the Ecobee reload now hits both thermostats
+
+`packages/watchdog.yaml`. Bill: too many watchdog notifications, especially
+"Ecobee has been reset" - "rather have a notification if the resets fail."
+
+**What was wrong** [M, InfluxDB, 2026-08-01 .. 09-10]:
+- Every reload posted "Reloaded" and every on->off posted "Recovered" - two
+  positive results per episode. 500 stale episodes across the five watchdogs,
+  295 Ecobee reloads. The recovery trigger had no `for:`, so it also fired on
+  sub-minute blips that never reached a reload (battery bank: 66 episodes,
+  median 0.4 min).
+- A reset that FAILED said nothing. The reload automations trigger only on the
+  edge to `on` and the backoff blocks a retry, so a sensor left stale after its
+  reset stayed stale in silence.
+- The Ecobee reload targeted `sensor.upstairs_current_temperature` alone. Both
+  thermostats are `homekit_controller` and are SEPARATE config entries
+  (registry: `01KSBJ1S...` upstairs, `01KSBJ7V...` main floor), so every
+  main-floor episode reloaded the wrong thermostat. Split by the zone flag at
+  onset: upstairs-only n=78, longest 1.0 min; main-floor-only n=82, median
+  10.6 min, 43 lasting >= 10 min - those ended only when the temperature moved.
+  The notice's "(upstairs & main floor)" was false.
+
+**Changed:**
+- The 5 reload automations lost their success notice and nothing else.
+- `watchdog_reload_ecobee` and `script.watchdog_reload_all_stale` target both
+  temperature sensors; `reload_config_entry` reloads the entry of every targeted
+  entity [S: core 2026.9.1, `homeassistant/components/homeassistant/__init__.py:341-354`].
+- `watchdog_recovery_notification` replaced by `watchdog_reset_failed`: stale
+  `for: 10 min` gives one notice per system (same notification_id, so a repeat
+  replaces rather than stacks), saying whether a reset ran and failed, was
+  blocked by the backoff, or auto-reload is off. No recovery notice, by request.
+- R4: `persistent_notification.create` 9 -> 4. Kept: basement node offline and
+  sensor fault (already failure notices) and the manual script.
+- `entity_notes.yaml`: note for `automation.watchdog_reset_failed`.
+
+**Why 10 min** [M]: slowest clear after a reload 163 s (SEM, n=4); upstairs
+Ecobee n=78, longest 1.0 min; non-Ecobee episodes n=176 all ended within 5.3 min
+except the 62.6-min UPS outage on 08-29. Counterfactual since 08-01 at 10 min
+under the OLD target: battery bank 0, UPS 1, SEM 0, basement TH 0, Ecobee 59
+(43 main-floor-only, 16 with no zone flag). The target fix is what should remove
+those - [I], pre-registered in the ledger above before the reload.
+
+**Found and NOT changed (a separate change): the Ecobee stale test cannot work
+on HomeKit sensors.** `homekit_controller` calls back only for characteristics
+whose value CHANGED [S: core 2026.9.1, `homekit_controller/connection.py:1002`],
+so a steady temperature freezes `last_updated` AND `last_reported` - live, all
+three timestamps were equal on both sensors. Steady and dead are therefore
+indistinguishable by age, while the integration already marks its entities
+`unavailable` after 3 failed polls [S: same file, lines 57 and 983]. Every recent
+upstairs gap began and ended on the same value (e.g. 73.22 -> 73.22). The
+reloads continue at ~7 a day [D: 295 reloads / 40 d], now silently.
+
+**Also seen, not investigated:** the recorder's `/api/history` returned watchdog
+transitions only up to 08-28 for a window InfluxDB shows active through 09-10.
+
+**Gates:**
+```
+R2  scratch copy baseline (no db / custom_components / secrets): 0 FAIL, 0 WARN, 2 INFO == H:
+R3  5 reloads == original minus the notice step; other 2 automations, input_*,
+    template byte-equal after parse; script differs only in the Ecobee target.
+    title + message rendered live via /api/template in all three branches.
+    H: byte-identical to the verified scratch result for watchdog.yaml,
+    entity_notes.yaml, AUTOMATIONS.md, PACKAGES.md, ENTITIES.md
+1  SYNTAX    validate_ha.py --strict   PASS (parse-clean), 0 FAIL 0 WARN - both files
+1b DOCS      gen_reference.py          AUTOMATIONS.md 1 row swapped; PACKAGES.md 652 -> 693 lines
+2  SEMANTIC  ha_audit.py               0 FAIL, 1 WARN, 2 INFO. WARN +1 = entity-note-orphan on
+                                       automation.watchdog_reset_failed, expected until
+                                       automation.reload registers it
+   R17       check_provenance.py --all 0 WARN on watchdog.yaml
+3  DEPLOYED  check_config              valid, errors None, warnings None
+4  RELOAD    automation.reload, then script.reload - both run by Bill
+5  OBSERVE   read back over the websocket (automation/config, script/config) = what HA LOADED:
+             5 reloads: 2 steps each, 0 notices; ecobee target = both temperature sensors;
+             reset_failed: 5 triggers, all for 10 min; script ecobee branch = both sensors.
+             system_log: nothing from automation / script / watchdog. Bell: 0 notifications.
+1b DOCS      gen_reference.py after the reload: ENTITIES.md +1 row (automation.watchdog_reset_failed)
+2  SEMANTIC  ha_audit.py after the reload: 0 FAIL, 0 WARN, 2 INFO
+```
+
+NOT proven by firing: `watchdog_reset_failed` has been read back and its message
+rendered in all three branches, but it has not fired live - that needs a reset
+that genuinely fails. The ledger row above is the 7-day observation.
+
+**My error, recorded (R13):** the handover asked Bill for `automation.reload`
+only. This change also edited `script.watchdog_reload_all_stale`, which only
+`script.reload` loads - CLAUDE.md gate step 4 names it and I did not. Caught
+before sign-off by reading the live script config instead of trusting the
+reload; Bill ran `script.reload` and the read-back above confirms it.
+
+**Left open:** `automation.watchdog_recovery_notification` survives as a registry
+husk (`unavailable`, `restored: true`, platform automation, no config entry) -
+delete it via Settings -> Entities, like the 9 removed earlier today; `.storage`
+is not hand-editable.
 
 ### Registry cleanup — 9 orphaned entities deleted
 

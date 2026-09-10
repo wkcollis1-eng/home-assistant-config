@@ -15,7 +15,8 @@
 # Features:
 #   - Configurable stale thresholds per sensor type
 #   - Auto-reload with 15-minute backoff
-#   - Persistent notifications on stale/recovery
+#   - Persistent notifications on stale/recovery  [RETIRED 2026-09-10]
+#   - Notification ONLY when a reset fails (watchdog_reset_failed), 2026-09-10
 #   - Dashboard-friendly status sensors
 #
 # =============================================================================
@@ -313,11 +314,6 @@ automation:
       - service: homeassistant.reload_config_entry
         target:
           entity_id: sensor.battery_bank_monitor_battery_voltage
-      - service: persistent_notification.create
-        data:
-          title: "Watchdog: Battery Bank Reloaded"
-          message: "Battery Bank integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
-          notification_id: watchdog_battery_bank
 
   # --- Ecobee Reload ---
   - id: watchdog_reload_ecobee
@@ -348,14 +344,19 @@ automation:
           entity_id: input_datetime.watchdog_last_reload_ecobee
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # BOTH thermostats (2026-09-10). They are separate homekit_controller
+      # config entries, and this used to target upstairs alone - so every
+      # main-floor stale episode reloaded the wrong thermostat and stayed
+      # stale until the temperature happened to move. Since 2026-08-01
+      # [M, InfluxDB]: main-floor-only episodes n=82, median 10.6 min, 43
+      # lasting >= 10 min; upstairs-only n=78, longest 1.0 min.
+      # reload_config_entry reloads the entry of EVERY targeted entity
+      # [S: core 2026.9.1, homeassistant/components/homeassistant/__init__.py:341-354].
       - service: homeassistant.reload_config_entry
         target:
-          entity_id: sensor.upstairs_current_temperature
-      - service: persistent_notification.create
-        data:
-          title: "Watchdog: Ecobee Reloaded"
-          message: "Ecobee integration was reloaded due to stale sensors (upstairs & main floor) at {{ now().strftime('%H:%M:%S') }}"
-          notification_id: watchdog_ecobee
+          entity_id:
+            - sensor.upstairs_current_temperature
+            - sensor.main_floor_current_temperature
 
   # --- UPS Reload ---
   - id: watchdog_reload_ups
@@ -389,11 +390,6 @@ automation:
       - service: homeassistant.reload_config_entry
         target:
           entity_id: sensor.ups_monitor_battery_voltage
-      - service: persistent_notification.create
-        data:
-          title: "Watchdog: UPS Reloaded"
-          message: "UPS integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
-          notification_id: watchdog_ups
 
   # --- SEM Reload ---
   - id: watchdog_reload_sem
@@ -427,18 +423,17 @@ automation:
       - service: homeassistant.reload_config_entry
         target:
           entity_id: sensor.sem_whole_home_power
-      - service: persistent_notification.create
-        data:
-          title: "Watchdog: SEM Reloaded"
-          message: "SEM integration was reloaded due to stale sensors at {{ now().strftime('%H:%M:%S') }}"
-          notification_id: watchdog_sem
 
   # --- Recovery Notification ---
+  #     (retired 2026-09-10 - replaced by watchdog_reset_failed, further down)
   # --- Basement TH Node Reload ---
   # `for: 1 minute` matches the other entries, so the effective trip is the
   # 5-min threshold plus 1 min = 6 min, still inside the 10-min control-loop
   # shutdown. Message names the control consequence explicitly - a stale
   # sensor here is not just a monitoring gap, it stops the dehumidifier.
+  # 2026-09-10: that message was a SUCCESS notice and is gone. The control
+  # consequence is now stated by watchdog_reset_failed, which fires only
+  # when the reset did not work.
   - id: watchdog_reload_basement_th
     alias: "Watchdog: Reload Basement TH"
     mode: single
@@ -470,15 +465,6 @@ automation:
       - service: homeassistant.reload_config_entry
         target:
           entity_id: sensor.basement_th_node_basement_humidity
-      - service: persistent_notification.create
-        data:
-          title: "Watchdog: Basement TH Reloaded"
-          message: >-
-            Basement TH node integration reloaded due to a stale control RH at
-            {{ now().strftime('%H:%M:%S') }}. This is the dehumidifier's control
-            sensor — if it does not recover within 10 min of going stale, the
-            unit stops with reason `sensor_loss`.
-          notification_id: watchdog_basement_th
 
   # ===============================================================
   # BASEMENT TH NODE — ON-BOARD FAULT SURFACING
@@ -560,41 +546,93 @@ automation:
             Shelly validation channel reads
             {{ states('sensor.shelly_temperature_humidity_humidity') }} %RH.
 
-  - id: watchdog_recovery_notification
-    alias: "Watchdog: Recovery Notification"
+  # --- Reset Failed (2026-09-10; replaces watchdog_recovery_notification) ---
+  # Notify ONLY when the watchdog's fix did not work. Until this date every
+  # reload posted a "Reloaded" notice and every on->off a "Recovered" one - two
+  # positive results per episode - and the recovery trigger had no for:, so it
+  # also fired on sub-minute blips that never reached a reload. Since
+  # 2026-08-01 [M, InfluxDB]: 500 stale episodes across the five watchdogs and
+  # 295 Ecobee reloads. Meanwhile a reset that FAILED said nothing at all: the
+  # reload automations trigger only on the edge to "on" and the backoff blocks
+  # a retry, so a sensor left stale after its reset stayed stale in silence.
+  #
+  # 10 min: a working reset clears well inside it. Slowest measured clear after
+  # a reload is 163 s (SEM, n=4); upstairs Ecobee episodes, which the reload DID
+  # target, never lasted past 1.0 min (n=78); every non-Ecobee episode since
+  # 08-01 ended within 5.3 min except one 62.6-min UPS outage on 08-29 (n=176),
+  # which is exactly what this should report.
+  # [I] falsifier: with the Ecobee reload now hitting both thermostats, a
+  # main-floor episode should clear like an upstairs one. A main-floor notice
+  # from this automation means that model is wrong.
+  #
+  # One notice per system, same notification_id as the retired ones, so a
+  # repeat REPLACES rather than stacks. It stays until dismissed - there is no
+  # recovery notice, deliberately (Bill 2026-09-10: failures only).
+  - id: watchdog_reset_failed
+    alias: "Watchdog: Reset Failed"
+    description: "Notify only when a watched sensor is still stale 10 min after going stale - the auto-reload did not fix it, was blocked by the backoff, or is switched off."
     mode: parallel
     trigger:
       - platform: state
         entity_id: binary_sensor.watchdog_battery_bank_stale
-        from: "on"
-        to: "off"
+        to: "on"
+        for:
+          minutes: 10
         id: battery_bank
       - platform: state
         entity_id: binary_sensor.watchdog_ecobee_stale
-        from: "on"
-        to: "off"
+        to: "on"
+        for:
+          minutes: 10
         id: ecobee
       - platform: state
         entity_id: binary_sensor.watchdog_ups_stale
-        from: "on"
-        to: "off"
+        to: "on"
+        for:
+          minutes: 10
         id: ups
       - platform: state
         entity_id: binary_sensor.watchdog_sem_stale
-        from: "on"
-        to: "off"
+        to: "on"
+        for:
+          minutes: 10
         id: sem
       - platform: state
         entity_id: binary_sensor.watchdog_basement_th_stale
-        from: "on"
-        to: "off"
+        to: "on"
+        for:
+          minutes: 10
         id: basement_th
     action:
+      - variables:
+          name: >-
+            {{ {'battery_bank': 'Battery Bank', 'ecobee': 'Ecobee', 'ups': 'UPS',
+                'sem': 'SEM', 'basement_th': 'Basement TH'}[trigger.id] }}
       - service: persistent_notification.create
         data:
-          title: "Watchdog: {{ trigger.id | title }} Recovered"
-          message: "{{ trigger.id | title }} sensors are updating normally again at {{ now().strftime('%H:%M:%S') }}"
           notification_id: "watchdog_{{ trigger.id }}"
+          title: "⚠️ Watchdog: {{ name }} reset failed"
+          message: >-
+            {%- set onset = as_local(trigger.to_state.last_changed) -%}
+            {%- set last = states('input_datetime.watchdog_last_reload_' ~ trigger.id) -%}
+            {%- set last_dt = last | as_datetime(none) -%}
+            {{ name }} went stale at {{ onset.strftime('%H:%M') }} and is still
+            stale 10 min later.
+            {% if is_state('input_boolean.watchdog_auto_reload_' ~ trigger.id, 'off') -%}
+            Auto-reload is OFF for it, so no reset was attempted.
+            {%- elif last_dt is not none and as_local(last_dt) >= onset -%}
+            The reset at {{ as_local(last_dt).strftime('%H:%M:%S') }} did not clear it.
+            {%- else -%}
+            No reset ran during this episode - the previous one ({{ last }}) was
+            inside the {{ states('input_number.watchdog_reload_backoff') | int(15) }}-min
+            backoff, or automation.watchdog_reload_{{ trigger.id }} is off.
+            {%- endif %}
+            {% if trigger.id == 'basement_th' -%}
+            This is the dehumidifier's control sensor, so the unit will have
+            stopped with reason `sensor_loss`.
+            {%- endif %}
+            This notice stays until dismissed; binary_sensor.watchdog_{{ trigger.id }}_stale
+            shows the current state.
 
 # -----------------------------------------------------------------------------
 # Scripts: Manual Reload
@@ -618,9 +656,12 @@ script:
             entity_id: binary_sensor.watchdog_ecobee_stale
             state: "on"
         then:
+          # Both thermostats, not upstairs alone - see watchdog_reload_ecobee.
           - service: homeassistant.reload_config_entry
             target:
-              entity_id: sensor.upstairs_current_temperature
+              entity_id:
+                - sensor.upstairs_current_temperature
+                - sensor.main_floor_current_temperature
       - if:
           - condition: state
             entity_id: binary_sensor.watchdog_ups_stale

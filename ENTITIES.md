@@ -420,6 +420,7 @@ sensor.upstairs_current_temperature    2F current temp (watchdog monitored)
 ## WATCHDOG (packages/watchdog.yaml)
 
 ```
+automation.watchdog_reset_failed                 failure-only notice; still stale 10 min after onset
 binary_sensor.watchdog_battery_bank_stale        Battery Bank monitor stale detection
 binary_sensor.watchdog_ecobee_stale              Ecobee temps stale (either sensor)
 binary_sensor.watchdog_sem_stale                 SEM Meter stale detection
