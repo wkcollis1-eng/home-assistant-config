@@ -63,6 +63,14 @@ views:
             name: Water — heard ago
           - entity: sensor.electric_meter_age
             name: Electric — heard ago
+      - type: markdown
+        title: Commissioning notes
+        content: |
+          **Turn alerts OFF while you are unplugging things.**
+
+          A frozen counter is the real failure mode — MQTT retains the last value, so the entity stays *available* with a stale number, which looks identical to zero consumption. "Heard ago" is the instrument; value change is not.
+
+          Gas ticks once per ~1.3 furnace-hours in winter and once every 2–5 days in summer, so **never** set the gas threshold against value change — only against reception.
       - type: entities
         title: Raw counters (what the radio reports)
         show_header_toggle: false
@@ -132,42 +140,6 @@ views:
           **A stale decode is not a clean bill of health.** These fields are only as
           fresh as the last frame; check "Water — heard ago" in Health above before
           trusting a zero here.
-      - type: entities
-        title: Live power & SEM cross-check
-        show_header_toggle: false
-        entities:
-          - entity: sensor.sem_whole_home_power
-            name: SEM — instantaneous (2 s, no utility equivalent)
-          - type: divider
-          - entity: sensor.utility_electric_power_clean
-            name: Utility — 10 min
-          - entity: sensor.sem_whole_home_power_10min
-            name: SEM — 10 min
-          - type: divider
-          - entity: sensor.utility_electric_power_avg
-            name: Utility — 60 min mean (counter-derived)
-          - entity: sensor.sem_whole_home_power_mean
-            name: SEM — 60 min mean
-          - type: divider
-          - entity: sensor.sem_vs_utility_delta
-            name: SEM − Utility
-          - entity: sensor.sem_vs_utility_error
-            name: SEM error
-          - type: divider
-          - entity: input_number.sem_compare_window_minutes
-            name: Comparison window (reference)
-      - type: entities
-        title: Engineering units
-        show_header_toggle: false
-        entities:
-          - entity: sensor.gas_meter_volume
-            name: Gas volume
-          - entity: sensor.gas_meter_therms
-            name: Gas therms
-          - entity: sensor.water_meter_volume
-            name: Water volume
-          - entity: sensor.electric_meter_energy
-            name: Electric energy
       - type: vertical-stack
         cards:
           - type: conditional
@@ -317,6 +289,79 @@ views:
                 name: Regen threshold (gal)
               - entity: input_number.water_overnight_min_bins
                 name: Minimum bins for a usable night
+      - type: entities
+        title: Calibration — scale factors
+        show_header_toggle: false
+        entities:
+          - entity: input_number.gas_meter_scale
+            name: Gas — ft³ per count
+          - entity: input_number.water_meter_scale
+            name: Water — gal per count
+          - entity: input_number.electric_meter_scale
+            name: Electric — kWh per count
+        footer:
+          type: graph
+          entity: sensor.water_meter_volume
+          hours_to_show: 24
+      - type: markdown
+        title: How to calibrate
+        content: |
+          **Water (do this first).** Note the ProCoder register and the raw count. Draw 5 gal into a bucket. Note both again. `gal_per_count = Δgallons / Δcount`. Large volume kills the quantisation error.
+
+          **Gas.** Note the odometer and raw count, wait for a few counts to accumulate, divide. Expect 100 — the 100G DLT requires a pulse weight of at least 100 ft³, matching your ×100 odometer.
+
+          **Electric.** Compare the raw count against the meter LCD (was 30899 kWh).
+
+          Field reports show transmitted values do not always map cleanly to the register face, so derive these rather than assuming.
+      - type: entities
+        title: Calibration — gas bill reconciliation
+        show_header_toggle: false
+        entities:
+          - entity: input_number.gas_btu_factor
+            name: BTU factor
+          - entity: input_number.gas_pressure_factor
+            name: Pressure correction
+        footer:
+          type: buttons
+          entities:
+            - entity: sensor.gas_meter_therms
+              name: Therms
+      - type: entities
+        title: Engineering units
+        show_header_toggle: false
+        entities:
+          - entity: sensor.gas_meter_volume
+            name: Gas volume
+          - entity: sensor.gas_meter_therms
+            name: Gas therms
+          - entity: sensor.water_meter_volume
+            name: Water volume
+          - entity: sensor.electric_meter_energy
+            name: Electric energy
+      - type: entities
+        title: Live power & SEM cross-check
+        show_header_toggle: false
+        entities:
+          - entity: sensor.sem_whole_home_power
+            name: SEM — instantaneous (2 s, no utility equivalent)
+          - type: divider
+          - entity: sensor.utility_electric_power_clean
+            name: Utility — 10 min
+          - entity: sensor.sem_whole_home_power_10min
+            name: SEM — 10 min
+          - type: divider
+          - entity: sensor.utility_electric_power_avg
+            name: Utility — 60 min mean (counter-derived)
+          - entity: sensor.sem_whole_home_power_mean
+            name: SEM — 60 min mean
+          - type: divider
+          - entity: sensor.sem_vs_utility_delta
+            name: SEM − Utility
+          - entity: sensor.sem_vs_utility_error
+            name: SEM error
+          - type: divider
+          - entity: input_number.sem_compare_window_minutes
+            name: Comparison window (reference)
       - type: history-graph
         title: SEM vs utility meter — 60 min means
         hours_to_show: 12
@@ -325,6 +370,16 @@ views:
             name: Utility (traceable)
           - entity: sensor.sem_whole_home_power_mean
             name: SEM
+      - type: markdown
+        title: Reading the cross-check
+        content: |
+          The utility meter is **revenue-grade and traceable**. Your 16 SEM CTs have never been checked against it. Positive error means SEM reads HIGH.
+
+          **Compare long averages only.** The utility figure is a difference quotient over a 30–90 s decode interval with ~10 W of quantisation per count, so instantaneous disagreement means nothing. A stable offset over days is the real signal.
+
+          **What an offset would mean:** a constant percentage points at CT calibration or a burden-resistor value. A constant *wattage* points at a load the SEM doesn't cover — a circuit with no CT on it. The two look different on this chart, which is why both delta and percent are shown.
+
+          **Watch the trend, not the value.** A slowly growing error is CT drift, and that is the thing this instrument exists to catch.
       - type: glance
         title: Today
         show_state: true
@@ -346,62 +401,6 @@ views:
           - entity: sensor.utility_electric_monthly
             name: Electric
       - type: entities
-        title: Calibration — gas bill reconciliation
-        show_header_toggle: false
-        entities:
-          - entity: input_number.gas_btu_factor
-            name: BTU factor
-          - entity: input_number.gas_pressure_factor
-            name: Pressure correction
-        footer:
-          type: buttons
-          entities:
-            - entity: sensor.gas_meter_therms
-              name: Therms
-      - type: markdown
-        title: Reading the cross-check
-        content: |
-          The utility meter is **revenue-grade and traceable**. Your 16 SEM CTs have never been checked against it. Positive error means SEM reads HIGH.
-
-          **Compare long averages only.** The utility figure is a difference quotient over a 30–90 s decode interval with ~10 W of quantisation per count, so instantaneous disagreement means nothing. A stable offset over days is the real signal.
-
-          **What an offset would mean:** a constant percentage points at CT calibration or a burden-resistor value. A constant *wattage* points at a load the SEM doesn't cover — a circuit with no CT on it. The two look different on this chart, which is why both delta and percent are shown.
-
-          **Watch the trend, not the value.** A slowly growing error is CT drift, and that is the thing this instrument exists to catch.
-      - type: history-graph
-        title: Reception age (min) — dongle health
-        hours_to_show: 12
-        refresh_interval: 15
-        entities:
-          - entity: sensor.gas_meter_age
-            name: Gas
-          - entity: sensor.water_meter_age
-            name: Water
-          - entity: sensor.electric_meter_age
-            name: Electric
-      - type: entities
-        title: Calibration — scale factors
-        show_header_toggle: false
-        entities:
-          - entity: input_number.gas_meter_scale
-            name: Gas — ft³ per count
-          - entity: input_number.water_meter_scale
-            name: Water — gal per count
-          - entity: input_number.electric_meter_scale
-            name: Electric — kWh per count
-        footer:
-          type: graph
-          entity: sensor.water_meter_volume
-          hours_to_show: 24
-      - type: markdown
-        title: Reading the reception-age chart
-        content: |
-          A healthy meter sawtooths: age climbs to the transmit interval, then drops to zero on each decode.
-
-          **A rising baseline that never returns to zero is the degradation signal** — the dongle is being heard less often before it stops entirely. That is the failure you would otherwise never see coming, and it is why this chart is worth more than the counters above it.
-
-          Water should sawtooth every 15–30 s. Electric similar if the AirPoint is programmed for SCM rather than Data on Demand. Gas depends on the 100G DLT's transmit interval, which is unknown until observed.
-      - type: entities
         title: Staleness thresholds
         show_header_toggle: false
         entities:
@@ -414,3 +413,41 @@ views:
           - type: divider
           - entity: input_number.sdr_leak_hold_hours
             name: Leak flag hold
+      - type: history-graph
+        title: Reception age (min) — dongle health
+        hours_to_show: 12
+        refresh_interval: 60
+        entities:
+          - entity: sensor.gas_meter_age
+            name: Gas
+          - entity: sensor.water_meter_age
+            name: Water
+          - entity: sensor.electric_meter_age
+            name: Electric
+      - type: markdown
+        title: Reading the reception-age chart
+        content: |
+          A healthy meter sawtooths: age climbs to the transmit interval, then drops to zero on each decode.
+
+          **A rising baseline that never returns to zero is the degradation signal** — the dongle is being heard less often before it stops entirely. That is the failure you would otherwise never see coming, and it is why this chart is worth more than the counters above it.
+
+          Water should sawtooth every 15–30 s. Electric similar if the AirPoint is programmed for SCM rather than Data on Demand. Gas depends on the 100G DLT's transmit interval, which is unknown until observed.
+      - type: history-graph
+        title: Reads per minute — dongle health
+        hours_to_show: 12
+        refresh_interval: 60
+        entities:
+          - entity: sensor.gas_meter_reads_per_minute
+            name: Gas
+          - entity: sensor.water_meter_reads_per_minute
+            name: Water
+          - entity: sensor.electric_meter_reads_per_minute
+            name: Electric
+      - type: markdown
+        title: Reading the reads-per-minute chart
+        content: |
+          Trailing 10-minute decode count, expressed per minute - the same decode events the age chart above tracks, counted instead of timed. A healthy dongle holds a fairly flat line per meter (added 2026-09-11, measured over the preceding 5 days: gas ~1.0–1.4/min, water ~1.2–1.6/min, electric ~2.4–3.1/min - these vary meter to meter and are not thresholds).
+
+          **A falling trend is the same degradation this measures from the other side of the same event** — reads/minute falls exactly when reception age stops returning to zero. Read them together: age answers "how long since the last decode", this answers "how many decodes lately" - either can catch a slow fade the other's noise floor hides.
+
+          Because this is a 10-minute trailing average, it lags a sudden dongle failure by up to 10 minutes and starts at 0 for the first 10 minutes after any HA restart or `statistics.reload` — that is the buffer filling, not a fault.

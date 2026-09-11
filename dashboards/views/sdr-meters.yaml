@@ -580,3 +580,35 @@ cards:
       Water should sawtooth every 15–30 s. Electric similar if the AirPoint is
       programmed for SCM rather than Data on Demand. Gas depends on the 100G
       DLT's transmit interval, which is unknown until observed.
+  - type: history-graph
+    title: Reads per minute — dongle health
+    hours_to_show: 12
+    refresh_interval: 60
+    entities:
+      - entity: sensor.gas_meter_reads_per_minute
+        name: Gas
+      - entity: sensor.water_meter_reads_per_minute
+        name: Water
+      - entity: sensor.electric_meter_reads_per_minute
+        name: Electric
+  - type: markdown
+    title: Reading the reads-per-minute chart
+    content: >
+      Trailing 10-minute decode count, expressed per minute - the same decode
+      events the age chart above tracks, counted instead of timed. A healthy
+      dongle holds a fairly flat line per meter (added 2026-09-11, measured over
+      the preceding 5 days: gas ~1.0–1.4/min, water ~1.2–1.6/min, electric
+      ~2.4–3.1/min - these vary meter to meter and are not thresholds).
+
+
+      **A falling trend is the same degradation this measures from the other
+      side of the same event** — reads/minute falls exactly when reception age
+      stops returning to zero. Read them together: age answers "how long since
+      the last decode", this answers "how many decodes lately" - either can
+      catch a slow fade the other's noise floor hides.
+
+
+      Because this is a 10-minute trailing average, it lags a sudden dongle
+      failure by up to 10 minutes and starts at 0 for the first 10 minutes
+      after any HA restart or `statistics.reload` — that is the buffer filling,
+      not a fault.

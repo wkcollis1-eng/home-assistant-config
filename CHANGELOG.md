@@ -46,6 +46,75 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.11] - 2026-09-11
 
+### SDR reads-per-minute sensors, alongside the reception-age chart
+
+`packages/utility_meters.yaml`. Requested: a live "reads/min" health metric per
+meter, matching the existing 12h "Reception age" chart's role, plus the
+InfluxDB-based historical analysis that motivated it (see reports/, not
+committed here).
+
+**Added**, 9 new entities, gas/water/electric x 3:
+- `sensor.<meter>_meter_last_seen_epoch` — numeric (epoch seconds) adapter for
+  `sensor.<meter>_meter_last_seen`. NEEDED because the `statistics` platform's
+  non-binary path does `float(new_state.state)` (verified against the pinned
+  HA 2026.9.1 source, `homeassistant/components/statistics/sensor.py:807` -
+  R6); `last_seen`'s ISO-8601 string fails that silently, so a `count`
+  characteristic pointed at it directly would sit at 0 forever with nothing
+  saying why (R8). Not a second copy of what `last_seen` means (R10) - a type
+  bridge so the existing statistics mechanism can read the same decode event.
+- `sensor.<meter>_meter_reads_count_10min` — `platform: statistics`,
+  `state_characteristic: count`, `max_age: 10 min`, sourced on the epoch
+  adapter above. Matches the existing "Dehumidifier Steady Sample Count 24h"
+  pattern rather than recomputing a count in a template.
+- `sensor.<meter>_meter_reads_per_minute` — the count sensor's state / 10.
+
+**Verified:** sandbox-first (R2) - built and gated in `C:\sandbox`, diffed
+byte-for-byte against `H:` before either file changed, then the identical diff
+applied to `H:`. `validate_ha.py --strict` PASS (parse-clean); `ha_audit.py`
+0 FAIL / 0 WARN / 2 INFO, unchanged from baseline; `check_config` -> `valid`,
+0 errors, 0 warnings; `template.reload` + `statistics.reload` fired (Bill
+confirmed); all 9 entities read live and non-error afterward
+(`sensor.gas_meter_reads_per_minute` etc, NOT `..._reads_per_min` - the
+`unique_id`s use the short form but the visible `entity_id` slugifies from the
+full `name:`, which cost one wrong test query before catching it).
+
+**Left open:** the count/rate sensors have no `entity_notes.yaml` annotation,
+matching their un-annotated siblings `sensor.gas_meter_age` /
+`electric_meter_age` (the annotation rule is SHOULD, not enforced - 236 of 410
+entities already carry none).
+
+**Dashboard card — PASTED AND CONFIRMED LIVE, 2026-09-11.** The "Reads per
+minute — dongle health" history-graph + markdown pair (`dashboards/views/
+sdr-meters.yaml`) was handed to Bill as raw YAML; he pasted it into the SDR
+Meters dashboard's raw configuration editor the same day.
+`scripts/export_dashboards.py` re-run afterward (`sdr_utility_meters.yaml`
+CHANGED, the other 5 exports unchanged - confirming this was the only live
+edit), and `ha_audit.py` cleared `dashboard-not-pasted` -> 0 FAIL, 0 WARN, 2
+INFO. Don't skip the export step next time either: pasting alone does not
+clear the audit finding, because the finding compares against the exported
+MIRROR (`dashboards/lovelace/`), not the live dashboard directly - the mirror
+only updates when the export script runs.
+
+### Reception-rate analysis: the 09-06 step explained (R14 answered)
+
+The InfluxDB analysis behind the reads-per-minute sensors above (full 21-day
+`*_meter_last_seen` history, all three meters) found TWO step changes in
+decode rate, not one: the documented 08-22 `sleep_for` duty-cycle change, and
+a second, unexplained step on 2026-09-06 - all three meters together,
+matching the shared-infrastructure signature of the first step, but with no
+CHANGELOG entry to account for it. Flagged as an open R14 question rather than
+guessed at.
+
+**Answered same day, Bill:** "on or around 9-6-2026, played with antenna
+placement attempting to optimize." This is [S] - a stated physical action,
+not inferred - and it fits the evidence exactly: an antenna move affects the
+SDR's RF front end, which is shared across all three meters' receive chains,
+which is why gas/water/electric moved together rather than one meter
+independently. Rates before/after, from the analysis (mean daily reads/min,
+[M]): gas 1.19 -> 1.37, water 1.26 -> 1.57, electric 2.77 -> 3.01 (09-01..05
+vs 09-06..10, n=5 days each side). No config change follows from this - it is
+retroactive credit for a manual RF change, not a new tunable.
+
 ### Backup essentials: coffee maker replaced by Living Rm TV/Sonos/Homatics
 
 `packages/backup_sizing.yaml`, `dashboards/cards/backup/essentials-overview.yaml`,

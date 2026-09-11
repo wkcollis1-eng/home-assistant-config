@@ -740,6 +740,84 @@ template:
                  99999 ] | min }}
           {% endif %}
 
+      # --- numeric adapters for the reads-per-minute statistics sensors below
+      # WHY THIS EXISTS: the `statistics` platform's non-binary path does
+      # `float(new_state.state)` on every update (verified against the pinned
+      # HA 2026.9.1 source, homeassistant/components/statistics/sensor.py:807,
+      # 2026-09-11 - R6). A plain ISO timestamp string raises ValueError there,
+      # caught internally, so a `state_characteristic: count` sensor pointed
+      # directly at *_meter_last_seen would sit at count 0 forever with
+      # nothing on the dashboard saying why - the exact "looks clean, checked
+      # nothing" failure R8 exists to name. This adapter republishes the SAME
+      # decode event as a float epoch so the statistics platform can see it -
+      # not a second copy of what last_seen means (R10), a type change so the
+      # existing counting mechanism can read it.
+      - name: "Gas Meter Last Seen Epoch"
+        unique_id: sdr_gas_meter_last_seen_epoch
+        unit_of_measurement: "s"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.gas_meter_last_seen') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: "{{ as_timestamp(states('sensor.gas_meter_last_seen'), 0) }}"
+
+      - name: "Water Meter Last Seen Epoch"
+        unique_id: sdr_water_meter_last_seen_epoch
+        unit_of_measurement: "s"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.water_meter_last_seen') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: "{{ as_timestamp(states('sensor.water_meter_last_seen'), 0) }}"
+
+      - name: "Electric Meter Last Seen Epoch"
+        unique_id: sdr_electric_meter_last_seen_epoch
+        unit_of_measurement: "s"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.electric_meter_last_seen') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: "{{ as_timestamp(states('sensor.electric_meter_last_seen'), 0) }}"
+
+      # --- reads per minute, trailing 10-min window --------------------------
+      # sensor.*_meter_reads_count_10min (platform: statistics, below) holds
+      # the raw decode count over a trailing 10 minutes; this just divides by
+      # the window width. WHY A TRAILING WINDOW, NOT 1/gap: a single inter-
+      # decode gap is noisy and has twice already been mistaken for a property
+      # of the world (R18 - the water "28 s grid" and electric "86 s tick"
+      # were both single-interval artefacts, not real). A 10-min decode count
+      # is the number that matters operationally.
+      # Divisor (10) MUST match the paired statistics sensor's max_age.
+      - name: "Gas Meter Reads Per Minute"
+        unique_id: sdr_gas_meter_reads_per_min
+        unit_of_measurement: "/min"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.gas_meter_reads_count_10min') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.gas_meter_reads_count_10min') | float(0) / 10) | round(2) }}
+
+      - name: "Water Meter Reads Per Minute"
+        unique_id: sdr_water_meter_reads_per_min
+        unit_of_measurement: "/min"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.water_meter_reads_count_10min') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.water_meter_reads_count_10min') | float(0) / 10) | round(2) }}
+
+      - name: "Electric Meter Reads Per Minute"
+        unique_id: sdr_electric_meter_reads_per_min
+        unit_of_measurement: "/min"
+        state_class: measurement
+        availability: >
+          {{ states('sensor.electric_meter_reads_count_10min') not in
+             ['unknown', 'unavailable', 'none', ''] }}
+        state: >
+          {{ (states('sensor.electric_meter_reads_count_10min') | float(0) / 10) | round(2) }}
+
   - binary_sensor:
       - name: "Gas Meter Stale"
         unique_id: sdr_gas_meter_stale
@@ -925,6 +1003,48 @@ sensor:
     max_age:
       minutes: 60
     sampling_size: 2400
+
+  # --- reads-per-minute source: raw decode count over a trailing window -----
+  # entity_id points at the *_meter_last_seen_epoch adapters (template: block
+  # above), not *_meter_last_seen directly - the statistics platform's non-
+  # binary path does float(state) (verified against the pinned HA 2026.9.1
+  # source - see the adapter comment above) and a timestamp STRING fails that
+  # silently, count stuck at 0 forever. Matches the existing "Dehumidifier
+  # Steady Sample Count 24h" pattern (state_characteristic: count) rather than
+  # recomputing a count in a template (R10).
+  #
+  # sampling_size sized off MEASURED current rate [M, InfluxDB last_seen
+  # history, 2026-09-06..09-10, n=9,861/11,298/21,692 decodes for
+  # gas/water/electric]: peak observed 1.437/1.595/3.051 decodes per minute ->
+  # at most ~14.4/16.0/30.5 in a 10-min window. Sized several x over that so
+  # max_age keeps governing, not the buffer (the sampling_size trap documented
+  # throughout this file).
+  - platform: statistics
+    name: "Gas Meter Reads Count 10min"
+    unique_id: sdr_gas_meter_reads_count_10min
+    entity_id: sensor.gas_meter_last_seen_epoch
+    state_characteristic: count
+    max_age:
+      minutes: 10
+    sampling_size: 100
+
+  - platform: statistics
+    name: "Water Meter Reads Count 10min"
+    unique_id: sdr_water_meter_reads_count_10min
+    entity_id: sensor.water_meter_last_seen_epoch
+    state_characteristic: count
+    max_age:
+      minutes: 10
+    sampling_size: 100
+
+  - platform: statistics
+    name: "Electric Meter Reads Count 10min"
+    unique_id: sdr_electric_meter_reads_count_10min
+    entity_id: sensor.electric_meter_last_seen_epoch
+    state_characteristic: count
+    max_age:
+      minutes: 10
+    sampling_size: 200
 
 utility_meter:
   gas_daily:
