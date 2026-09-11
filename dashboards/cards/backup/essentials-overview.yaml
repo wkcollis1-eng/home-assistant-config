@@ -12,9 +12,11 @@
 # evidence, not estimate. Nothing on this card invents a capacity, a depth of
 # discharge, or a runtime; those come from the monitor itself.
 #
-# ESSENTIALS, set 2026-08-23: fridge, furnace (HEAT), Kitchen Counter 2 (coffee),
-# HWH recirc pump, and the monitoring brain (HA host + UPS outlet + router).
-# NEVER on the bank: AC, dryer, microwave.
+# ESSENTIALS, set 2026-08-23; coffee maker swapped out 2026-09-11 for the
+# Family Room circuit (SEM CT channel, per Bill): fridge, furnace (HEAT),
+# Family Room, HWH recirc pump, and the monitoring brain (HA host + UPS
+# outlet + router).
+# NEVER on the bank: AC, dryer, microwave, COFFEE MAKER.
 #
 # ------------------------------------------------------------------------------
 # READ BEFORE TRUSTING THE PEAK ROW.
@@ -157,8 +159,8 @@ cards:
         name: Fridge (inrush ~18x running)
       - entity: sensor.furnace_peak_watts
         name: Furnace — COOLING until first heat call
-      - entity: sensor.coffee_maker_peak_watts
-        name: Coffee maker (resistive, no inrush)
+      - entity: sensor.family_room_peak_watts
+        name: Family Room (SEM)
       - entity: sensor.hwh_recirc_peak_watts
         name: HWH recirc pump
       - entity: sensor.monitoring_peak_watts
@@ -168,6 +170,8 @@ cards:
       - type: divider
       - entity: input_button.reset_load_peaks
         name: Reset peaks — press at first heat call
+      - type: section
+        label: NEVER RUN THE COFFEE MAKER ON THE INVERTER
 
   # --- who is drawing what, and when they overlap ---------------------------
   # Stacked deliberately: simultaneity is the whole question for inverter
@@ -200,8 +204,8 @@ cards:
         color: "#42A5F5"
         stroke_width: 1
         yaxis_id: watts
-      - entity: sensor.sem_counter_2_power
-        name: Coffee
+      - entity: sensor.sem_family_room_power
+        name: Family Room
         type: area
         color: "#8D6E63"
         stroke_width: 1

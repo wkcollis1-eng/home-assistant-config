@@ -19,9 +19,12 @@
 # comparisons a second across five channels, on a host already at 15% CPU.
 # A trigger-template latch is O(1) per update and restores across restarts.
 #
-# SCOPE (set by the user 2026-08-23): fridge, furnace HEAT, Kitchen Counter 2
-# (coffee maker), HWH recirc, plus flat loads (lights/TV/computer).
-# NEVER on the bank: AC, dryer, microwave.
+# SCOPE (set by the user 2026-08-23; coffee maker swapped out 2026-09-11 for
+# the Family Room circuit, per Bill - see CHANGELOG for the mid-swap source
+# correction from a single Kasa plug to the SEM Family Room CT channel):
+# fridge, furnace HEAT, Family Room (SEM), HWH recirc, plus flat loads
+# (lights/TV/computer).
+# NEVER on the bank: AC, dryer, microwave, COFFEE MAKER.
 #
 # *** THE FURNACE NUMBER HERE IS NOT THE WINTER NUMBER. ***
 # It is August. sensor.sem_furnace_power currently sees the AIR HANDLER running
@@ -55,7 +58,7 @@ template:
         state: >
           {{ ((states('sensor.sem_fridge_power') | float(0))
               + (states('sensor.sem_furnace_power') | float(0))
-              + (states('sensor.sem_counter_2_power') | float(0))
+              + (states('sensor.sem_family_room_power') | float(0))
               + (states('sensor.hwh_current_consumption') | float(0))
               + (states('sensor.monitoring_load') | float(0)))
              | round(0) }}
@@ -69,7 +72,7 @@ template:
                        | float(12.8) %}
             {{ (((states('sensor.sem_fridge_power') | float(0))
                  + (states('sensor.sem_furnace_power') | float(0))
-                 + (states('sensor.sem_counter_2_power') | float(0))
+                 + (states('sensor.sem_family_room_power') | float(0))
                  + (states('sensor.hwh_current_consumption') | float(0))
                  + (states('sensor.monitoring_load') | float(0)))
                 / ([v, 10.0] | max * 0.88)) | round(0) }}
@@ -183,7 +186,7 @@ template:
 
   - trigger:
       - platform: state
-        entity_id: sensor.sem_counter_2_power
+        entity_id: sensor.sem_family_room_power
       - platform: state
         entity_id: input_button.reset_load_peaks
       # Trigger templates have NO state until something fires. Without this a
@@ -193,29 +196,39 @@ template:
       - platform: homeassistant
         event: start
     sensor:
-      - name: "Coffee Maker Peak Watts"
-        unique_id: backup_coffee_maker_peak_watts
+      # HISTORY, 2026-09-11: was "Coffee Maker Peak Watts" / sem_counter_2_power
+      # (Kitchen Counter 2). Coffee maker removed from the bank per Bill - never
+      # run it on the inverter. First replacement attempt targeted the Kasa plug
+      # sensor.living_room_tv_sonos_homatics_current_consumption (two churns: a
+      # name/entity_id slug mismatch, self-corrected same day, then Bill himself
+      # corrected the SOURCE - the family room's SEM CT channel is the right
+      # measure of what's actually wired to the bank, not one smart plug on that
+      # circuit). Both prior unique_ids (backup_coffee_maker_peak_watts,
+      # backup_living_room_tv_sonos_homatics_peak_watts[_r2]) are now orphaned;
+      # see CHANGELOG.md 2026.09.11 for the full trail.
+      - name: "Family Room Peak Watts"
+        unique_id: backup_family_room_peak_watts
         unit_of_measurement: "W"
         device_class: power
-        icon: mdi:coffee-maker
+        icon: mdi:sofa
         state: >
-          {% set v = states('sensor.sem_counter_2_power') | float(0) %}
-          {% set p = states('sensor.coffee_maker_peak_watts') | float(0) %}
+          {% set v = states('sensor.sem_family_room_power') | float(0) %}
+          {% set p = states('sensor.family_room_peak_watts') | float(0) %}
           {% if trigger.entity_id == 'input_button.reset_load_peaks' %}
             {{ v | round(0) }}
-          {% elif is_number(states('sensor.sem_counter_2_power')) %}
+          {% elif is_number(states('sensor.sem_family_room_power')) %}
             {{ [v, p] | max | round(0) }}
           {% else %}
             {{ p | round(0) }}
           {% endif %}
         attributes:
           occurred: >
-            {% set v = states('sensor.sem_counter_2_power') | float(0) %}
-            {% set p = states('sensor.coffee_maker_peak_watts') | float(0) %}
+            {% set v = states('sensor.sem_family_room_power') | float(0) %}
+            {% set p = states('sensor.family_room_peak_watts') | float(0) %}
             {% if trigger.entity_id == 'input_button.reset_load_peaks' or v > p %}
               {{ now().isoformat() }}
             {% else %}
-              {{ state_attr('sensor.coffee_maker_peak_watts', 'occurred') }}
+              {{ state_attr('sensor.family_room_peak_watts', 'occurred') }}
             {% endif %}
 
   - trigger:

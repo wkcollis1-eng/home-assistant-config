@@ -1468,6 +1468,23 @@ trusting it for anything; if leftover, delete the service account rather
 than leave a live Editor-role token with no known owner or purpose.
 ```
 
+### P16 — press "Reset peaks" at the first real heat call (multiple reasons stacked now) [MEDIUM]
+```
+Pre-existing reason: sensor.furnace_peak_watts is a COOLING-mode number until
+the furnace's first heat call this winter (heat mode adds the inducer motor
+and igniter, unmeasured). See backup_sizing.yaml and the card header.
+
+Added 2026-09-11: sensor.backup_essentials_peak_watts (the actual SIZING
+number) is latched at 3395 W, occurred 2026-08-24T06:43:08 - from BEFORE the
+coffee-maker-to-Family-Room swap, i.e. it includes a load no longer on the
+bank. It will not self-correct on its own (a new peak would have to exceed
+3395, unlikely soon) and will not be reset early: input_button.reset_load_
+peaks clears ALL peaks at once (fridge, furnace, HWH, monitoring), and Bill
+chose to wait rather than lose the furnace's cooling-mode baseline before a
+heat-mode reading exists. Until the reset, 3395 W looking stale on the card
+is EXPECTED, not a bug - do not "helpfully" reset early.
+```
+
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
@@ -1483,6 +1500,8 @@ P8    hvac_ac_blower_* chain retired — it existed, was not
 P10   rtlamr2mqtt duty cycle                                     DEPLOYED
 P12   InfluxDB CQs retired, Grafana SPC re-sourced               RESOLVED
 P13   statistics-buffer check                                    RESOLVED
+P15   backup essentials: coffee maker -> SEM Family Room,
+      reload + card paste both confirmed live, see CHANGELOG      DEPLOYED
 ```
 ## CHANGELOG — see `CHANGELOG.md`
 

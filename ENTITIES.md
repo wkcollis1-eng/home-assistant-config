@@ -39,7 +39,7 @@ sensor.backup_essentials_mean_24h        SUPERSEDED by backup_essentials_avg_24h
 sensor.backup_essentials_peak_watts      THE inverter-sizing number; attr amps_at_12v
 sensor.backup_essentials_sampled         1/min sample so the 24h buffer is 1440 not 43200
 sensor.basement_router_peak_watts        latching peak; counted via monitoring_load since P16
-sensor.coffee_maker_peak_watts           Counter 2; resistive, no inrush
+sensor.family_room_peak_watts            replaced Counter 2 (coffee maker) 2026-09-11; source is the SEM Family Room CT channel, per Bill (corrected from a single Kasa plug same day)
 sensor.fridge_peak_watts                 inrush 18-21x running, caught by luck
 sensor.furnace_peak_watts                AUGUST VALUE IS COOLING BLOWER, not heat
 sensor.hwh_recirc_peak_watts             smart plug on the RECIRC PUMP, not a tank

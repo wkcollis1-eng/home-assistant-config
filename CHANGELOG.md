@@ -44,6 +44,154 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.11] - 2026-09-11
+
+### Backup essentials: coffee maker replaced by Living Rm TV/Sonos/Homatics
+
+`packages/backup_sizing.yaml`, `dashboards/cards/backup/essentials-overview.yaml`,
+`entity_notes.yaml`. Bill: coffee maker comes off the bank; it must never run on
+the inverter. Living Rm TV/Sonos/Homatics takes its place in the essentials.
+
+**Changed:**
+- `sensor.backup_essentials_load` (the sizing number) and its `amps_at_bank_v`
+  attribute now sum `sensor.living_room_tv_sonos_homatics_current_consumption`
+  in place of `sensor.sem_counter_2_power` (Kitchen Counter 2 / coffee maker).
+  This is the actual computation the card reads — editing the card alone would
+  have left it labelled correctly while still summing the coffee maker, the
+  same defect class as P12.
+- Peak-hold: `sensor.coffee_maker_peak_watts` replaced by a new
+  `sensor.living_room_tv_sonos_homatics_peak_watts` (`unique_id`
+  `backup_living_room_tv_sonos_homatics_peak_watts`). This is a NEW entity, not
+  an HA-migrated rename — history under the old id is orphaned, by design.
+- Card: peak-hold row relabelled, stacked-chart "Coffee" series repointed to
+  the new sensor, and a standing note added below the reset row:
+  "NEVER RUN THE COFFEE MAKER ON THE INVERTER."
+- `entity_notes.yaml`: annotation moved from the old id to the new one.
+- `sem_counter_2_power` itself (the SEM CT channel on Kitchen Counter 2) is
+  UNTOUCHED — it is the hardware reading of that breaker, not something to
+  repoint; it simply no longer feeds the essentials sum.
+
+**Verified:** `validate_ha.py --strict` PASS (parse-clean) on all three edited
+files; `check_config` -> `valid`, 0 errors, 0 warnings; `ha_audit.py` 0 FAIL,
+2 WARN (`entity-note-orphan`, `entity-ref-unresolved` x4), both because the new
+entity does not exist in the live registry yet — expected until reload, not a
+defect. R2: edited and validated in `C:\sandbox` first, diffed clean against
+`H:` before either file was touched there.
+
+**Left open:** `template.reload` (or a restart) has NOT been run — R12, live
+action, needs Bill's go-ahead. Until then `sensor.backup_essentials_load` is
+STILL summing the coffee maker's channel; nothing changed on the live bank yet.
+The dashboard card also is NOT live: `dashboards/` is a source copy only (see
+CLAUDE.md CONSTRAINTS) — Bill must paste the updated
+`essentials-overview.yaml` into the raw configuration editor. `ENTITIES.md`
+needs one more `gen_reference.py` run after the reload, once the new entity
+is actually registered.
+
+### CORRECTION, same day: peak-hold entity registered under the wrong id
+
+Bill ran `template.reload`. `sensor.backup_essentials_load` picked up the new
+sum correctly (292 W, live), but `sensor.living_room_tv_sonos_homatics_peak_watts`
+came back "Entity not found."
+
+**What was wrong** [M, live registry query, 2026-09-11]: the sensor's `name:`
+was written as `"Living Rm TV/Sonos/Homatics Peak Watts"` — matching the card's
+abbreviation — but this was a brand-new `unique_id` with no prior registry
+entry, so HA slugged the name AS GIVEN: `sensor.living_rm_tv_sonos_homatics_
+peak_watts`. Every other reference in this change (the self-latch template,
+the card, `entity_notes.yaml`) assumed `living_room_...`, because the SIBLING
+Kasa sensors under that device (e.g. `sensor.living_room_tv_sonos_homatics_
+current_consumption`) use it. Those sensors only look like a precedent: their
+entity_id was slugged from an original "Living Room" device name years ago,
+and only the `friendly_name` attribute was shortened afterward — entity_id
+does not follow a later rename. A brand-new entity has no such history to
+inherit; confirmed via `config/entity_registry/get` over the websocket API
+(`system_log/list` showed no setup error at all — the entity was created
+successfully, just under the unexpected id).
+
+**Fixed:** `name:` corrected to `"Living Room TV/Sonos/Homatics Peak Watts"`.
+Renaming `name:` alone does NOT move an already-registered entity_id — HA
+keeps reusing it and only updates `friendly_name` — so `unique_id` was bumped
+`backup_living_room_tv_sonos_homatics_peak_watts` -> `..._r2` to force a fresh
+registry entry, slugged correctly this time. `sensor.living_rm_tv_sonos_
+homatics_peak_watts` (one live sample, state 7) is now a second orphan,
+same fate as `coffee_maker_peak_watts` above — no real history lost.
+
+**Verified:** `validate_ha.py --strict` PASS (parse-clean); `check_config` ->
+`valid`, 0 errors, 0 warnings. Still needs one more `template.reload` from
+Bill to actually create the `_r2` entity — not yet confirmed live.
+
+**Confirmed live after Bill's second reload:** `sensor.living_room_tv_sonos_
+homatics_peak_watts` came up correctly, state 8 W, `occurred` timestamped at
+the reload. `sensor.living_rm_tv_sonos_homatics_peak_watts` went `unavailable`
+as expected.
+
+### CORRECTION, same day: source changed from a Kasa plug to the SEM Family Room channel
+
+Bill, after seeing the above live: "use SEM Family Room Energy rather than
+sensor.living_room_tv_sonos_homatics_current_consumption." Two SEM entities
+matched "Family Room" — `sensor.sem_family_room_power` (W, matches every other
+term in the essentials sum) and `sensor.sem_family_room_energy` (kWh
+`total_increasing`, would have been nonsense summed into a Watts formula).
+Asked which; confirmed `sensor.sem_family_room_power`.
+
+**Why this matters, not just a rename:** the Kasa plug only measures the three
+devices literally plugged into it (TV/Sonos/Homatics). The SEM CT channel
+measures the WHOLE Family Room breaker — whatever else shares that circuit is
+now correctly captured in the essentials sum, where it wasn't before. Same
+category as the original coffee-maker swap: the card's `Source of truth` is
+`packages/backup_sizing.yaml`, so this changed the actual sum, not a label.
+
+**Changed:** `sensor.backup_essentials_load` (+ `amps_at_bank_v`) now sums
+`sensor.sem_family_room_power` in place of the Kasa
+`current_consumption` sensor. Peak-hold block retargeted a second time:
+`sensor.living_room_tv_sonos_homatics_peak_watts` (`unique_id
+backup_living_room_tv_sonos_homatics_peak_watts_r2`) replaced by
+`sensor.family_room_peak_watts` (`unique_id backup_family_room_peak_watts`) —
+a clean, unambiguous name this time (no "Rm"/"Room" slug trap). Card row and
+stacked-chart series repointed to match. `entity_notes.yaml` annotation moved
+again. Both earlier `living_room_tv_sonos_homatics_peak_watts*` ids and
+`living_rm_tv_sonos_homatics_peak_watts` are now orphaned, alongside
+`coffee_maker_peak_watts` — three generations in one day, all recorded here
+per R13 rather than quietly overwritten.
+
+**Verified:** R2 sandbox-first, diffed clean against `H:`. `validate_ha.py
+--strict` PASS (parse-clean) on all three files; `check_config` -> `valid`,
+0 errors, 0 warnings; `ha_audit.py` 0 FAIL, 0 WARN, 2 INFO (the "Family Room"
+name slugs unambiguously, so no name/entity_id mismatch this time).
+
+**Left open:** ANOTHER `template.reload` needed from Bill to create
+`sensor.family_room_peak_watts` for real — not yet confirmed live. The card
+still needs pasting (never was, through either prior version) — see the final
+YAML block in this session. `sensor.backup_essentials_peak_watts` (the latched
+sizing number) is unaffected by any of today's reloads — see the separate
+"wait for first heat call" decision, unchanged.
+
+### CLOSED, same day: reload and card paste both confirmed live
+
+Bill: "completed 1 and 2." Verified directly (R6) rather than taken on trust:
+
+- `sensor.family_room_peak_watts` live, state 13 W, `occurred` timestamped at
+  the reload. `sensor.backup_essentials_load` live at 180 W. All three prior
+  ids (`coffee_maker_peak_watts`, `living_rm_tv_sonos_homatics_peak_watts`,
+  `living_room_tv_sonos_homatics_peak_watts[_r2]`) confirmed `unavailable`.
+- Card: read `.storage/lovelace.lovelace` directly. Peak-hold row shows
+  `sensor.family_room_peak_watts` / "Family Room (SEM)", the note "NEVER RUN
+  THE COFFEE MAKER ON THE INVERTER" is present, and the stacked-chart series
+  shows `sensor.sem_family_room_power` / "Family Room" — `coffee_maker_peak_
+  watts` count in the raw file: 0.
+- One false alarm along the way: the FIRST read of the exported
+  `dashboards/lovelace/lovelace.yaml` mirror (and the first
+  `export_dashboards.py` run, "0 changed") both showed the OLD card content
+  even though the raw `.storage` file's mtime was already fresh. A second
+  `export_dashboards.py` run and a fresh read resolved to the correct, current
+  content — looked like a stale Samba/tool-cache read on the first pass, not
+  a real problem. Noting it because it nearly produced a false "not pasted yet"
+  report to Bill.
+- `ha_audit.py`: 0 FAIL, 0 WARN, 2 INFO (unchanged baseline).
+
+Backup essentials swap is fully live: coffee maker off the bank, Family Room
+(SEM channel) on it. See P15 -> Closed table.
+
 ## [2026.09.10] - 2026-09-10
 
 ### Watchdog — notify only when a reset FAILS; the Ecobee reload now hits both thermostats

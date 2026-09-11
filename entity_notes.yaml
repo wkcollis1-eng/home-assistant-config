@@ -364,9 +364,6 @@ sensor.climate_norms_status:
 sensor.climate_norms_today:
   group: CLIMATE NORMS
   note: ''
-sensor.coffee_maker_peak_watts:
-  group: BACKUP SIZING (packages/backup_sizing.yaml)
-  note: Counter 2; resistive, no inrush
 sensor.computer_outlet_today_s_consumption:
   group: KASA PLUGS
   note: ''
@@ -490,6 +487,10 @@ sensor.expected_runtime_today:
 sensor.expected_temperature_today:
   group: CLIMATE NORMS
   note: ''
+sensor.family_room_peak_watts:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: replaced Counter 2 (coffee maker) 2026-09-11; source is the SEM Family
+    Room CT channel, per Bill (corrected from a single Kasa plug same day)
 sensor.fridge_peak_watts:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
   note: inrush 18-21x running, caught by luck
