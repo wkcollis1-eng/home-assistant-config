@@ -239,9 +239,13 @@ sentence naming the unattended moment the change must survive.
 *Earned: changes were made whose purpose could not be stated afterwards.*
 
 ### R2 — Never test in production
-Copy the config tree to a scratch dir. Inject the exact fault you claim to
-catch, prove the check FIRES. Then run it against the clean tree and prove it is
-SILENT. Both directions, every time, before the change reaches `H:`.
+Copy the config tree to `C:\sandbox` (fixed local path on the Windows box,
+not a session-specific temp dir — persists across sessions, and is plain
+local NTFS so it's faster to iterate on than `H:` over Samba; not git-tracked,
+wipe and re-copy fresh from `H:` each time rather than trusting a stale copy).
+Inject the exact fault you claim to catch, prove the check FIRES. Then run it
+against the clean tree and prove it is SILENT. Both directions, every time,
+before the change reaches `H:`.
 *2026-08-22: two new audit rules produced false FAILs — a substring match and a
 slugify comparison that ignored the registry. Only the two-direction test found
 them.*
@@ -961,6 +965,77 @@ Electric rate:        $0.29/kWh
 
 ---
 
+## OFF-HOST ACCESS — how a Windows/Samba session reaches each service
+
+Quick reference; each service's own section (below, or SESSION PROTOCOL above)
+has the full history and gotchas. Everything here was verified 2026-09-11.
+
+| service | reachable directly off-host? | how |
+|---|---|---|
+| `H:` config tree | yes | Samba mount, `\\10.0.0.210\config` |
+| HA REST/WebSocket API | yes | `HA_TOKEN` (persistent Windows user env var) against `10.0.0.210:8123`. Full gotchas (Supervisor 401s, `HA_URL` vs `HA_TOKEN`) in SESSION PROTOCOL above. |
+| InfluxDB 1.x | yes | `10.0.0.210:8086`, credentials in `secrets.yaml`. Full detail below. |
+| **Grafana** | **no** | see below |
+| git (`H:` as a working tree) | yes | see SESSION PROTOCOL above — works as of 2026-09-10 |
+| sandbox / scratch copies | n/a | `C:\sandbox` — fixed local path, see R2 above. Not `H:`, not a temp dir. |
+
+### Grafana has no off-host URL — reach it by SSH'ing on-host instead
+
+`scripts/grafana_snapshot.py`'s default base (`http://a0d7b954-grafana:3000`) is
+a Docker-internal hostname; it only resolves on the HA host itself. Verified
+2026-09-11: TCP `10.0.0.210:3000` and `:3001` are both closed from the Windows
+box (InfluxDB's 8086 and HA's 8123 are open, Grafana's is not) — this is not a
+missing env var, there is no host-mapped port to point one at.
+
+**The route that works:** SSH to the host and run the script there, where the
+Docker hostname resolves natively and `secrets.yaml` is read as `/config/secrets.yaml`
+directly (no `GRAFANA_URL`/`GRAFANA_TOKEN` override needed on-host — those only
+matter for the Windows-side path in the credential-loading snippet under
+INFLUXDB below).
+
+```bash
+ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
+# verified 2026-09-11: auth OK, 5 dashboards visible, Grafana 13.2.1
+```
+
+- **Credential identity**: `secrets.yaml`'s `grafana_token` belongs to the
+  **`ha-grafana-snapshot`** service account (Editor role) — confirmed
+  2026-09-11 by using the token, then checking Grafana's per-token "last
+  used" timestamp (it matched to the second: `2026-09-11 09:43:08`, right
+  after the probe above ran). There is a **second** Editor-role service
+  account, `snapshot-bot`, that this token does NOT belong to — its purpose
+  is unknown as of 2026-09-11: not referenced by `grafana_token`, not found
+  elsewhere in this repo. Either an intended spare/rotation credential or
+  cruft; find out before relying on it, and see PENDING.
+- **Host/user**: `hassio@10.0.0.210`. This is the **"Advanced SSH & Web
+  Terminal"** add-on (container hostname `a0d7b954-ssh`, uid 1000 `hassio`,
+  groups `wheel`+`hassio`) — port 22. A second add-on, "Terminal & SSH", is
+  also installed but is NOT the one bound to port 22 (its usual default,
+  22222, is closed) — don't confuse the two if either gets reconfigured.
+- **Auth**: key-only from this box. `~/.ssh/id_ed25519` (comment
+  `claude-code@wkcol-win`) is already in the add-on's `authorized_keys`
+  config. A password is also configured on the add-on itself — **it is
+  IDENTICAL to the InfluxDB `ha_ro` password in `secrets.yaml`**, same secret
+  reused across two unrelated surfaces. Flagged 2026-09-11, not yet rotated;
+  rotate one so a leak of either credential doesn't hand over both.
+- **Client-side alias**: `C:\Users\wkcol\.ssh\config` (Windows-side, NOT part
+  of this git repo, so it will not exist on a fresh clone/machine — recreate
+  it there if this ever moves):
+  ```
+  Host ha-host
+      HostName 10.0.0.210
+      User hassio
+      IdentityFile ~/.ssh/id_ed25519
+      IdentitiesOnly yes
+  ```
+- **General pattern, not just Grafana**: anything that only resolves on the
+  HA host's own Docker network (other add-on-internal hostnames, `docker
+  exec` into a container, etc.) is reachable the same way — `ssh ha-host
+  <command>` — rather than assuming it needs an off-host URL that may not
+  exist.
+
+---
+
 ## INFLUXDB / GRAFANA
 
 ### InfluxDB 1.x
@@ -1379,6 +1454,18 @@ A constant is a meter-type characteristic, not an event — alarming on the
 VALUE would fire forever and be muted within a day. The signal is a
 TRANSITION. Sensors exist now so history accumulates; add a change-detect
 alarm once gas has a few weeks of frames. 61 frames is not a baseline.
+```
+
+### P14 — `snapshot-bot` Grafana service account is unaccounted for [LOW]
+```
+Two Editor-role Grafana service accounts exist: ha-grafana-snapshot and
+snapshot-bot. secrets.yaml's grafana_token is confirmed (2026-09-11, via
+last-used-timestamp correlation) to belong to ha-grafana-snapshot.
+snapshot-bot's token is not referenced anywhere in this repo or in any
+documented env var. Either an intended spare/rotation credential nobody
+wrote down, or leftover from something retired. Find out which before
+trusting it for anything; if leftover, delete the service account rather
+than leave a live Editor-role token with no known owner or purpose.
 ```
 
 ---
