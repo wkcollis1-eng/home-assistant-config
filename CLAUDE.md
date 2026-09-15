@@ -452,10 +452,23 @@ are UI-managed in `.storage/lovelace.*` — the SDR one is
 changes NOTHING the user can see, and because .storage is correctly off-limits,
 there is no file you may edit that will.
 
-So a dashboard change is never "done" when the file is written. The workflow is:
-edit the file under `dashboards/` so the repo copy stays true, then **hand the
-user the exact YAML and tell them to paste it** into the dashboard's raw
-configuration editor. Say plainly that it is not live until they do.
+**`dashboards/` has three subdirectories and only ONE of them is safe to
+hand-edit for a correction that isn't live yet:**
+
+| dir | what it is | may you hand-edit it? |
+|---|---|---|
+| `dashboards/views/` | HAND-MAINTAINED. May be deliberately AHEAD of live, holding corrections not yet pasted in (`dehumidifier.yaml` is a working example) | **YES — this is where a not-yet-live correction or new view goes** |
+| `dashboards/cards/` | hand-maintained snippet library, extracted from production for copy-paste | Yes |
+| `dashboards/lovelace/` | **GENERATED** by `scripts/export_dashboards.py` — a mirror of what is LIVE right now, stamped "DO NOT HAND-EDIT" at the top of every file | **NO.** Regenerate it with `HA_CONFIG='H:/' python scripts/export_dashboards.py` after a UI paste. The script overwrites the whole file from `.storage` with no staleness check — hand-editing it is either redundant (if it matches live) or gets silently deleted on the next run (if it doesn't) |
+
+So a dashboard change is never "done" when the file is written. The workflow
+is: write the correction into `dashboards/views/<name>.yaml` (the dedented
+single-view format the raw configuration editor accepts) so the repo holds
+it, then **hand the user the exact YAML and tell them to paste it** into the
+dashboard's raw configuration editor. Say plainly that it is not live until
+they do. Once it is live, re-run `export_dashboards.py` so
+`dashboards/lovelace/` catches up — do not hand-edit that file to make it
+"match" faster.
 
 Earned 2026-08-23: P12 repointed two rows at `utility_electric_power_avg`, all
 gates passed, and the card went on reading the superseded
@@ -464,6 +477,17 @@ beside a delta and error computed from the new one, and the arithmetic on screen
 did not close (394 - 398 displayed as +1 W). The user spotted it from the card.
 Every earlier dashboard change this session landed correctly, because those were
 handed over as YAML to paste rather than written to the file.
+
+**Re-earned 2026-09-14, harder:** a session hand-edited
+`dashboards/lovelace/lovelace.yaml` directly — twice, including a 716-line new
+view — without registering the file's own "DO NOT HAND-EDIT" banner, and had
+a deny rule on that path *removed* to make the second edit possible. Had
+`export_dashboards.py` run before the new view was pasted live, it would have
+been silently deleted with nothing but a printed warning to notice. It happened
+to survive only because the paste beat the next script run. The deny rule was
+restored the same session; the fix that should have been reached for instead
+was `dashboards/views/heating-hvac-diagnostics.yaml`, which was never
+permission-denied and never needed to be.
 NEVER overwrite/truncate CSV files — append/rotate only
 NEVER add a time trigger that contends with another automation (shared read/write state) — see §EOD TIMING SEQUENCE; `ha_audit.py` checks this. The old blanket 23:54:30–23:58:45 ban was retired 2026-08-21: 9 automations already ran inside it
 NEVER use `| float` or `| int` without default: use `| float(0)` `| int(0)`
@@ -798,8 +822,8 @@ Add the row by hand when you add a pipeline.
 TIME      AUTOMATION                          STALE DETECTOR
 00:00:45  capture_daily_water_overnight       water_overnight_capture_stale
           (reset mark; bins close at 01/02/03/04/05:00:45, publish at 05:00:45)
-00:15:00  daily_energy_csv_export             
-00:20:00  nightly_buffer_backup               
+00:15:00  daily_energy_csv_export
+00:20:00  nightly_buffer_backup
 00:30:00  nightly_ha_audit                    ha_audit_stale
 23:55:00  capture_daily_hdd                   hdd_capture_stale
 23:55:15  capture_daily_cdd                   cdd_capture_stale
@@ -808,10 +832,10 @@ TIME      AUTOMATION                          STALE DETECTOR
 23:56:15  capture_daily_furnace_min_per_cycle furnace_cycle_capture_stale
 23:56:30  capture_daily_monthly_tracking      monthly_report_stale
 23:56:45  capture_daily_runtime_per_cdd       runtime_per_cdd_capture_stale
-23:57:00  CSV daily report                    
+23:57:00  CSV daily report
 23:58:15  archive_monthly_hdd                 hdd_archive_stale
 23:58:30  archive_monthly_cdd                 cdd_archive_stale
-23:58:30  CSV monthly report (last day only)  
+23:58:30  CSV monthly report (last day only)
 23:59:00  capture_daily_ac_watts              ac_spc_capture_stale
 23:59:00  capture_daily_cooling_kwh_cdd       cooling_kwh_cdd_spc_capture_stale
 23:59:00  capture_daily_dehumidifier_watts    dehumidifier_spc_capture_stale
@@ -1039,20 +1063,34 @@ ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
 ## INFLUXDB / GRAFANA
 
 ### InfluxDB 1.x
-- **THE ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY WAY
-  BACK.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed from the
-  Community Add-ons store on **2026-08-28**. It still runs, and
-  `ghcr.io/hassio-addons/influxdb/amd64:5.0.2` still
-  pulls (HTTP 200, re-verified 2026-08-31) — but **"reinstall it" is not a
-  recovery step and never will be again.** Searching the store for "InfluxDB"
-  now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on shipping
-  InfluxDB 2.x: buckets/orgs/tokens and Flux, no `"Home Assistant"` database,
-  and no InfluxQL for the 136 dashboard refs to `bfrwayjkhasjka`. Installing
-  it looks like success and restores nothing. This exact substitution cost the
-  2026-08-31 session (see CHANGELOG). If this add-on is ever lost again:
-  `hassio.restore_partial` with `homeassistant: false` and
-  `addons: [a0d7b954_influxdb]`, and **stop any add-on holding host port 8086
-  first** or the restore comes up dead.
+- **CUTOVER TO 1.12.4 COMPLETED 2026-09-10 — production is now the fork,
+  1.8.10 is retired but still installed.** `local_influxdb112` (InfluxDB
+  1.12.4) serves the house on `10.0.0.210:8086`, `boot: auto`.
+  `a0d7b954_influxdb` (1.8.10) is STOPPED, `boot: manual`, kept installed as
+  the rollback. This CLAUDE.md section said "NOT DEPLOYED; tested on Windows
+  builds, not on the N100" until today — that was true on 2026-09-08 when it
+  was written and became false on 2026-09-10; nobody carried the correction
+  from CHANGELOG.md (2026.09.09/2026.09.10 entries have the full cutover
+  narrative) back into this "current state" section. Re-verified 2026-09-12:
+  `:8086 /ping` → `X-Influxdb-Version: 1.12.4`; `sensor.influxdb_cpu_percent`
+  (the 1.8.10 add-on) = `unavailable`; `sensor.influxdb_1_12_local_fork_*`
+  active. **Lesson for future sessions: a narrative entry in CHANGELOG.md does
+  NOT update this file's own "current state" prose — that has to be done as
+  its own edit, the same day, or this file drifts exactly like this.**
+- **THE OLD ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY
+  WAY BACK TO IT.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed
+  from the Community Add-ons store on **2026-08-28**. Searching the store for
+  "InfluxDB" now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on
+  shipping InfluxDB 2.x: buckets/orgs/tokens and Flux, no `"Home Assistant"`
+  database, and no InfluxQL for the 136 dashboard refs to `bfrwayjkhasjka`.
+  Installing it looks like success and restores nothing. This exact
+  substitution cost the 2026-08-31 session (see CHANGELOG). This risk is now
+  largely moot for day-to-day operation since the fork is production, but it
+  still governs the ROLLBACK path: `a0d7b954_influxdb` is stopped, not
+  uninstalled, precisely so "start it again" stays available without needing
+  the store. If it is ever uninstalled or lost: `hassio.restore_partial` with
+  `homeassistant: false` and `addons: [a0d7b954_influxdb]`, and **stop
+  `local_influxdb112` first** or the restore comes up dead (both want 8086).
 - **CORRECTED 2026-09-08: InfluxDB 1.x IS NOT END-OF-LIFE. This section said it
   was, and the claim was load-bearing and false.** The add-on's own README says
   the maintainers stopped because InfluxData EOL'd 1.x - authoritative for why
@@ -1062,7 +1100,10 @@ ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
       influxdata/influxdb releases   v1.12.4 2026-04-13 ; v1.12.3 2026-03-12
       endoflife.date                 latest 1.x = 1.13.0 ; EOL date: NONE
       Docker Official Images         influxdb:1.12 rebuilt 2026-08-25
-      what runs here                 1.8.10, released 2021-10-11
+      what ran here on 2026-09-08    1.8.10, released 2021-10-11
+                                      (superseded 2026-09-10 - see the cutover
+                                      bullet at the top of this section; what
+                                      runs here NOW is 1.12.4)
 
   **The abandoned thing is the ADD-ON, not the database.** The OSS line went
   1.8.10 (2021) then 1.11.7, 1.12.x, 1.13.0 - 1.9/1.10/1.11.0-.6 were never
@@ -1075,8 +1116,8 @@ ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
   IDENTICAL TSM bytes, +12% write throughput, working `ha_ro` auth, and
   WORKING ROLLBACK after an unclean kill. Cost: 15-22% slower on a mixed
   dashboard load, confined to `GROUP BY "entity_id"` with no `GROUP BY time()`
-  bucket - 4 of 170 live Grafana queries, ~+18 ms each. NOT DEPLOYED; tested on
-  Windows builds, not on the N100.
+  bucket - 4 of 170 live Grafana queries, ~+18 ms each. This was the Windows
+  sandbox result only; the cutover onto the real N100 is the bullet above.
 
 - **Restoring the add-on does NOT restore the HA integration.** The config
   entry lives in `.storage/core.config_entries`, which a partial add-on
@@ -1097,6 +1138,71 @@ ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
 - **Coverage measured 2026-08-22**: 1,287 distinct entity_ids, 1,362 series,
   ~963k points/day. 30 sensor/binary_sensors have no series, almost all
   `bills_iphone_*` strings that have not changed since Influx started.
+  **Re-measured 2026-09-12** (prompted by "the db seems small" after the
+  cutover): 1,540 series (exact cardinality, up 13%), 713 measurements,
+  1,551,509 points/24h summed over just the 66 unit-like numeric measurements'
+  `value` field (narrower scope than the August figure and still higher),
+  70,340,603 all-time in that same scope. History still starts 2026-06-01 for
+  `W`/`%`, 2026-06-27 for `kWh`, latest point live as of the measurement.
+  Nothing shrank; growth is consistent with rising entity count. `ha_ro` lacks
+  admin privilege, so `SHOW STATS`/`SHOW DIAGNOSTICS`/`SHOW SHARDS` are not
+  available for a disk-level breakdown this way.
+- **InfluxDB "Home Assistant" db is 2.1 GB; the recorder's
+  `home-assistant_v2.db` is 4.4 GB** [M, both 2026-09-12] — smaller despite
+  InfluxDB's infinite retention against the recorder's 14-day
+  `purge_keep_days` (`configuration.yaml:119`). The instinct that InfluxDB
+  should therefore be as big or bigger is reasonable and wrong, for two
+  measured reasons:
+  1. **`purge_keep_days` does not bound the recorder's own long-term store.**
+     Confirmed both ends [M, on-host `sqlite3`, 2026-09-12]: `states` and
+     `statistics_short_term` each span exactly ~14.28 days (2026-08-29 to
+     2026-09-12 — the setting is working, not a stale claim), while
+     `statistics` (hourly aggregates, kept FOREVER regardless of the 14-day
+     setting) holds 1,329,663 rows across 537 tracked entities back to
+     **2025-12-27** — about three months before InfluxDB's own earliest point
+     (2026-06-01). Both retention behaviours are doing exactly what they are
+     designed to do.
+  2. **Per-row storage shape, not corruption, is the rest of the gap** —
+     exact byte breakdown via `sqlite3`'s `dbstat`, run ON the host (the
+     bundled Windows Python lacks `dbstat`; the host's does not) [M,
+     2026-09-12]:
+     ```
+     states                              1,621.0 MB   (21,616,862 rows)
+     states' 5 indexes combined           1,954.8 MB   <- bigger than the table
+       ix_states_context_id_bin             553.9 MB
+       ix_states_metadata_id_last_updated_ts 447.0 MB
+       ix_states_last_updated_ts            383.3 MB
+       ix_states_old_state_id                294.7 MB
+       ix_states_attributes_id               275.9 MB
+     state_attributes (dedup JSON blobs)    403.9 MB   (1,710,146 rows)
+     statistics_short_term + its indexes     ~161 MB   (2,038,027 rows)
+     statistics (long-term) + its indexes    ~101 MB   (1,329,663 rows)
+     events/event_data/misc                    ~5 MB
+     ------------------------------------------------
+     accounted                             ~4,246 MB  (file is 4,470 MB;
+                                             remainder = free pages, WAL, small
+                                             tables not itemised above)
+     ```
+     Two things worth naming: (a) `states`' own secondary indexes cost MORE
+     than the row data they index — SQLite pays a full B-tree per index,
+     InfluxDB's TSM format does not; (b) `states` writes 21.6M rows in 14.28
+     days = ~1.51M rows/day, which lines up with InfluxDB's independently
+     measured ~1.55M numeric points/day above — two unrelated pipelines
+     converging on the same house-wide write rate, which is itself a
+     corroboration that neither is dropping or duplicating data.
+  **Both databases verified structurally healthy, 2026-09-12.** The first
+  pass at this (same day) raised a false alarm: a Samba-side plain-file copy
+  of the live, actively-written `home-assistant_v2.db` returned `database disk
+  image is malformed` on `states`/`statistics_short_term` full scans. Cause,
+  confirmed on-host: the copy grabbed only the main `.db` file and missed the
+  live `-wal` (8.2 MB) / `-shm` sidecar files sitting next to it — a plain
+  file copy of a WAL-mode database is not a consistent snapshot. Run directly
+  on the host against the real file, `PRAGMA quick_check` and the full
+  `PRAGMA integrity_check` both returned **`ok`** (34 s and 114 s
+  respectively). Lesson: never diagnose a live WAL-mode SQLite file from a
+  Samba-side copy; either read it on-host or use `sqlite3 .backup`
+  (lock-aware) run on-host, never a raw `cp` over the network share. Full
+  narrative: CHANGELOG.md 2026.09.12.
 - **Strings and attributes ARE stored**, not just numerics: a non-numeric
   sensor gets a `state` field (plus `*_str` attribute fields). That is how the
   R900 Leak/LeakNow/BackFlow/NoUse fields had history predating their sensors.
@@ -1511,4 +1617,3 @@ drift — the same defect `pipelines.yaml` exists to end, and the same one that
 put the InfluxDB CQs 9.0 W away from the HA charts for a month.
 
 Append behaviour changes to `CHANGELOG.md`. Do not summarise them back here.
-

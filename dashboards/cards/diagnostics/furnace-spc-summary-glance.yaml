@@ -1,0 +1,26 @@
+# Furnace SPC — 7-Day Summary (Mean, σ, Samples, LCL/UCL, Short-Cycle %)
+# Dashboard: HVAC Diagnostics
+# Mean/σ/bounds read 0 when Samples is 0 (furnace hasn't cycled in the 7-day
+# window) - that's the "0 = no data" convention used project-wide, not a
+# fault. Fixed 2026-09-14: these sensors used to fall back to a fabricated
+# 10.0/1.5 instead of 0, which looked like a real healthy measurement. See
+# CHANGELOG.md 2026-09-14.
+type: glance
+title: Furnace SPC — 7d
+show_name: true
+show_state: true
+show_icon: false
+columns: 3
+entities:
+  - entity: sensor.hvac_furnace_cycle_mean_7d
+    name: Mean
+  - entity: sensor.hvac_furnace_cycle_sigma_7d
+    name: σ
+  - entity: sensor.hvac_furnace_cycle_data_count
+    name: Samples
+  - entity: sensor.hvac_furnace_cycle_lower_bound
+    name: LCL (−2σ)
+  - entity: sensor.hvac_furnace_cycle_upper_bound
+    name: UCL (+2σ)
+  - entity: sensor.hvac_furnace_short_cycle_pct_7d
+    name: Short %

@@ -22,7 +22,9 @@
 # ├── weather/        - Weather display cards
 # ├── billing/        - Bill entry and cost tracking cards
 # ├── utilities/      - SDR meter composites (water R900, overnight flow)
-# └── backup/         - 12 V LiFePO4 bank: essentials load, surge, runtime
+# ├── backup/         - 12 V LiFePO4 bank: essentials load, surge, runtime
+# └── diagnostics/    - Cross-domain HVAC diagnostic summary cards
+#                       (glance + entities + markdown, not chart types)
 #
 # CARD CATEGORIES:
 #
@@ -41,6 +43,10 @@
 # humidity-dewpoint-48h.yaml      - Dual-axis humidity chart
 # wind-speed-24h.yaml             - Wind speed area chart
 # uv-index-7d.yaml                - UV index area chart
+# furnace-short-cycle-monthly-season-archive.yaml - 12-month bar of
+#                                   sensor.hvac_furnace_short_cycle_pct_7d,
+#                                   archived at month-end; empty months render
+#                                   as a gap, not a bar (2026-09-14 fix)
 #
 # === Mushroom Template (20+ cards) ===
 # outdoor-temp-dynamic.yaml       - Temp with color by range
@@ -84,8 +90,26 @@
 # rate-change-mom.yaml            - Month-over-month comparisons
 # filter-status.yaml              - HVAC filter tracking cards
 #
+# === Diagnostics (3 files) === added 2026-09-14
+# furnace-spc-summary-glance.yaml - Mean/σ/Samples/LCL/UCL/Short% glance row.
+#                                   Reads 0 (not a fabricated 10.0) when the
+#                                   furnace hasn't cycled in 7 days
+# hvac-pipeline-health.yaml       - Capture-status entities card; this is
+#                                   where "Furnace/AC MPC capture: stale"
+#                                   actually surfaces
+# hvac-diagnostic-analysis.yaml   - Full-width markdown status card (Furnace/
+#                                   AC cycle quality, runtime SPC, zone
+#                                   balance, setback recovery, pipeline). Uses
+#                                   ⚪ + "did not run" wording, not a false 🟢,
+#                                   when a domain has 0 cycle-days
+#
 # NOTES:
 # - grid_options vs layout_options: Both work, grid_options is newer
 # - Color templates use Jinja2: {% if %}...{% endif %}
 # - Some cards use tap_action for more-info popups
 # - Multi-card sections stored as YAML arrays (billing folder)
+#
+# This file is 100% comments by design (a doc, not a real card). validate_ha.py
+# WARNs "parsed to empty/null" on any all-comment file under --strict; the
+# trailing {} below is only there to keep that WARN from blocking edits here.
+{}

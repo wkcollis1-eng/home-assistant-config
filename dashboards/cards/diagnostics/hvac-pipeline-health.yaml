@@ -1,0 +1,51 @@
+# HVAC Pipeline Health — capture status entities card
+# Dashboard: HVAC Diagnostics
+# This is where "Furnace MPC capture" actually surfaces. The attribute reads
+# "stale" whenever the furnace hasn't logged 2+ cycles that day (see
+# automations.yaml:capture_daily_furnace_min_per_cycle) - that's a correct
+# report of no cycle data, not an automation fault. Cross-check
+# input_datetime.furnace_cycle_capture_last_ok: a real ISO timestamp = last
+# successful capture; "1970-01-01 00:00:00" = the sentinel written when that
+# day was skipped. No fix needed here - unlike the two cards this session
+# corrected, this one was already reporting honestly. See CHANGELOG.md
+# 2026-09-14.
+type: entities
+title: Pipeline health
+entities:
+  - type: attribute
+    entity: sensor.hvac_pipeline_status
+    attribute: hdd_capture
+    name: HDD capture
+    icon: mdi:snowflake
+  - type: attribute
+    entity: sensor.hvac_pipeline_status
+    attribute: cdd_capture
+    name: CDD capture
+    icon: mdi:sun-thermometer
+  - type: attribute
+    entity: sensor.hvac_pipeline_status
+    attribute: furnace_mpc_capture
+    name: Furnace MPC capture
+    icon: mdi:sine-wave
+  - type: attribute
+    entity: sensor.hvac_pipeline_status
+    attribute: ac_mpc_capture
+    name: AC MPC capture
+    icon: mdi:sine-wave
+  - type: attribute
+    entity: sensor.hvac_pipeline_status
+    attribute: monthly_tracking
+    name: Monthly tracking
+    icon: mdi:calendar-check
+  - entity: input_datetime.hdd_capture_last_ok
+    name: HDD last OK
+    icon: mdi:clock-check
+  - entity: input_datetime.furnace_cycle_capture_last_ok
+    name: Furnace MPC last OK
+    icon: mdi:clock-check
+  - entity: input_datetime.cdd_capture_last_ok
+    name: CDD last OK
+    icon: mdi:clock-check
+  - entity: input_datetime.ac_min_per_cycle_capture_last_ok
+    name: AC MPC last OK
+    icon: mdi:clock-check

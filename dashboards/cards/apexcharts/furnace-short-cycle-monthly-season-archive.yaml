@@ -1,0 +1,83 @@
+# Short-cycle % — Monthly Season Archive (Furnace)
+# Dashboard: HVAC Diagnostics
+# Archived monthly by automations.yaml:reset_monthly_hdd (00:01 on the 1st)
+# from sensor.hvac_furnace_short_cycle_pct_7d for the closing month. Months
+# with zero furnace cycle data (e.g. cooling season) now archive 0 as of
+# 2026-09-14 and render as a gap here ((raw > 0) ? raw : null -> tooltip
+# "No data") instead of a fabricated bar. Before the fix, a hardcoded 10.0/1.5
+# fallback upstream made empty months look like a real, healthy reading - see
+# CHANGELOG.md 2026-09-14.
+type: custom:apexcharts-card
+header:
+  title: Short-cycle % — monthly season archive
+  show: true
+  show_states: false
+yaxis:
+  - id: main
+    min: 0
+    max: 100
+    decimals: 1
+    apex_config:
+      tickAmount: 4
+      labels:
+        formatter: |
+          EVAL:function(val) { return val + '%'; }
+      title:
+        text: '% days below 8 min'
+apex_config:
+  chart:
+    type: bar
+    height: 200
+  plotOptions:
+    bar:
+      columnWidth: 55%
+      borderRadius: 3
+  xaxis:
+    type: category
+    categories:
+      - Jan
+      - Feb
+      - Mar
+      - Apr
+      - May
+      - Jun
+      - Jul
+      - Aug
+      - Sep
+      - Oct
+      - Nov
+      - Dec
+  annotations:
+    yaxis:
+      - 'y': 50
+        borderColor: '#BA7517'
+        strokeDashArray: 3
+        label:
+          text: 50%
+          position: right
+          style:
+            color: '#BA7517'
+            background: transparent
+            fontSize: 11px
+  legend:
+    show: false
+  tooltip:
+    'y':
+      formatter: |
+        EVAL:function(val) {
+          return val !== null ? val.toFixed(1) + '% short-cycle days' : 'No data';
+        }
+series:
+  - name: Short-cycle %
+    entity: input_number.furnace_short_cycle_archive_jan
+    color: '#E24B4A'
+    yaxis_id: main
+    data_generator: |
+      const months = ['jan','feb','mar','apr','may','jun',
+                      'jul','aug','sep','oct','nov','dec'];
+      return months.map((m, i) => {
+        const raw = parseFloat(
+          hass.states[`input_number.furnace_short_cycle_archive_${m}`]?.state
+        );
+        return [i, (raw > 0) ? raw : null];
+      });

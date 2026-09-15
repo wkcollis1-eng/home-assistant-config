@@ -4417,6 +4417,13 @@ template:
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:chart-bell-curve
+        # 2026-09-14: literal fallback (was 10.0) removed. That value read as a
+        # plausible healthy measurement instead of "no cycles this week," and
+        # got archived as real SPC history for jun/jul/aug when the furnace
+        # was legitimately idle for cooling season. 0 matches the "0 = no
+        # data" convention already used by hvac_furnace_short_cycle_pct_7d and
+        # data_count; the bound sensors below and the apexcharts data_generator
+        # already treat 0/non-positive as "no data" and render a gap.
         state: >
           {% set days = [
             states('input_number.furnace_min_per_cycle_day_1') | float(-1),
@@ -4431,7 +4438,7 @@ template:
           {% if valid | length > 0 %}
             {{ (valid | sum / valid | length) | round(1) }}
           {% else %}
-            10.0
+            0
           {% endif %}
 
       - name: "HVAC Furnace Cycle Sigma 7d"
@@ -4439,6 +4446,8 @@ template:
         unit_of_measurement: "min/cycle"
         state_class: measurement
         icon: mdi:sigma
+        # 2026-09-14: literal fallback (was 1.5) removed, same reason as the
+        # mean sensor above - see that comment.
         state: >
           {% set days = [
             states('input_number.furnace_min_per_cycle_day_1') | float(-1),
@@ -4458,7 +4467,7 @@ template:
             {% endfor %}
             {{ ((variance.sum / (valid | length - 1)) ** 0.5) | round(1) }}
           {% else %}
-            1.5
+            0
           {% endif %}
 
       - name: "HVAC Furnace Cycle Upper Bound"
