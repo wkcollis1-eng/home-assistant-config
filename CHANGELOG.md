@@ -246,6 +246,50 @@ Install (`059feb2`, author `ESPHome Device Builder`) with no hooks — H: has no
 installed — so gitleaks and check-yaml never ran on it. Its content was verified
 byte-identical to the tested V1.20; the hooks were run by hand before pushing.
 
+### New UPS Dashboard updated for V1.20 — and a paste defect introduced and fixed the same day (R13)
+
+Source now kept at `dashboards/views/new-ups-dashboard.yaml` (built from the live
+view in `.storage` plus targeted edits; 8 of 31 cards changed, 1 added, 23
+byte-identical to live). Bill pasted it; the live view was then verified EQUAL to
+the intended object.
+
+- **UPS Thresholds**: Cliff Imminent dwell 60 s -> 180 s; the "Active" column now
+  reads the firmware's own binary sensors instead of re-deriving from voltage (R10)
+  — the old form would have said "On Battery" through the 39-min 09-15 recharge.
+- **Estimated Runtime**: measured 09-15 column (Plateau ~25 min, Knee 51, Cliff 14.5,
+  shutdown fired at 36.8 min / 12.53 V) and a capacity caution — Runtime Remaining
+  still divides by 4.18 Ah while 09-15 delivered 2.533 Ah to LVD [M, n = 1].
+- **Outage Data**: Last Onset Step Resistance added (it was never on the dashboard);
+  Ri methods labelled; a caveat on the known-wrong 08-31 Apparent Ri that
+  disappears when `ri_sample_count` moves (it did, at the 16:01 test onset).
+- **Device Health**: onset resistance, INA260 Data Fresh, Unpaired Reads, firmware
+  build. **New chart**: 5-read block vs 10 Hz mean / SD (the sample-count question).
+- Measured delivered capacity annotated beside the May figures; 180 s on the slope
+  and voltage charts.
+
+Verified: every added entity id resolved against `/api/states` (R5); the three
+rewritten markdown templates rendered through `/api/template` against live states;
+`validate_ha.py --strict` PASS (parse-clean).
+
+**Defect I introduced (R13).** The generated YAML left all 24 apexcharts
+annotation keys as bare `y:`. The dashboard editor's parser read `y` as YAML 1.1
+boolean true, so `.storage` stored `"true": 11.8` and **every threshold line on six
+charts stopped drawing** — no log line, no unavailable state, the cards simply
+rendered without them. Every gate passed. It was caught only because an export run at
+15:47, six minutes after the paste, diffed `'y'` -> `'true'`. Fix: quote the keys (`'y':`);
+proven both ways under a YAML 1.1 parse (old file 24 boolean keys, new file 0 and
+equal to the intended object); re-pasted; live verified equal. The same query found
+**5 older instances in the dehumidifier view** — not from this session, already in
+the last committed export — still live at this entry. An audit rule for this defect
+class (`dashboard-bare-boolean` / `dashboard-boolean-key`) is built and sandbox-proven
+but not yet committed: it correctly reports the dehumidifier damage as a NEW finding,
+which blocks gate step 2 until that view is re-pasted or the finding is deliberately
+baselined.
+
+`dashboards/lovelace/lovelace.yaml` re-exported after the paste. It also carries
+live UI changes to the **Heating HVAC Diagnostics** view made since the previous
+export — not part of this change, recorded so the diff is not misread.
+
 ## [2026.09.14] - 2026-09-14
 
 ### Process error: hand-edited a GENERATED "DO NOT HAND-EDIT" dashboard file, twice
