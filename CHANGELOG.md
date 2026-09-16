@@ -290,6 +290,19 @@ baselined.
 live UI changes to the **Heating HVAC Diagnostics** view made since the previous
 export — not part of this change, recorded so the diff is not misread.
 
+### Dehumidifier view re-pasted — 5 threshold lines restored, the 2026-08-24 correction now live
+
+Bill re-pasted the dehumidifier view from `dashboards/views/dehumidifier.yaml`.
+Before the paste the source differed from live in exactly three ways, all checked
+by structural diff: the 5 annotation keys live had stored as `true` (source: `'y'`),
+and the 2026-08-24 correction that CLAUDE.md cites as its example of a view kept
+ahead of live — the Live Status row relabelled "Start demand (RH above ON) — not a
+run/stop verdict" (was "Should run (control verdict)") and the hysteresis
+explanation on Cycle Timing. Verified after the paste [M]: live view == source
+file; 0 `true`/`false` keys across every `.storage/lovelace.*`;
+`export_dashboards.py` re-run (lovelace.yaml CHANGED, the rest same);
+`ha_audit.py` 0 FAIL / 0 WARN.
+
 ## [2026.09.14] - 2026-09-14
 
 ### Process error: hand-edited a GENERATED "DO NOT HAND-EDIT" dashboard file, twice
