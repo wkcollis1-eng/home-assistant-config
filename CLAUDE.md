@@ -37,68 +37,30 @@ HA_CONFIG='H:/' HA_URL='http://10.0.0.210:8123' python scripts/ha_audit.py
 python scripts/check_provenance.py --all <files>   # R17 gate, git-free mode
 ```
 
-Off-host gotchas, each of which has cost a session:
+Off-host gotchas. Full evidence in `docs/off-host-access.md` - read it before your
+first HA API, InfluxDB, Grafana, add-on or git call from Windows.
 - **`python3` does not exist on the Windows box.** Use `python`.
-- **Persistent notifications are NOT entities, and `/api/states` lies about
-  them by omission.** They stopped being entities in HA 2023.x; `/api/states`
-  simply has no `persistent_notification.*` rows, so "I checked and there were
-  none" is not evidence a notification did not fire — it is evidence you looked
-  somewhere that cannot hold one. Read them over the websocket:
-  `{"type": "persistent_notification/get"}`. Cost two wrong readings in one
-  session on 2026-08-31, once as a false "correct, no alert" and once as a false
-  "the automation did nothing".
-- **Adding a `shell_command:` needs `shell_command.reload`, NOT
-  `automation.reload`.** `shell_command` is set up at startup; reloading
-  automations leaves a newly declared command unregistered, and the calling
-  automation then runs and quietly does nothing. Confirmed 2026-08-31: the
-  service was absent from `/api/services` until `shell_command.reload`. Check
-  registration there before concluding a script is broken.
-- **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
-  services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
-  long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —
-  so add-on state cannot be *read* off-host. The `hassio` **services** are wide
-  open on the same token: `hassio.addon_start` / `addon_stop` /
-  `addon_restart` / `backup_partial` / `restore_partial` / `host_reboot` all
-  execute via `POST /api/services/hassio/<service>`. Measured 2026-08-31, when
-  the 401 nearly became "you'll have to click this yourself" for a restore that
-  was in fact fully drivable. Read add-on state from the `hassio`-platform
-  entities in `/api/states` instead (`binary_sensor.<addon>_running`,
-  `sensor.<addon>_cpu_percent`, `switch.<addon>`) — and note those entity ids
-  are built from the add-on NAME, so a replacement add-on gets different ones
-  and dashboards referencing the old names go unresolved.
-- **Without `HA_CONFIG`** the script looks for `/config` and reports
-  `pipelines.yaml not found`.
-- **`HA_URL` alone does NOT enable the live check - `HA_TOKEN` does.**
-  `_live_states()` only attempts a fetch if `HA_TOKEN` or `SUPERVISOR_TOKEN` is
-  set; `HA_URL` is merely the base URL for an attempt that otherwise never
-  happens. This file said the opposite until 2026-08-25, and it was true-by-
-  accident only because `HA_TOKEN` is a persistent user env var on the Windows
-  box. Proven both directions that day: with the token, `0 FAIL, 0 WARN`;
-  with `env -u HA_TOKEN`, TWO things degrade - `live-check-skipped` (R8
-  coverage gap) **and** the `sun.sun` false positive returns, because the live
-  union is what suppresses it. The audit is not "fully offline by design"; it
-  is offline-capable and measurably worse offline.
-- **`git` on `H:` WORKS as of 2026-09-10 - both bullets that stood here were
-  stale.** They said git "does not just refuse, it hangs" (measured 2026-08-25:
-  `git ls-files --error-unmatch` did not return inside 2 minutes, `git diff HEAD`
-  was still running after 30), so `check_provenance.py`'s DEFAULT mode "cannot
-  complete off-host at all"; and that git refuses `H:` with "dubious ownership".
-  Re-measured 2026-09-10 off-host, n=1 each: `status` 1.4 s, `diff HEAD` 0.24 s,
-  `ls-files --error-unmatch` 0.10 s, `check_provenance.py` DEFAULT mode 0.34 s.
-  Ownership is settled by `safe.directory = *` in the global `~/.gitconfig`.
-  What caused the 08-25 hang was never established, so `check_provenance.py`
-  keeps its 30 s timeout (line 46) and `--all <files>` stays the git-free
-  fallback. Cost of the stale text: a session repeated it and routed a commit
-  through `C:\repos` for no reason. **`H:` is the LIVE config and a checkout of
-  the same repo: never run a git command that rewrites its working tree
-  (checkout, stash, reset --hard, pull over local edits) without asking.** To
-  catch up after a push made elsewhere, `git fetch && git reset --mixed
-  origin/master` moves HEAD and touches no file.
+- **Persistent notifications are not in `/api/states`.** Absence there is not
+  evidence. Read them over the websocket: `{"type": "persistent_notification/get"}`.
+- **Adding or changing a `shell_command:` needs a RESTART** (Bill, 2026-09-16; an
+  older note here said `shell_command.reload` - superseded). `automation.reload`
+  never registers one. Check `/api/services` before concluding a script is broken.
+- **`HA_TOKEN` gets 401 on every `/api/hassio/*` read, but the `hassio.*` services
+  work** (addon start/stop/restart, backup/restore, host_reboot). Read add-on
+  state from the hassio-platform entities in `/api/states`.
+- **`HA_TOKEN`, not `HA_URL`, enables the audit's live check.** Without it the
+  audit degrades (`live-check-skipped`, and a `sun.sun` false positive returns).
+  Without `HA_CONFIG` it reports `pipelines.yaml not found`.
+- **git on `H:` works. `H:` is the LIVE config and a checkout of the same repo:
+  never run a git command that rewrites its working tree (checkout, stash,
+  reset --hard, pull over local edits) without asking.** After a push made
+  elsewhere: `git fetch && git reset --mixed origin/master` moves HEAD, touches no file.
+- **Grafana has no off-host port.** SSH to the host and run the script there.
 
 Read the verdict aloud in your first message: FAIL/WARN/INFO counts, and name
 every FAIL and WARN. You are inheriting whatever the last session and the
 nightly 00:30 run left behind — **an audit you did not read is an audit that did
-not run for you.** Then skim `## PENDING` for open items; anything marked
+not run for you.** Then run `grep -n '^### P' docs/pending.md` for open items; anything marked
 RESOLVED is closed and lives in CHANGELOG.md.
 
 If `ha_audit.py` cannot run at all, say so and stop. Working blind on a live
@@ -153,64 +115,22 @@ is not is worse than one known to rest on judgement.
 | Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", and running the audit at session start / after any turn that changed `H:` | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
-**The hooks run from `C:` on purpose - do not "fix" this by moving them
-into the repo.** They were briefly moved to `H:/.claude/hooks/` on 2026-08-25
-so they would be version-controlled alongside the config they guard. That made
-`ha_audit_gate.py`'s "H: is not mounted, say so and stop" message UNREACHABLE:
-if H: is gone, python cannot open the script at all, exits before a line of it
-runs, and Claude Code treats that as a non-blocking error - so the session
-starts in silence, which is the precise failure that message exists to prevent.
-**A guard that lives on the drive it guards cannot report that drive missing.**
-They run from `~/.claude/hooks/` (local, always startable); `H:/.claude/hooks/`
-holds the tracked source, and `deploy_drift()` compares the two at every
-session start so the pair cannot silently diverge.
 
-**DENY RULES RUN BEFORE HOOKS, so `ha_guard.py` is the BACKSTOP, not the
-primary.** Do not be surprised that it almost never fires. Proven end-to-end
-2026-08-26: an `Edit` on `H:/PACKAGES.md` is refused by the permissions layer
-with *"File is in a directory that is denied by your permission settings"* and
-the hook never runs. The hook's far more useful message - the one naming
-`entity_notes.yaml` and `gen_reference.py` - is therefore NOT what you will
-normally see.
-
-Both layers now cover both path forms (10 deny rules for `H:/...`, 10 for the
-`//10.0.0.210/config/...` UNC form the H: rules do not match, plus the hook
-covering `h:/`, `/h/` and the UNC). That redundancy is deliberate and is NOT
-R10: **a malformed permission rule is silently DROPPED, not reported**, so a
-typo would leave a path unprotected with nothing saying so. The hook is what
-catches that.
-
-**HOW TO TEST A DENY RULE, which `claude doctor` will not tell you.** Attempt
-the edit and read *which* message comes back:
-
-| response | meaning |
-|---|---|
-| "denied by your permission settings" | the deny rule is live |
-| `BLOCKED: ... GENERATED by scripts/gen_reference.py` | the deny rule was DROPPED; the hook caught it |
-| the edit succeeds | BOTH layers are gone - fix immediately |
-
-Permission changes take effect mid-session; no restart needed (verified
-2026-08-26 by adding the UNC rules and hitting them on the next call).
-
-**Settings live in `~/.claude/settings.json`, not a project file**, because
-this session's project root IS `C:\Users\wkcol` - which is also HOME, so that
-one file serves as both. A project-scoped settings file under `H:` never
-loads, and moving the hooks there on 2026-08-25 silently disabled every hook
-and every deny rule until it was caught. Scope advice that is correct in
-general was wrong here, and nothing announced it.
-
-**The hook guard sees the Write/Edit TOOLS only.** A write through Bash
-bypasses it; the Stop gate is the backstop, because it catches the consequence
-however the edit was made.
-
-*Corrected 2026-08-25:* until that date the Stop gate could not stop anything.
-It emitted `systemMessage` only, which prints and lets the turn end - so the
-sole backstop behind the Bash bypass was a printed line. It now returns
-`{"decision": "block", ...}` and genuinely blocks, standing down after two
-consecutive blocks so a broken gate cannot wedge a session. It also now watches
-`dashboards/`, which it did not: editing `dashboards/views/*.yaml` never moved
-its mtime stamp, so the gate silently skipped on the one surface this file
-calls "the one place a broken entity is completely silent".
+Wiring notes. Full history in `docs/claude-code-enforcement.md` - read it before
+changing hooks, deny rules or settings, or when a block message surprises you.
+- **This file loads only because `~/.claude/CLAUDE.md` contains `@H:/CLAUDE.md`.**
+  The project root is `C:\Users\wkcol`, so a CLAUDE.md on `H:` is never
+  auto-loaded. If `H:` is not mounted the import fails silently; the
+  SessionStart audit hook is what reports `H:` missing.
+- **Hooks run from `~/.claude/hooks/` on C: on purpose.** A guard on the drive it
+  guards cannot report that drive missing. `H:/.claude/hooks/` holds the tracked
+  source; `deploy_drift()` compares the two at every session start.
+- **Settings load only from `~/.claude/settings.json`.** A settings file under
+  `H:` never loads, and nothing announces that.
+- **Deny rules run before hooks, so `ha_guard.py` is the backstop** and rarely
+  fires. A malformed deny rule is silently dropped; the hook catches that.
+- **The hook guard sees the Write/Edit tools only.** A Bash write bypasses it;
+  the Stop gate, which genuinely blocks, is the backstop.
 
 R1-R4, R6, R7, R11-R14 remain judgement, enforced by the OUTPUT FORMAT making
 omission visible - except R14, which became a file on 2026-08-25 (see below).
@@ -230,8 +150,10 @@ mean what it claims".
 
 ## RULES — execute these, they are not advice
 
-Each rule states the ACTION, then the failure that earned it. A rule with no
-scar is a preference; every rule here has one, and it is dated.
+Each rule states the ACTION and a one-line why. The dated scars that earned them
+are in `docs/rules-history.md`: read the entry before proposing to change, narrow
+or retire a rule, or when a rule's edge case is unclear. A new rule goes here with
+its one-line why; its scar goes there, in the same commit.
 
 ### R1 — Say what you are about to do, before doing it
 Output `Change type:` and `Impacted files:` before the first edit, plus one
@@ -246,9 +168,7 @@ wipe and re-copy fresh from `H:` each time rather than trusting a stale copy).
 Inject the exact fault you claim to catch, prove the check FIRES. Then run it
 against the clean tree and prove it is SILENT. Both directions, every time,
 before the change reaches `H:`.
-*2026-08-22: two new audit rules produced false FAILs — a substring match and a
-slugify comparison that ignored the registry. Only the two-direction test found
-them.*
+*Why: 2026-08-22, two new audit rules gave false FAILs that only the two-direction test found.*
 
 ### R3 — Verify structurally, never by eye
 After any multi-file or multi-site edit: re-parse the file and prove the
@@ -272,47 +192,39 @@ substring bug.*
 When behaviour surprises you, fetch the source at the version in `.HA_VERSION`,
 the shipped JS in `www/community/<card>/`, or the add-on's own repo — before
 forming a theory, not after.
-*2026-08-22: recommended `listen_mode: true` for rtlamr2mqtt by reasoning about
-what it ought to mean. Reading `meter_reader.py` showed it is a DISCOVERY mode
-that publishes nothing — it would have taken the whole SDR stack dark.*
+*Why: 2026-08-22, reasoning about what `listen_mode` ought to mean nearly took the
+SDR stack dark; the source showed it publishes nothing.*
 
 ### R7 — A gate untested against a known-bad input is not a gate
 Before trusting any new check, prove it fires on a fault AND stays silent on a
 clean system. A wrong FAIL spends the reader's trust; a check that cannot fail
 spends it faster.
-*2026-08-22: `ha_audit.py` vouched for an entity that had never existed, because
-`known_entities()` synthesised `<domain>.<unique_id>`. The rule that should have
-caught a 15-night outage was structurally incapable of it.*
+*Why: 2026-08-22, an audit rule vouched for an entity that had never existed, and
+could not have caught a 15-night outage.*
 
 ### R8 — A check that did not run is a WARN, never an INFO
 Absent findings must never look like clean findings. Any check that can be
 skipped must announce the skip AND name the fix.
-*2026-08-23: the statistics-buffer check had never run in production. It
-reported at INFO, so nothing distinguished "looked, found nothing" from "never
-looked".*
+*Why: 2026-08-23, a check that had never run in production reported at INFO,
+indistinguishable from clean.*
 
 ### R9 — Conventions live with the data, not in the readers
 When a new pipeline breaks a convention (a sentinel value, a unit, a day
 boundary), declare the exception in `pipelines.yaml`. Do not special-case the
 consumers.
-*2026-08-22/23: `0 means no data` is the SPC convention; the overnight-flow
-buffer inverts it (0.00 gal/h is a PERFECT night, -1 means no night). That single
-inversion had to be caught separately in the mean sensor, the chart JS, and the
-audit rule before it was declared once in the manifest.*
+*Why: 2026-08-22/23, one sentinel inversion had to be caught separately in three
+consumers before it was declared once in the manifest.*
 
 ### R10 — Never a second copy of a definition
 Before computing something, check whether HA already computes it. If it does,
 read it. A recomputation is a copy, and copies drift.
-*2026-08-22: `pipelines.yaml` exists because five copies drifted;
-`scripts/spc_seed.py` was a sixth; the InfluxDB CQs a seventh, and they had the
-Grafana dehumidifier panel 9.0 W off the HA chart and permanently below LCL.*
+*Why: 2026-08-22, seven copies of the SPC definitions drifted; one kept a Grafana
+panel permanently below LCL.*
 
 ### R11 — State the limits of what you measured
 Give n, the span, and what the result does NOT establish. Flag any figure that
 extrapolates beyond its fitted range.
-*2026-08-23: 7.64 W/degF was fitted over 1.5 degF and then applied across
-11.5 degF — the same 8x extrapolation error the 2026-08-07 note made in the
-opposite direction on a 0.78 degF lever arm.*
+*Why: 2026-08-23, a slope fitted over 1.5 degF was applied across 11.5 degF.*
 
 ### R12 — Ask before acting outward
 Restarting HA, dropping continuous queries, writing to live helpers, sending a
@@ -343,28 +255,17 @@ about something he knows for certain.
 not permission to proceed, and neither is his silence. Put the open question at
 the top of the response, in one line, not buried under the work.
 
-*2026-08-24: needed to know whether the basement router's plug hangs off the UPS,
-because if it did, summing it with `ups_outlet_current_consumption` would
-double-count by ~65%. Asked once, then answered a different question he raised
-and treated that as licence to infer. Cost: a natural-experiment search across 13
-days, then a coincident-step test over 843 events, to conclude PARALLEL — which
-he could have said in one word. The first script I wrote for it had already
-printed its own verdict:* `Do not guess - ask which outlet feeds what.` *Writing
-that line and then not following it is the whole failure.*
+*Why: 2026-08-24, a 13-day statistical search concluded what Bill could have said
+in one word.*
 
 **The tell:** if the next thing you plan is a regression, a correlation, or a
 "natural experiment" to establish something a person could confirm by looking at
 a plug or a label — stop and ask instead.
 
-**MECHANISED 2026-08-25: `open_questions.yaml`.** R14's failure mode was not
-forgetting to ask, it was asking and then losing the question - so "remember to
-re-ask" was never going to hold. Every question to Bill gets an entry with
+**Mechanised: `open_questions.yaml`.** Every question to Bill gets an entry with
 `asked:`, `question:`, `blocks:` and `answered:`. `ha_audit.py` WARNs
-`open-question` for every unanswered one, with the days outstanding, and
-because the session protocol reads the audit verdict aloud at start-up, an
-unanswered question is now surfaced at the top of every session by a mechanism
-that does not depend on any session remembering anything. `blocks:` names what
-stays unbuilt until he answers.
+`open-question` for each unanswered one, so it surfaces at every session start.
+`blocks:` names what stays unbuilt until he answers.
 
 ### R15 — Every figure carries its provenance tag
 No number enters a doc, a CHANGELOG entry or a reply without one of:
@@ -376,38 +277,29 @@ No number enters a doc, a CHANGELOG entry or a reply without one of:
 
 **An [I] may never justify a deployed change.** If the only support for a config
 edit is a model, the edit waits for the [M].
-*2026-08-25: the gas meter's hop set was reconstructed from plot markers and then
-reported in the same voice as the electric meter's stated 909.59-921.78 MHz. One
-was [S] and the other was [I], and nothing in the text said so. Two config
-changes were proposed on the strength of the [I] before the data refuted it.*
+*Why: 2026-08-25, an [I] reconstruction was reported in the same voice as an [S]
+figure, and two config changes were proposed on it before data refuted it.*
 
 ### R16 — Identity before spec
 Before citing any datasheet, filing or manual, state the identifier read off the
 physical device and confirm the document covers THAT identifier. If they do not
 match, the claim is [I], not [S].
-*2026-08-25, twice in one day: Itron 50/51/52/53ESS channel figures quoted for a
-meter that turned out to be a Vision VM1991 with a Hunt AirPoint radio, and the
-EWQ100GDL* band plan quoted for a gas module whose behaviour matches EO9100G.
-Both were introduced to Bill as "primary sources".*
+*Why: 2026-08-25, twice in one day, documents for a different meter and module
+were introduced as primary sources.*
 
 ### R17 — No naked ratios
 A ratio, a percentage change or an "Nx" may not be written without n and a
 significance test beside it. If the test has not been run, the number does not
 get written. `scripts/check_provenance.py` enforces this on changed lines; an
 R15 tag satisfies it.
-*2026-08-25: water "87.5%" on 8 slots, electric "56.7%" on a 5.7-minute sample,
-and "electric 1.12x / water 0.95x" from the 915.5 run - the last two were z=+0.56
-and z=-0.19, i.e. nothing, and were reported as findings.*
+*Why: 2026-08-25, two ratios reported as findings were z=+0.56 and z=-0.19.*
 
 ### R18 — Never measure the instrument with itself
 Before quoting any external system's period, rate or interval, confirm the
 sampling cadence is FASTER than the quantity being measured. If it is not, the
 figure is a bound on the instrument, not a property of the world - say so.
-*2026-08-25, the same error twice in one day without noticing: the water meter's
-"28.000 s grid" was our receiver seeing every other 14 s transmission, and the
-electric counter's "86 s tick" was our 32 s sampler reading multi-unit jumps as
-single ticks. True values 14.0 s and 53.8 s. Both were the instrument's blind
-spot mistaken for a property of the world.*
+*Why: 2026-08-25, twice in one day, a sampler's blind spot was reported as a
+meter's transmit interval.*
 
 ### R19 — Quote YAML 1.1 boolean words in anything meant to be pasted
 In every dashboard view, card snippet, or other YAML a human will paste, quote
@@ -415,10 +307,9 @@ In every dashboard view, card snippet, or other YAML a human will paste, quote
 and `true`/`false` wherever they appear as a key: `'y': 12.4`, `state: 'on'`. The
 dashboard editor's parser reads them as booleans, and a key stored as `true` is
 silently ignored. Generated YAML counts - quote in the dumper, do not trust it.
-*2026-09-16: a generated UPS view left 24 apexcharts `y:` keys bare; the paste
-stored them as `"true"` and every threshold line on six charts vanished with every
-gate passing. Five more had sat unnoticed in the dehumidifier view.* Gate:
-`dashboard-bare-boolean` before a paste, `dashboard-boolean-key` after one.
+*Why: 2026-09-16, bare `y:` keys in a pasted view erased every threshold line on
+six charts with every gate passing.* Gate: `dashboard-bare-boolean` before a
+paste, `dashboard-boolean-key` after one.
 
 ## Engineering Standards (ALWAYS APPLY)
 - Measure-first: **the operational form of this is R15-R18 — follow those, not this bullet.** Flag uncertainty before stating any figure; verify specs from primary sources; never assert ungrounded numbers
@@ -482,24 +373,11 @@ they do. Once it is live, re-run `export_dashboards.py` so
 `dashboards/lovelace/` catches up — do not hand-edit that file to make it
 "match" faster.
 
-Earned 2026-08-23: P12 repointed two rows at `utility_electric_power_avg`, all
-gates passed, and the card went on reading the superseded
-`utility_electric_power_mean` — so it showed a 60-min mean from the old sensor
-beside a delta and error computed from the new one, and the arithmetic on screen
-did not close (394 - 398 displayed as +1 W). The user spotted it from the card.
-Every earlier dashboard change this session landed correctly, because those were
-handed over as YAML to paste rather than written to the file.
+*Why: 2026-08-23, a card kept reading a superseded sensor with every gate passing;
+2026-09-14, a session hand-edited the GENERATED `dashboards/lovelace/` file and
+had a deny rule removed to do it.* **Never remove or loosen a deny rule to make an
+edit possible** - find the file you are allowed to edit instead.
 
-**Re-earned 2026-09-14, harder:** a session hand-edited
-`dashboards/lovelace/lovelace.yaml` directly — twice, including a 716-line new
-view — without registering the file's own "DO NOT HAND-EDIT" banner, and had
-a deny rule on that path *removed* to make the second edit possible. Had
-`export_dashboards.py` run before the new view was pasted live, it would have
-been silently deleted with nothing but a printed warning to notice. It happened
-to survive only because the paste beat the next script run. The deny rule was
-restored the same session; the fix that should have been reached for instead
-was `dashboards/views/heating-hvac-diagnostics.yaml`, which was never
-permission-denied and never needed to be.
 NEVER overwrite/truncate CSV files — append/rotate only
 NEVER add a time trigger that contends with another automation (shared read/write state) — see §EOD TIMING SEQUENCE; `ha_audit.py` checks this. The old blanket 23:54:30–23:58:45 ban was retired 2026-08-21: 9 automations already ran inside it
 NEVER use `| float` or `| int` without default: use `| float(0)` `| int(0)`
@@ -512,13 +390,7 @@ MUST validate against the DEPLOYED ARTIFACT, never the documentation:
   - HA internals -> read the source at the pinned version in `.HA_VERSION`
     (e.g. https://raw.githubusercontent.com/home-assistant/core/<version>/
     homeassistant/components/<domain>/<file>.py)
-  Both of the 2026-08-21 regressions came from trusting docs over the artifact:
-  apexcharts-card's documented `data_generator(entity, hass, index)` is really
-  `AsyncFunction('entity','start','end','hass','moment', "'use strict'; "+body)`,
-  so `const end = ...` was a SyntaxError that hung the card on "loading"; and
-  the `statistics` platform's availability propagation was inferred from state
-  timestamps for an hour when `components/statistics/sensor.py` settled it in
-  one read. `.HA_VERSION` makes the exact source cheap to fetch — use it.
+  *Why: both 2026-08-21 regressions came from trusting docs over the shipped artifact.*
 MUST add `default: []` to every `choose:` block
 MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard
@@ -526,20 +398,9 @@ SHOULD annotate any new entity in `entity_notes.yaml` (so `gen_reference.py`
 lists it in ENTITIES.md) and record behaviour changes in CHANGELOG.md, in the
 same commit as the entity.
 
-**NOT ENFORCED, and this used to say MUST.** Measured 2026-08-26: 236 of 410
-YAML-declared entities carry no annotation. A rule with a 236-case backlog is
-not a rule, and a check for it would open with 236 findings - the noise the
-INFO HYGIENE section says trains you to skim. `generated-doc-stale` cannot help
-either: it only asks whether ENTITIES.md matches what the generator WOULD
-write, so an unannotated entity leaves the doc "current" while the config
-references something the doc does not mention.
-
-Earned the same day: `binary_sensor.ha_eod_contention` and
-`input_number.ha_eod_contention_count` shipped in 2d1acd3 with no annotation
-and nothing caught it. Reworded rather than mechanised, because the enforcement
-table above sets the standard - be honest about which rules are mechanised,
-since a rule everyone believes is enforced and is not is worse than one known
-to rest on judgement.
+(NOT ENFORCED, so it says SHOULD: measured 2026-08-26, 236 of 410 YAML-declared
+entities carry no annotation [M]. A rule believed enforced that is not is worse
+than one known to rest on judgement.)
 
 ---
 
@@ -548,51 +409,10 @@ to rest on judgement.
 "Done" = passed a gate proving unattended behavior. A config that parses is not
 a config that works, and on 2026-08-22 that distinction cost 15 nights of data.
 
-### Why a validator alone is not the gate
-
-Every one of these passed `homeassistant-config-validator --strict` AND HA's own
-`/api/config/core/check_config` with **valid, 0 errors, 0 warnings**:
-
-| Defect | What the validator saw |
-|---|---|
-| Dehumidifier capture guard read `sensor.*_steady_latched`, an entity that never existed — 15 nights of silent skips | valid YAML, valid schema |
-| `hvac_runtime_per_hdd_high/low_alert` gated on `upper > 0` where `upper` came from `float(0)` of a missing entity — **neither alarm could ever fire** | valid |
-| `hvac_runtime_per_cdd_7_day_stddev` misspelled, so the band fell back to a hardcoded 2.0 against a real 6.8 — false `low_alert` **ON** for a healthy system | valid |
-| `script.ha_audit` raised `from_json` on every single invocation since the day it was written | valid |
-| 16 of 290 entity ids in this file's ENTITIES section did not exist | not checked at all |
-
-A schema validator answers "is this well-formed?". It cannot answer "does this
-reference resolve?", "can this alarm fire?", or "is this still the metric I
-think it is?". Those are what `ha_audit.py` is for. Run both. Neither replaces
-the other.
-
-### Running any of this from the HA UI, with no terminal
-
-Developer Tools > Actions, added 2026-08-25. Each returns its output in the
-response pane AND as a notification, and each carries the
-`ha_maintenance_mode` guard:
-
-| action | what it runs |
-|---|---|
-| **Run ALL HA Config Checks** (`script.ha_run_all_checks`) | audit + self-tests + coverage, in order, reporting each separately |
-| Run HA Audit (`script.ha_audit`) | `ha_audit.py --json` |
-| Run Config Gate (`script.ha_gate`) | `gate.py` — steps 1/1b/2/2b |
-| Run HA Audit Self-Tests (`script.ha_audit_tests`) | `test_ha_audit.py` both directions |
-| HA Audit — Rule Coverage (`script.ha_audit_log_stats`) | which rules have never fired AND have no injector |
-| Run Provenance Check (`script.ha_provenance`) | R17, git-free mode |
-| Regenerate Reference Docs (`script.ha_gen_reference`) | `gen_reference.py`. **Defaults to `--check`, which writes nothing**; flip *Write the files* on to actually regenerate. The one action that writes — run it with Write ON after any RESTART that added entities, because the registry only gains them at startup and `ha_audit` FAILs on a stale generated doc. |
-
-`binary_sensor.ha_eod_contention` (device_class problem) lights whenever any
-`eod-*` FAIL is present, separately from `binary_sensor.ha_audit_failing` —
-contention is the one failure class that corrupts DATA rather than reporting,
-so it gets its own light rather than a share of a number.
-
-`new_pipeline.py` is deliberately NOT exposed as an action: it is the only
-script that mutates `automations.yaml`, and a one-click button for that with no
-diff and no undo is the wrong shape.
-
-**shell_command is not reloadable — adding or changing any of these needs a
-RESTART.**
+A schema validator answers "is this well-formed?"; `ha_audit.py` answers "does
+this reference resolve, can this alarm fire?". Run both - five defects that passed
+the validator AND `check_config` are in `docs/rules-history.md`. To run any check
+from the HA UI with no terminal: `docs/ha-ui-actions.md`.
 
 ### The gate
 
@@ -625,12 +445,8 @@ Run every step that applies to what you touched. Record the result inline.
                R7 made checkable. It injects a known fault per covered rule and
                proves the rule FIRES, then proves a clean tree is SILENT.
                --list prints coverage and the gap; --only isolates one rule.
-               The rule-id inventory is DERIVED from ha_audit.py's source, so
-               it cannot drift the way the three hand-kept counts in this file
-               had by 2026-08-25. Direction 2 now asserts per rule that a
-               covered rule does NOT fire on a clean tree, instead of demanding
-               the whole tree be finding-free - so a genuine WARN in the house
-               no longer fails the suite, which contradicted step 2 above.
+               Direction 2 asserts per rule, so a genuine WARN in the house
+               does not fail the suite.
                NOT OPTIONAL WHEN THE AUDIT ITSELF MOVED. Twice on 2026-08-24 a
                rule shipped structurally incapable of firing, and a rule that
                CANNOT fire looks exactly like a rule with nothing to report.
@@ -654,27 +470,9 @@ Run every step that applies to what you touched. Record the result inline.
                (src/main.cpp.o, 0 errors). Codegen alone does not compile lambdas.
 ```
 
-### Rules that carry over from 2026-08-22
-
-**R3, R4, R5, R6 and R7 above.** They were restated here in full until
-2026-08-24 — five rules, second copy, same scars retold in different words.
-That is exactly what R10 forbids, in the file that declares R10: edit one copy
-and the two diverge silently. Deleted rather than synchronised, because the
-R10 answer is always deletion, never a checker that keeps two copies in step.
-
 ---
 
-## STEP 0 — REQUIRED BEFORE ANY EDIT
-
-State inline:
-```
-Change type: <SENSOR|AUTOMATION|ENTITY rename|DASHBOARD snippet|CSV/reporting|PACKAGE|SCRIPT|DOCUMENTATION>
-Impacted files: <list>
-```
-
----
-
-## OUTPUT FORMAT
+## OUTPUT FORMAT — this is STEP 0, required before any edit
 
 Every change starts with:
 
@@ -686,14 +484,10 @@ Gate: <the verdicts — see SESSION PROTOCOL>
 
 Then the work, then what was verified and what was left open.
 
-**Explain your reasoning.** The previous version of this section said "output
-ONLY ... never explain unless asked", and it was dead law: every message of the
-2026-08-22/23 session broke it, and the explanations are precisely what caught
-the `listen_mode` error before deployment, the `-unique` trap, and a `MEAN()`
-over a step-function limit. A rule that would have made the work worse is not a
-rule, it is a habit that outlived its reason.
+**Explain your reasoning.** Explanations caught three errors before deployment on
+2026-08-22/23; an "output only" rule would have hidden them.
 
-What the old rule was right about, kept:
+Kept from the old "output only" rule:
 - **Minimal diffs.** Never rewrite a whole file to change five lines.
 - **Never remove inline comments.** They carry the incident that earned the code.
 - **"NO CHANGE" is a valid answer.** Say it plainly rather than manufacturing work.
@@ -705,165 +499,20 @@ What the old rule was right about, kept:
 2. `packages/*.yaml` — if SPC/SEM/energy-related
 3. `configuration.yaml` — sensors, helpers, shell_commands
 4. `automations.yaml` — logic
-5. `CLAUDE.md` — update §ENTITIES, §PENDING, §ISSUES
+5. `entity_notes.yaml` + `gen_reference.py`; `docs/pending.md`; §KNOWN ISSUES
 6. `CHANGELOG.md` — behavior changes only
 7. Validate with `homeassistant-config-validator --strict`
 8. Provide diff summary
 
 ---
 
-## EOD TIMING SEQUENCE
+## EOD TIMING SEQUENCE — see `docs/eod-timing.md`
 
-The old version of this section was labelled FROZEN and listed 9 entries with a
-blanket ban on new triggers between 23:54:30 and 23:58:45. By 2026-08-21 there
-were **19 capture automations, 9 of them inside that window and 4 documented
-nowhere**. A rule nobody can check is worse than no rule: it reads as
-protection you do not have. Replaced with the actual intent.
-
-### THE INVARIANT: no two automations may contend for the same state
-
-Sharing a trigger second is NOT a problem. HA runs automations concurrently and
-six of these fire together at 23:59:00 with no interaction whatsoever. What
-matters is shared state:
-
-- **write/write** — both set the same entity. Last writer wins, silently.
-- **read/write** — one reads what the other is writing. It sees the old or the
-  new value depending on scheduling, and the result is not reproducible.
-
-`scripts/ha_audit.py` enforces this by computing each automation's read and
-write sets and comparing same-second pairs. **FAIL-SAFE as of 2026-08-25 — all
-three contention outcomes BLOCK:**
-
-| finding | when | severity |
-|---|---|---|
-| `eod-race` | both write the same entity | **FAIL** |
-| `eod-read-write` | one reads what the other writes | **FAIL** (was WARN) |
-| `eod-write-unmodelled` | the write target is a template, so contention **cannot be ruled out** | **FAIL** (was WARN) |
-| `eod-time-unresolvable` | `at:` is not a literal, so the automation was not compared at all | WARN |
-| `eod-concurrent` | same second, nothing shared | INFO, one line |
-
-The third row is the point of the word fail-safe: when the checker cannot
-*prove* two automations do not collide, it blocks rather than staying quiet.
-Treating "could not check" as "no finding" is R8, applied to the one rule
-protecting the midnight window.
-
-**SCOPE, corrected 2026-08-25: this now examines EVERY time-triggered
-automation — 111 of them — not just the ~20 declared in `pipelines.yaml`.**
-Until that date an undeclared pair sharing a second and an entity produced
-nothing at all, which made it a race check that could not see most races.
-Widening it immediately surfaced a group nobody had been checking:
-`00:00:00 x2` (`dehumidifier_cycle_counter_reset` +
-`reset_automation_failure_counter`). They share no state, so it is fine — but
-nothing had established that.
-
-Stagger only to resolve a real contention or an ordering dependency — not for
-tidiness. Sharing a second is still not a problem; six captures fire together
-at 23:59:00 with no interaction.
-
-`scripts/new_pipeline.py` refuses to scaffold a pipeline onto a second where
-its entities would collide, so the common case never reaches the gate at all.
-
-### ORDERING DEPENDENCIES (these are why the staggering exists)
-
-- **23:56:30 `capture_daily_monthly_tracking` is immovable.** Every month
-  sensor depends on `monthly_tracking_capture_last_ok`.
-- New month accumulators go in `capture_daily_monthly_tracking`, NOT
-  `capture_daily_hdd`.
-- `archive_monthly_hdd` / `_cdd` read the month accumulators, so they must run
-  after 23:56:30. They do (23:58:15 / 23:58:30).
-- The 00:20 buffer backup runs after all captures; the 00:30 audit after it.
-
-### SNAPSHOT RULE
-
-EOD captures MUST snapshot with a `variables:` block at trigger time — values
-AND the capture stamp. Until 2026-08-21 the values obeyed this but the stamps
-were written as a live `{{ now().date() }}`, so a capture slipping past
-midnight would stamp tomorrow against today's data, and every staleness
-detector reads that stamp.
-
-**All 19 pipelines now snapshot (2026-08-22).** The six SPC captures use
-`capture_date`; the other 13 use `capture_stamp`, defined as the first step of
-`action:` and read by the `input_datetime.set_datetime` call. `ha_audit.py`
-reports any regression as `stamp-not-snapshotted`, and the count is 0.
-
-Note automations.yaml still holds 13 OTHER live `now().strftime(...)` stamps.
-Those are correct and must stay: they are event-triggered (dehumidifier cycle
-start/end, setback marks) where the wall-clock moment IS the datum. The rule
-only inspects automations declared in `pipelines.yaml`, which is why it can
-tell the two apart — edit by automation, never by a global search-replace.
-
-### LOCAL TIME, NOT UTC — and the two systems differ
-
-HA `time` triggers fire in the instance timezone (`America/New_York`), never
-UTC. Verified 2026-08-22 against automations whose `at:` is known:
-
-```
-capture_daily_dehumidifier_watts   at: "23:59:00"   fired 03:59:00 UTC
-capture_daily_hdd                  at: "23:55:00"   fired 03:55:00 UTC
-```
-
-Worth stating explicitly because **InfluxDB is the opposite**: `GROUP BY
-time(1d)` there is UTC-aligned unless you add `tz('America/New_York')`. Same
-kind of config, opposite default. That mismatch is exactly what put the Grafana
-SPC panels four hours off the HA captures for a month — see P12. When a time
-window looks wrong, check which system's default you are relying on.
-
-### DST
-
-Spring forward: a mark scheduled inside the missing 02:00–03:00 hour simply
-does not fire that night. Any capture that depends on a fixed number of
-sub-intervals must tolerate one fewer — `capture_daily_water_overnight` needs
-3 of 5 bins and so degrades gracefully.
-
-Fall back: the repeated hour can produce one bin spanning two wall-clock hours,
-inflating it. This is a second reason the overnight-flow instrument uses the
-MINIMUM: an inflated bin never becomes the minimum, so the leak signal is
-untouched. Only the max-derived regen flag can false-positive, once a year.
-
-### THE SCHEDULE (HAND-MAINTAINED, validated by ha_audit)
-
-Corrected 2026-08-24: this was labelled "generated from pipelines.yaml —
-regenerate, do not hand-edit". **Nothing generates it.** `gen_reference.py`
-writes only ENTITIES.md / AUTOMATIONS.md / PACKAGES.md and merely READS this
-file in a one-time migration helper. `ha_audit.py` VALIDATES the table
-(`eod-undeclared`), so a session obeying "do not hand-edit" and hunting for a
-regenerate command would find none, leave the table stale, and fail the audit.
-Add the row by hand when you add a pipeline.
-
-```
-TIME      AUTOMATION                          STALE DETECTOR
-00:00:45  capture_daily_water_overnight       water_overnight_capture_stale
-          (reset mark; bins close at 01/02/03/04/05:00:45, publish at 05:00:45)
-00:15:00  daily_energy_csv_export
-00:20:00  nightly_buffer_backup
-00:30:00  nightly_ha_audit                    ha_audit_stale
-23:55:00  capture_daily_hdd                   hdd_capture_stale
-23:55:15  capture_daily_cdd                   cdd_capture_stale
-23:55:30  capture_daily_ac_min_per_cycle      ac_min_per_cycle_capture_stale
-23:56:00  capture_daily_runtime_per_hdd       runtime_per_hdd_capture_stale
-23:56:15  capture_daily_furnace_min_per_cycle furnace_cycle_capture_stale
-23:56:30  capture_daily_monthly_tracking      monthly_report_stale
-23:56:45  capture_daily_runtime_per_cdd       runtime_per_cdd_capture_stale
-23:57:00  CSV daily report
-23:58:15  archive_monthly_hdd                 hdd_archive_stale
-23:58:30  archive_monthly_cdd                 cdd_archive_stale
-23:58:30  CSV monthly report (last day only)
-23:59:00  capture_daily_ac_watts              ac_spc_capture_stale
-23:59:00  capture_daily_cooling_kwh_cdd       cooling_kwh_cdd_spc_capture_stale
-23:59:00  capture_daily_dehumidifier_watts    dehumidifier_spc_capture_stale
-23:59:00  capture_daily_fridge_watts          fridge_spc_capture_stale
-23:59:00  capture_daily_furnace_watts         furnace_spc_capture_stale
-23:59:00  capture_daily_hwh_recirc_watts      hwh_recirc_spc_capture_stale
-23:59:30  capture_daily_dehumidifier_cost     dehumidifier_cost_capture_stale
-23:59:30  capture_daily_dehumidifier_duty_kwh dehumidifier_duty_kwh_capture_stale
-23:59:45  capture_daily_ac_cost               ac_cost_capture_stale
-(event)   archive_monthly_gas_heat_cost       gas_heat_cost_archive_stale
-```
-
-Every pipeline above has a capture stamp and a stale detector as of
-2026-08-22 (20/20). `ha_audit.py` FAILS if a new capture automation is added
-without being declared in `pipelines.yaml`, and WARNs if its trigger time is
-missing from the table above.
+**Read it before adding, moving or removing any time-triggered automation, or
+anything that snapshots, archives or resets a daily value.** The invariant: no
+two automations may contend for the same state (write/write or read/write);
+sharing a trigger second is fine. `ha_audit.py` enforces it with the `eod-*`
+findings and parses the schedule table from that file.
 
 ---
 
@@ -911,17 +560,8 @@ so they are gone. What remains needs a human judgement:
 - [ ] For each new limit or fallback: is the number measured, or invented?
 - [ ] Anything left undone is stated plainly, not omitted
 
-**Removed 2026-08-23** and why, so they are not re-added:
-`choose: default: []`, `| float(0)` defaults, `availability:` on new template
-sensors, `_1s`/`_2` suffix entities, `shell_command` guards, entity ids in
-ENTITIES — all now FAIL or WARN in `ha_audit.py`. The
-`23:54:30-23:58:45` trigger ban was RETIRED on 2026-08-21 (nine automations
-already ran inside it) and this checklist had gone on asserting it — the
-document contradicting itself, which is worse than either rule alone.
-
-CI: yamllint went green 2026-08-21 after 64 errors across 21 files; line endings
-are held by `.gitattributes` (`*.yaml text eol=lf`) so Windows/Samba editing
-cannot reintroduce CRLF. Deliberately not linted, with reasons, in `.yamllint.yml`.
+Items removed on 2026-08-23 because `ha_audit.py` now checks them are listed,
+with reasons, in `docs/rules-history.md` - do not re-add them.
 
 ## PACKAGES — see `PACKAGES.md`, GENERATED
 
@@ -943,13 +583,6 @@ hand-written meaning; existence is always derived. `ha_audit.py` FAILs when
 `ENTITIES.md` is stale, so drift is caught the same night rather than months
 later.
 
-Why it moved out of this file (2026-08-23): the block was 548 lines, 32.8% of
-CLAUDE.md, loaded into context every session — and **16 of its 328 ids did not
-exist**, two of them behind alerts that could never fire. A hand-maintained list
-that CONSTRAINTS calls the only permitted source of ids is a defect generator:
-a wrong entry is this file instructing you to use a name that resolves to
-`unknown`.
-
 To change an annotation: edit `entity_notes.yaml`, run
 `python3 scripts/gen_reference.py`, commit both.
 
@@ -958,18 +591,10 @@ To change an annotation: edit `entity_notes.yaml`, run
 Written by `scripts/gen_reference.py`; `ha_audit.py` FAILs when it is
 stale. Was 86 hand-kept lines that held nothing `automations.yaml` did not already state.
 
-Design notes about a package belong in that package's own header comment,
-beside the code — not in a summary that has to be kept in step with it.
-
 ## KNOWN ISSUES
 
 ```
-23:58:00 collision              STALE ENTRY, corrected 2026-08-25: there is no collision. Measured across all
-                                111 time-triggered automations — 23:58:00 holds accumulate_filter_runtime ALONE;
-                                archive_monthly_hdd has moved to 23:58:15. Kept rather than deleted (R13) because
-                                a hand-cleared "no data risk" judgement outlived the arrangement it described,
-                                which is the drift this file exists to catch. The only shared seconds in the live
-                                config are 00:00:00 x2, 23:59:00 x6 and 23:59:30 x2, none of them contending.
+23:58:00 collision              STALE ENTRY, corrected 2026-08-25: no collision (R13 record in docs/rules-history.md)
 _2 suffix entities              6 sensors — entity registry artifacts — canonical IDs — DO NOT DELETE
 notify_efficiency_degradation   DISABLED Feb 2026 — fixed threshold replaced by ±2σ
 Pirate Weather warm bias        reads up to 8.5°F warm on sunny afternoons — use outdoor_temp_live for CDD65
@@ -1001,625 +626,24 @@ Electric rate:        $0.29/kWh
 
 ---
 
-## OFF-HOST ACCESS — how a Windows/Samba session reaches each service
+## REFERENCE DOCS — read on the trigger, not every session
 
-Quick reference; each service's own section (below, or SESSION PROTOCOL above)
-has the full history and gotchas. Everything here was verified 2026-09-11.
+| file | read it when |
+|---|---|
+| `docs/off-host-access.md` | before your first HA API, InfluxDB, Grafana, add-on or git call from Windows; when an off-host result surprises you |
+| `docs/eod-timing.md` | before adding, moving or removing any time trigger, or anything that snapshots a daily value |
+| `docs/influx-grafana.md` | before any InfluxDB query, continuous query or retention change, or any Grafana dashboard or provisioning work |
+| `docs/file-map.md` | when you need to know where something lives and a grep has not answered it |
+| `docs/pending.md` | at session start, headings only (`grep -n '^### P'`); in full before working an item or touching its entities |
+| `docs/ha-ui-actions.md` | when working from the HA UI, or adding or changing a `script.ha_*` action |
+| `docs/claude-code-enforcement.md` | before changing hooks, deny rules or settings; when a block message surprises you |
+| `docs/rules-history.md` | before changing, narrowing or retiring any rule; when a rule's edge case is unclear; when recording a new scar |
 
-| service | reachable directly off-host? | how |
-|---|---|---|
-| `H:` config tree | yes | Samba mount, `\\10.0.0.210\config` |
-| HA REST/WebSocket API | yes | `HA_TOKEN` (persistent Windows user env var) against `10.0.0.210:8123`. Full gotchas (Supervisor 401s, `HA_URL` vs `HA_TOKEN`) in SESSION PROTOCOL above. |
-| InfluxDB 1.x | yes | `10.0.0.210:8086`, credentials in `secrets.yaml`. Full detail below. |
-| **Grafana** | **no** | see below |
-| git (`H:` as a working tree) | yes | see SESSION PROTOCOL above — works as of 2026-09-10 |
-| sandbox / scratch copies | n/a | `C:\sandbox` — fixed local path, see R2 above. Not `H:`, not a temp dir. |
-
-### Grafana has no off-host URL — reach it by SSH'ing on-host instead
-
-`scripts/grafana_snapshot.py`'s default base (`http://a0d7b954-grafana:3000`) is
-a Docker-internal hostname; it only resolves on the HA host itself. Verified
-2026-09-11: TCP `10.0.0.210:3000` and `:3001` are both closed from the Windows
-box (InfluxDB's 8086 and HA's 8123 are open, Grafana's is not) — this is not a
-missing env var, there is no host-mapped port to point one at.
-
-**The route that works:** SSH to the host and run the script there, where the
-Docker hostname resolves natively and `secrets.yaml` is read as `/config/secrets.yaml`
-directly (no `GRAFANA_URL`/`GRAFANA_TOKEN` override needed on-host — those only
-matter for the Windows-side path in the credential-loading snippet under
-INFLUXDB below).
-
-```bash
-ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"
-# verified 2026-09-11: auth OK, 5 dashboards visible, Grafana 13.2.1
-```
-
-- **Credential identity**: `secrets.yaml`'s `grafana_token` belongs to the
-  **`ha-grafana-snapshot`** service account (Editor role) — confirmed
-  2026-09-11 by using the token, then checking Grafana's per-token "last
-  used" timestamp (it matched to the second: `2026-09-11 09:43:08`, right
-  after the probe above ran). There is a **second** Editor-role service
-  account, `snapshot-bot`, that this token does NOT belong to — its purpose
-  is unknown as of 2026-09-11: not referenced by `grafana_token`, not found
-  elsewhere in this repo. Either an intended spare/rotation credential or
-  cruft; find out before relying on it, and see PENDING.
-- **Host/user**: `hassio@10.0.0.210`. This is the **"Advanced SSH & Web
-  Terminal"** add-on (container hostname `a0d7b954-ssh`, uid 1000 `hassio`,
-  groups `wheel`+`hassio`) — port 22. A second add-on, "Terminal & SSH", is
-  also installed but is NOT the one bound to port 22 (its usual default,
-  22222, is closed) — don't confuse the two if either gets reconfigured.
-- **Auth**: key-only from this box. `~/.ssh/id_ed25519` (comment
-  `claude-code@wkcol-win`) is already in the add-on's `authorized_keys`
-  config. A password is also configured on the add-on itself — **it is
-  IDENTICAL to the InfluxDB `ha_ro` password in `secrets.yaml`**, same secret
-  reused across two unrelated surfaces. Flagged 2026-09-11, not yet rotated;
-  rotate one so a leak of either credential doesn't hand over both.
-- **Client-side alias**: `C:\Users\wkcol\.ssh\config` (Windows-side, NOT part
-  of this git repo, so it will not exist on a fresh clone/machine — recreate
-  it there if this ever moves):
-  ```
-  Host ha-host
-      HostName 10.0.0.210
-      User hassio
-      IdentityFile ~/.ssh/id_ed25519
-      IdentitiesOnly yes
-  ```
-- **General pattern, not just Grafana**: anything that only resolves on the
-  HA host's own Docker network (other add-on-internal hostnames, `docker
-  exec` into a container, etc.) is reachable the same way — `ssh ha-host
-  <command>` — rather than assuming it needs an off-host URL that may not
-  exist.
+Files that cite a CLAUDE.md section this table lists by name ("SNAPSHOT RULE",
+"EOD section", "FILE MAP", "PENDING") mean the doc above that now holds it.
 
 ---
 
-## INFLUXDB / GRAFANA
-
-### InfluxDB 1.x
-- **CUTOVER TO 1.12.4 COMPLETED 2026-09-10 — production is now the fork,
-  1.8.10 is retired but still installed.** `local_influxdb112` (InfluxDB
-  1.12.4) serves the house on `10.0.0.210:8086`, `boot: auto`.
-  `a0d7b954_influxdb` (1.8.10) is STOPPED, `boot: manual`, kept installed as
-  the rollback. This CLAUDE.md section said "NOT DEPLOYED; tested on Windows
-  builds, not on the N100" until today — that was true on 2026-09-08 when it
-  was written and became false on 2026-09-10; nobody carried the correction
-  from CHANGELOG.md (2026.09.09/2026.09.10 entries have the full cutover
-  narrative) back into this "current state" section. Re-verified 2026-09-12:
-  `:8086 /ping` → `X-Influxdb-Version: 1.12.4`; `sensor.influxdb_cpu_percent`
-  (the 1.8.10 add-on) = `unavailable`; `sensor.influxdb_1_12_local_fork_*`
-  active. **Lesson for future sessions: a narrative entry in CHANGELOG.md does
-  NOT update this file's own "current state" prose — that has to be done as
-  its own edit, the same day, or this file drifts exactly like this.**
-- **THE OLD ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY
-  WAY BACK TO IT.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed
-  from the Community Add-ons store on **2026-08-28**. Searching the store for
-  "InfluxDB" now returns `47c55538_influxdbv2`, a DIFFERENT third-party add-on
-  shipping InfluxDB 2.x: buckets/orgs/tokens and Flux, no `"Home Assistant"`
-  database, and no InfluxQL for the 136 dashboard refs to `bfrwayjkhasjka`.
-  Installing it looks like success and restores nothing. This exact
-  substitution cost the 2026-08-31 session (see CHANGELOG). This risk is now
-  largely moot for day-to-day operation since the fork is production, but it
-  still governs the ROLLBACK path: `a0d7b954_influxdb` is stopped, not
-  uninstalled, precisely so "start it again" stays available without needing
-  the store. If it is ever uninstalled or lost: `hassio.restore_partial` with
-  `homeassistant: false` and `addons: [a0d7b954_influxdb]`, and **stop
-  `local_influxdb112` first** or the restore comes up dead (both want 8086).
-- **CORRECTED 2026-09-08: InfluxDB 1.x IS NOT END-OF-LIFE. This section said it
-  was, and the claim was load-bearing and false.** The add-on's own README says
-  the maintainers stopped because InfluxData EOL'd 1.x - authoritative for why
-  THEY stopped, not for whether 1.x is EOL. The two were conflated here (R16).
-  Measured 2026-09-08 from primary sources:
-
-      influxdata/influxdb releases   v1.12.4 2026-04-13 ; v1.12.3 2026-03-12
-      endoflife.date                 latest 1.x = 1.13.0 ; EOL date: NONE
-      Docker Official Images         influxdb:1.12 rebuilt 2026-08-25
-      what ran here on 2026-09-08    1.8.10, released 2021-10-11
-                                      (superseded 2026-09-10 - see the cutover
-                                      bullet at the top of this section; what
-                                      runs here NOW is 1.12.4)
-
-  **The abandoned thing is the ADD-ON, not the database.** The OSS line went
-  1.8.10 (2021) then 1.11.7, 1.12.x, 1.13.0 - 1.9/1.10/1.11.0-.6 were never
-  public OSS, which is the whole five-year gap. The false claim drove the
-  2026-08-31 session to the v2 add-on that restored nothing, and on 2026-09-08
-  nearly drove a 171-query rewrite onto VictoriaMetrics.
-
-  **Side-by-side sandbox on a copy of the real DB (CHANGELOG 2026.09.08):**
-  1.12.4 opens 1.8.10 data with no migration, identical query results,
-  IDENTICAL TSM bytes, +12% write throughput, working `ha_ro` auth, and
-  WORKING ROLLBACK after an unclean kill. Cost: 15-22% slower on a mixed
-  dashboard load, confined to `GROUP BY "entity_id"` with no `GROUP BY time()`
-  bucket - 4 of 170 live Grafana queries, ~+18 ms each. This was the Windows
-  sandbox result only; the cutover onto the real N100 is the bullet above.
-
-- **Restoring the add-on does NOT restore the HA integration.** The config
-  entry lives in `.storage/core.config_entries`, which a partial add-on
-  restore does not touch, and there is no `influxdb:` YAML anywhere to fall
-  back on (verified 2026-08-31: absent from configuration.yaml, packages/,
-  and the whole git history). Re-add it by hand: Settings → Devices &
-  Services → InfluxDB → `configure_v1`.
-- **Host**: 10.0.0.210:8086
-- **Database**: "Home Assistant"
-- **Measurement naming**: unit of measure (e.g., "W" for Watts, "%" for percent)
-- **Tags**: `entity_id`, `domain`
-- **Configured as a UI CONFIG ENTRY, not YAML.** Nothing appears in
-  configuration.yaml; `.storage/core.config_entries` holds it, `options: {}`,
-  so there is NO include/exclude filter - every entity HA emits is written.
-- **Retention is INFINITE** (`autogen`, duration `0s`). Nothing is ever purged.
-  History begins 2026-05-31 for W/degF/%, 2026-06-27 for kWh - that is when it
-  was set up, not a retention limit.
-- **Coverage measured 2026-08-22**: 1,287 distinct entity_ids, 1,362 series,
-  ~963k points/day. 30 sensor/binary_sensors have no series, almost all
-  `bills_iphone_*` strings that have not changed since Influx started.
-  **Re-measured 2026-09-12** (prompted by "the db seems small" after the
-  cutover): 1,540 series (exact cardinality, up 13%), 713 measurements,
-  1,551,509 points/24h summed over just the 66 unit-like numeric measurements'
-  `value` field (narrower scope than the August figure and still higher),
-  70,340,603 all-time in that same scope. History still starts 2026-06-01 for
-  `W`/`%`, 2026-06-27 for `kWh`, latest point live as of the measurement.
-  Nothing shrank; growth is consistent with rising entity count. `ha_ro` lacks
-  admin privilege, so `SHOW STATS`/`SHOW DIAGNOSTICS`/`SHOW SHARDS` are not
-  available for a disk-level breakdown this way.
-- **InfluxDB "Home Assistant" db is 2.1 GB; the recorder's
-  `home-assistant_v2.db` is 4.4 GB** [M, both 2026-09-12] — smaller despite
-  InfluxDB's infinite retention against the recorder's 14-day
-  `purge_keep_days` (`configuration.yaml:119`). The instinct that InfluxDB
-  should therefore be as big or bigger is reasonable and wrong, for two
-  measured reasons:
-  1. **`purge_keep_days` does not bound the recorder's own long-term store.**
-     Confirmed both ends [M, on-host `sqlite3`, 2026-09-12]: `states` and
-     `statistics_short_term` each span exactly ~14.28 days (2026-08-29 to
-     2026-09-12 — the setting is working, not a stale claim), while
-     `statistics` (hourly aggregates, kept FOREVER regardless of the 14-day
-     setting) holds 1,329,663 rows across 537 tracked entities back to
-     **2025-12-27** — about three months before InfluxDB's own earliest point
-     (2026-06-01). Both retention behaviours are doing exactly what they are
-     designed to do.
-  2. **Per-row storage shape, not corruption, is the rest of the gap** —
-     exact byte breakdown via `sqlite3`'s `dbstat`, run ON the host (the
-     bundled Windows Python lacks `dbstat`; the host's does not) [M,
-     2026-09-12]:
-     ```
-     states                              1,621.0 MB   (21,616,862 rows)
-     states' 5 indexes combined           1,954.8 MB   <- bigger than the table
-       ix_states_context_id_bin             553.9 MB
-       ix_states_metadata_id_last_updated_ts 447.0 MB
-       ix_states_last_updated_ts            383.3 MB
-       ix_states_old_state_id                294.7 MB
-       ix_states_attributes_id               275.9 MB
-     state_attributes (dedup JSON blobs)    403.9 MB   (1,710,146 rows)
-     statistics_short_term + its indexes     ~161 MB   (2,038,027 rows)
-     statistics (long-term) + its indexes    ~101 MB   (1,329,663 rows)
-     events/event_data/misc                    ~5 MB
-     ------------------------------------------------
-     accounted                             ~4,246 MB  (file is 4,470 MB;
-                                             remainder = free pages, WAL, small
-                                             tables not itemised above)
-     ```
-     Two things worth naming: (a) `states`' own secondary indexes cost MORE
-     than the row data they index — SQLite pays a full B-tree per index,
-     InfluxDB's TSM format does not; (b) `states` writes 21.6M rows in 14.28
-     days = ~1.51M rows/day, which lines up with InfluxDB's independently
-     measured ~1.55M numeric points/day above — two unrelated pipelines
-     converging on the same house-wide write rate, which is itself a
-     corroboration that neither is dropping or duplicating data.
-  **Both databases verified structurally healthy, 2026-09-12.** The first
-  pass at this (same day) raised a false alarm: a Samba-side plain-file copy
-  of the live, actively-written `home-assistant_v2.db` returned `database disk
-  image is malformed` on `states`/`statistics_short_term` full scans. Cause,
-  confirmed on-host: the copy grabbed only the main `.db` file and missed the
-  live `-wal` (8.2 MB) / `-shm` sidecar files sitting next to it — a plain
-  file copy of a WAL-mode database is not a consistent snapshot. Run directly
-  on the host against the real file, `PRAGMA quick_check` and the full
-  `PRAGMA integrity_check` both returned **`ok`** (34 s and 114 s
-  respectively). Lesson: never diagnose a live WAL-mode SQLite file from a
-  Samba-side copy; either read it on-host or use `sqlite3 .backup`
-  (lock-aware) run on-host, never a raw `cp` over the network share. Full
-  narrative: CHANGELOG.md 2026.09.12.
-- **Strings and attributes ARE stored**, not just numerics: a non-numeric
-  sensor gets a `state` field (plus `*_str` attribute fields). That is how the
-  R900 Leak/LeakNow/BackFlow/NoUse fields had history predating their sensors.
-- **WRITES HAPPEN ON STATE CHANGE, NOT ON A SAMPLE CLOCK.** An unchanged value
-  writes nothing, so a flat line looks like a gap and is not one. This is the
-  single most important thing to know when reading the data - it is what made
-  dehumidifier_current_consumption look 163 min stale when the unit was simply
-  off.
-- **Credentials**: `secrets.yaml`, keys `influxdb_url` / `influxdb_db` /
-  `influxdb_user` / `influxdb_pass` (added 2026-08-24). Nothing in
-  configuration.yaml reads them via `!secret` — the integration is a UI config
-  entry and needs no YAML. They exist for `scripts/spc_seed.py`, which reads
-  `os.environ`, and for Claude Code sessions, which run OFF-HOST over Samba and
-  inherit no HA environment. **Env vars still win**, so a shell export
-  overrides the file and nothing that worked before changes:
-
-  ```python
-  import os, io, yaml
-  _cfg = os.environ.get("HA_CONFIG", "/config")
-  _s = yaml.safe_load(io.open(f"{_cfg}/secrets.yaml", encoding="utf-8")) or {}
-  USER = os.environ.get("INFLUXDB_USER") or _s.get("influxdb_user", "")
-  PASS = os.environ.get("INFLUXDB_PASS") or _s.get("influxdb_pass", "")
-  URL  = os.environ.get("INFLUXDB_URL")  or _s.get("influxdb_url", "")
-  ```
-
-  **`ha_ro` IS NO LONGER READ-ONLY. Changed 2026-08-31 — this bullet said
-  `GRANT READ` until then.** The `influxdb` config flow validates the
-  credential with a **write probe**, so a READ-only user fails the flow with a
-  bare `cannot_connect` that names nothing. Proven both directions that day:
-  as READ, `/write` returned 403 and the flow refused; after
-  `GRANT ALL ON "Home Assistant" TO "ha_ro"` the flow created the entry
-  first try. Use `GRANT ALL`, never `GRANT WRITE` — in InfluxDB 1.x a user
-  holds ONE privilege per database, so `GRANT WRITE` silently REVOKES read
-  and breaks `spc_seed.py`.
-
-  What that costs, stated honestly: a leaked `ha_ro` can now insert and
-  overwrite points, and retention is infinite with no backup of the raw
-  series. What still holds: it **cannot DROP a measurement** — that needs
-  admin, measured 403 on 2026-08-31 with ALL PRIVILEGES held. Non-admin write
-  is the floor HA's own integration imposes; it is not a preference.
-  **Never echo the value** into a log, a debug URL, a commit or a chat
-  transcript; `spc_seed.py` masks it in its debug URL (line 175).
-
-  THE RULE THIS OBEYS: never a credential in a TRACKED file. They were
-  hardcoded in `scripts/spc_seed.py` until 2026-08-22 — untracked, but
-  `.gitignore` covers only `secrets.yaml` / `secrets_*.yaml`, not `scripts/`,
-  so one `git add -A` would have pushed a plaintext password to a public
-  GitHub remote. `secrets.yaml` is covered (`.gitignore` line 2, re-verified
-  2026-08-24); `scripts/` still is not. The rule is satisfied, not relaxed.
-
-### Continuous Queries (scripts/spc_continuous_queries.sql)
-Pre-aggregate daily "running watts" for SPC monitoring.
-- **Target measurement**: `spc`
-- **CQs**: `spc_fridge_daily`, `spc_furnace_daily`, `spc_ac_daily`, `spc_hwh_recirc_daily`, `spc_dehumidifier_daily`
-- **Deploy**: `influx -database "Home Assistant" < spc_continuous_queries.sql`
-
-### Grafana Dashboards (grafana/dashboards/)
-**THESE FILES ARE NOT DEPLOYED AND NEVER HAVE BEEN. Editing one changes
-nothing.** This block said "Provisioned dashboards - survive Grafana rebuilds"
-until 2026-09-03; it was false. Measured that day: all five dashboards report
-`meta.provisioned = false`, i.e. file-based provisioning loads ZERO dashboards.
-Grafana serves only its own database copies, and the drift had reached a month:
-
-```
-battery-bank   Grafana 2026-07-21   file 08-21    file newer
-energy         Grafana 2026-07-25   file 08-21    file newer
-hvac-status    Grafana 2026-07-28   file 08-21    file newer
-ups-status     Grafana 2026-08-31   file 08-21    GRAFANA newer - deploying the file REGRESSES it
-```
-
-The drift runs BOTH ways, so "just deploy them all" destroys work. Check
-direction per dashboard before touching any.
-
-What this cost: the P12 SPC re-sourcing was written to `spc_appliances.json` on
-08-22 and never landed, so the Daily series kept querying the retired `spc`
-measurement - dead since 08-21 - for thirteen days while UCL/LCL from `W` stayed
-current. The chart looked alive and was not. Nothing in this repo compares what
-Grafana serves against what the file says, and `ha_audit.py` cannot: Grafana is
-not YAML.
-
-**To actually deploy a dashboard:**
-`python3 /config/scripts/grafana_snapshot.py --deploy /config/grafana/dashboards/<f>.json`
-(overwrites by uid, pins `${DS_INFLUXDB}` placeholders to the real datasource
-uid, and prints the version it replaced). `--provstatus` prints the provisioned
-flag and served date for every dashboard - run it before believing a file is live.
-- **energy.json**: Total power stats, daily kWh, cost estimate, SEM circuits, Kasa plugs
-- **battery_bank.json**: Voltage/SOC/Power/Runtime stats, electrical trends, temperature
-- **ups.json**: Voltage/Power/Temp stats, electrical trends, temperature
-- **spc_appliances.json**: SPC charts with daily values, rolling mean, UCL/LCL
-
-### Grafana Provisioning
-```
-grafana/provisioning/dashboards/default.yaml
-```
-Points to `/config/grafana/dashboards` for auto-loading.
-
-### Grafana Query Notes
-- Datasource UID: `bfrwayjkhasjka`
-- Queries MUST include `GROUP BY "entity_id"` for proper series display
-- Use `rawQuery: true` with `alias` field for series naming
-
----
-
-## FILE MAP
-
-```
-ENTITIES.md                     GENERATED — entity reference
-AUTOMATIONS.md                  GENERATED — every automation, trigger, mode
-PACKAGES.md                     GENERATED — package summary and counts
-                                all three by scripts/gen_reference.py;
-                                ha_audit FAILs if any is stale. NEVER hand-edit.
-scripts/validate_ha.py          the homeassistant-config-validator skill's
-                                script, vendored 2026-08-23 — the Layer 0-3 gate
-docs/ha-validator-checks.md     what that validator checks, from the skill
-entity_notes.yaml               hand-written MEANING for entity ids; the only
-                                part of the entity reference a human maintains
-open_questions.yaml             R14 made mechanical: every question asked of
-                                Bill, with what it blocks. ha_audit WARNs
-                                `open-question` until `answered:` is filled in,
-                                so it surfaces at the top of every session.
-.audit_baseline.json            the finding set `ha_audit.py --baseline` compares
-                                against. NEW findings exit non-zero; a FAIL always
-                                does, even an unchanged one - a baseline shows the
-                                delta, it never blesses a failure.
-configuration.yaml              sensors, helpers, shell_commands
-automations.yaml                automation logic
-scripts.yaml                    weather_update_script only - the archive seed
-                                scripts were retired 2026-09-16 (CHANGELOG)
-
-packages/                       EVERY package, with live line and domain counts:
-                                see PACKAGES.md (GENERATED). Deliberately not
-                                listed here. Until 2026-08-24 this block carried
-                                its own counts and they drifted: spc.yaml read
-                                1,787 against a real 3,610, configuration.yaml
-                                ~6,500 against 7,415, automations.yaml ~2,500
-                                against 4,388 — and audit.yaml, backup_sizing.yaml
-                                and utility_meters.yaml were missing outright.
-                                A derivable number written down twice is R10.
-
-scripts/
-├── climate_norms_today.py      Climate norms lookup
-├── setback_csv.py              Setback recovery CSV logging
-├── daily_energy_export.py      Energy CSV export to www/energy/
-├── gate.py                     THE DEFINITION OF DONE GATE, as one command.
-│                               Runs steps 1/1b/2/2b in order, stops at the
-│                               first failure, and GENERATES the verdict block.
-│                               Steps 3-5 stay manual - they touch the live
-│                               instance (R12). Use this, not the four separate
-│                               invocations; the sequence used to be written out
-│                               in three places here and had already drifted.
-├── new_pipeline.py             SCAFFOLDS a capture pipeline: automation with the
-│                               variables: snapshot, manifest entry, schedule row,
-│                               stale detector, helper names - all four pieces
-│                               from one declaration. Prints; --apply writes the
-│                               first two. Exists because stamp-not-snapshotted
-│                               (130) and unguarded-shell-command (111) were the
-│                               two most-fired rules across 38 nightly runs -
-│                               241 of ~500 findings, both boilerplate omissions
-│                               and every one of them a round trip. A generator
-│                               makes those rules unfireable; a detector can only
-│                               tell you afterwards.
-├── audit_log_stats.py          Crosses www/spc/ha_audit.log against the harness
-│                               coverage list. Neither signal is worth much
-│                               alone - a healthy config is silent too - but a
-│                               rule that has NEVER fired AND has no injector is
-│                               a rule whose silence proves nothing. That set was
-│                               14 on 2026-08-25 and is where both "structurally
-│                               incapable of firing" bugs came from.
-├── test_ha_audit.py            R7 harness for ha_audit.py: proves each covered
-│                               rule FIRES on an injected fault and stays SILENT
-│                               on a clean tree. `--list` prints coverage,
-│                               `--only RULE` isolates. THE RULE-ID INVENTORY IS
-│                               DERIVED from ha_audit.py's source - never write
-│                               the count down anywhere, including here.
-├── spc_validator.py            SPC diagnostic tool (queries DB + API)
-├── spc_seed.py                 MANUAL CLI backfill from InfluxDB. Manifest-driven —
-│                               reads pipelines.yaml, resolves each guard.live_source
-│                               to the gate sensor it averages, and queries THAT.
-│                               Carries no appliance constants. Prints a plan; writes
-│                               nothing back without --apply. Stamps *_spc_last_seed.
-├── spc_verify.py               NIGHTLY RECONCILIATION (00:25, automation
-│                               nightly_spc_verify). Recomputes each appliance's
-│                               daily running watts from the RAW InfluxDB series
-│                               and compares it to the 23:59 capture — the only
-│                               thing checking the captures against the data they
-│                               summarise. Day alignment is read off the capture's
-│                               own last_changed, never assumed; a slot the guards
-│                               declined to overwrite reports HELD and is not
-│                               compared. Exit 0/1/2 = ok/drift/could-not-run,
-│                               deliberately distinct. `--days N` to tune bands.
-├── grafana_snapshot.py         LOCAL Grafana snapshots (every 6h, automation
-│                               grafana_snapshot_scheduled). Archival, NOT
-│                               verification — a snapshot preserves a wrong panel
-│                               faithfully. Needs `grafana_token` in secrets.yaml;
-│                               without it exits 2 and says so. `--probe` first.
-├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
-├── csv_manager.py              CSV utilities
-└── fetch_bdl_degree_days.py    BDL degree day fetcher
-
-grafana/
-├── dashboards/
-│   ├── energy.json             Energy monitoring dashboard
-│   ├── hvac_status.json        HVAC system status + cooling efficiency
-│   ├── battery_bank.json       Battery bank status dashboard
-│   ├── ups.json                UPS status dashboard
-│   └── spc_appliances.json     SPC control charts
-└── provisioning/
-    └── dashboards/
-        └── default.yaml        Dashboard provisioning config
-
-dashboards/cards/               Lovelace YAML snippets only
-dashboards/views/               HAND-MAINTAINED complete views, for the raw
-                                configuration editor. May be deliberately AHEAD
-                                of what is live, holding corrections not yet
-                                pasted in. Kept in the repo so ha_audit.py can
-                                resolve its entity references - a dashboard is
-                                the one place a broken entity is completely
-                                silent: no log line, no unavailable state, just
-                                an empty card.
-dashboards/lovelace/            GENERATED by scripts/export_dashboards.py - a
-                                mirror of every live dashboard, one file per
-                                dashboard plus _dashboards/_resources. This is
-                                the ONLY backup of .storage/lovelace.*, which is
-                                gitignored and off-limits to edit; before
-                                2026-08-24 the 16 views across 4 dashboards had
-                                no copy and no history anywhere.
-                                RESTORE FROM HERE, paste into the raw editor.
-                                NOTHING CHECKS IT FOR STALENESS - ha_audit does
-                                not know about it, so re-run the script after
-                                any UI dashboard edit (R8: said out loud so the
-                                file does not imply a check that is not there).
-reports/                        CSV outputs — DO NOT edit manually
-www/energy/                     Daily energy CSVs (energy_YYYY-MM-DD.csv)
-esphome/                        ESPHome device configs
-custom_components/              HACS custom integrations
-baseline-repo/                  HVAC Baseline repo reference
-
-.storage/                       BLOCKED — HA-managed JSON — never edit
-CLAUDE.md                       this file — authoritative
-CHANGELOG.md                    CalVer YYYY.MM — update on behavior changes
-```
-
----
-
-## PENDING (address in next update)
-
-### P2 — Shoulder-season dehumidifier validation [MEDIUM]
-```
-High-res RH data beyond 15-day retention cliff — need to validate
-stall threshold (0.30%/hr) behavior when AC not dominating
-NOTE 2026-08-22: there is no retention cliff. InfluxDB "Home Assistant"
-runs retention policy autogen with duration 0s = INFINITE, verified by
-SHOW RETENTION POLICIES. Full-resolution history is available back to
-2026-07 and earlier. The 15-day figure is the RECORDER purge_keep_days,
-which bounds the SQLite DB and the HA history UI only (it is 14, not 15 —
-configuration.yaml:174). Verified: dehumidifier_power_when_on_steady has
-per-day means in InfluxDB from 2026-08-07, and the raw plug series back to
-2026-07-23, at full ~5 s cadence.
-```
-
-### P3 — Dehumidifier SPC is measuring basement temperature [HIGH]
-```
-Steady-window watts vs basement temp, 2026-08-08..21 (n=14):
-  r2 = 0.922, slope +7.64 +/- 0.64 W/degF, t = 11.9
-  raw daily sd 4.60 W -> residual sd 1.29 W after T-normalisation
-
-DOES THE 60 degF CUTOFF MAKE THIS MOOT? No - asked 2026-08-23, answered with
-data. Both on-paths do gate on temp >= min_temp (dehumidifier_should_run and
-the force-on backstop, verified), but the gate never binds:
-  sensor.shelly_temperature_humidity_temperature, 2026-05-31..08-23, n=3230
-     range 61.3 .. 72.9 degF     samples below 60 degF: 0 of 3230
-     30-day means: 62.7 -> 67.3 -> 70.0 -> 71.2 degF
-  (the two basement sensors agree to 0.06 degF, so this is directly
-   comparable to the SHT45 node the SPC series uses)
-The cutoff truncates the COLD end - deep winter, when the unit stops and the
-chart simply has no points. It leaves the entire 61-73 degF shoulder-to-summer
-band intact: 11.5 degF of operating range, and the MEAN alone moved 8.5 degF
-across those 84 days.
-
-WHY THAT MATTERS MORE THAN A WIDE BAND. At 7.64 W/degF an 8.5 degF seasonal
-rise is +65 W. A refrigerant loss of -50 W over the same months nets to +15 W
-on the chart - a gentle rise, no alarm, machine failing, instrument says fine.
-The confound moves on the SAME TIMESCALE and in the OPPOSITE DIRECTION to the
-fault the chart exists to catch. Autumn reverses it: a healthy machine looks
-like it is dying. A 7-day rolling window does not help - the limits follow the
-drift, which is precisely how the drift hides.
-
-WHAT IS NOT YET EARNED: the 7.64 W/degF slope was fitted over a 1.5 degF span.
-Applying it across 11.5 degF is an 8x extrapolation - the same error the
-2026-08-07 note on dehumidifier_power_when_on_steady made in the other
-direction when it dismissed temperature on a 0.78 degF lever arm. At half the
-slope the seasonal drift is still 32 W against a 2-3 W sigma, so the CONCLUSION
-is robust; the MAGNITUDE is not.
-
-NO CONFIG CHANGE NEEDED TO DECIDE. Basement temperature and steady watts are
-both already in InfluxDB continuously, so the correlation can be re-run at any
-time - capturing temperature alongside the subgroup would be redundant.
-The autumn cool-down measures the slope over a real lever arm for free. Re-run
-the regression once the basement has dropped ~5 degF and compensate then, on
-measurement rather than extrapolation.
-```
-
-### P9 — the leak alarm watches the wrong field, and it already missed one [HIGH]
-```
-NOT theoretical any more. From InfluxDB (the decode fields are historised as
-fields on the "gal" measurement, so this history predates the sensors):
-
-  LeakNow  0 -> 1  at 2026-08-21 14:43
-  LeakNow  1 -> 0  at 2026-08-22 11:28      ~20.7 h continuous-flow flag
-  Leak     0 throughout                     <-- the alarm's trigger NEVER MOVED
-
-So automation.sdr_water_leak_flag, which triggers on Leak > 0, would not have
-fired for a 21-hour event its own meter detected.
-
-Consumption during the flag window, from the count deltas:
-  deep night 23:00-05:00   1.6 gal / 5.00 h = 0.32 gal/h  (7.7 gal/day)
-  overnight  22:00-06:30   4.6 gal / 7.97 h = 0.58 gal/h  (13.8 gal/day)
-Roughly hourly +0.1 gal ticks through the night with the house asleep - the
-signature a register reads as continuous low flow. Small: a flapper seep, a
-dripping fixture, or a softener/humidifier bleed, not a burst pipe.
-
-HONEST LIMITS: decode history starts 2026-08-21 13:28, so ~24 h total - this
-may be chronic or a one-off, and there is no way to tell yet. InfluxDB writes
-are ~15 min apart, so sub-interval continuity cannot be confirmed from this
-data; the meter's own register has finer resolution than the samples here.
-
-ACTION: add a second trigger path on sensor.water_meter_leak_now > 0. Keep the
-Leak trigger - it is the OUTAGE BACKSTOP (see the ENTITIES note: detection is
-in the meter, so the 35-day day-bin count still tells you about a leak that
-happened while HA or the SDR was down). LeakNow is the immediate signal;
-Leak is the one that survives your stack being off.
-```
-
-### INFO HYGIENE (2026-08-23)
-
-**An INFO that fires every run and cannot be actioned is noise, and noise
-trains you to skim.** Applied to all five that were being emitted:
-
-| was | now | why |
-|---|---|---|
-| `eod: no fixed trigger time` | silent | `at: null` is already an explicit declaration; re-reporting it is the checker narrating itself. Only a *missing* `at` key warns now (`eod-undeclared`). |
-| `eod-concurrent` x2 | one summary line | CLAUDE.md says sharing a second is not a problem. "Checked, found nothing" is worth one line, not one per group that reads like a finding. |
-| `legacy-backup-drift` | WARN, then actioned | An open decision, not information. Criterion was met, so the command was retired and the rule now returns early when it is absent. |
-| `live-check-skipped` | WARN | A check that did not run is a coverage gap. See P13. |
-
-The remaining INFO is a single line proving the EOD contention check executed.
-If a line cannot change what you do, it does not belong at INFO either.
-
-### P11 — SCM tamper baselines need history before they can alarm [LOW]
-```
-gas       TamperPhy 3 on all 61 frames ever received; TamperEnc 0
-electric  TamperPhy 0 on all 1,704 frames;            TamperEnc 0
-A constant is a meter-type characteristic, not an event — alarming on the
-VALUE would fire forever and be muted within a day. The signal is a
-TRANSITION. Sensors exist now so history accumulates; add a change-detect
-alarm once gas has a few weeks of frames. 61 frames is not a baseline.
-```
-
-### P14 — `snapshot-bot` Grafana service account is unaccounted for [LOW]
-```
-Two Editor-role Grafana service accounts exist: ha-grafana-snapshot and
-snapshot-bot. secrets.yaml's grafana_token is confirmed (2026-09-11, via
-last-used-timestamp correlation) to belong to ha-grafana-snapshot.
-snapshot-bot's token is not referenced anywhere in this repo or in any
-documented env var. Either an intended spare/rotation credential nobody
-wrote down, or leftover from something retired. Find out which before
-trusting it for anything; if leftover, delete the service account rather
-than leave a live Editor-role token with no known owner or purpose.
-```
-
-### P16 — press "Reset peaks" at the first real heat call (multiple reasons stacked now) [MEDIUM]
-```
-Pre-existing reason: sensor.furnace_peak_watts is a COOLING-mode number until
-the furnace's first heat call this winter (heat mode adds the inducer motor
-and igniter, unmeasured). See backup_sizing.yaml and the card header.
-
-Added 2026-09-11: sensor.backup_essentials_peak_watts (the actual SIZING
-number) is latched at 3395 W, occurred 2026-08-24T06:43:08 - from BEFORE the
-coffee-maker-to-Family-Room swap, i.e. it includes a load no longer on the
-bank. It will not self-correct on its own (a new peak would have to exceed
-3395, unlikely soon) and will not be reset early: input_button.reset_load_
-peaks clears ALL peaks at once (fridge, furnace, HWH, monitoring), and Bill
-chose to wait rather than lose the furnace's cooling-mode baseline before a
-heat-mode reading exists. Until the reset, 3395 W looking stale on the card
-is EXPECTED, not a bug - do not "helpfully" reset early.
-```
-
----
-
-### Closed — full detail is in CHANGELOG.md, not here
-
-```
-P1    `default: []` on every choose:                             RESOLVED
-P4    phantom entity references                                  RESOLVED
-P5    fabricated limit constants                                 RESOLVED
-P6    statistics sampling_size                                   RESOLVED
-P7    R900 leak sensors                                          RESOLVED
-P8    hvac_ac_blower_* chain retired — it existed, was not
-      "never created"; deliberately removed, see CHANGELOG      RESOLVED
-P10   rtlamr2mqtt duty cycle                                     DEPLOYED
-P12   InfluxDB CQs retired, Grafana SPC re-sourced               RESOLVED
-P13   statistics-buffer check                                    RESOLVED
-P15   backup essentials: coffee maker -> SEM Family Room,
-      reload + card paste both confirmed live, see CHANGELOG      DEPLOYED
-```
 ## CHANGELOG — see `CHANGELOG.md`
 
 Removed from this file 2026-08-23. It was a second, hand-curated summary of

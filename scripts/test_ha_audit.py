@@ -718,10 +718,19 @@ def f_eod_doc_uncheckable(root):
     eod-undocumented, which would mask what this is actually asserting.
     This is the exact failure that would have hit a CLAUDE.md restructuring.
     """
+    import ast as _ast
     import re as _re
 
-    s = _read(root, "CLAUDE.md")
-    _write(root, "CLAUDE.md", _re.sub(r"(?m)^\d{2}:\d{2}:\d{2}\s+\S.*$", "", s))
+    # 2026-09-16: the table moved to docs/eod-timing.md and this injector
+    # still stripped CLAUDE.md alone, so it left the table intact and the rule
+    # stayed silent. The file list is read from ha_audit.py's own _EOD_DOCS
+    # rather than restated here (R10), so the next move cannot repeat that.
+    src = _read(root, "scripts/ha_audit.py")
+    docs = _ast.literal_eval(_re.search(r"(?m)^_EOD_DOCS = (\(.*?\))$", src).group(1))
+    for rel in docs:
+        if os.path.exists(os.path.join(root, rel)):
+            s = _read(root, rel)
+            _write(root, rel, _re.sub(r"(?m)^\d{2}:\d{2}:\d{2}\s+\S.*$", "", s))
 
 
 def f_open_questions_malformed(root):

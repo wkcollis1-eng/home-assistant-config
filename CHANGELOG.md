@@ -49,6 +49,38 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.16] - 2026-09-16
 
+### CLAUDE.md split into an always-loaded core plus on-demand `docs/` (cause: token cost, and rules absent from most sessions)
+
+`H:/CLAUDE.md` never auto-loaded: the Claude Code project root is `C:\Users\wkcol`
+and `~/.claude/CLAUDE.md` was empty. 16 of 36 sessions since 2026-08-21 read it by
+hand [M, transcript count]; the other 20 ran with no rules in context. Now
+`~/.claude/CLAUDE.md` holds one line, `@H:/CLAUDE.md`. User-level drive-path imports
+were verified by canary on 2026-09-16; project-level imports from outside the
+project do NOT load.
+
+- `CLAUDE.md` 92,735 -> 33,841 bytes [M]: the rules with a one-line why, SESSION
+  PROTOCOL, CONSTRAINTS, DEFINITION OF DONE, and a REFERENCE DOCS table saying
+  when to read each doc.
+- Moved verbatim into `docs/`: `rules-history.md` (the scars), `off-host-access.md`,
+  `claude-code-enforcement.md`, `ha-ui-actions.md`, `eod-timing.md`,
+  `influx-grafana.md`, `file-map.md`, `pending.md`. A partition check proved all
+  1,390 non-blank original lines land in an output file [M]; each of 7 mutations
+  failed it.
+- Rewrites: STEP 0 merged into OUTPUT FORMAT (it was a second copy); the duplicate
+  "design notes" paragraph dropped; EDIT ORDER step 5 repointed.
+- `shell_command` contradiction resolved by Bill: changes need a RESTART. The
+  2026-08-31 reload claim is marked SUPERSEDED at its site (R13).
+- `scripts/test_ha_audit.py`: `f_eod_doc_uncheckable` stripped CLAUDE.md only, so
+  after the move it left the table intact and the rule stayed silent (proven: the
+  old injector FAILs on the new layout). It now reads `_EOD_DOCS` from `ha_audit.py`.
+- `packages/audit.yaml`: `ha_provenance` now checks `/config/CLAUDE.md
+  /config/docs/*.md`. HA 2026.9.2 runs an untemplated command through
+  `create_subprocess_shell`, so the glob expands. **Takes effect at the next RESTART.**
+
+Gates: audit 0 FAIL, 0 WARN, 2 INFO, findings identical before and after; SUITE
+PASSED - 31 rules in both directions; provenance 3 WARN before and after, same
+findings; validate_ha PASS (parse-clean); check_config valid -> PASS (HA-certified).
+
 ### Archive helpers realigned to the published monthly reports (cause: seed re-run)
 
 HA's rolling 12-month archive helpers disagreed with the monthly reports and the

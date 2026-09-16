@@ -115,7 +115,7 @@ shell_command:
   # with an explicit --apply and a timestamped backup.
   ha_gate: "python3 /config/scripts/gate.py --baseline /config/.audit_baseline.json"
   ha_audit_log_stats: "python3 /config/scripts/audit_log_stats.py"
-  ha_provenance: "python3 /config/scripts/check_provenance.py --all /config/CLAUDE.md"
+  ha_provenance: "python3 /config/scripts/check_provenance.py --all /config/CLAUDE.md /config/docs/*.md"
 
   # gen_reference.py, in its two modes. Separate names on purpose - see the
   # patch note: one templated command string would be a per-NAME guard hole
