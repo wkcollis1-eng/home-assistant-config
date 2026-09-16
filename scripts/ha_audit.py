@@ -34,20 +34,32 @@ except ImportError:
 CONFIG = os.environ.get("HA_CONFIG", "/config")
 P = lambda *a: os.path.join(CONFIG, *a)
 
+
 class Tolerant(yaml.SafeLoader):
     pass
+
+
 Tolerant.add_multi_constructor("!", lambda l, s, n: {"__tag__": s})
 
 findings = []
+
+
 # EVERY FINDING CARRIES ITS OWN FIX. 2026-08-25: acting on a finding meant
 # opening this file (13,900 tokens) to recover the remedy the rule already
 # knew, because the knowledge lived inside a prose sentence. `fix` makes the
 # report self-sufficient - the session acts from the verdict and never needs
 # the audit source in context. A rule with no fix= is a rule that has not
 # finished being written.
-def fail(rule, msg, fix=None): findings.append(("FAIL", rule, msg, fix))
-def warn(rule, msg, fix=None): findings.append(("WARN", rule, msg, fix))
-def info(rule, msg, fix=None): findings.append(("INFO", rule, msg, fix))
+def fail(rule, msg, fix=None):
+    findings.append(("FAIL", rule, msg, fix))
+
+
+def warn(rule, msg, fix=None):
+    findings.append(("WARN", rule, msg, fix))
+
+
+def info(rule, msg, fix=None):
+    findings.append(("INFO", rule, msg, fix))
 
 
 # PARSE MEMOIZATION (2026-08-25). config_files() is consulted at 13 call sites
@@ -82,13 +94,17 @@ def load(rel, default=None):
                     v = yaml.load(fh, Loader=Tolerant)
             except yaml.YAMLError as exc:
                 where = getattr(exc, "problem_mark", None)
-                fail("unparseable-yaml",
-                     "%s does not parse%s: %s"
-                     % (rel,
+                fail(
+                    "unparseable-yaml",
+                    "%s does not parse%s: %s"
+                    % (
+                        rel,
                         " (line %d)" % (where.line + 1) if where else "",
-                        str(getattr(exc, "problem", exc)).strip()),
-                     fix="fix the YAML - every rule that reads %s was SKIPPED "
-                         "this run, so its findings are absent, not clean" % rel)
+                        str(getattr(exc, "problem", exc)).strip(),
+                    ),
+                    fix="fix the YAML - every rule that reads %s was SKIPPED "
+                    "this run, so its findings are absent, not clean" % rel,
+                )
                 v = _ABSENT
         else:
             v = _ABSENT
@@ -115,10 +131,12 @@ def config_files():
     out = ["configuration.yaml"]
     pkg = P("packages")
     if os.path.isdir(pkg):
-        out += ["packages/" + f for f in sorted(os.listdir(pkg))
-                if f.endswith((".yaml", ".yml"))]
+        out += [
+            "packages/" + f
+            for f in sorted(os.listdir(pkg))
+            if f.endswith((".yaml", ".yml"))
+        ]
     return out
-
 
 
 def _dashboard_files():
@@ -127,7 +145,9 @@ def _dashboard_files():
     for dirpath, _dirs, files in os.walk(root):
         for f in sorted(files):
             if f.endswith((".yaml", ".yml")):
-                out.append(os.path.relpath(os.path.join(dirpath, f), CONFIG).replace("\\", "/"))
+                out.append(
+                    os.path.relpath(os.path.join(dirpath, f), CONFIG).replace("\\", "/")
+                )
     return out
 
 
@@ -152,10 +172,10 @@ def _yaml_template_entities():
             if not isinstance(b, dict):
                 continue
             for dom in ("sensor", "binary_sensor"):
-                for s in (b.get(dom) or []):
+                for s in b.get(dom) or []:
                     if isinstance(s, dict) and s.get("name"):
                         out.append((dom, s["name"], s.get("unique_id"), rel))
-        for s in (cfg.get("sensor") or []):
+        for s in cfg.get("sensor") or []:
             if isinstance(s, dict) and s.get("name"):
                 out.append(("sensor", s["name"], s.get("unique_id"), rel))
     return out
@@ -199,9 +219,15 @@ def known_entities():
     # YAML-declared helpers keep their key as the object_id.
     for rel in config_files():
         cfg = load(rel) or {}
-        for dom in ("input_number", "input_datetime", "input_boolean", "input_select",
-                    "input_text", "counter"):
-            for k in (cfg.get(dom) or {}):
+        for dom in (
+            "input_number",
+            "input_datetime",
+            "input_boolean",
+            "input_select",
+            "input_text",
+            "counter",
+        ):
+            for k in cfg.get(dom) or {}:
                 ents.add("%s.%s" % (dom, k))
     # utility_meter is a COMPONENT, not an entity domain: it creates sensor.*
     # ids from `name:` (falling back to the config key), one per tariff when
@@ -216,7 +242,7 @@ def known_entities():
             v = v if isinstance(v, dict) else {}
             base = slug(v.get("name") or k)
             tf = v.get("tariffs") or []
-            for oid in (["%s_%s" % (base, slug(t)) for t in tf] if tf else [base]):
+            for oid in ["%s_%s" % (base, slug(t)) for t in tf] if tf else [base]:
                 ents.add("sensor." + oid)
     # YAML automations and scripts. Added 2026-08-22: rule_entity_refs_resolve
     # flagged automation.sdr_water_meter_leak_now, which is declared right there
@@ -229,7 +255,9 @@ def known_entities():
         for a in seq:
             if isinstance(a, dict) and a.get("alias"):
                 ents.add("automation.%s" % slug(a["alias"]))
-        for k, v in ((cfg or {}).get("script") or {}).items() if isinstance(cfg, dict) else []:
+        for k, v in (
+            ((cfg or {}).get("script") or {}).items() if isinstance(cfg, dict) else []
+        ):
             ents.add("script.%s" % k)
     # Template entities not yet registered: registry first, then slugify(name).
     for dom, name, uid, _rel in _yaml_template_entities():
@@ -281,8 +309,11 @@ def rule_unique_id_not_entity_id(ents):
     # also appeared in configuration.yaml. A card is the one place a broken
     # entity is completely silent - no log line, no unavailable state, just an
     # empty series.
-    for rel in config_files() + ["automations.yaml", "pipelines.yaml",
-                                 "scripts.yaml"] + _dashboard_files():
+    for rel in (
+        config_files()
+        + ["automations.yaml", "pipelines.yaml", "scripts.yaml"]
+        + _dashboard_files()
+    ):
         try:
             with io.open(P(rel), encoding="utf-8") as fh:
                 text += fh.read()
@@ -304,10 +335,12 @@ def rule_unique_id_not_entity_id(ents):
         # what every consumer correctly uses. An audit that cries about
         # working references is an audit that gets ignored.
         if re.search(r"(?<![a-z0-9_.])%s(?![a-z0-9_])" % re.escape(phantom), text):
-            fail("phantom-entity-id",
-                 "%s: '%s' is referenced but no such entity exists -- unique_id "
-                 "'%s' belongs to %s (name: %r). Fix the references, not the "
-                 "unique_id" % (rel, phantom, uid, real, name))
+            fail(
+                "phantom-entity-id",
+                "%s: '%s' is referenced but no such entity exists -- unique_id "
+                "'%s' belongs to %s (name: %r). Fix the references, not the "
+                "unique_id" % (rel, phantom, uid, real, name),
+            )
 
 
 # --------------------------------------------------------------------------
@@ -328,9 +361,19 @@ def _automations():
 # exists to catch exactly that. turn_on/off are included despite being the
 # noisiest: a write/write FAIL is expensive (R7), so the clean tree is proven
 # silent with them in before this ships.
-_WRITE_VERBS = (".set_value", ".set_datetime", ".increment", ".decrement",
-                ".select_option", ".turn_on", ".turn_off", ".toggle",
-                ".set_temperature", ".set_hvac_mode", ".set_percentage")
+_WRITE_VERBS = (
+    ".set_value",
+    ".set_datetime",
+    ".increment",
+    ".decrement",
+    ".select_option",
+    ".turn_on",
+    ".turn_off",
+    ".toggle",
+    ".set_temperature",
+    ".set_hvac_mode",
+    ".set_percentage",
+)
 
 
 def _svc_targets(o):
@@ -344,7 +387,7 @@ def _svc_targets(o):
     out = set()
     for src in (o.get("target") or {}, o, o.get("data") or {}):
         e = src.get("entity_id") if isinstance(src, dict) else None
-        for x in ([e] if isinstance(e, str) else (e or [])):
+        for x in [e] if isinstance(e, str) else (e or []):
             if isinstance(x, str) and re.match(r"^[a-z_]+\.[a-z0-9_]+$", x):
                 out.add(x)
     return out
@@ -353,6 +396,7 @@ def _svc_targets(o):
 def _walk_services(a):
     """Every (service_name, dict) pair anywhere in an automation."""
     found = []
+
     def rec(o):
         if isinstance(o, dict):
             svc = o.get("service") or o.get("action")
@@ -363,6 +407,7 @@ def _walk_services(a):
         elif isinstance(o, list):
             for v in o:
                 rec(v)
+
     rec(a)
     return found
 
@@ -395,10 +440,12 @@ def _unmodelled_writes(a):
 # Template idioms that READ an entity. `states(` alone missed is_state() and
 # state_attr(), both of which rule_entity_refs_resolve already understood - so
 # the audit knew these were reads everywhere except in the race check.
-_READ_IDIOMS = (r"states\(\s*'([a-z_]+\.[a-z0-9_]+)'",
-                r"is_state\(\s*'([a-z_]+\.[a-z0-9_]+)'",
-                r"state_attr\(\s*'([a-z_]+\.[a-z0-9_]+)'",
-                r"states\[\s*'([a-z_]+\.[a-z0-9_]+)'")
+_READ_IDIOMS = (
+    r"states\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+    r"is_state\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+    r"state_attr\(\s*'([a-z_]+\.[a-z0-9_]+)'",
+    r"states\[\s*'([a-z_]+\.[a-z0-9_]+)'",
+)
 
 
 def _reads(a):
@@ -407,7 +454,6 @@ def _reads(a):
     for pat in _READ_IDIOMS:
         out |= set(re.findall(pat, blob))
     return out
-
 
 
 def rule_manifest_matches_config(man):
@@ -425,17 +471,30 @@ def rule_manifest_matches_config(man):
     for name, p in (man.get("pipelines") or {}).items():
         a = autos.get(name)
         if a is None:
-            fail("manifest-drift", "%s: declared in pipelines.yaml, no such automation" % name)
+            fail(
+                "manifest-drift",
+                "%s: declared in pipelines.yaml, no such automation" % name,
+            )
             continue
         trg = a.get("trigger") or a.get("triggers") or []
         if isinstance(trg, dict):
             trg = [trg]
-        at = next((t.get("at") for t in trg if isinstance(t, dict) and t.get("at")), None)
+        at = next(
+            (t.get("at") for t in trg if isinstance(t, dict) and t.get("at")), None
+        )
         if at != p.get("at"):
-            fail("manifest-drift", "%s: manifest at=%s, config at=%s" % (name, p.get("at"), at))
+            fail(
+                "manifest-drift",
+                "%s: manifest at=%s, config at=%s" % (name, p.get("at"), at),
+            )
     for aid in autos:
-        if re.match(r"^(capture_daily_|archive_monthly_)", aid) and aid not in (man.get("pipelines") or {}):
-            fail("manifest-drift", "%s: capture automation missing from pipelines.yaml" % aid)
+        if re.match(r"^(capture_daily_|archive_monthly_)", aid) and aid not in (
+            man.get("pipelines") or {}
+        ):
+            fail(
+                "manifest-drift",
+                "%s: capture automation missing from pipelines.yaml" % aid,
+            )
 
 
 def rule_entities_resolve(man, ents):
@@ -449,7 +508,10 @@ def rule_entities_resolve(man, ents):
         cand += [g.get(k) for k in ("source", "live_source", "activity") if g.get(k)]
         for e in cand:
             if e and "{{" not in e and e not in ents:
-                warn("entity-missing", "%s: %s not found in registry or config" % (name, e))
+                warn(
+                    "entity-missing",
+                    "%s: %s not found in registry or config" % (name, e),
+                )
 
 
 def rule_doc_ids(ents):
@@ -484,24 +546,30 @@ def rule_doc_ids(ents):
     as a source file to read. A regex cannot tell a filename from an id, so
     the exception is declared here where it can be seen.
     """
-    DOMS = re.compile(r"(?<![\w.])(?:sensor|binary_sensor|input_boolean|"
-                      r"input_button|input_number|input_datetime|switch|"
-                      r"counter)\.[a-z0-9_]+")
+    DOMS = re.compile(
+        r"(?<![\w.])(?:sensor|binary_sensor|input_boolean|"
+        r"input_button|input_number|input_datetime|switch|"
+        r"counter)\.[a-z0-9_]+"
+    )
     NOT_ENTITIES = {"sensor.py", "sensor.source", "sensor.yaml"}
 
     doc = text("CLAUDE.md") or ""
     m = re.search(r"^##\s+CONSTRAINTS.*?$(.*?)^---\s*$", doc, re.M | re.S)
     if not m:
-        warn("doc-ids-uncheckable",
-             "could not find the CONSTRAINTS section in CLAUDE.md - this check "
-             "did not run, so its findings are absent, not clean")
+        warn(
+            "doc-ids-uncheckable",
+            "could not find the CONSTRAINTS section in CLAUDE.md - this check "
+            "did not run, so its findings are absent, not clean",
+        )
     else:
         for eid in sorted(set(DOMS.findall(m.group(1))) - NOT_ENTITIES):
             if eid not in ents:
-                fail("dead-constraint",
-                     "CLAUDE.md CONSTRAINTS references %s, which does not "
-                     "exist. A constraint naming a non-existent entity cannot "
-                     "be obeyed - delete it or fix the id." % eid)
+                fail(
+                    "dead-constraint",
+                    "CLAUDE.md CONSTRAINTS references %s, which does not "
+                    "exist. A constraint naming a non-existent entity cannot "
+                    "be obeyed - delete it or fix the id." % eid,
+                )
 
     for name in ("ENTITIES.md", "AUTOMATIONS.md", "PACKAGES.md"):
         for eid in sorted(set(DOMS.findall(text(name) or "")) - NOT_ENTITIES):
@@ -509,11 +577,13 @@ def rule_doc_ids(ents):
                 continue
             longer = [e for e in sorted(ents) if e.startswith(eid) and e != eid]
             if longer:
-                fail("truncated-id",
-                     "%s contains %s, a prefix of %s that resolves to nothing. "
-                     "A generated doc is cutting ids mid-name - fix "
-                     "scripts/gen_reference.py, do not hand-edit the doc."
-                     % (name, eid, longer[0]))
+                fail(
+                    "truncated-id",
+                    "%s contains %s, a prefix of %s that resolves to nothing. "
+                    "A generated doc is cutting ids mid-name - fix "
+                    "scripts/gen_reference.py, do not hand-edit the doc."
+                    % (name, eid, longer[0]),
+                )
 
 
 def rule_generated_docs(ents):
@@ -535,24 +605,33 @@ def rule_generated_docs(ents):
     gen = None
     try:
         import importlib.util
+
         spec = importlib.util.spec_from_file_location(
-            "gen_reference", P("scripts", "gen_reference.py"))
+            "gen_reference", P("scripts", "gen_reference.py")
+        )
         gen = importlib.util.module_from_spec(spec)
         os.environ.setdefault("HA_CONFIG", CONFIG)
         spec.loader.exec_module(gen)
         gen.CONFIG = CONFIG
         gen.P = lambda *a: os.path.join(CONFIG, *a)
     except Exception as e:
-        warn("generated-docs-uncheckable",
-             "could not load scripts/gen_reference.py to compare: %s" % e)
+        warn(
+            "generated-docs-uncheckable",
+            "could not load scripts/gen_reference.py to compare: %s" % e,
+        )
         return
 
     try:
-        notes, live, pipes = gen.load_notes(), gen.live_entities(), gen.pipeline_entities()
+        notes, live, pipes = (
+            gen.load_notes(),
+            gen.live_entities(),
+            gen.pipeline_entities(),
+        )
         want = {
             "ENTITIES.md": gen.render(notes, live, pipes),
-            "AUTOMATIONS.md": gen.render_automations(gen._all_automations(),
-                                                     set(gen.pipeline_names())),
+            "AUTOMATIONS.md": gen.render_automations(
+                gen._all_automations(), set(gen.pipeline_names())
+            ),
             "PACKAGES.md": gen.render_packages(),
         }
     except Exception as e:
@@ -562,18 +641,24 @@ def rule_generated_docs(ents):
     for name, body in sorted(want.items()):
         path = P(name)
         if not os.path.exists(path):
-            fail("generated-doc-missing",
-                 "%s does not exist - run scripts/gen_reference.py" % name)
+            fail(
+                "generated-doc-missing",
+                "%s does not exist - run scripts/gen_reference.py" % name,
+            )
             continue
         if io.open(path, encoding="utf-8").read() != body:
-            fail("generated-doc-stale",
-                 "%s differs from what scripts/gen_reference.py would write - "
-                 "regenerate and commit it" % name)
+            fail(
+                "generated-doc-stale",
+                "%s differs from what scripts/gen_reference.py would write - "
+                "regenerate and commit it" % name,
+            )
 
     for d in sorted(set(notes) - set(live)):
-        warn("entity-note-orphan",
-             "entity_notes.yaml annotates %s, which no longer exists - remove "
-             "the note or restore the entity" % d)
+        warn(
+            "entity-note-orphan",
+            "entity_notes.yaml annotates %s, which no longer exists - remove "
+            "the note or restore the entity" % d,
+        )
 
     # ghosts, in case a generated file was hand-edited anyway
     doc = text("ENTITIES.md")
@@ -585,16 +670,30 @@ def rule_generated_docs(ents):
         if not in_block:
             continue
         mm = re.match(r"^([a-z_]+)\.([a-z0-9_]+)(?:$|  )", line)
-        if mm and mm.group(1) in ("sensor", "binary_sensor", "input_number",
-                                  "input_datetime", "input_boolean", "input_select",
-                                  "input_text", "counter", "switch", "automation",
-                                  "script", "utility_meter", "climate", "number",
-                                  "select"):
+        if mm and mm.group(1) in (
+            "sensor",
+            "binary_sensor",
+            "input_number",
+            "input_datetime",
+            "input_boolean",
+            "input_select",
+            "input_text",
+            "counter",
+            "switch",
+            "automation",
+            "script",
+            "utility_meter",
+            "climate",
+            "number",
+            "select",
+        ):
             listed.add("%s.%s" % (mm.group(1), mm.group(2)))
     for e in sorted(listed - ents):
-        fail("generated-doc-ghost",
-             "ENTITIES.md lists %s, which does not exist - it was hand-edited; "
-             "run scripts/gen_reference.py" % e)
+        fail(
+            "generated-doc-ghost",
+            "ENTITIES.md lists %s, which does not exist - it was hand-edited; "
+            "run scripts/gen_reference.py" % e,
+        )
 
 
 def _live_states():
@@ -607,40 +706,60 @@ def _live_states():
     and HA_TOKEN.
     """
     import urllib.request
+
     # HA_TOKEN FIRST. This script normally runs as a shell_command INSIDE HA
     # Core, and the Supervisor proxy at http://supervisor/core/api is for
     # ADD-ONS - Core's own SUPERVISOR_TOKEN is not accepted there, so leading
     # with it produced a 401 that buried the real cause. Supervisor is kept as a
     # fallback for anyone running this from an add-on context, where it is the
     # correct route.
-    FIX = ("set HA_TOKEN (and optionally HA_URL) for the shell_command - see "
-           "docs/addons/enable-live-check.md")
+    FIX = (
+        "set HA_TOKEN (and optionally HA_URL) for the shell_command - see "
+        "docs/addons/enable-live-check.md"
+    )
     attempts = []
     if os.environ.get("HA_TOKEN"):
-        attempts.append(("HA_TOKEN",
-                         os.environ.get("HA_URL", "http://localhost:8123").rstrip("/")
-                         + "/api/states", os.environ["HA_TOKEN"]))
+        attempts.append(
+            (
+                "HA_TOKEN",
+                os.environ.get("HA_URL", "http://localhost:8123").rstrip("/")
+                + "/api/states",
+                os.environ["HA_TOKEN"],
+            )
+        )
     if os.environ.get("SUPERVISOR_TOKEN"):
-        attempts.append(("SUPERVISOR_TOKEN (add-on route)",
-                         "http://supervisor/core/api/states",
-                         os.environ["SUPERVISOR_TOKEN"]))
+        attempts.append(
+            (
+                "SUPERVISOR_TOKEN (add-on route)",
+                "http://supervisor/core/api/states",
+                os.environ["SUPERVISOR_TOKEN"],
+            )
+        )
     present = [k for k in ("HA_TOKEN", "SUPERVISOR_TOKEN") if os.environ.get(k)]
     if not attempts:
         return None, "no credential in this environment (HA_TOKEN unset). " + FIX
     why = []
     for label, url, tok in attempts:
         try:
-            req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})
+            req = urllib.request.Request(
+                url, headers={"Authorization": "Bearer " + tok}
+            )
             with urllib.request.urlopen(req, timeout=10) as fh:
                 return json.load(fh), None
         except Exception as e:
             why.append("%s -> %s" % (label, e))
     # Name what was available as well as what failed: "HA_TOKEN unset" is the
     # actionable half and it is invisible if only failures are listed.
-    return None, ("credentials present: %s. %s. %s"
-                  % (", ".join(present), "; ".join(why),
-                     FIX if "HA_TOKEN" not in present else
-                     "HA_TOKEN was rejected - check the token is valid and not revoked"))
+    return None, (
+        "credentials present: %s. %s. %s"
+        % (
+            ", ".join(present),
+            "; ".join(why),
+            FIX
+            if "HA_TOKEN" not in present
+            else "HA_TOKEN was rejected - check the token is valid and not revoked",
+        )
+    )
 
 
 def rule_statistics_buffer(states):
@@ -663,9 +782,11 @@ def rule_statistics_buffer(states):
         # is the rule that caught sensor.fridge_running_watts_24h covering 2.6 h
         # instead of 24, and it has never executed in the nightly run. Silence
         # here would make "no findings" indistinguishable from "never looked".
-        warn("live-check-skipped",
-             "statistics buffer check DID NOT RUN, so its findings are absent "
-             "rather than clean: %s" % why)
+        warn(
+            "live-check-skipped",
+            "statistics buffer check DID NOT RUN, so its findings are absent "
+            "rather than clean: %s" % why,
+        )
         return
     for st in states:
         a = st.get("attributes") or {}
@@ -674,14 +795,18 @@ def rule_statistics_buffer(states):
             continue
         cov = a.get("age_coverage_ratio")
         if r >= 0.98 and cov is not None and cov < 0.99:
-            fail("statistics-buffer-truncating",
-                 "%s: buffer %.2f full and age coverage only %.2f - sampling_size "
-                 "is governing, not max_age, and the mean is duty-dependent"
-                 % (st["entity_id"], r, cov))
+            fail(
+                "statistics-buffer-truncating",
+                "%s: buffer %.2f full and age coverage only %.2f - sampling_size "
+                "is governing, not max_age, and the mean is duty-dependent"
+                % (st["entity_id"], r, cov),
+            )
         elif r >= 0.85:
-            warn("statistics-buffer-truncating",
-                 "%s: buffer %.0f%% full - raise sampling_size before it starts "
-                 "evicting and max_age stops governing" % (st["entity_id"], r * 100))
+            warn(
+                "statistics-buffer-truncating",
+                "%s: buffer %.0f%% full - raise sampling_size before it starts "
+                "evicting and max_age stops governing" % (st["entity_id"], r * 100),
+            )
 
 
 def rule_entity_refs_resolve(ents):
@@ -696,10 +821,14 @@ def rule_entity_refs_resolve(ents):
     states('input_number.gas_archive_' ~ year) and the regex necessarily
     truncates at the quote. Eight of the first fifteen hits were exactly that.
     """
-    pat = re.compile(r"(?:states|is_state|state_attr|is_state_attr)\(\s*'([a-z_]+\.[a-z0-9_]+)'")
+    pat = re.compile(
+        r"(?:states|is_state|state_attr|is_state_attr)\(\s*'([a-z_]+\.[a-z0-9_]+)'"
+    )
     pat2 = re.compile(r"^\s*(?:-\s*)?entity(?:_id)?:\s*([a-z_]+\.[a-z0-9_]+)\s*$", re.M)
     seen = {}
-    for rel in config_files() + ["automations.yaml", "scripts.yaml"] + _dashboard_files():
+    for rel in (
+        config_files() + ["automations.yaml", "scripts.yaml"] + _dashboard_files()
+    ):
         src = text(rel)
         if not src:
             continue
@@ -710,8 +839,10 @@ def rule_entity_refs_resolve(ents):
             seen[e][1] += 1
     for e in sorted(seen):
         rel, n = seen[e]
-        warn("entity-ref-unresolved",
-             "%s references %s (x%d), which does not exist" % (rel, e, n))
+        warn(
+            "entity-ref-unresolved",
+            "%s references %s (x%d), which does not exist" % (rel, e, n),
+        )
 
 
 def rule_choose_has_default():
@@ -722,16 +853,20 @@ def rule_choose_has_default():
     happens here and that is deliberate", which is the difference between a
     considered fall-through and a forgotten branch.
     """
+
     def walk(node, path, rel):
         if isinstance(node, dict):
             if "choose" in node and "default" not in node:
-                fail("choose-without-default",
-                     "%s: choose: block at %s has no default:" % (rel, path or "/"))
+                fail(
+                    "choose-without-default",
+                    "%s: choose: block at %s has no default:" % (rel, path or "/"),
+                )
             for k, v in node.items():
                 walk(v, "%s/%s" % (path, k), rel)
         elif isinstance(node, list):
             for i, v in enumerate(node):
                 walk(v, "%s[%d]" % (path, i), rel)
+
     for rel in config_files() + ["automations.yaml", "scripts.yaml"]:
         walk(load(rel), "", rel)
 
@@ -748,8 +883,11 @@ def rule_fabricated_limit_constants():
     `float(0)` is exempt - it is the mandated safe default and cannot
     manufacture a band, because every limit consumer gates on `> 0`.
     """
-    pat = re.compile(r"set\s+(\w*(?:sigma|stddev|std_dev|mean|upper|lower|ucl|lcl|sd)\w*)"
-                     r"\s*=\s*states\([^)]*\)\s*\|\s*float\((\d+(?:\.\d+)?)\)", re.I)
+    pat = re.compile(
+        r"set\s+(\w*(?:sigma|stddev|std_dev|mean|upper|lower|ucl|lcl|sd)\w*)"
+        r"\s*=\s*states\([^)]*\)\s*\|\s*float\((\d+(?:\.\d+)?)\)",
+        re.I,
+    )
     for rel in config_files():
         src = text(rel)
         if not src:
@@ -757,10 +895,12 @@ def rule_fabricated_limit_constants():
         for m in pat.finditer(src):
             if float(m.group(2)) == 0:
                 continue
-            warn("fabricated-limit-constant",
-                 "%s:%d: `%s` falls back to the literal %s - if its source ever "
-                 "goes missing the limit is drawn from a number nobody measured"
-                 % (rel, src[:m.start()].count("\n") + 1, m.group(1), m.group(2)))
+            warn(
+                "fabricated-limit-constant",
+                "%s:%d: `%s` falls back to the literal %s - if its source ever "
+                "goes missing the limit is drawn from a number nobody measured"
+                % (rel, src[: m.start()].count("\n") + 1, m.group(1), m.group(2)),
+            )
 
 
 def rule_chart_window_vs_recorder():
@@ -824,18 +964,25 @@ def rule_chart_window_vs_recorder():
             # statistics - stayed flagged with nothing left to fix. A warning
             # you cannot clear teaches you to ignore the rule.
             covered = bool(series) and all(
-                isinstance(sr, dict) and (sr.get("statistics") or sr.get("data_generator"))
-                for sr in series)
+                isinstance(sr, dict)
+                and (sr.get("statistics") or sr.get("data_generator"))
+                for sr in series
+            )
             if covered:
                 continue
-            title = ((card.get("header") or {}).get("title")
-                     or (series[0].get("entity") if series and isinstance(series[0], dict) else "?"))
-            warn("chart-window-exceeds-recorder",
-                 "%s: chart %r asks for %sd but recorder purge_keep_days is %s - "
-                 "the extra %dd can only ever be blank. Give EVERY series a "
-                 "`statistics:` block (period: day, type: mean|state|...) or "
-                 "shorten the span"
-                 % (rel, title, m.group(1), keep, int(m.group(1)) - keep))
+            title = (card.get("header") or {}).get("title") or (
+                series[0].get("entity")
+                if series and isinstance(series[0], dict)
+                else "?"
+            )
+            warn(
+                "chart-window-exceeds-recorder",
+                "%s: chart %r asks for %sd but recorder purge_keep_days is %s - "
+                "the extra %dd can only ever be blank. Give EVERY series a "
+                "`statistics:` block (period: day, type: mean|state|...) or "
+                "shorten the span"
+                % (rel, title, m.group(1), keep, int(m.group(1)) - keep),
+            )
 
     for rel in _dashboard_files():
         src = text(rel)
@@ -843,15 +990,19 @@ def rule_chart_window_vs_recorder():
             continue
         for m in re.finditer(r"^\s*days_to_show:\s*(\d+)\s*$", src, re.M):
             if int(m.group(1)) > keep:
-                warn("chart-window-exceeds-recorder",
-                     "%s asks for %sd but recorder purge_keep_days is %s - the "
-                     "extra %dd can only ever be blank"
-                     % (rel, m.group(1), keep, int(m.group(1)) - keep))
+                warn(
+                    "chart-window-exceeds-recorder",
+                    "%s asks for %sd but recorder purge_keep_days is %s - the "
+                    "extra %dd can only ever be blank"
+                    % (rel, m.group(1), keep, int(m.group(1)) - keep),
+                )
         for m in re.finditer(r"^\s*hours_to_show:\s*(\d+)\s*$", src, re.M):
             if int(m.group(1)) > keep * 24:
-                warn("chart-window-exceeds-recorder",
-                     "%s asks for %sh but recorder keeps %dh"
-                     % (rel, m.group(1), keep * 24))
+                warn(
+                    "chart-window-exceeds-recorder",
+                    "%s asks for %sh but recorder keeps %dh"
+                    % (rel, m.group(1), keep * 24),
+                )
 
 
 def rule_liveness_coverage(man):
@@ -862,8 +1013,12 @@ def rule_liveness_coverage(man):
     """
     for name, p in sorted((man.get("pipelines") or {}).items()):
         if not p.get("stamp"):
-            warn("no-liveness", "%s: writes %d slots but stamps nothing - staleness "
-                 "cannot be detected even in principle" % (name, p.get("buffer_slots", 0)))
+            warn(
+                "no-liveness",
+                "%s: writes %d slots but stamps nothing - staleness "
+                "cannot be detected even in principle"
+                % (name, p.get("buffer_slots", 0)),
+            )
         elif not p.get("stale_detector"):
             warn("no-detector", "%s: has a stamp but no stale detector" % name)
 
@@ -915,7 +1070,7 @@ def _at_times(a):
         if (t.get("platform") or t.get("trigger")) != "time":
             continue
         at = t.get("at")
-        for x in ([at] if isinstance(at, str) else (at or [])):
+        for x in [at] if isinstance(at, str) else (at or []):
             if isinstance(x, str) and re.match(r"^\d{2}:\d{2}:\d{2}$", x):
                 out.append(x)
     return out
@@ -948,9 +1103,11 @@ def rule_eod_collisions(man):
             # `at` key at all - is worth a line, because that is a manifest that
             # has not been thought about.
             if "at" not in p:
-                warn("eod-undeclared",
-                     "%s: no `at` in pipelines.yaml. Declare the trigger time, or "
-                     "`at: null` if it is event-triggered." % name)
+                warn(
+                    "eod-undeclared",
+                    "%s: no `at` in pipelines.yaml. Declare the trigger time, or "
+                    "`at: null` if it is event-triggered." % name,
+                )
             continue
         seen.setdefault(at, []).append(name)
 
@@ -981,20 +1138,25 @@ def rule_eod_collisions(man):
                         # prove safe blocks - treating "could not check" as "no
                         # finding" is the exact R8 inversion, applied to the one
                         # rule protecting the midnight window.
-                        fail("eod-write-unmodelled",
-                             "%s: %s calls %s with a templated entity target, so "
-                             "contention with the %d other automation(s) at this "
-                             "second CANNOT BE RULED OUT"
-                             % (at, who, ", ".join(sorted(um)), len(names) - 1),
-                             fix="give the call an explicit target.entity_id so the "
-                                 "race check can see it, or move it off %s" % at)
+                        fail(
+                            "eod-write-unmodelled",
+                            "%s: %s calls %s with a templated entity target, so "
+                            "contention with the %d other automation(s) at this "
+                            "second CANNOT BE RULED OUT"
+                            % (at, who, ", ".join(sorted(um)), len(names) - 1),
+                            fix="give the call an explicit target.entity_id so the "
+                            "race check can see it, or move it off %s" % at,
+                        )
                 wa, wb = _writes(a), _writes(b)
                 ww = wa & wb
                 rw = (wa & _reads(b)) | (wb & _reads(a))
                 if ww:
                     contend = True
-                    fail("eod-race", "%s: %s and %s both write %s"
-                         % (at, names[i], names[j], ", ".join(sorted(ww))))
+                    fail(
+                        "eod-race",
+                        "%s: %s and %s both write %s"
+                        % (at, names[i], names[j], ", ".join(sorted(ww))),
+                    )
                 elif rw:
                     contend = True
                     # FAIL, not WARN, from 2026-08-25. Whether the reader sees
@@ -1002,13 +1164,15 @@ def rule_eod_collisions(man):
                     # result is not reproducible - and a defect you cannot
                     # reproduce is one you cannot debug at 23:59 six months
                     # from now. Blocking is the point.
-                    fail("eod-read-write",
-                         "%s: %s and %s share %s - one reads what the other writes "
-                         "in the same second, so the value read is whichever the "
-                         "scheduler got to first"
-                         % (at, names[i], names[j], ", ".join(sorted(rw))),
-                         fix="stagger one of them by 15s, or have the reader use a "
-                             "value snapshotted in its own variables: block")
+                    fail(
+                        "eod-read-write",
+                        "%s: %s and %s share %s - one reads what the other writes "
+                        "in the same second, so the value read is whichever the "
+                        "scheduler got to first"
+                        % (at, names[i], names[j], ", ".join(sorted(rw))),
+                        fix="stagger one of them by 15s, or have the reader use a "
+                        "value snapshotted in its own variables: block",
+                    )
         if not contend:
             # Counted, not enumerated. CLAUDE.md's EOD section is explicit that
             # sharing a trigger second is not a problem, so one line per group
@@ -1018,39 +1182,49 @@ def rule_eod_collisions(man):
 
     # Templated trigger times cannot be compared for equality, so say so rather
     # than let their absence read as "checked, clean" (R8).
-    untimed = sorted(aid for aid, a in autos.items()
-                     if not _at_times(a)
-                     and any(isinstance(t, dict)
-                             and (t.get("platform") or t.get("trigger")) == "time"
-                             for t in (a.get("trigger") or a.get("triggers") or [])
-                             if isinstance(t, dict)))
+    untimed = sorted(
+        aid
+        for aid, a in autos.items()
+        if not _at_times(a)
+        and any(
+            isinstance(t, dict) and (t.get("platform") or t.get("trigger")) == "time"
+            for t in (a.get("trigger") or a.get("triggers") or [])
+            if isinstance(t, dict)
+        )
+    )
     if untimed:
-        warn("eod-time-unresolvable",
-             "%d automation(s) have a time trigger whose `at` is not a literal "
-             "HH:MM:SS (%s), so they were NOT compared for contention"
-             % (len(untimed), ", ".join(untimed[:5])),
-             fix="these are excluded from the race check by construction - "
-                 "confirm by hand that none of them writes an entity another "
-                 "automation touches at the same moment")
+        warn(
+            "eod-time-unresolvable",
+            "%d automation(s) have a time trigger whose `at` is not a literal "
+            "HH:MM:SS (%s), so they were NOT compared for contention"
+            % (len(untimed), ", ".join(untimed[:5])),
+            fix="these are excluded from the race check by construction - "
+            "confirm by hand that none of them writes an entity another "
+            "automation touches at the same moment",
+        )
 
     times, where = _eod_doc_times()
     if times is None:
         # R8: the check did not run, so its findings are absent, not clean.
-        warn("eod-doc-uncheckable",
-             "no EOD schedule table found in any of %s - the trigger times in "
-             "pipelines.yaml were NOT checked against the documentation"
-             % ", ".join(_EOD_DOCS),
-             fix="restore the table of `HH:MM:SS  automation_name  stale_detector` "
-                 "rows, or add its new home to _EOD_DOCS in ha_audit.py")
+        warn(
+            "eod-doc-uncheckable",
+            "no EOD schedule table found in any of %s - the trigger times in "
+            "pipelines.yaml were NOT checked against the documentation"
+            % ", ".join(_EOD_DOCS),
+            fix="restore the table of `HH:MM:SS  automation_name  stale_detector` "
+            "rows, or add its new home to _EOD_DOCS in ha_audit.py",
+        )
     else:
         for at, names in sorted(seen.items()):
             if at and at not in times:
-                warn("eod-undocumented",
-                     "%s (%s) is not a row in the EOD schedule table in %s"
-                     % (at, ", ".join(sorted(names)), where),
-                     fix="add `%s  %s  <stale_detector>` to THE SCHEDULE in %s "
-                         "(hand-maintained - nothing generates it)"
-                         % (at, sorted(names)[0], where))
+                warn(
+                    "eod-undocumented",
+                    "%s (%s) is not a row in the EOD schedule table in %s"
+                    % (at, ", ".join(sorted(names)), where),
+                    fix="add `%s  %s  <stale_detector>` to THE SCHEDULE in %s "
+                    "(hand-maintained - nothing generates it)"
+                    % (at, sorted(names)[0], where),
+                )
 
 
 def rule_stamp_snapshotted(man):
@@ -1068,20 +1242,24 @@ def rule_stamp_snapshotted(man):
         a = autos.get(name)
         if not a:
             continue
+
         def rec(o):
             if isinstance(o, dict):
                 svc = o.get("service") or o.get("action")
                 if isinstance(svc, str) and svc.endswith("input_datetime.set_datetime"):
                     for v in (o.get("data") or {}).values():
                         if isinstance(v, str) and "now()" in v:
-                            warn("stamp-not-snapshotted",
-                                 "%s: stamps with a live now() instead of a variable "
-                                 "snapshotted at trigger time" % name)
+                            warn(
+                                "stamp-not-snapshotted",
+                                "%s: stamps with a live now() instead of a variable "
+                                "snapshotted at trigger time" % name,
+                            )
                 for v in o.values():
                     rec(v)
             elif isinstance(o, list):
                 for v in o:
                     rec(v)
+
         rec(a)
 
 
@@ -1102,9 +1280,11 @@ def rule_latched_guards(man):
         if not src:
             continue
         if src.endswith("_24h"):
-            fail("unlatched-guard",
-                 "%s: guard reads %s directly. Statistics sensors are unavailable "
-                 "whenever their source is; use the _latched companion." % (name, src))
+            fail(
+                "unlatched-guard",
+                "%s: guard reads %s directly. Statistics sensors are unavailable "
+                "whenever their source is; use the _latched companion." % (name, src),
+            )
 
 
 def rule_fabricated_constants():
@@ -1116,12 +1296,14 @@ def rule_fabricated_constants():
     """
     src = text("packages/spc.yaml")
     for m in re.finditer(r"else\s+(\d+(?:\.\d+)?)\s*\}\}", src):
-        line = src[:m.start()].count("\n") + 1
-        ctx = src[max(0, m.start() - 220):m.start()]
+        line = src[: m.start()].count("\n") + 1
+        ctx = src[max(0, m.start() - 220) : m.start()]
         if re.search(r"_day_\d|set_value|seed", ctx):
-            fail("fabricated-constant",
-                 "packages/spc.yaml:%d: numeric fallback `else %s` near a buffer write"
-                 % (line, m.group(1)))
+            fail(
+                "fabricated-constant",
+                "packages/spc.yaml:%d: numeric fallback `else %s` near a buffer write"
+                % (line, m.group(1)),
+            )
 
 
 def _shell_call_sites():
@@ -1217,9 +1399,9 @@ def rule_shell_commands_guarded():
     ents = set()
     for rel in config_files():
         cfg = load(rel) or {}
-        for k in (cfg.get("shell_command") or {}):
+        for k in cfg.get("shell_command") or {}:
             declared.add(k)
-        for k in (cfg.get("input_boolean") or {}):
+        for k in cfg.get("input_boolean") or {}:
             ents.add("input_boolean.%s" % k)
         blob = json.dumps(cfg, default=str)
         called.update(re.findall(r"shell_command\.([a-z0-9_]+)", blob))
@@ -1247,14 +1429,18 @@ def rule_shell_commands_guarded():
                 guarded.update(re.findall(r"shell_command\.([a-z0-9_]+)", b))
 
     if "input_boolean.ha_maintenance_mode" not in ents:
-        fail("guard-entity-missing",
-             "input_boolean.ha_maintenance_mode is referenced as a guard but not defined - "
-             "a condition on a missing entity is `unknown` and never matches 'off'")
+        fail(
+            "guard-entity-missing",
+            "input_boolean.ha_maintenance_mode is referenced as a guard but not defined - "
+            "a condition on a missing entity is `unknown` and never matches 'off'",
+        )
     for k in sorted(declared - called):
         warn("dead-shell-command", "shell_command.%s is declared but never called" % k)
     for k in sorted(called - guarded):
-        warn("unguarded-shell-command",
-             "shell_command.%s is called without an ha_maintenance_mode guard" % k)
+        warn(
+            "unguarded-shell-command",
+            "shell_command.%s is called without an ha_maintenance_mode guard" % k,
+        )
 
     # --- TRIPWIRE for this rule's own blind spot (added 2026-08-24) ---------
     # Limitation 1 above is LATENT, not active: every command has exactly one
@@ -1282,13 +1468,15 @@ def rule_shell_commands_guarded():
     for cmd in sorted(counts):
         if counts[cmd] > 1:
             where = ", ".join(sorted(set(w for c, w in sites if c == cmd)))
-            warn("shell-command-multi-call",
-                 "shell_command.%s is called from %d places (%s). The guard "
-                 "check above is per-NAME, so if any ONE of those calls is "
-                 "unguarded it will NOT be reported - the guarded call masks "
-                 "it. Check each call site by hand, or implement per-call-site "
-                 "domination analysis (see this rule's limitations note)."
-                 % (cmd, counts[cmd], where))
+            warn(
+                "shell-command-multi-call",
+                "shell_command.%s is called from %d places (%s). The guard "
+                "check above is per-NAME, so if any ONE of those calls is "
+                "unguarded it will NOT be reported - the guarded call masks "
+                "it. Check each call site by hand, or implement per-call-site "
+                "domination analysis (see this rule's limitations note)."
+                % (cmd, counts[cmd], where),
+            )
 
 
 def rule_buffer_health(man):
@@ -1297,11 +1485,15 @@ def rule_buffer_health(man):
     if not os.path.exists(rs):
         return
     with io.open(rs, encoding="utf-8") as fh:
-        st = {(i.get("state") or {}).get("entity_id"): str((i.get("state") or {}).get("state"))
-              for i in json.load(fh).get("data", [])}
+        st = {
+            (i.get("state") or {}).get("entity_id"): str(
+                (i.get("state") or {}).get("state")
+            )
+            for i in json.load(fh).get("data", [])
+        }
     for name, p in sorted((man.get("pipelines") or {}).items()):
         vals = []
-        for e in (p.get("buffer") or []):
+        for e in p.get("buffer") or []:
             try:
                 vals.append(float(st.get(e, "nan")))
             except ValueError:
@@ -1314,14 +1506,22 @@ def rule_buffer_health(man):
         sentinel = float(p.get("empty_sentinel", 0))
         live = [v for v in vals if v == v and v != sentinel]
         benign = p.get("benign_repeat")
-        if len(live) >= 2 and len(set(live)) == 1 and (
-                benign is None or live[0] != float(benign)):
-            fail("repeated-buffer",
-                 "%s: %d live slots all equal %g - a repeated value, not a sample"
-                 % (name, len(live), live[0]))
+        if (
+            len(live) >= 2
+            and len(set(live)) == 1
+            and (benign is None or live[0] != float(benign))
+        ):
+            fail(
+                "repeated-buffer",
+                "%s: %d live slots all equal %g - a repeated value, not a sample"
+                % (name, len(live), live[0]),
+            )
         elif not live and vals and p.get("season", "none") == "none":
-            warn("empty-buffer", "%s: all %d slots read the empty sentinel (%g)"
-                 % (name, len(vals), sentinel))
+            warn(
+                "empty-buffer",
+                "%s: all %d slots read the empty sentinel (%g)"
+                % (name, len(vals), sentinel),
+            )
 
 
 def rule_backup_coverage(man):
@@ -1347,23 +1547,30 @@ def rule_backup_coverage(man):
     # check automatically.
     if not legacy:
         return
-    wanted = {e for p in (man.get("pipelines") or {}).values()
-              for e in (p.get("buffer") or []) if "{{" not in e}
+    wanted = {
+        e
+        for p in (man.get("pipelines") or {}).values()
+        for e in (p.get("buffer") or [])
+        if "{{" not in e
+    }
     gap = sorted(e for e in wanted if e not in legacy)
     if gap:
-        warn("legacy-backup-drift",
-             "shell_command.backup_input_numbers covers only %d/%d buffer "
-             "entities - a strict subset of spc_buffer_export.py, which covers "
-             "all %d. CLAUDE.md's retirement criterion (a few nights of "
-             "manifest-driven history) is met. Retire it, or delete this rule."
-             % (len(wanted) - len(gap), len(wanted), len(wanted)))
+        warn(
+            "legacy-backup-drift",
+            "shell_command.backup_input_numbers covers only %d/%d buffer "
+            "entities - a strict subset of spc_buffer_export.py, which covers "
+            "all %d. CLAUDE.md's retirement criterion (a few nights of "
+            "manifest-driven history) is met. Retire it, or delete this rule."
+            % (len(wanted) - len(gap), len(wanted), len(wanted)),
+        )
 
 
-
-ENTITY_RE = re.compile(r"(?<![\w.])(?:sensor|binary_sensor|input_boolean|"
-                       r"input_button|input_number|input_datetime|switch|light|"
-                       r"climate|counter|automation|script|person|sun|weather)"
-                       r"\.[a-z0-9_]+")
+ENTITY_RE = re.compile(
+    r"(?<![\w.])(?:sensor|binary_sensor|input_boolean|"
+    r"input_button|input_number|input_datetime|switch|light|"
+    r"climate|counter|automation|script|person|sun|weather)"
+    r"\.[a-z0-9_]+"
+)
 
 
 def rule_duplicate_ids():
@@ -1396,11 +1603,13 @@ def rule_duplicate_ids():
             seen[k] = seen.get(k, 0) + 1
     for aid, n in sorted(seen.items()):
         if n > 1:
-            fail("duplicate-automation-id",
-                 "automations.yaml declares id: %s %d times - HA keeps one and "
-                 "the others are silently inert" % (aid, n),
-                 fix="delete the duplicate block; the one you edited may not be "
-                     "the one HA loads")
+            fail(
+                "duplicate-automation-id",
+                "automations.yaml declares id: %s %d times - HA keeps one and "
+                "the others are silently inert" % (aid, n),
+                fix="delete the duplicate block; the one you edited may not be "
+                "the one HA loads",
+            )
 
     ptxt = text("pipelines.yaml")
     body = ptxt.split("pipelines:", 1)[1] if "pipelines:" in ptxt else ""
@@ -1409,11 +1618,13 @@ def rule_duplicate_ids():
         keys[m.group(1)] = keys.get(m.group(1), 0) + 1
     for k, n in sorted(keys.items()):
         if n > 1:
-            fail("duplicate-pipeline-key",
-                 "pipelines.yaml declares %s: %d times - PyYAML keeps the LAST "
-                 "one and the rest vanish with no error" % (k, n),
-                 fix="delete the duplicate key; every rule in this audit is "
-                     "reading only the last copy")
+            fail(
+                "duplicate-pipeline-key",
+                "pipelines.yaml declares %s: %d times - PyYAML keeps the LAST "
+                "one and the rest vanish with no error" % (k, n),
+                fix="delete the duplicate key; every rule in this audit is "
+                "reading only the last copy",
+            )
 
 
 def rule_open_questions():
@@ -1433,12 +1644,14 @@ def rule_open_questions():
     """
     q = load("open_questions.yaml")
     if q is None:
-        return          # no file, no questions - not a finding
+        return  # no file, no questions - not a finding
     if not isinstance(q, list):
-        warn("open-questions-malformed",
-             "open_questions.yaml is not a list of entries",
-             fix="each entry needs asked:, question:, blocks:, and answered: "
-                 "(absent or null until he answers)")
+        warn(
+            "open-questions-malformed",
+            "open_questions.yaml is not a list of entries",
+            fix="each entry needs asked:, question:, blocks:, and answered: "
+            "(absent or null until he answers)",
+        )
         return
     for i, e in enumerate(q):
         if not isinstance(e, dict):
@@ -1452,12 +1665,14 @@ def rule_open_questions():
             age = " - %d days outstanding" % (datetime.now() - d).days
         except (ValueError, TypeError):
             pass
-        warn("open-question",
-             "UNANSWERED since %s%s: %s (blocks: %s)"
-             % (asked, age, txt, e.get("blocks") or "unstated"),
-             fix="R14 - put this question at the TOP of the next reply, in one "
-                 "line, and leave the dependent work unbuilt. Do NOT substitute "
-                 "a statistical proxy. Set answered: in open_questions.yaml.")
+        warn(
+            "open-question",
+            "UNANSWERED since %s%s: %s (blocks: %s)"
+            % (asked, age, txt, e.get("blocks") or "unstated"),
+            fix="R14 - put this question at the TOP of the next reply, in one "
+            "line, and leave the dependent work unbuilt. Do NOT substitute "
+            "a statistical proxy. Set answered: in open_questions.yaml.",
+        )
 
 
 class _KeepTag(yaml.SafeLoader):
@@ -1467,6 +1682,7 @@ class _KeepTag(yaml.SafeLoader):
     checks and useless here: resolving a yaml-mode dashboard means following
     `!include <path>`, and the path IS the discarded value.
     """
+
     pass
 
 
@@ -1601,37 +1817,207 @@ def rule_dashboard_pasted():
     views = [f for f in all_views if f not in served_by_yaml]
     exports = [f for f in _dashboard_files() if f.startswith("dashboards/lovelace/")]
     if skipped:
-        info("dashboard-yaml-mode",
-             "%s served directly by a yaml-mode dashboard - nothing to paste, "
-             "and export_dashboards.py reads .storage so it will never appear "
-             "in an export; excluded from the paste check"
-             % ", ".join(skipped),
-             fix="none needed. To put one back under the paste check, remove "
-                 "its dashboard entry from `lovelace: dashboards:` in "
-                 "configuration.yaml and manage it in the UI instead")
+        info(
+            "dashboard-yaml-mode",
+            "%s served directly by a yaml-mode dashboard - nothing to paste, "
+            "and export_dashboards.py reads .storage so it will never appear "
+            "in an export; excluded from the paste check" % ", ".join(skipped),
+            fix="none needed. To put one back under the paste check, remove "
+            "its dashboard entry from `lovelace: dashboards:` in "
+            "configuration.yaml and manage it in the UI instead",
+        )
     if not views:
         return
     if not exports:
-        warn("dashboard-export-missing",
-             "dashboards/views/ exists but dashboards/lovelace/ has no export, "
-             "so no paste could be verified and .storage/lovelace.* has no backup",
-             fix="run python3 scripts/export_dashboards.py and commit the result")
+        warn(
+            "dashboard-export-missing",
+            "dashboards/views/ exists but dashboards/lovelace/ has no export, "
+            "so no paste could be verified and .storage/lovelace.* has no backup",
+            fix="run python3 scripts/export_dashboards.py and commit the result",
+        )
         return
     livetext = "".join(text(f) for f in exports)
     live = set(ENTITY_RE.findall(livetext))
     for v in views:
         t = text(v)
-        allowed = set(re.findall(r"#\s*ha_audit:\s*ahead-of-live\s+([a-z_]+\.[a-z0-9_]+)", t))
+        allowed = set(
+            re.findall(r"#\s*ha_audit:\s*ahead-of-live\s+([a-z_]+\.[a-z0-9_]+)", t)
+        )
         missing = sorted(set(ENTITY_RE.findall(t)) - live - allowed)
         if missing:
-            warn("dashboard-not-pasted",
-                 "%s references %s, which appears in no exported live dashboard "
-                 "- the repo copy is ahead of what HA actually renders"
-                 % (v, ", ".join(missing[:6]) + ("..." if len(missing) > 6 else "")),
-                 fix="paste the view into the dashboard's raw configuration "
-                     "editor, then re-run scripts/export_dashboards.py. If the "
-                     "difference is deliberate, add `# ha_audit: ahead-of-live "
-                     "<entity_id>` to %s" % v)
+            warn(
+                "dashboard-not-pasted",
+                "%s references %s, which appears in no exported live dashboard "
+                "- the repo copy is ahead of what HA actually renders"
+                % (v, ", ".join(missing[:6]) + ("..." if len(missing) > 6 else "")),
+                fix="paste the view into the dashboard's raw configuration "
+                "editor, then re-run scripts/export_dashboards.py. If the "
+                "difference is deliberate, add `# ha_audit: ahead-of-live "
+                "<entity_id>` to %s" % v,
+            )
+
+
+# YAML 1.1 reads every one of these as a boolean. As a KEY none of them is ever
+# meant that way in Lovelace, so all are flagged. As a VALUE, true/false are
+# legitimately booleans (show_state: true) and are left alone; a bare
+# y/n/yes/no/on/off value is almost always a state string that was meant quoted.
+_BOOL11_KEY = re.compile(
+    r"^(?:y|Y|n|N|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF"
+    r"|true|True|TRUE|false|False|FALSE)$"
+)
+_BOOL11_VALUE = re.compile(r"^(?:y|Y|n|N|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF)$")
+
+
+def _bare_boolean_words(node, out):
+    """Append (line, what) for each PLAIN scalar a YAML 1.1 parser reads as a boolean.
+
+    Works on the composed node graph, not the loaded data, because only the node
+    still knows whether the scalar was quoted - after loading, 'y' and y are the
+    same string to PyYAML and the difference this rule exists for is gone.
+    """
+    if isinstance(node, yaml.MappingNode):
+        for k, v in node.value:
+            if (
+                isinstance(k, yaml.ScalarNode)
+                and k.style is None
+                and _BOOL11_KEY.match(k.value)
+            ):
+                out.append((k.start_mark.line + 1, "key `%s:`" % k.value))
+            if (
+                isinstance(v, yaml.ScalarNode)
+                and v.style is None
+                and _BOOL11_VALUE.match(v.value)
+            ):
+                out.append((v.start_mark.line + 1, "value `%s`" % v.value))
+            _bare_boolean_words(v, out)
+    elif isinstance(node, yaml.SequenceNode):
+        for x in node.value:
+            if (
+                isinstance(x, yaml.ScalarNode)
+                and x.style is None
+                and _BOOL11_VALUE.match(x.value)
+            ):
+                out.append((x.start_mark.line + 1, "item `%s`" % x.value))
+            _bare_boolean_words(x, out)
+
+
+def _boolean_keys(obj, trail, out):
+    """Append the title trail of every dict holding a key named true/false.
+
+    Covers both forms: JSON from .storage has the STRING "true"; a YAML export
+    may carry it quoted ('true' -> str) or bare (true -> bool True).
+    """
+    if isinstance(obj, dict):
+        title = obj.get("title")
+        if not isinstance(title, str) and isinstance(obj.get("header"), dict):
+            title = obj["header"].get("title")  # apexcharts: header.title
+        here = trail + [title] if isinstance(title, str) else trail
+        for k, v in obj.items():
+            if k in ("true", "false") or k is True or k is False:
+                out.append(tuple(here))
+            _boolean_keys(v, here, out)
+    elif isinstance(obj, list):
+        for x in obj:
+            _boolean_keys(x, trail, out)
+
+
+def rule_dashboard_yaml_booleans():
+    """A dashboard key that a paste silently turned into a boolean.
+
+    2026-09-16. A view generated for the New UPS Dashboard left its apexcharts
+    annotation keys as bare `y: 11.8`. The dashboard editor's parser read `y` as
+    YAML 1.1 boolean true, so .storage stored `"true": 11.8` - and all 24
+    threshold lines on six charts stopped drawing. Nothing said so: no log line,
+    no unavailable state, the cards rendered, just without the lines. It was
+    caught only because an export diff showed `'y'` -> `'true'`. The same query
+    then found 5 more in the dehumidifier view that had been live, unnoticed,
+    since before that day's export. Every gate in this file passed throughout.
+
+    TWO CHECKS, because the defect has two moments:
+      dashboard-bare-boolean  the hazard, in a source file under dashboards/views
+                              or dashboards/cards, before anyone pastes it
+      dashboard-boolean-key   the damage, in what HA actually serves: .storage/
+                              lovelace.* when present (authoritative), else the
+                              dashboards/lovelace/ exports that mirror it
+
+    WARN, not FAIL, matching how this audit already grades a broken dashboard
+    (entity-ref-unresolved, dashboard-not-pasted): it corrupts what is shown, not
+    what is recorded.
+    """
+    for rel in _dashboard_files():
+        if not rel.startswith(("dashboards/views/", "dashboards/cards/")):
+            continue
+        try:
+            root = yaml.compose(text(rel))
+        except yaml.YAMLError:
+            # A skipped file must not read as a clean one (R8). load() reports
+            # unparseable-yaml exactly once, memoized, whether or not another
+            # rule already asked.
+            load(rel)
+            continue
+        hits = []
+        if root is not None:
+            _bare_boolean_words(root, hits)
+        if hits:
+            warn(
+                "dashboard-bare-boolean",
+                "%s: %s - a YAML 1.1 parser, which the dashboard editor uses on "
+                "paste, reads each as a boolean"
+                % (
+                    rel,
+                    ", ".join("line %d %s" % h for h in hits[:6])
+                    + (" (+%d more)" % (len(hits) - 6) if len(hits) > 6 else ""),
+                ),
+                fix="quote each one ('y':, state: 'on'), then re-paste anything "
+                "already pasted from %s and check it with dashboard-boolean-key" % rel,
+            )
+
+    store = P(".storage")
+    live = (
+        sorted(f for f in os.listdir(store) if f.startswith("lovelace."))
+        if os.path.isdir(store)
+        else []
+    )
+    sources = []
+    if live:
+        for f in live:
+            try:
+                with io.open(os.path.join(store, f), encoding="utf-8") as fh:
+                    cfg = (json.load(fh).get("data") or {}).get("config") or {}
+            except (OSError, ValueError):
+                continue
+            sources.append((".storage/" + f, cfg))
+    else:
+        for rel in _dashboard_files():
+            if rel.startswith("dashboards/lovelace/"):
+                sources.append((rel, load(rel) or {}))
+    for where, cfg in sources:
+        views = cfg.get("views") if isinstance(cfg, dict) else None
+        for n, view in enumerate(views or []):
+            if not isinstance(view, dict):
+                continue
+            found = []
+            _boolean_keys(view.get("sections") or [], [], found)
+            _boolean_keys(view.get("cards") or [], [], found)
+            _boolean_keys(
+                {k: v for k, v in view.items() if k not in ("sections", "cards")},
+                [],
+                found,
+            )
+            if not found:
+                continue
+            name = view.get("title") or "view #%d (path %r)" % (n, view.get("path"))
+            cards = sorted({t[-1] for t in found if t})
+            warn(
+                "dashboard-boolean-key",
+                "%s, %s: %d key(s) named true/false - a bare y:/yes:/on: key "
+                "parsed as a boolean on paste, so that setting is silently "
+                "ignored (apexcharts threshold lines stop drawing). Cards: %s"
+                % (where, name, len(found), "; ".join(cards[:6]) or "view-level"),
+                fix="re-paste this view from a source file whose keys are quoted "
+                "(dashboard-bare-boolean finds any that are not), then re-run "
+                "scripts/export_dashboards.py",
+            )
 
 
 def _baseline_report(path, summary):
@@ -1657,8 +2043,14 @@ def _baseline_report(path, summary):
     nfail = sum(1 for f in findings if f[0] == "FAIL")
     if not os.path.exists(path):
         with io.open(path, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump({"written": datetime.now().isoformat(timespec="seconds"),
-                       "findings": cur}, fh, indent=1)
+            json.dump(
+                {
+                    "written": datetime.now().isoformat(timespec="seconds"),
+                    "findings": cur,
+                },
+                fh,
+                indent=1,
+            )
         print("BASELINE WRITTEN  %s  (%d finding(s) recorded)" % (path, len(cur)))
         print(summary)
         return 1 if nfail else 0
@@ -1674,12 +2066,16 @@ def _baseline_report(path, summary):
         print("NEW    %s" % k.replace("|", "  ", 2))
     for k in fixed:
         print("FIXED  %s" % k.replace("|", "  ", 2))
-    print("\n%d NEW, %d FIXED, %d UNCHANGED   (baseline %s)"
-          % (len(new), len(fixed), len(cset & pset), path))
+    print(
+        "\n%d NEW, %d FIXED, %d UNCHANGED   (baseline %s)"
+        % (len(new), len(fixed), len(cset & pset), path)
+    )
     print(summary)
     if new:
-        print("\nNEW findings block. Fix them, or re-baseline DELIBERATELY once "
-              "you have read every line above.")
+        print(
+            "\nNEW findings block. Fix them, or re-baseline DELIBERATELY once "
+            "you have read every line above."
+        )
     return 1 if (new or nfail) else 0
 
 
@@ -1688,9 +2084,12 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="failures only")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--log", metavar="FILE", help="append the human report to FILE")
-    ap.add_argument("--baseline", metavar="FILE",
-                    help="report NEW/FIXED/UNCHANGED against a stored finding "
-                         "set; writes FILE if it does not exist")
+    ap.add_argument(
+        "--baseline",
+        metavar="FILE",
+        help="report NEW/FIXED/UNCHANGED against a stored finding "
+        "set; writes FILE if it does not exist",
+    )
     args = ap.parse_args()
 
     man = load("pipelines.yaml")
@@ -1737,12 +2136,17 @@ def main():
     rule_duplicate_ids()
     rule_open_questions()
     rule_dashboard_pasted()
+    rule_dashboard_yaml_booleans()
 
     if _concurrent_ok:
-        info("eod-concurrent",
-             "%d same-second groups checked, no shared state in any (%s)"
-             % (len(_concurrent_ok),
-                ", ".join("%s x%d" % (a, n) for a, n in sorted(_concurrent_ok))))
+        info(
+            "eod-concurrent",
+            "%d same-second groups checked, no shared state in any (%s)"
+            % (
+                len(_concurrent_ok),
+                ", ".join("%s x%d" % (a, n) for a, n in sorted(_concurrent_ok)),
+            ),
+        )
 
     order = {"FAIL": 0, "WARN": 1, "INFO": 2}
     findings.sort(key=lambda f: (order[f[0]], f[1], f[2]))
@@ -1750,8 +2154,12 @@ def main():
     for sev, _r, _m, _fx in findings:
         n[sev] += 1
     npipe = len(man.get("pipelines") or {})
-    summary = ("%d FAIL, %d WARN, %d INFO across %d pipelines"
-               % (n["FAIL"], n["WARN"], n["INFO"], npipe))
+    summary = "%d FAIL, %d WARN, %d INFO across %d pipelines" % (
+        n["FAIL"],
+        n["WARN"],
+        n["INFO"],
+        npipe,
+    )
 
     # --log is independent of the output mode, so the human-readable report is
     # still archived when HA calls this with --json.
@@ -1761,7 +2169,9 @@ def main():
             if d:
                 os.makedirs(d, exist_ok=True)
             with io.open(args.log, "a", encoding="utf-8") as fh:
-                fh.write("\n===== %s =====\n" % datetime.now().isoformat(timespec="seconds"))
+                fh.write(
+                    "\n===== %s =====\n" % datetime.now().isoformat(timespec="seconds")
+                )
                 for sev, rule, msg, fx in findings:
                     fh.write("%-5s %-24s %s\n" % (sev, rule, msg))
                     if fx and sev != "INFO":
@@ -1774,13 +2184,22 @@ def main():
         # Key names are a contract with script.ha_audit in packages/audit.yaml.
         # Parsing JSON beats scraping prose: a reworded finding cannot silently
         # break the dashboard the way a regex over the summary line would.
-        json.dump({"fail": n["FAIL"], "warn": n["WARN"], "info": n["INFO"],
-                   "pipelines": npipe, "summary": summary,
-                   "ran_at": datetime.now().isoformat(timespec="seconds"),
-                   "findings": [{"severity": a, "rule": b, "message": c,
-                                "fix": d}
-                                for a, b, c, d in findings]},
-                  sys.stdout, separators=(",", ":"))
+        json.dump(
+            {
+                "fail": n["FAIL"],
+                "warn": n["WARN"],
+                "info": n["INFO"],
+                "pipelines": npipe,
+                "summary": summary,
+                "ran_at": datetime.now().isoformat(timespec="seconds"),
+                "findings": [
+                    {"severity": a, "rule": b, "message": c, "fix": d}
+                    for a, b, c, d in findings
+                ],
+            },
+            sys.stdout,
+            separators=(",", ":"),
+        )
         sys.stdout.write("\n")
         return 1 if n["FAIL"] else 0
 

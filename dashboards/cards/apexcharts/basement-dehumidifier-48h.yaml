@@ -32,7 +32,7 @@ apex_config:
     curve: smooth
   annotations:
     yaxis:
-      - y: 52
+      - 'y': 52
         yAxisIndex: 0
         borderColor: "#FF5722"
         borderWidth: 2

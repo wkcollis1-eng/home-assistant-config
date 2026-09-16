@@ -303,6 +303,40 @@ file; 0 `true`/`false` keys across every `.storage/lovelace.*`;
 `export_dashboards.py` re-run (lovelace.yaml CHANGED, the rest same);
 `ha_audit.py` 0 FAIL / 0 WARN.
 
+### ha_audit: `dashboard-bare-boolean` and `dashboard-boolean-key` — the gate for the `y` -> `true` defect
+
+The mechanism for the R13 defect recorded above. Both WARN, matching how the audit
+already grades a broken dashboard (`entity-ref-unresolved`, `dashboard-not-pasted`):
+it corrupts what is shown, not what is recorded.
+
+- **`dashboard-bare-boolean`** — the hazard, before a paste: an unquoted
+  `y n yes no on off` (any case) as a key or value, or `true`/`false` as a key, in
+  any file under `dashboards/views/` or `dashboards/cards/`. Reads the composed
+  node graph, the only place a quoted `'y'` and a bare `y` still differ. First run
+  over 99 source files: **2 hits**, both bare `y:` annotation keys in paste
+  snippets (`cards/apexcharts/basement-dehumidifier-48h.yaml`,
+  `furnace-min-per-cycle-control-chart.yaml`) — quoted in the same commit.
+- **`dashboard-boolean-key`** — the damage, after one: a key named `true`/`false`
+  in what HA serves, from `.storage/lovelace.*` (authoritative) or, where that is
+  absent, the `dashboards/lovelace/` exports. On its first run it found the
+  dehumidifier view's 5 [M] — the finding that was then fixed by re-paste (above).
+
+Verified, R2 in a fresh `C:\sandbox` tree: repaired `.storage` silent; damaged
+exports fire and repaired exports are silent (the fallback path); bare `state: on`
+and bare `true:` fire; `'on'`, `'y':` and `show_state: true` silent — 6 of 6 as
+predicted. R7 via `test_ha_audit.py`: an injector for each; `build_tree` now also
+copies `.storage/lovelace.*`, so the suite proves the path production reads rather
+than only the export fallback. `dashboard-boolean-key`'s injector was withheld
+until the house was clean — direction 2 cannot pass on a true finding — and added
+after the re-paste.
+
+Gate (`gate.py`, verbatim): 1 SYNTAX PASS (parse-clean) · 2 SEMANTIC 0 FAIL, 0 WARN,
+2 INFO, baseline 0 NEW · 2b RULES SUITE PASSED - 31 rule(s) proven in both
+directions. Steps 3-5 not applicable: no file HA loads changed.
+
+Open: a numbered rule (draft R19) for CLAUDE.md, awaiting Bill's approval — the
+governing document is not edited unasked.
+
 ## [2026.09.14] - 2026-09-14
 
 ### Process error: hand-edited a GENERATED "DO NOT HAND-EDIT" dashboard file, twice

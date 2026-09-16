@@ -29,7 +29,7 @@ apex_config:
     shared: true
   annotations:
     yaxis:
-      - y: 5
+      - 'y': 5
         borderColor: "#ff6b6b"
         borderWidth: 2
         strokeDashArray: 5

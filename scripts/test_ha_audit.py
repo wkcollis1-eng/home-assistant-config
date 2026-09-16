@@ -34,6 +34,7 @@ correctly reports live-check-skipped (R8) and the harness expects that WARN.
 
 EXIT 0 = every covered rule fired when it should and the clean tree was clean.
 """
+
 import argparse
 import io
 import os
@@ -43,7 +44,7 @@ import subprocess
 
 try:
     import yaml
-except ImportError:                       # pragma: no cover
+except ImportError:  # pragma: no cover
     yaml = None
 import sys
 import tempfile
@@ -52,17 +53,31 @@ import tempfile
 # under shell_command, which sets no environment. Off-host sessions set
 # HA_CONFIG explicitly (H:/ over Samba).
 SRC = os.environ.get("HA_CONFIG", "/config").rstrip("/")
-COPY = ["configuration.yaml", "automations.yaml", "scripts.yaml", "scenes.yaml",
-        "pipelines.yaml", "entity_notes.yaml", "CLAUDE.md", "ENTITIES.md",
-        "AUTOMATIONS.md", "PACKAGES.md", ".HA_VERSION"]
+COPY = [
+    "configuration.yaml",
+    "automations.yaml",
+    "scripts.yaml",
+    "scenes.yaml",
+    "pipelines.yaml",
+    "entity_notes.yaml",
+    "CLAUDE.md",
+    "ENTITIES.md",
+    "AUTOMATIONS.md",
+    "PACKAGES.md",
+    ".HA_VERSION",
+]
 # dashboards/ added 2026-08-25. Without it _dashboard_files() returned []
 # in BOTH trees, so entity-ref-unresolved and phantom-entity-id were listed
 # COVERED while their dashboard path - the surface CLAUDE.md calls the one
 # place a broken entity is completely silent - was never exercised in
 # either direction.
 COPY_DIRS = ["packages", "scripts", "docs", "dashboards"]
-COPY_STORAGE = ["core.entity_registry", "core.restore_state",
-                "core.device_registry", "core.config_entries"]
+COPY_STORAGE = [
+    "core.entity_registry",
+    "core.restore_state",
+    "core.device_registry",
+    "core.config_entries",
+]
 
 
 # --------------------------------------------------------------------------
@@ -70,6 +85,7 @@ COPY_STORAGE = ["core.entity_registry", "core.restore_state",
 # every one of these is a defect that actually reached the live config, or the
 # exact shape of one that did.
 # --------------------------------------------------------------------------
+
 
 def _read(root, rel):
     return io.open(os.path.join(root, rel), encoding="utf-8").read()
@@ -84,8 +100,13 @@ def f_dead_constraint(root):
     s = _read(root, "CLAUDE.md")
     anchor = "NEVER remove inline YAML comments\n"
     assert anchor in s, "CONSTRAINTS anchor moved"
-    _write(root, "CLAUDE.md",
-           s.replace(anchor, anchor + "NEVER touch sensor.this_entity_does_not_exist\n", 1))
+    _write(
+        root,
+        "CLAUDE.md",
+        s.replace(
+            anchor, anchor + "NEVER touch sensor.this_entity_does_not_exist\n", 1
+        ),
+    )
 
 
 def f_truncated_id(root):
@@ -109,20 +130,29 @@ def f_generated_doc_missing(root):
 def f_entity_ref_unresolved(root):
     """A template referencing an entity that never existed - the 15-night bug."""
     s = _read(root, "configuration.yaml")
-    _write(root, "configuration.yaml", s + """
+    _write(
+        root,
+        "configuration.yaml",
+        s
+        + """
 # injected by test_ha_audit.py
 template:
   - sensor:
       - name: "Audit Test Probe"
         unique_id: audit_test_probe
         state: "{{ states('sensor.audit_test_phantom_entity') | float(0) }}"
-""")
+""",
+    )
 
 
 def f_choose_without_default(root):
     """A choose: with no default: [] - silent no-op when nothing matches."""
     s = _read(root, "automations.yaml")
-    _write(root, "automations.yaml", s + """
+    _write(
+        root,
+        "automations.yaml",
+        s
+        + """
 - id: audit_test_choose_no_default
   alias: Audit Test Choose No Default
   trigger:
@@ -136,7 +166,8 @@ def f_choose_without_default(root):
               state: "on"
           sequence:
             - delay: "00:00:01"
-""")
+""",
+    )
 
 
 def f_unguarded_shell_command(root):
@@ -151,13 +182,22 @@ def f_unguarded_shell_command(root):
     rule cannot deliver.
     """
     s = _read(root, "configuration.yaml")
-    _write(root, "configuration.yaml", s + """
+    _write(
+        root,
+        "configuration.yaml",
+        s
+        + """
 # injected by test_ha_audit.py
 shell_command:
   audit_test_probe_cmd: "echo probe"
-""")
+""",
+    )
     s = _read(root, "automations.yaml")
-    _write(root, "automations.yaml", s + """
+    _write(
+        root,
+        "automations.yaml",
+        s
+        + """
 - id: audit_test_unguarded_shell
   alias: Audit Test Unguarded Shell
   trigger:
@@ -166,16 +206,22 @@ shell_command:
   action:
     - service: shell_command.audit_test_probe_cmd
   mode: single
-""")
+""",
+    )
 
 
 def f_entity_note_orphan(root):
     """entity_notes.yaml annotating an entity that no longer exists."""
     s = _read(root, "entity_notes.yaml")
-    _write(root, "entity_notes.yaml", s + """
+    _write(
+        root,
+        "entity_notes.yaml",
+        s
+        + """
 sensor.audit_test_orphan_note:
   note: injected by test_ha_audit.py
-""")
+""",
+    )
 
 
 def f_shell_command_multi_call(root):
@@ -189,7 +235,11 @@ def f_shell_command_multi_call(root):
     unguarded-shell-command.
     """
     s = _read(root, "automations.yaml")
-    _write(root, "automations.yaml", s + """
+    _write(
+        root,
+        "automations.yaml",
+        s
+        + """
 - id: audit_test_second_call_site
   alias: Audit Test Second Call Site
   trigger:
@@ -198,12 +248,14 @@ def f_shell_command_multi_call(root):
   action:
     - service: shell_command.ha_audit
   mode: single
-""")
+""",
+    )
 
 
 # --------------------------------------------------------------------------
 # injectors added 2026-08-25.  helpers first.
 # --------------------------------------------------------------------------
+
 
 def _add_pipeline(root, block):
     """Splice a raw YAML block in as the first entry under `pipelines:`."""
@@ -213,8 +265,11 @@ def _add_pipeline(root, block):
 
 
 def _add_automation(root, block):
-    _write(root, "automations.yaml",
-           _read(root, "automations.yaml").rstrip("\n") + "\n" + block)
+    _write(
+        root,
+        "automations.yaml",
+        _read(root, "automations.yaml").rstrip("\n") + "\n" + block,
+    )
 
 
 def f_manifest_drift(root):
@@ -223,7 +278,9 @@ def f_manifest_drift(root):
     This is the drift pipelines.yaml exists to end, and the rule guarding it
     had never fired in 38 nightly runs and had no injector.
     """
-    _add_pipeline(root, """  audit_test_ghost_pipeline:
+    _add_pipeline(
+        root,
+        """  audit_test_ghost_pipeline:
     label: "ghost"
     kind: accumulator
     defined_in: automations.yaml
@@ -231,19 +288,23 @@ def f_manifest_drift(root):
     stamp: input_datetime.audit_test_stamp
     stale_detector: binary_sensor.audit_test_stale
     buffer_slots: 0
-""")
+""",
+    )
 
 
 def f_eod_undeclared(root):
     """A pipeline with no `at` key at all - not even `at: null`."""
-    _add_pipeline(root, """  audit_test_undeclared:
+    _add_pipeline(
+        root,
+        """  audit_test_undeclared:
     label: "undeclared"
     kind: accumulator
     defined_in: automations.yaml
     stamp: input_datetime.audit_test_stamp2
     stale_detector: binary_sensor.audit_test_stale2
     buffer_slots: 0
-""")
+""",
+    )
 
 
 def f_eod_undocumented(root):
@@ -253,7 +314,9 @@ def f_eod_undocumented(root):
     time string appearing in any paragraph satisfied it. 04:44:44 appears
     nowhere, which is what makes this a real test of the row parser.
     """
-    _add_pipeline(root, """  audit_test_undocumented:
+    _add_pipeline(
+        root,
+        """  audit_test_undocumented:
     label: "undocumented"
     kind: accumulator
     defined_in: automations.yaml
@@ -261,8 +324,11 @@ def f_eod_undocumented(root):
     stamp: input_datetime.audit_test_stamp3
     stale_detector: binary_sensor.audit_test_stale3
     buffer_slots: 0
-""")
-    _add_automation(root, """
+""",
+    )
+    _add_automation(
+        root,
+        """
 - id: audit_test_undocumented
   alias: Audit Test Undocumented
   trigger:
@@ -275,30 +341,37 @@ def f_eod_undocumented(root):
       data:
         value: 1
   mode: single
-""")
+""",
+    )
 
 
 def f_no_liveness(root):
     """A pipeline that writes slots but stamps nothing."""
-    _add_pipeline(root, """  audit_test_no_stamp:
+    _add_pipeline(
+        root,
+        """  audit_test_no_stamp:
     label: "no stamp"
     kind: accumulator
     defined_in: automations.yaml
     at: null
     buffer_slots: 5
-""")
+""",
+    )
 
 
 def f_no_detector(root):
     """A pipeline with a stamp but no stale detector."""
-    _add_pipeline(root, """  audit_test_no_detector:
+    _add_pipeline(
+        root,
+        """  audit_test_no_detector:
     label: "no detector"
     kind: accumulator
     defined_in: automations.yaml
     at: null
     stamp: input_datetime.audit_test_stamp4
     buffer_slots: 5
-""")
+""",
+    )
 
 
 def f_unlatched_guard(root):
@@ -307,7 +380,9 @@ def f_unlatched_guard(root):
     CLAUDE.md cites unlatched-guard as a flagship rule, and it had neither an
     injector nor a single firing in 38 runs.
     """
-    _add_pipeline(root, """  audit_test_unlatched:
+    _add_pipeline(
+        root,
+        """  audit_test_unlatched:
     label: "unlatched"
     kind: spc
     defined_in: automations.yaml
@@ -317,12 +392,15 @@ def f_unlatched_guard(root):
     buffer_slots: 5
     guard:
       source: sensor.audit_test_running_watts_24h
-""")
+""",
+    )
 
 
 def f_stamp_not_snapshotted(root):
     """A capture stamping with a live now() instead of a trigger-time snapshot."""
-    _add_pipeline(root, """  audit_test_live_stamp:
+    _add_pipeline(
+        root,
+        """  audit_test_live_stamp:
     label: "live stamp"
     kind: accumulator
     defined_in: automations.yaml
@@ -330,8 +408,11 @@ def f_stamp_not_snapshotted(root):
     stamp: input_datetime.audit_test_stamp6
     stale_detector: binary_sensor.audit_test_stale6
     buffer_slots: 0
-""")
-    _add_automation(root, """
+""",
+    )
+    _add_automation(
+        root,
+        """
 - id: audit_test_live_stamp
   alias: Audit Test Live Stamp
   trigger:
@@ -344,7 +425,8 @@ def f_stamp_not_snapshotted(root):
       data:
         date: "{{ now().date() }}"
   mode: single
-""")
+""",
+    )
 
 
 def f_eod_race(root):
@@ -355,7 +437,9 @@ def f_eod_race(root):
     NOTHING. It is the regression test for that scope, and it fails against the
     old rule by construction.
     """
-    _add_automation(root, """
+    _add_automation(
+        root,
+        """
 - id: audit_test_race_a
   alias: Audit Test Race A
   trigger:
@@ -381,7 +465,8 @@ def f_eod_race(root):
       data:
         value: 2
   mode: single
-""")
+""",
+    )
 
 
 def f_eod_read_write(root):
@@ -391,7 +476,9 @@ def f_eod_read_write(root):
     could not see until 2026-08-25 - so this injector fails against BOTH the
     old scope and the old read regex, and passes only against the current rule.
     """
-    _add_automation(root, """
+    _add_automation(
+        root,
+        """
 - id: audit_test_rw_a
   alias: Audit Test RW A
   trigger:
@@ -415,7 +502,8 @@ def f_eod_read_write(root):
       data:
         value: "{{ 1 if is_state('input_boolean.audit_test_flag', 'on') else 0 }}"
   mode: single
-""")
+""",
+    )
 
 
 def f_eod_write_unmodelled(root):
@@ -424,7 +512,9 @@ def f_eod_write_unmodelled(root):
     FAIL since 2026-08-25: if the checker cannot model the target it cannot
     rule out a collision, and fail-safe means the unprovable case blocks.
     """
-    _add_automation(root, """
+    _add_automation(
+        root,
+        """
 - id: audit_test_um_a
   alias: Audit Test Unmodelled A
   trigger:
@@ -450,12 +540,15 @@ def f_eod_write_unmodelled(root):
       data:
         value: 2
   mode: single
-""")
+""",
+    )
 
 
 def f_eod_time_unresolvable(root):
     """A time trigger whose `at` is not a literal - excluded from the check."""
-    _add_automation(root, """
+    _add_automation(
+        root,
+        """
 - id: audit_test_templated_time
   alias: Audit Test Templated Time
   trigger:
@@ -468,7 +561,8 @@ def f_eod_time_unresolvable(root):
       data:
         value: 1
   mode: single
-""")
+""",
+    )
 
 
 def f_generated_doc_ghost(root):
@@ -480,10 +574,14 @@ def f_generated_doc_ghost(root):
 
 def f_open_question(root):
     """R14: a question asked of Bill that never got an answer."""
-    _write(root, "open_questions.yaml", """- asked: 2026-08-24
+    _write(
+        root,
+        "open_questions.yaml",
+        """- asked: 2026-08-24
   question: Does the basement router's plug hang off the UPS?
   blocks: summing router draw with ups_outlet_current_consumption
-""")
+""",
+    )
 
 
 def f_dashboard_not_pasted(root):
@@ -492,9 +590,85 @@ def f_dashboard_not_pasted(root):
     s = _read(root, rel)
     anchor = "badges:\n"
     assert anchor in s, "badges anchor moved in %s" % rel
-    _write(root, rel, s.replace(
-        anchor,
-        anchor + "  - type: entity\n    entity: sensor.audit_test_never_pasted\n", 1))
+    _write(
+        root,
+        rel,
+        s.replace(
+            anchor,
+            anchor + "  - type: entity\n    entity: sensor.audit_test_never_pasted\n",
+            1,
+        ),
+    )
+
+
+def f_dashboard_bare_boolean(root):
+    """An apexcharts annotation keyed `y:` unquoted - the 2026-09-16 shape.
+
+    Pasted, that `y` became boolean `true`, and 24 threshold lines on the New UPS
+    Dashboard silently stopped drawing. A second bare word, a state value `on`,
+    rides along because the rule claims values too; one finding covers both.
+    """
+    _write(
+        root,
+        "dashboards/cards/audit_test_bare_boolean.yaml",
+        "type: custom:apexcharts-card\n"
+        "apex_config:\n"
+        "  annotations:\n"
+        "    yaxis:\n"
+        "      - y: 12.4\n"
+        "        borderColor: '#FF9800'\n"
+        "card:\n"
+        "  type: conditional\n"
+        "  conditions:\n"
+        "    - entity: binary_sensor.ups_monitor_on_battery\n"
+        "      state: on\n",
+    )
+
+
+def f_dashboard_boolean_key(root):
+    """A live dashboard storing an annotation under `true` - the damage itself.
+
+    HISTORY. This injector was deliberately withheld when the rule was written:
+    direction 2 requires a covered rule to be silent on a copy of the real house,
+    and the house then carried a genuine instance (five annotation keys stored as
+    `true` in the dehumidifier view). Bill re-pasted that view the same day; with
+    the house clean the rule could be covered. Proven by hand in the sandbox
+    before that, in both directions (CHANGELOG 2026.09.16).
+
+    Written into .storage, not an export, because .storage is the path the rule
+    reads in production - build_tree copies lovelace.* for exactly this reason.
+    """
+    import json as _json
+
+    _write(
+        root,
+        ".storage/lovelace.audit_test",
+        _json.dumps(
+            {
+                "version": 1,
+                "minor_version": 1,
+                "key": "lovelace.audit_test",
+                "data": {
+                    "config": {
+                        "views": [
+                            {
+                                "title": "Audit test",
+                                "cards": [
+                                    {
+                                        "type": "custom:apexcharts-card",
+                                        "header": {"title": "Audit test chart"},
+                                        "apex_config": {
+                                            "annotations": {"yaxis": [{"true": 12.4}]}
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                },
+            }
+        ),
+    )
 
 
 def f_unparseable_yaml(root):
@@ -505,11 +679,15 @@ def f_unparseable_yaml(root):
     executed, so the nightly job would have logged a traceback instead of a
     verdict. A config that will not parse is when the audit is most needed.
     """
-    _write(root, "dashboards/views/audit_test_broken.yaml",
-           "type: sections\ncards:\n  - type: entity\n   entity: sensor.bad_indent\n")
+    _write(
+        root,
+        "dashboards/views/audit_test_broken.yaml",
+        "type: sections\ncards:\n  - type: entity\n   entity: sensor.bad_indent\n",
+    )
 
 
 # ---- SOLO: each of these suppresses a rule another injector depends on ----
+
 
 def f_doc_ids_uncheckable(root):
     """CLAUDE.md with no CONSTRAINTS section - rule_doc_ids cannot run.
@@ -522,8 +700,15 @@ def f_doc_ids_uncheckable(root):
     # has to stop starting with CONSTRAINTS for the section to be genuinely
     # missing. Direction 1 caught it; by eye it looked obviously correct.
     s = _read(root, "CLAUDE.md")
-    _write(root, "CLAUDE.md", s.replace("## CONSTRAINTS (CHECK BEFORE ANY ACTION)",
-                                        "## PRECONDITIONS (CHECK BEFORE ANY ACTION)", 1))
+    _write(
+        root,
+        "CLAUDE.md",
+        s.replace(
+            "## CONSTRAINTS (CHECK BEFORE ANY ACTION)",
+            "## PRECONDITIONS (CHECK BEFORE ANY ACTION)",
+            1,
+        ),
+    )
 
 
 def f_eod_doc_uncheckable(root):
@@ -534,6 +719,7 @@ def f_eod_doc_uncheckable(root):
     This is the exact failure that would have hit a CLAUDE.md restructuring.
     """
     import re as _re
+
     s = _read(root, "CLAUDE.md")
     _write(root, "CLAUDE.md", _re.sub(r"(?m)^\d{2}:\d{2}:\d{2}\s+\S.*$", "", s))
 
@@ -550,7 +736,9 @@ def f_duplicate_automation_id(root):
     edited may not be the block that runs. Found 2026-08-25 when
     new_pipeline.py --apply was run twice; nothing in the audit noticed.
     """
-    _add_automation(root, """
+    _add_automation(
+        root,
+        """
 - id: audit_test_dup_id
   alias: Audit Test Dup One
   trigger:
@@ -576,7 +764,8 @@ def f_duplicate_automation_id(root):
       data:
         value: 2
   mode: single
-""")
+""",
+    )
 
 
 def f_duplicate_pipeline_key(root):
@@ -606,41 +795,44 @@ def f_duplicate_pipeline_key(root):
 
 
 FAULTS = [
-    ("dead-constraint",        f_dead_constraint),
-    ("truncated-id",           f_truncated_id),
-    ("generated-doc-stale",    f_generated_doc_stale),
-    ("entity-ref-unresolved",  f_entity_ref_unresolved),
+    ("dead-constraint", f_dead_constraint),
+    ("truncated-id", f_truncated_id),
+    ("generated-doc-stale", f_generated_doc_stale),
+    ("entity-ref-unresolved", f_entity_ref_unresolved),
     ("choose-without-default", f_choose_without_default),
     ("unguarded-shell-command", f_unguarded_shell_command),
-    ("entity-note-orphan",     f_entity_note_orphan),
+    ("entity-note-orphan", f_entity_note_orphan),
     ("shell-command-multi-call", f_shell_command_multi_call),
-    ("manifest-drift",          f_manifest_drift),
-    ("eod-undeclared",          f_eod_undeclared),
-    ("eod-undocumented",        f_eod_undocumented),
-    ("no-liveness",             f_no_liveness),
-    ("no-detector",             f_no_detector),
-    ("unlatched-guard",         f_unlatched_guard),
-    ("stamp-not-snapshotted",   f_stamp_not_snapshotted),
-    ("eod-race",                f_eod_race),
-    ("eod-read-write",          f_eod_read_write),
-    ("eod-write-unmodelled",    f_eod_write_unmodelled),
-    ("generated-doc-ghost",     f_generated_doc_ghost),
-    ("open-question",           f_open_question),
-    ("dashboard-not-pasted",    f_dashboard_not_pasted),
-    ("unparseable-yaml",        f_unparseable_yaml),
+    ("manifest-drift", f_manifest_drift),
+    ("eod-undeclared", f_eod_undeclared),
+    ("eod-undocumented", f_eod_undocumented),
+    ("no-liveness", f_no_liveness),
+    ("no-detector", f_no_detector),
+    ("unlatched-guard", f_unlatched_guard),
+    ("stamp-not-snapshotted", f_stamp_not_snapshotted),
+    ("eod-race", f_eod_race),
+    ("eod-read-write", f_eod_read_write),
+    ("eod-write-unmodelled", f_eod_write_unmodelled),
+    ("generated-doc-ghost", f_generated_doc_ghost),
+    ("open-question", f_open_question),
+    ("dashboard-not-pasted", f_dashboard_not_pasted),
+    ("dashboard-bare-boolean", f_dashboard_bare_boolean),
+    ("dashboard-boolean-key", f_dashboard_boolean_key),
+    ("unparseable-yaml", f_unparseable_yaml),
     ("duplicate-automation-id", f_duplicate_automation_id),
-    ("duplicate-pipeline-key",  f_duplicate_pipeline_key),
-    ("eod-time-unresolvable",   f_eod_time_unresolvable),
+    ("duplicate-pipeline-key", f_duplicate_pipeline_key),
+    ("eod-time-unresolvable", f_eod_time_unresolvable),
 ]
 
 # generated-doc-missing deletes ENTITIES.md, which suppresses the ghost and
 # truncated-id checks on that file, so it cannot share a tree with them.
 SOLO_FAULTS = [
-    ("generated-doc-missing",  f_generated_doc_missing),
-    ("doc-ids-uncheckable",    f_doc_ids_uncheckable),
-    ("eod-doc-uncheckable",    f_eod_doc_uncheckable),
+    ("generated-doc-missing", f_generated_doc_missing),
+    ("doc-ids-uncheckable", f_doc_ids_uncheckable),
+    ("eod-doc-uncheckable", f_eod_doc_uncheckable),
     ("open-questions-malformed", f_open_questions_malformed),
 ]
+
 
 # THE RULE-ID INVENTORY IS DERIVED, NEVER TYPED. Until 2026-08-25 `UNCOVERED`
 # was a hand-kept list, and the counts appeared in three more places in
@@ -651,8 +843,7 @@ SOLO_FAULTS = [
 # harness that enforces R10, and the R10 answer is to delete the second copy.
 def _emitters():
     """{rule_id: {"fail","warn","info"}} scraped from ha_audit.py itself."""
-    src = io.open(os.path.join(SRC, "scripts", "ha_audit.py"),
-                  encoding="utf-8").read()
+    src = io.open(os.path.join(SRC, "scripts", "ha_audit.py"), encoding="utf-8").read()
     out = {}
     for sev, rid in re.findall(r'\b(fail|warn|info)\(\s*"([a-z0-9-]+)"', src):
         out.setdefault(rid, set()).add(sev)
@@ -665,15 +856,15 @@ def _emitters():
     # `def info(...)` definitions are not counted as call sites. Without it
     # this guard fired on a perfectly healthy ha_audit.py - a false alarm in
     # the check written to stop false silence.
-    sites = len(re.findall(r'(?<!def )\b(?:fail|warn|info)\(', src))
+    sites = len(re.findall(r"(?<!def )\b(?:fail|warn|info)\(", src))
     matched = len(re.findall(r'\b(?:fail|warn|info)\(\s*"[a-z0-9-]+"', src))
     if sites != matched:
         raise SystemExit(
             "test_ha_audit: %d fail()/warn()/info() call site(s) in ha_audit.py "
             "but only %d gave a literal rule id. The %d unmatched one(s) would "
             "be invisible to the coverage report. Use a literal string, or "
-            "teach _emitters() about the new form."
-            % (sites, matched, sites - matched))
+            "teach _emitters() about the new form." % (sites, matched, sites - matched)
+        )
     return out
 
 
@@ -698,12 +889,14 @@ def inventory():
             "test_ha_audit: scraped only %d rule id(s) from ha_audit.py - the "
             "inventory regex has stopped matching, so coverage numbers would be "
             "meaningless. Refusing to report. Check the fail()/warn()/info() "
-            "call sites." % len(em))
+            "call sites." % len(em)
+        )
     info_only = set(r for r, sev in em.items() if sev == {"info"})
     return set(em) - info_only, info_only
 
 
 # --------------------------------------------------------------------------
+
 
 def build_tree(dest):
     os.makedirs(dest, exist_ok=True)
@@ -721,6 +914,15 @@ def build_tree(dest):
         src = os.path.join(SRC, ".storage", rel)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(st, rel))
+    # Live Lovelace dashboards, added 2026-09-16 for dashboard-boolean-key. Without
+    # them that rule falls back to the dashboards/lovelace/ exports, so the suite
+    # would prove the fallback while production runs the .storage path - a fixture
+    # that tests a different program. Globbed: the set of dashboards is the user's.
+    src_st = os.path.join(SRC, ".storage")
+    if os.path.isdir(src_st):
+        for f in sorted(os.listdir(src_st)):
+            if f.startswith("lovelace."):
+                shutil.copy2(os.path.join(src_st, f), os.path.join(st, f))
     return dest
 
 
@@ -769,8 +971,13 @@ def run_audit(tree):
             env["HA_TOKEN"] = tok
             if url and not env.get("HA_URL"):
                 env["HA_URL"] = url
-    r = subprocess.run([sys.executable, os.path.join(tree, "scripts", "ha_audit.py")],
-                       env=env, capture_output=True, text=True, timeout=600)
+    r = subprocess.run(
+        [sys.executable, os.path.join(tree, "scripts", "ha_audit.py")],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     return (r.stdout or "") + (r.stderr or "")
 
 
@@ -803,8 +1010,11 @@ def main():
     ap.add_argument("--only", metavar="RULE")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--keep", action="store_true")
-    ap.add_argument("--json", action="store_true",
-                    help="machine-readable single line, for script.ha_audit_tests")
+    ap.add_argument(
+        "--json",
+        action="store_true",
+        help="machine-readable single line, for script.ha_audit_tests",
+    )
     a = ap.parse_args()
     say = (lambda *x: None) if a.json else print
 
@@ -821,18 +1031,27 @@ def main():
         for rid in uncovered:
             print("   ", rid)
         if info_only:
-            print("\nINFO-ONLY (%d) - untestable here by construction, because "
-                  "fired() matches FAIL|WARN:" % len(info_only))
+            print(
+                "\nINFO-ONLY (%d) - untestable here by construction, because "
+                "fired() matches FAIL|WARN:" % len(info_only)
+            )
             for rid in sorted(info_only):
                 print("   ", rid)
         if ghosts:
-            print("\nSTALE INJECTORS (%d) - assert a rule id ha_audit.py no "
-                  "longer emits:" % len(ghosts))
+            print(
+                "\nSTALE INJECTORS (%d) - assert a rule id ha_audit.py no "
+                "longer emits:" % len(ghosts)
+            )
             for rid in ghosts:
                 print("   ", rid)
-        print("\ncoverage: %d of %d testable rule ids (%.0f%%)"
-              % (len(covered), len(testable),
-                 100.0 * len(covered) / max(len(testable), 1)))
+        print(
+            "\ncoverage: %d of %d testable rule ids (%.0f%%)"
+            % (
+                len(covered),
+                len(testable),
+                100.0 * len(covered) / max(len(testable), 1),
+            )
+        )
         return 0
 
     # The clean tree's own findings ARE the baseline. Direction 1 asserts each
@@ -865,21 +1084,31 @@ def main():
         # false-positived by its absence. Attaching the explanation to any
         # other rule is a confident wrong answer - the first cut of this note
         # put it on generated-doc-stale, whose actual fix is gen_reference.py.
-        LIVE_DEPENDENT = {"entity-ref-unresolved", "phantom-entity-id",
-                          "entity-missing", "doc-ids", "generated-doc-ghost"}
+        LIVE_DEPENDENT = {
+            "entity-ref-unresolved",
+            "phantom-entity-id",
+            "entity-missing",
+            "doc-ids",
+            "generated-doc-ghost",
+        }
 
         def why_for(rid):
             if live_skipped and rid in LIVE_DEPENDENT:
-                return (" -- ENVIRONMENT, not a broken rule: the live check did "
-                        "not run here (no HA_TOKEN), which reintroduces the "
-                        "known sun.sun false positive. Give the harness a token "
-                        "so it tests the audit as actually deployed.")
+                return (
+                    " -- ENVIRONMENT, not a broken rule: the live check did "
+                    "not run here (no HA_TOKEN), which reintroduces the "
+                    "known sun.sun false positive. Give the harness a token "
+                    "so it tests the audit as actually deployed."
+                )
             return ""
+
         if clean_ids:
             # Shown, never hidden (R8), but not a suite failure: these are
             # findings about the HOUSE, not about the audit.
-            say("   baseline: %d pre-existing finding(s) in the live config, "
-                "excluded from direction 1" % len(clean_ids))
+            say(
+                "   baseline: %d pre-existing finding(s) in the live config, "
+                "excluded from direction 1" % len(clean_ids)
+            )
             for rid in sorted(clean_ids):
                 say("      - %s" % rid)
         else:
@@ -934,18 +1163,25 @@ def main():
 
     if a.json:
         import json as _json
-        summary = ("SUITE PASSED - %d rule(s) proven in both directions"
-                   % len(selected)) if not failures else \
-                  ("SUITE FAILED (%d): %s" % (len(failures), "; ".join(failures)))
-        sys.stdout.write(_json.dumps({
-            "passed": not failures,
-            "summary": summary,
-            "failures": failures,
-            "covered": len(covered),
-            "total_rule_ids": len(testable),
-            "uncovered": uncovered,
-            "info_only": sorted(info_only),
-        }))
+
+        summary = (
+            ("SUITE PASSED - %d rule(s) proven in both directions" % len(selected))
+            if not failures
+            else ("SUITE FAILED (%d): %s" % (len(failures), "; ".join(failures)))
+        )
+        sys.stdout.write(
+            _json.dumps(
+                {
+                    "passed": not failures,
+                    "summary": summary,
+                    "failures": failures,
+                    "covered": len(covered),
+                    "total_rule_ids": len(testable),
+                    "uncovered": uncovered,
+                    "info_only": sorted(info_only),
+                }
+            )
+        )
         return 1 if failures else 0
 
     print("\n" + "=" * 60)
@@ -955,8 +1191,10 @@ def main():
             print("   " + f)
         return 1
     print("SUITE PASSED - %d rule(s) proven in both directions" % len(selected))
-    print("%d of %d testable rule ids covered; run --list for the gap"
-          % (len(covered), len(testable)))
+    print(
+        "%d of %d testable rule ids covered; run --list for the gap"
+        % (len(covered), len(testable))
+    )
     return 0
 
 
