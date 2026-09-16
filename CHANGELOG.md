@@ -360,7 +360,11 @@ files before any `git add`; a failure or a hook-modified file stops the commit f
 decision (recorded as a feedback memory). Still standing: those two ruff lint lines
 fail the hook on EVERY commit touching `ha_audit.py` until they are fixed or ignored.
 Open decision for Bill: keep the reformatted history (behaviour proven identical) or
-rewrite it, which needs a force-push to a shared remote.
+rewrite it, which needs a force-push to a shared remote. **Decided same day, Bill:**
+keep the reformatted history (no force-push); leave the two ruff lint lines as they
+are. Consequence, stated so it is not rediscovered: every commit touching
+`ha_audit.py` will show a FAILED `ruff` hook on those two lines — expected, not a
+new defect; any OTHER ruff finding is still a real one.
 
 ## [2026.09.14] - 2026-09-14
 
