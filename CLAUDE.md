@@ -149,7 +149,7 @@ is not is worse than one known to rest on judgement.
 
 | lever | covers | where |
 |---|---|---|
-| `ha_audit.py` | R5, R8, R9, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
+| `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
 | Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", and running the audit at session start / after any turn that changed `H:` | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
@@ -408,6 +408,17 @@ figure is a bound on the instrument, not a property of the world - say so.
 electric counter's "86 s tick" was our 32 s sampler reading multi-unit jumps as
 single ticks. True values 14.0 s and 53.8 s. Both were the instrument's blind
 spot mistaken for a property of the world.*
+
+### R19 — Quote YAML 1.1 boolean words in anything meant to be pasted
+In every dashboard view, card snippet, or other YAML a human will paste, quote
+`y n yes no on off` (any case) wherever they appear as a key or a string value,
+and `true`/`false` wherever they appear as a key: `'y': 12.4`, `state: 'on'`. The
+dashboard editor's parser reads them as booleans, and a key stored as `true` is
+silently ignored. Generated YAML counts - quote in the dumper, do not trust it.
+*2026-09-16: a generated UPS view left 24 apexcharts `y:` keys bare; the paste
+stored them as `"true"` and every threshold line on six charts vanished with every
+gate passing. Five more had sat unnoticed in the dehumidifier view.* Gate:
+`dashboard-bare-boolean` before a paste, `dashboard-boolean-key` after one.
 
 ## Engineering Standards (ALWAYS APPLY)
 - Measure-first: **the operational form of this is R15-R18 — follow those, not this bullet.** Flag uncertainty before stating any figure; verify specs from primary sources; never assert ungrounded numbers

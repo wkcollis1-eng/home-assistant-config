@@ -335,7 +335,8 @@ Gate (`gate.py`, verbatim): 1 SYNTAX PASS (parse-clean) · 2 SEMANTIC 0 FAIL, 0 
 directions. Steps 3-5 not applicable: no file HA loads changed.
 
 Open: a numbered rule (draft R19) for CLAUDE.md, awaiting Bill's approval — the
-governing document is not edited unasked.
+governing document is not edited unasked. **Resolved same day:** Bill approved;
+R19 added to CLAUDE.md, and the enforcement table now lists R19 under `ha_audit.py`.
 
 ### Process error in that commit (R13): a failing hook was masked, and a formatter rewrite was pushed
 
