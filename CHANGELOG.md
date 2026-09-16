@@ -337,6 +337,30 @@ directions. Steps 3-5 not applicable: no file HA loads changed.
 Open: a numbered rule (draft R19) for CLAUDE.md, awaiting Bill's approval — the
 governing document is not edited unasked.
 
+### Process error in that commit (R13): a failing hook was masked, and a formatter rewrite was pushed
+
+H: has no git hooks installed, so hooks there run only when a session runs them by
+hand. For `fc342e1` I ran `pre-commit run --files ... | grep -v Skipped && git add
+... && git commit` — and the pipeline's exit status is grep's. `ruff` FAILED (two
+pre-existing lines in `ha_audit.py`: E731 `P = lambda`, E741 `lambda l, s, n`) and
+`ruff-format` REWROTE both scripts, but the chain carried on: `git add` staged the
+reformatted files and the commit was pushed. The rule change was 136 + 31 lines;
+the commit is **+1105 / -414** — a whole-file reformat nobody gated, mixed into it,
+breaking "minimal diffs" and "never commit unrelated changes together".
+
+Proven harmless after the fact [M]: the AST of both pushed files is identical to
+the gated sandbox versions; every comment survived (219/219 in `ha_audit.py`, 91/91
+in `test_ha_audit.py`); and `gate.py` re-run on the pushed code — 2 SEMANTIC 0 FAIL,
+0 WARN, 2 INFO, 0 NEW · 2b RULES SUITE PASSED - 31 rule(s) proven in both
+directions, so the text-scraped rule inventory also survived the reformat.
+
+Mechanism: run hooks on their own, read the exit status, and `git diff --stat` the
+files before any `git add`; a failure or a hook-modified file stops the commit for a
+decision (recorded as a feedback memory). Still standing: those two ruff lint lines
+fail the hook on EVERY commit touching `ha_audit.py` until they are fixed or ignored.
+Open decision for Bill: keep the reformatted history (behaviour proven identical) or
+rewrite it, which needs a force-push to a shared remote.
+
 ## [2026.09.14] - 2026-09-14
 
 ### Process error: hand-edited a GENERATED "DO NOT HAND-EDIT" dashboard file, twice
