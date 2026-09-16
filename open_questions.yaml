@@ -592,3 +592,36 @@
     all read back equal, 0 of 118 other archive helpers changed [M]. Detail,
     prior values and what was deliberately not touched: CHANGELOG 2026.09.16.
     STILL OPEN: the seed tools that caused it remain one action away.
+
+- asked: 2026-09-16
+  question: >-
+    On the deployed UPS-Monitor-THT Rev 1, where does the INA260 breakout's VBUS
+    pin sense - at the battery terminals, or on the bus downstream of the
+    fuse / BP-65 / wiring?
+  blocks: >-
+    Whether every UPS Ri figure (onset, settled-step, recharge) includes path
+    resistance in addition to the pack's own. At 2-4 A a downstream sense point
+    adds wiring/fuse/BP-65 drop to V_rest - V_load [D]; the report's 67-260 mOhm
+    spread (09-15 S8.3) cannot be attributed to the pack until this is known.
+    UPS-Monitor-Design-Brief-Rev3.1.md cannot answer it: it documents an INA228
+    board with a Kelvin shunt, not the INA260 breakout that is deployed (R16).
+  answered: >-
+    2026-09-16, Bill: the INA260's VBUS pin senses the battery terminals, with a
+    10 A fuse between the INA260 and the battery terminal.
+
+    Consequence: BP-65 and the bus wiring are NOT in the voltage sense path.
+    Read with the PCB (C:\repos\DIY-LiFePO4-UPS\UPS-Monitor\UPS-Monitor-THT.kicad_pcb,
+    matched to Rev 1 by name only - the file carries no revision field): socket
+    U2 carries only +3V3 / GND / SCL / SDA / ALERT, pads 6-8 unconnected, so
+    VBUS and VIN+/VIN- are wired off-board and the chip measures against board
+    GND from TB1. The 10 A fuse adds its I x R to the reading only if VBUS shares
+    that fuse's current path; a separate VBUS lead carries negligible current and
+    drops nothing across it.
+
+    Correction to blocks: above (R13). A series path resistance is common to
+    every Ri method, so it adds a near-constant offset [D] - it cannot produce
+    the 67-260 mOhm spread BETWEEN methods, and it cancels in any single-method
+    trend. It matters only for an absolute comparison against a datasheet or
+    commissioning Ri. Not asked further because nothing current depends on it;
+    ask (VBUS lead separate from the fuse path? TB1 GND on its own wire to
+    battery minus?) only if that absolute comparison is ever needed.
