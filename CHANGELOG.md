@@ -88,8 +88,13 @@ deployed one (`diff -q`). Live test: create `~/.claude/hooks/.state/arm_test` an
 next prompt pauses once.
 
 Left open:
-- **No tracked copy.** `H:/.claude/hooks/` holds the other three hooks but not this
-  one. Its only copies are the deployed file and the sandbox, neither in git.
+- ~~**No tracked copy.** `H:/.claude/hooks/` holds the other three hooks but not this
+  one. Its only copies are the deployed file and the sandbox, neither in git.~~
+  **RESOLVED same day** (Bill asked for it as a separate commit): `context_hygiene.py`
+  and `test_hygiene.py` copied from the sandbox to `H:/.claude/hooks/`. `cmp` shows the
+  tracked hook byte-identical to the deployed one; the suite run from the repo
+  location gave 27 PASS, `FAILS: 0` [M]. Nothing checks that the two stay identical
+  (next bullet).
 - **`deploy_drift()` checks only `ha_audit_gate.py`** against its repo copy (it compares
   `basename(__file__)`), so it would miss drift in this hook, or in `ha_guard.py` and
   `ha_validate_edit.py`, even once tracked. CLAUDE.md's "compares the two" reads
