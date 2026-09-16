@@ -428,8 +428,9 @@ spot mistaken for a property of the world.*
 - **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
 - **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring
 - **DIY LiFePO4 UPS**: Powers N100DC HA host via an 18 V U3V70A boost (fitted
-  2026-08-29, EN/FET not installed). V1.16 firmware deployed, V1.17 written and
-  gated. 53.3 Wh; runtime ~128 min [D] at the measured 2.089 A / 26.80 W load
+  2026-08-29, EN/FET not installed). V1.20 firmware deployed 2026-09-16 on
+  ESPHome 2026.9.0 (the "V1.16 deployed, V1.17 written" that stood here was
+  three versions stale). 53.3 Wh; runtime ~128 min [D] at the measured 2.089 A / 26.80 W load
   [M, 2026-08-29] — was ~213 min at 1.18 A
 - **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 90.3 CCF/1k HDD efficiency
 - **Dehumidifier Control**: RH-band (49%/46%), 150min max runtime, stall detection

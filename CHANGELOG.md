@@ -27,6 +27,8 @@ is calibrated against.
 | 2026-09-07 | gates 0 and 1 will REFUSE the scrambled static-sensitivity values, because PR Table 7 marks them "-(not settable)" | yes — written into `mmwave-bench.yaml`'s scramble button comment before the button was ever pressed | **WRONG** — `g0_still` and `g1_still` took 62 and 64 and reverted cleanly with the other 19. "Not settable" describes what the module ACTS on, not what it will accept and store. The write path reaches gates the radar ignores |
 | 2026-09-08 | upgrading 1.8.10 -> 1.12.4 leaves the Grafana panel query within ~2x of its 118.6 ms baseline | yes - written in-session before the sandbox was built or any binary downloaded | **HIT** - 0.89x for the W-24h panel, 1.15-1.22x for the 8-panel dashboard mix; interleaved A/B, n=15, IQR 8-36 ms |
 | 2026-09-10 | with `watchdog_reload_ecobee` now reloading BOTH thermostats, main-floor stale episodes clear within ~1 min of the reload the way upstairs ones already do (upstairs-only n=78, longest 1.0 min; main-floor-only n=82, median 10.6 min while the reload missed them; InfluxDB since 08-01) — so `watchdog_reset_failed` sends NO Ecobee notice in the 7 days after the automation reload. Falsified by any Ecobee reset-failed notice, or any main-floor episode lasting >= 10 min, that is not a genuine HomeKit outage | yes — written after the file edit and BEFORE `automation.reload`, zero post-change episodes observed | pending |
+| 2026-09-16 | ups-monitor V1.20's windowed gate PUBLISHES `Apparent Ri` on the next genuine rest->load onset (e.g. 14a), where V1.19 silently rejected 09-15. Falsified by a `ups.ri` "rejected (unstable/unloaded)" log, or no new `ri_sample_count`, on an onset whose load holds within +/-15 % across 5-45 s. Basis: replay + host harness on 4 recorded onsets, all publish, max deviation 3.3 % [M, n=4] | yes — written after the OTA, before any onset on V1.20 | pending |
+| 2026-09-16 | V1.20 `Battery Fully Charged` has ZERO ON->OFF transitions at float over the 7 days after it next turns on, except when V drops below 13.15 V (an outage). Falsified by any such drop with V >= 13.15 V. Basis: V1.19 dropped 5 times in ~12 h at \|I\| 0.102-0.182 A; hold limit now 0.30 A [M, n=5 — one night, so the tail beyond 0.182 A is unmeasured] | yes — written after the OTA, before the flag first re-latched | pending |
 
 **Running score: 3 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
@@ -171,6 +173,77 @@ diff is exactly the FILE MAP lines; `validate_ha.py --strict` PASS (parse-clean)
 `seed_monthly_accumulators` no longer a registered service (entity orphaned
 `unavailable` / `restored: true`), `weather_update_script` still registered, all
 12 month accumulators unchanged across the reload; `ha_audit.py` 0 FAIL / 0 WARN.
+
+### ups-monitor V1.20 deployed — data accuracy from the 2026-09-15 discharge report
+
+Full rationale is in the firmware header changelog and at each code site
+(`esphome/ups-monitor.yaml`); this is the deployment record. OTA-flashed by Bill
+from the ESPHome add-on (**ESPHome 2026.9.0**; device reports `1.20 (ESPHome
+2026.9.0)`), then restarted twice.
+
+- **Paired V/I blocks (report Open Item 21).** Per-channel `throttle_average: 5s`
+  ran V, I, Battery Power and Discharge Power (the Wh source) on four
+  free-running clocks with a per-boot random phase — current landed +1.294 s after
+  voltage in one boot and 1.30 s before it after the 09-15 survival wake [M,
+  device log, n=506 / 215]. One accumulator on the raw current publish now emits
+  all of them from the same 5 reads. Names and ids unchanged.
+- **Apparent Ri windowed stability gate (Open Item 20)** — 15 s means replace two
+  single samples; rejects now logged. 09-15 would have published 148.1 mOhm.
+- **Cliff Imminent `delayed_on` 60 s -> 180 s (Open Item 19)**, report S6.1.1.
+  Shipped ahead of 14a by Bill's decision; a genuine-cliff fire time is NOT yet
+  measured. `voltage_critical` (12.20 V) is the backstop.
+- **Outage duration stops at AC return** (2 charging blocks > 0.20 A), not at
+  `on_battery` release: 08-31 recorded 54 min for a 52.3 min discharge [M].
+- **Battery Fully Charged current hysteresis** (enter < 0.10 A, hold < 0.30 A):
+  V1.19 dropped out 5x in ~12 h at float [M].
+- **New diagnostics:** `sensor.tv_room_ups_monitor_ina260_unpaired_reads`,
+  `sensor.tv_room_ups_monitor_battery_current_10_hz_mean` / `_10_hz_sd`
+  (measure whether 5-sample block noise is sampling — [I], nothing depends on it).
+- **Log line** on survival recovery that no recharge-step Ri is captured
+  (correct behaviour, previously silent).
+
+Verified BEFORE the flash, in `C:\sandbox\esphome_v120` (fresh copy of H:):
+`esphome config` valid; real compile on 2026.8.2 — `main.cpp.obj` rebuilt, 0
+errors, the only warning pre-existing (V1.19 line 2236, `%u` vs `uint32_t`),
+`firmware.ota.bin` 1,010,192 B (+4,112). R3: 35 hunks all intended, 2,813 of 2,840
+V1.19 lines byte-identical, no comment removed. Host harness (lambdas extracted
+verbatim, `zig c++ -Wall`): 26/26 — including a failed current read that keeps
+blocks paired while two per-channel counters (the rejected `sliding_window`
+design) slip and are caught; the V1.19 Ri gate reproducing the silent 09-15
+reject; +25 % load and mid-dwell abort rejected. **Process defect found on the
+way:** `esphome compile` from Git Bash (`MSYSTEM=MINGW64`) prints "Successfully
+compiled program", exit 0, and builds nothing — the baseline gate passed without
+compiling. Re-run from PowerShell and checked by object/firmware timestamps.
+
+Verified AFTER the flash [M]:
+- ESPHome 2026.9.0 differs from the verified 2026.8.2: `ina260.cpp`, `sensor.cpp`
+  and `template_sensor.cpp` are byte-identical between the tags, so the pairing
+  guarantee holds; `sensor/__init__.py` changed only schema visibility and
+  build-file filtering.
+- R5: `sensor.ups_monitor_battery_voltage` / `_current` / `_power` keep their
+  2026-06-26 registry entries (unique_id is name-based), no `_2` duplicates.
+- Acceptance, InfluxDB, same query across firmware: V1.19 boot (to the flash)
+  median V-I arrival gap **1,318 ms**, 0 Battery Power points pairable; V1.20
+  boots 13:51:37 and 13:53:24 median **1 ms**, Battery Power == V x I exactly in
+  **18/18 and 22/22** (max |diff| 0.000000 W). Unpaired reads 0.
+- `ha_audit.py` 0 FAIL / 0 WARN; `gen_reference.py --check` current —
+  ESPHome device entities are not in ENTITIES.md, so no regeneration was needed.
+
+Documentation, same day: DIY-LiFePO4-UPS `ab3293e` (firmware V1.20 + design
+summary v12 notes), `5f2b69d` (09-15 report r3, R13 corrections), `c83c1f1`
+(Open Items 19-21 deployed). Report Items 13 and 9b were never defects — both
+sensors updated at 09:17:48-49 and were read afterwards by instruments that started
+late. The correction with the most weight: r2 said `battery_fully_charged` had never
+fired, but it was ON immediately before BOTH load-matched capacity runs (08-31
+19:37:30-20:05:50; 09-15 05:25:31-09:17:00) [M], so both began at the same float
+equilibrium — not a state-of-charge measurement, and May predates the detector.
+
+Still open: one day of 10 Hz diagnostic data before deciding on sample count; 14a.
+
+Found on the way: the ESPHome 2026.9.0 Device Builder commits to this repo on
+Install (`059feb2`, author `ESPHome Device Builder`) with no hooks — H: has none
+installed — so gitleaks and check-yaml never ran on it. Its content was verified
+byte-identical to the tested V1.20; the hooks were run by hand before pushing.
 
 ## [2026.09.14] - 2026-09-14
 
