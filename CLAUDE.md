@@ -1329,7 +1329,8 @@ open_questions.yaml             R14 made mechanical: every question asked of
                                 delta, it never blesses a failure.
 configuration.yaml              sensors, helpers, shell_commands
 automations.yaml                automation logic
-scripts.yaml                    bill archive seed scripts
+scripts.yaml                    weather_update_script only - the archive seed
+                                scripts were retired 2026-09-16 (CHANGELOG)
 
 packages/                       EVERY package, with live line and domain counts:
                                 see PACKAGES.md (GENERATED). Deliberately not
@@ -1399,9 +1400,7 @@ scripts/
 │                               without it exits 2 and says so. `--probe` first.
 ├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
 ├── csv_manager.py              CSV utilities
-├── fetch_bdl_degree_days.py    BDL degree day fetcher
-├── seed_hdd_archives.yaml      HDD archive seeding
-└── seed_dhw_archives.yaml      DHW archive seeding
+└── fetch_bdl_degree_days.py    BDL degree day fetcher
 
 grafana/
 ├── dashboards/

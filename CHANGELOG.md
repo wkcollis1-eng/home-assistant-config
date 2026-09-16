@@ -44,6 +44,134 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.16] - 2026-09-16
+
+### Archive helpers realigned to the published monthly reports (cause: seed re-run)
+
+HA's rolling 12-month archive helpers disagreed with the monthly reports and the
+committed baseline-repo CSVs. `dhw_archive_mar/apr/may` and `hdd_archive_feb..jun`
+held the 2025 seed values digit for digit. Bill confirmed 2026-09-16 that a seed
+was re-run after early May 2026, most likely while the June report was prepared
+in early July - which put 2025 values back over slots already holding 2026 data.
+`archive_monthly_hdd` and `save_dhw_button` were not at fault; nothing surviving
+could have dated it (no InfluxDB helper history before 2026-07-12, session logs
+from 2026-08-21, the 2026-07-12 backup is encrypted).
+
+Written by `input_number.set_value` on Bill's instruction, all 26 read back equal,
+0 of 118 other archive helpers changed [M, live API]:
+
+| helper | was (put-back values) | now | source |
+|---|---|---|---|
+| `dhw_archive_mar/apr/may` | 22.47 / 20.66 / 19.21 (2025 seed) | 8.74 / 13.28 / 14.33 | MARCH/APRIL/MAY_2026_UPDATE.md, `monthly_dhw_navien.csv` |
+| `hdd_archive_feb..jun` | 963.0 / 676.0 / 432.0 / 172.0 / 22.5 (2025 seed) | 1062.6 / 767.6 / 472.3 / 216.0 / 13.4 | reports' "HA Proxy Archive" column and `hvac_monthly.csv`; May is a 24-day capture |
+| `dhw_op_hrs_archive_sep..may` | all 0 (helpers added 2026-08-24, never backfilled) | 9 / 9 / 9 / 11 / 12 / 11 / 12 / 11 / 12 | `monthly_summary.csv` DHW_Op_Hrs |
+| `dhw_recirc_hrs_archive_sep..may` | all 0 | 51 / 56 / 55 / 62 / 43 / 28 / 61 / 32 / 35 | `monthly_summary.csv` DHW_Recirc_Hrs |
+
+Observed after the write [M, live API, 2026-09-16]: `dhw_gas_12m` 193.2 -> 167.2 CCF;
+`hvac_heating_efficiency_12m` 103.3 -> 103.0; `hvac_heating_efficiency_12m_bdl`
+98.1 -> 102.4; `hvac_building_load_ua_12m` 533 -> 531; `hvac_performance_vs_baseline_bdl`
+state 8.6 -> 13.4 [M]; `projected_annual_gas_ccf` unchanged at 784. The proxy
+efficiency and UA barely moved because the stale DHW numerator and the stale HDD
+denominator had been offsetting each other by coincidence.
+
+Deliberately NOT touched:
+- `hdd_archive_sep..dec` - the ORIGINAL seed, never reverted; no report publishes
+  HA-proxy values for those months, and they roll over Sep-Dec 2026.
+- `furnace_mpc_archive_*` / `_sigma_archive_*` Jun-Aug hold 10.0 / 1.5 - placeholders,
+  not report values; not investigated.
+- March recirc 61 h sits beside a two-week vacation; the H1 overview already flags
+  that inconsistency. Written as published.
+- Baselines: Bill 2026-09-16, no rebase - BDL HDD65 stays the method.
+
+**STILL OPEN - the defect itself:** `script.seed_dhw_archives` (scripts.yaml) and the
+paste-in files `scripts/seed_dhw_archives.yaml` / `scripts/seed_hdd_archives.yaml`
+remain one action away from repeating this. Running the DHW seed today would
+overwrite Jun/Jul/Aug 2026 and every correction above. Retire or guard, pending Bill.
+
+### Removed `script.seed_dhw_archives` (same day, Bill: "Delete the script from scripts.yaml. Git keeps the history.")
+
+Closes the script half of the STILL OPEN item above. The 69-line block
+(`scripts.yaml`, was lines 516-584) is gone; history is in 388a9be.
+
+- Impact scan: no automation, script, dashboard or package called it. The one
+  other hit, CLAUDE.md FILE MAP `scripts/seed_dhw_archives.yaml`, is the paste-in
+  file, which stays.
+- R2/R3 in `C:\sandbox` (fresh mirror of H:): 7 -> 6 scripts, the other 6
+  identical as parsed, reversing the edit reproduced the original bytes;
+  `validate_ha.py --strict` PASS (parse-clean), `ha_audit.py` 0 FAIL / 0 WARN,
+  `gen_reference.py --check` all generated docs current. H: copy verified
+  byte-identical to the sandbox file.
+- Gate on H: `gate.py scripts.yaml` PASS (parse-clean), audit delta 0 NEW;
+  `check_config` **valid** -> PASS (HA-certified). No script was running, then
+  `script.reload`.
+- Observed [M]: `script.seed_dhw_archives` is no longer a registered service.
+  Its entity persists as `unavailable` / `restored: true` - the entity-registry
+  entry HA keeps for a removed YAML script. Harmless (not callable); delete it
+  from Settings > Entities if the orphan is unwanted.
+
+Still NOT done, not requested: warning headers on the paste-in files
+`scripts/seed_dhw_archives.yaml` and `scripts/seed_hdd_archives.yaml`, and the
+other seed scripts (`seed_2024_bill_archive`, `seed_2025_electric_archive`,
+`seed_2025_gas_archive`, `one_shot_seed_gas_heat_season_2025_26`) are still
+registered and would overwrite their archives the same way if run.
+
+### Removed four more archive seed scripts (same day, Bill: "lets delete these")
+
+`seed_2024_bill_archive`, `seed_2025_electric_archive`, `seed_2025_gas_archive`,
+`one_shot_seed_gas_heat_season_2025_26` - each would overwrite its archive
+helpers with fixed historical values if run, the same failure the DHW seed
+caused. 569 lines removed from `scripts.yaml` (was 649, now 81); history in git.
+
+- Impact scan: no reference outside `scripts.yaml` in YAML/JSON/Python/Markdown/JS
+  or the stored Lovelace dashboards.
+- R2/R3 in a fresh `C:\sandbox` mirror: 6 -> 2 scripts, `weather_update_script` and
+  `seed_monthly_accumulators` identical as parsed; the new file equals the original
+  minus the four grep-reported line spans, and re-inserting those spans reproduces
+  the original byte for byte. `validate_ha.py --strict` PASS (parse-clean),
+  `ha_audit.py` 0 FAIL / 0 WARN, `gen_reference.py --check` current. H: copy
+  verified byte-identical to the sandbox file.
+- Gate on H: `gate.py scripts.yaml` PASS (parse-clean), audit delta clean;
+  `check_config` **valid** -> PASS (HA-certified); no script running, then
+  `script.reload`; `ha_audit.py` after reload 0 FAIL / 0 WARN.
+- Observed [M]: none of the four is a registered service any more. Each entity
+  persists as `unavailable` / `restored: true` (entity-registry orphan, not
+  callable) - delete from Settings > Entities if wanted.
+
+Left alone, not requested: `seed_monthly_accumulators` (still in `scripts.yaml`),
+and the paste-in files `scripts/seed_dhw_archives.yaml` /
+`scripts/seed_hdd_archives.yaml`.
+
+### Retired the last seed tools (same day, Bill: "approved")
+
+Closes the rest of the seed-tool exposure above. No archive-seeding path remains
+in the config tree; everything removed is in git history.
+
+- `script.seed_monthly_accumulators` removed from `scripts.yaml` (69 lines; the
+  file now holds only `weather_update_script`). It was the one-time migration off
+  the history_stats month sensors, and it had become self-referential: it set
+  `*_month_acc = sensor.hvac_*_month_2 - today`, but those `_month_2` sensors
+  (unique_id `hvac_furnace_runtime_month` etc.) are now computed FROM the
+  accumulators. Run before the 23:56:30 capture it was a no-op; run after it, it
+  subtracted a day; run while the templates were unavailable, `float(0)` zeroed
+  month-to-date. Nothing referenced it.
+- Deleted the paste-in files `scripts/seed_dhw_archives.yaml` and
+  `scripts/seed_hdd_archives.yaml` - the literal source of the re-seed. A second
+  copy of data the baseline repo already holds (DHW) or the method no longer uses
+  (2025 proxy HDD). Deleted rather than given a warning header: a pasted block
+  carries no header (R10).
+- CLAUDE.md FILE MAP: `scripts.yaml` description corrected; the two seed-file rows
+  removed and the tree glyph on `fetch_bdl_degree_days.py` closed.
+
+Verified: fresh `C:\sandbox` mirror first - `scripts.yaml` equals the original
+minus the one block, `weather_update_script` identical as parsed, the CLAUDE.md
+diff is exactly the FILE MAP lines; `validate_ha.py --strict` PASS (parse-clean),
+`ha_audit.py` 0 FAIL / 0 WARN, `gen_reference.py --check` current. On H:
+`gate.py scripts.yaml` PASS (parse-clean), `check_config` **valid** -> PASS
+(HA-certified), no script running, `script.reload`. Observed [M]:
+`seed_monthly_accumulators` no longer a registered service (entity orphaned
+`unavailable` / `restored: true`), `weather_update_script` still registered, all
+12 month accumulators unchanged across the reload; `ha_audit.py` 0 FAIL / 0 WARN.
+
 ## [2026.09.14] - 2026-09-14
 
 ### Process error: hand-edited a GENERATED "DO NOT HAND-EDIT" dashboard file, twice
