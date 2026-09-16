@@ -49,6 +49,53 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.16] - 2026-09-16
 
+### New Claude Code hook: `context_hygiene.py`, the stale-session pause (cause: token cost is session length)
+
+Installed by an earlier session today (deployed file stamped 18:58), recorded here
+by a later one. It lives in `~/.claude/` on C:, outside this repo, so nothing in git
+showed it had happened.
+
+Wiring in `~/.claude/settings.json`:
+
+| event | entries now | what `context_hygiene.py` does there |
+|---|---|---|
+| `UserPromptSubmit` | 1 (**new** - nothing was wired to this event before) | Idle >= 60 min since the last response AND that response carried >= 150K tokens of context: blocks the prompt **once**, with "Paused once (context_hygiene)". Send it again to continue; `/clear` first if it is a new task |
+| `Stop` | 2 (was 1, `ha_audit_gate.py stop`) | A turn that ran a successful `git push` at >= 150K context: prints a one-line `/clear` suggestion. Never blocks |
+
+The same install set `autoCompactWindow: 400000`.
+
+Why: over 7,685 API calls, 2026-08-21 to 2026-09-16, median context was 330K tokens
+and re-reading the conversation was ~72% of token cost [M, n=7,685 calls, transcript
+`usage` records; measured by the installing session, not re-run here]. The lever is
+session length, `/clear` is a command only Bill can run, and remembering to suggest
+it is compliance that belongs in the harness. Full basis is the hook's docstring,
+not repeated here (R10).
+
+Limits: 60 min is the prompt-cache TTL [S, Claude Code session system prompt,
+"1-hour Anthropic prompt-cache TTL"], after which a prompt re-caches the whole
+context. 150K is a chosen floor, not a measured one.
+
+**Fails open:** any exception -> exit 0, no output. It is a cost nudge, not a gate.
+
+**HAZARD - removal order.** Never delete or rename the hook file while
+`settings.json` still references it. `python` on a missing script exits 2 [M, run
+2026-09-16], and exit 2 on `UserPromptSubmit` blocks EVERY prompt. Remove the two
+settings entries first, then the file.
+
+Verified this session: 27/27 tests PASS in `C:\sandbox\context_hygiene\test_hygiene.py`
+[M, re-run 2026-09-16]; the sandbox `context_hygiene.py` is byte-identical to the
+deployed one (`diff -q`). Live test: create `~/.claude/hooks/.state/arm_test` and the
+next prompt pauses once.
+
+Left open:
+- **No tracked copy.** `H:/.claude/hooks/` holds the other three hooks but not this
+  one. Its only copies are the deployed file and the sandbox, neither in git.
+- **`deploy_drift()` checks only `ha_audit_gate.py`** against its repo copy (it compares
+  `basename(__file__)`), so it would miss drift in this hook, or in `ha_guard.py` and
+  `ha_validate_edit.py`, even once tracked. CLAUDE.md's "compares the two" reads
+  wider than the code.
+- `docs/claude-code-enforcement.md` does not mention the hook yet.
+
 ### CLAUDE.md split into an always-loaded core plus on-demand `docs/` (cause: token cost, and rules absent from most sessions)
 
 `H:/CLAUDE.md` never auto-loaded: the Claude Code project root is `C:\Users\wkcol`
