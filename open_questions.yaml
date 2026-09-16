@@ -435,3 +435,160 @@
     Not blocking. The office collection proceeds; the weakness is documented,
     and if the two nodes ever disagree about method, the family room result is
     the one with corroboration behind it.
+
+- asked: 2026-09-16
+  question: >-
+    Does the basement "Hot Water Heater" Kasa plug (sensor.hwh_*) power the
+    WHOLE Navien NPE-240S2 (burner fan + controls + internal pump), or only a
+    separate external recirculation pump?
+  blocks: >-
+    Event-level split of SDR gas steps into DHW vs non-DHW (cooking) using the
+    Navien's electrical firing signature - the only route to a cooking baseline
+    that keeps measuring through the heating season.
+  answered: >-
+    2026-09-16, Bill: the WHOLE Navien NPE-240S2.
+
+    Split done the same day. Plug power bands measured against SDR gas steps
+    [M, 2026-08-22..09-15, 532 of 600 h attributed, read interval <=180 s]:
+    below 20 W the gas rate is 0.2-0.8 ft3/h (not firing); 20 W and above it is
+    7-18 ft3/h (firing). Non-firing gas was 10.0-13.2% of attributed gas across
+    thresholds 12/20 W and caps 180/600 s [M], i.e. cooking 85-112 ft3 in 25 d =
+    1.02-1.34 CCF/30 d [D: share x 846 ft3 / 25 d x 30], plus ~10 ft3 estimated
+    hidden under concurrent Navien firing [D, independence model] - call it
+    1.0-1.5 CCF/month. 60 of 74 ft3 of idle-state gas fell 16:00-18:59 [M].
+    This REFUTES the 4.4 CCF/30 d proration figure in `blocks:` of the next
+    entry; that was August DHW not being uniform.
+
+    Not yet validated: SDR firing-state gas for Sep 1-30 against the Navien app's
+    September total is the gate. Winter extension needs a third state (furnace
+    calling), because non-firing gas will then include heating.
+
+- asked: 2026-09-16
+  question: >-
+    Can you read the Navien app's DAILY gas figures for 2026-08-22 through
+    2026-09-15 (or, if it has no daily history, the Aug 22-31 and Sep 1-15
+    subtotals)?
+  blocks: >-
+    A measured cooking baseline. HA holds only monthly Navien totals, so the
+    25-day SDR window (846 ft3) can only be split by prorating August DHW, which
+    gives 4.4 CCF/30 d against 1.0-1.9 CCF/bill from summer bill residuals.
+  answered: >-
+    2026-09-16, Bill: no - the app gives monthly totals only.
+
+    So the plug-signature split (previous entry) is the only route to a measured
+    cooking baseline, and the monthly Navien total becomes its calibration check
+    rather than an input.
+
+- asked: 2026-09-16
+  question: >-
+    On the two most recent gas bills (Aug 2026 and the one entered 2026-09-15),
+    what are the meter READ dates, the previous/current register readings, and
+    is each read marked actual or estimated?
+  blocks: >-
+    SDR-vs-utility register reconciliation (SDR runs 33.8 ft3/d over 25 d vs the
+    8 CCF / 30 d bill = 26.7 ft3/d) and exact billing-period alignment of HDD and
+    DHW in the monthly reports.
+  answered: >-
+    2026-09-16, Bill: monthly gas bills are entered into HA and should be in the
+    statistics.
+
+    PARTIAL - re-asked below (R14). InfluxDB holds what is entered: bill date,
+    days, CCF and $ - 2026-06-12; 2026-07-15 (33 d, 13 CCF); 2026-08-12 (30 d,
+    8 CCF); 2026-09-15 (days left at 30, 8 CCF). No register readings and no
+    actual/estimated flag exist in HA. The dates do not close: 07-15 to 08-12 is
+    28 d and 08-12 to 09-15 is 34 d, against 30 entered each time. And actual
+    reads on 08-12 and 09-15 cannot give 8 CCF: the SDR register was 568774 on
+    08-21 (so <= 5687 on 08-12) and crossed 569600 on 09-14 17:14, a difference
+    of at least 9 [D]. So the bill date is not the read date, or a read was
+    estimated.
+
+- asked: 2026-09-16
+  question: >-
+    Where did the BASELINE_REPORT annual HDD65 figures (2022-2025: 6,092 / 5,465
+    / 5,305 / 6,270, labelled KBDL) come from - which station, and which method?
+  blocks: >-
+    Rebasing the 90.3 CCF/1k HDD and 493 BTU/hr-F baselines. ACIS KBDL returns
+    5,442 / 4,939 / 4,729 / 5,629 for the same years [M, queried 2026-09-16],
+    lower by 526-650 HDD in each of n=4 years [D: baseline - ACIS], which would
+    move the 2025 intensity baseline to ~100.6 [D: 566 / 5.629].
+  answered: >-
+    2026-09-16, Bill: pulled from public records for the Bradley International
+    station; BDL should be the ONE consistent metric used throughout every
+    monthly report.
+
+    Public Bradley products disagree with each other, so "BDL" has to name one
+    product. For 2025 [M, both queried 2026-09-16]: ACIS 5,629; NOAA NCEI GSOY
+    HTDD 5,148. Neither reproduces 6,270. The monthly reports and
+    sensor.bdl_degree_days already use ACIS, so ACIS is the consistent choice.
+    On ACIS the 2025 baseline becomes HDD65 5,629, HDD59/HDD65 0.751 (not
+    0.844) [D: 4,230 / 5,629], intensity 100.6 [D: 566 / 5.629], and UA 585 by
+    the UA 12M sensor's own formula [D]. On that single basis the live trailing
+    12 months read intensity +1.8% and UA -1.1% against baseline [D, n=1 year
+    each side, no test possible], where HA shows +8.6% / +8.1% today.
+    PROPOSED, NOT APPLIED: BASELINES in CLAUDE.md need explicit instruction, and
+    the helpers are live writes (R12).
+
+    DECIDED 2026-09-16, Bill: NO REBASE. The methodology is BDL HDD65 and it has
+    to stay fixed so year-over-year comparisons remain consistent. HDD59 (and
+    the 0.844 constant) are not to be introduced into the reports or baselines.
+    Do not re-propose; the analysis above stays as the record of why it was
+    considered.
+
+- asked: 2026-09-16
+  question: >-
+    On the gas bill entered 2026-09-15, what are the printed PREVIOUS and CURRENT
+    meter readings (the two register numbers)?
+  blocks: >-
+    SDR-vs-utility register reconciliation. The SDR log timestamps every
+    hundred-cubic-foot crossing of the register, so those two numbers alone give
+    the actual read dates and show whether either read was estimated - which
+    fixes the billing-period alignment for every bill after 2026-08-21.
+  answered: >-
+    2026-09-16, Bill sent both CNG bills (meter 561309, reading cycle 08, every
+    read Actual, correction factor 1):
+      statement 08/14  period 07/14-08/12  30 d  read 5678 -> 5686  8 CCF
+      statement 09/15  period 08/13-09/11  30 d  read 5686 -> 5694  8 CCF
+
+    RECONCILED. The SDR register read 569464 to 569498 across the whole of
+    2026-09-11, which truncates to CNG's actual read of 5694 [M]; it crossed
+    5694 on 09-08 18:06 and 5695 on 09-12 05:59. n=1 read, the only one inside
+    SDR history - the 08-12 read predates the first decode (08-21 13:28).
+
+    That closes the 33.8 vs 26.7 ft3/d gap: it was the bill window, not the
+    instrument. From the 08-12 read (5686xx) to the first decode (568774) the
+    house used 75-174 ft3 in 9.1 d = 8.3-19.2 ft3/d [D], well below the later
+    SDR average - the same low stretch that halved August's Navien total.
+
+    Consequences: (1) bill month M covers the 13th of M-1 to the 12th of M, so
+    about 60% of each bill's days sit in the PRIOR month [D: (days-12)/days] -
+    aligned H1 intensity becomes 109.9 (2025) and 108.2 (2026) [D], replacing
+    the half/half approximation. (2) HA's gas_bill_date is only used to pick
+    the month slot (save_gas_bill_button, archive_monthly_gas_heat_cost); the
+    Aug entry was the read date and the Sep entry the statement date, but on
+    cycle 08 both land in the same month, so nothing mis-slotted. (3) The bill's
+    current read is the reconciliation gate going forward: SDR register at the
+    read date, truncated to hundreds, must equal it.
+
+- asked: 2026-09-16
+  question: >-
+    After early May 2026 - most likely while the June report was being prepared
+    in early July - did you (or a session) run "Seed DHW Archive Data" or paste
+    the HDD seed service calls from scripts/seed_hdd_archives.yaml?
+  blocks: >-
+    The root-cause record (R13) for HA's archive slots holding seed values:
+    dhw_archive_mar/apr/may = 22.47/20.66/19.21 and hdd_archive_feb..jun =
+    963/676/432/172/22.5, digit-for-digit the 2025 seed files, while the reports
+    carry 2026 values. archive_monthly_hdd's month-end write logic is unchanged
+    since cc4dc01 (2026-02-25), which fits a later re-seed better than "never
+    written" [I]. Nothing surviving can decide it: InfluxDB holds no helper
+    history before 2026-07-12, session logs start 2026-08-21, and the one
+    pre-August backup (2026-07-12) is encrypted.
+  answered: >-
+    2026-09-16, Bill: yes - a seed was re-run - and "let's align HA with the
+    correct values in the report."
+
+    Root cause settled: the re-seed, not archive_monthly_hdd or save_dhw_button.
+    Aligned the same day - 26 archive helpers written from the published reports,
+    all read back equal, 0 of 118 other archive helpers changed [M]. Detail,
+    prior values and what was deliberately not touched: CHANGELOG 2026.09.16.
+    STILL OPEN: the seed tools that caused it remain one action away.
