@@ -100,6 +100,15 @@ custom_parameters:
   # !!! and the parity filter, and that knowledge does not require staying there.
   rtlamr: -unique=false -symbollength=80 -centerfreq=912380000
   #
+  # -samplefile     NOT SET, and deliberately so. Adding it makes rtlamr dump the
+  #                 IQ window around every packet it decodes (main.go:283), which
+  #                 is how per-packet RSSI/SNR gets measured without stopping this
+  #                 pipeline - rtlamr itself reports no signal level at all.
+  #                 Do NOT add it from here: docs/sdr-signal-level.md holds the
+  #                 whole procedure, the 17-22 MB/h cost, why `-g` must be pinned
+  #                 on rtltcp at the same time, and the UNTESTED claim the route
+  #                 rests on. Read that first (docs/pending.md P17).
+  #
   # -unique=false   MUST be explicit, not absent (ERROR 2). The rtlamr UniqueFilter
   #                 suppresses any frame whose checksum matches the previous one
   #                 from that id. With sleep_for: 0 the process never restarts, so

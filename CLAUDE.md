@@ -638,6 +638,7 @@ Electric rate:        $0.29/kWh
 | `docs/ha-ui-actions.md` | when working from the HA UI, or adding or changing a `script.ha_*` action |
 | `docs/claude-code-enforcement.md` | before changing hooks, deny rules or settings; when a block message surprises you |
 | `docs/rules-history.md` | before changing, narrowing or retiring any rule; when a rule's edge case is unclear; when recording a new scar |
+| `docs/sdr-signal-level.md` | before any SDR antenna, antenna-position or signal-strength work; when tempted to judge an RF change by decode rate |
 
 Files that cite a CLAUDE.md section this table lists by name ("SNAPSHOT RULE",
 "EOD section", "FILE MAP", "PENDING") mean the doc above that now holds it.

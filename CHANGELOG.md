@@ -50,6 +50,47 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.17] - 2026-09-17
 
+### New doc: `docs/sdr-signal-level.md` — an instrument for antenna work (docs only, nothing deployed)
+
+Bill asked for the rtl_433 implementation to be written up for next session.
+The gap it fills: **rtlamr reports no signal level at all**, so every antenna or
+antenna-POSITION question so far has been answered with decode rate, which is
+the wrong instrument and saturates. Verified at source, nothing run.
+
+**Bill's question was whether rtl_433 can run alongside rtlamr2mqtt "if at same
+freq". Frequency is not what blocks it** — three things do, all in the source:
+`libusb_claim_interface` makes the dongle exclusive (`librtlsdr.c:1526`);
+`rtl_tcp` serves one client at a time (`listen(sock, 1)` at `rtl_tcp.c:594`,
+`accept` → `pthread_join` → `closesocket` at `:606-644`); and it binds
+`127.0.0.1` (`:383`) inside an add-on with `host_network: false` [S: add-on
+2026.5.9 `config.yaml`, the installed version]. No rtl_433 in that image, and no
+rtl_433 add-on installed here [M: 0 registry matches].
+
+**The route that avoids all three:** rtlamr writes IQ samples only when it
+decodes a packet (`if pktFound` → `sampleWriter.Write`, `main.go:283`), with the
+file `os.Create`d, i.e. truncated per run (`flags.go:135`). So `-samplefile`
+yields a small file of per-packet windows that rtl_433 reads offline with
+`-M level` (README:618), on the official Windows build [S: release 25.12
+`rtl_433-win-x64-25.12.zip`], straight off the `H:` share. **The pipeline never
+stops** — same dongle, same antenna, same packets.
+
+Cost, from this house's numbers: 54-70 KB per decode [D: BufferLength =
+116 x 160 + 8192 samples, 2 B/sample, `decode.go:141`, `r900.go:65-66`] at
+5.35 decodes/min [M: 347 in 64.8 min] = **17-22 MB/h** [D], against 369.8 GB
+free [M]. `/config` is the only writable map, so `tmp/` was added to
+`.gitignore` in this commit — before the feature can ever be enabled.
+
+**What is NOT established:** that rtl_433 decodes SCM/R900 from spliced
+2.62 MS/s `cu8` windows. That is [I1], untested, and the doc's section 6 gate
+exists to kill the route early rather than late. Also recorded there: the dump
+is written inside `if pktFound`, so the level distribution is **censored** — it
+describes successful decodes and can say nothing about the misses.
+
+Also filed: `docs/pending.md` **P17** (next-session item, gate before survey,
+needs Bill for the one add-on change), a `-samplefile` warning-off comment at
+the deployed config's own site in `docs/addons/rtlamr2mqtt-recommended.yaml`
+(pointer, not a second copy — R10), and a CLAUDE.md reference-table row.
+
 ### SDR antenna swapped (hardware, no config change) — first hour shows no detectable change
 
 **Bill [S]:** replaced the NESDR SMArt v5's stock 4.74" loaded-coil antenna

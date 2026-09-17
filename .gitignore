@@ -98,3 +98,9 @@ docs/vendor/
 # to the config. The project-scope .claude/settings.json IS tracked and should
 # stay so - that one is the shared policy.
 .claude/settings.local.json
+
+# Added 2026-09-17 with docs/sdr-signal-level.md. /config is the ONLY folder the
+# rtlamr2mqtt add-on can write to, so an IQ sample dump (-samplefile) has to land
+# inside this git tree - 17-22 MB/h of it. Ignored before the feature is ever
+# enabled, so it cannot be committed by accident.
+tmp/

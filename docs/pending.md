@@ -152,6 +152,33 @@ is EXPECTED, not a bug - do not "helpfully" reset early.
 
 ---
 
+### P17 — SDR per-packet signal level: implement and gate it [MEDIUM]
+```
+NEXT SESSION ITEM, at Bill's request 2026-09-17. The full procedure is written
+up in docs/sdr-signal-level.md - read that, not this summary.
+
+WHAT: rtlamr reports no signal level at all, so antenna and POSITION questions
+currently have no instrument (capture rate is the wrong one, and it saturates).
+The route: rtlamr's own -samplefile dump, which it writes only around packets
+it decoded, read offline by rtl_433 -M level on Windows off the H: share. The
+pipeline keeps running - no need to stop rtlamr2mqtt.
+
+STATE: nothing deployed, nothing run. Verified only at the source level (R6).
+
+FIRST ACTION is the gate in that doc's section 6, not the survey. The whole
+route rests on [I1] "rtl_433 decodes SCM/R900 from spliced 2.62 MS/s cu8
+windows", which is UNTESTED. If it produces zero decodes, the route is dead and
+the fallback needs Bill's authorisation (it takes the meter alarms blind).
+
+NEEDS BILL (R12): one add-on config change plus a restart - see that doc's
+section 3, including why -g 40 is required and -s 2621440 must be kept.
+
+DO NOT move the antenna while the 09-18..09-24 ledger row is live; the survey
+in section 8 voids it.
+```
+
+---
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
