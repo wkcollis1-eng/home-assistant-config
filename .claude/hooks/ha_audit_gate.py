@@ -32,8 +32,9 @@ WHAT CHANGED 2026-08-25, and why it mattered
    which is the exact failure the message exists to prevent. A guard that lives
    on the drive it is guarding cannot report that drive missing. It therefore
    runs from C:/Users/wkcol/.claude/hooks/ (local, always startable), with
-   H:/.claude/hooks/ as the tracked source. deploy_drift() below compares the
-   two at every session start, so the pair cannot silently diverge.
+   H:/.claude/hooks/ as the tracked source. deploy_drift() below compares
+   every deployed hook with its tracked copy at every session start, so the
+   pair cannot silently diverge.
 
 3. THE WATCH LIST INCLUDES dashboards/. It was root *.yaml, packages/*.yaml,
    scripts/*.py and *.md - so editing dashboards/views/*.yaml never moved
@@ -128,29 +129,44 @@ def emit(obj):
 
 
 def deploy_drift():
-    """A one-line warning if this file differs from the repo copy, else ''.
+    """A one-line warning naming every drifted deployed hook, else ''.
 
-    The deployed hook on C: and the tracked hook under H:/.claude/hooks/ are
+    The deployed hooks on C: and the tracked hooks under H:/.claude/hooks/ are
     meant to be byte-identical. Nothing else checks that, and a stale deployed
-    hook is a guard that silently enforces last month's rules - so it checks
-    itself. Silent when they match, silent when the repo copy is unreachable
-    (that case is already reported far more loudly by the audit itself).
+    hook is a guard that silently enforces last month's rules. Checks every
+    *.py beside this file. Until 2026-09-16 it compared only itself, so drift
+    in ha_guard.py, ha_validate_edit.py or context_hygiene.py was invisible and
+    a hook with no tracked copy at all passed; test_deploy_drift.py reproduces
+    that against the old version. Silent when all match, silent when the repo
+    hooks dir is unreachable (that case is already reported far more loudly by
+    the audit itself).
     """
-    me = os.path.abspath(__file__)
-    repo = os.path.join(CONFIG.rstrip("/"), ".claude", "hooks",
-                        os.path.basename(me))
+    here = os.path.dirname(os.path.abspath(__file__))
+    # Not os.path.join(CONFIG.rstrip("/"), ...): for "H:/" that gives "H:.claude",
+    # which is relative to H:'s current directory, not its root (found and
+    # fixed 2026-09-16, present since the check was written). Same idiom as AUDIT.
+    repo = CONFIG.rstrip("/") + "/.claude/hooks"
     try:
-        if not os.path.exists(repo) or os.path.abspath(repo) == me:
+        if not os.path.isdir(repo) or \
+                os.path.normcase(os.path.abspath(repo)) == os.path.normcase(here):
             return ""
-        with open(me, "rb") as a, open(repo, "rb") as b:
-            if a.read() != b.read():
-                return ("\n\nHOOK DEPLOY DRIFT: the running hook (%s) differs "
-                        "from the tracked copy (%s). One of them is stale - "
-                        "re-copy before trusting what the gate enforces."
-                        % (me, repo))
+        drift = []
+        for path in sorted(glob.glob(os.path.join(here, "*.py"))):
+            name = os.path.basename(path)
+            tracked = os.path.join(repo, name)
+            if not os.path.exists(tracked):
+                drift.append("%s (no tracked copy)" % name)
+                continue
+            with open(path, "rb") as a, open(tracked, "rb") as b:
+                if a.read() != b.read():
+                    drift.append("%s (differs)" % name)
     except OSError:
         return ""
-    return ""
+    if not drift:
+        return ""
+    return ("\n\nHOOK DEPLOY DRIFT: %s - running hooks in %s against the tracked "
+            "copies in %s. One side is stale - re-copy before trusting what the "
+            "hooks enforce." % (", ".join(drift), here, repo))
 
 
 def missing_audit_message():

@@ -95,10 +95,23 @@ Left open:
   tracked hook byte-identical to the deployed one; the suite run from the repo
   location gave 27 PASS, `FAILS: 0` [M]. Nothing checks that the two stay identical
   (next bullet).
-- **`deploy_drift()` checks only `ha_audit_gate.py`** against its repo copy (it compares
+- ~~**`deploy_drift()` checks only `ha_audit_gate.py`** against its repo copy (it compares
   `basename(__file__)`), so it would miss drift in this hook, or in `ha_guard.py` and
   `ha_validate_edit.py`, even once tracked. CLAUDE.md's "compares the two" reads
-  wider than the code.
+  wider than the code.~~
+  **RESOLVED same day** (Bill: "fix the 2 open items"). It now checks every `*.py`
+  beside the running gate and names each one as `(differs)` or `(no tracked copy)`.
+  A second, older defect turned up in the sandbox and is fixed in the same change:
+  the repo path was `os.path.join(CONFIG.rstrip("/"), ...)`, which for `H:/` gives
+  `H:.claude\hooks`. That path is relative to H:'s *current directory*, not its root,
+  so the check would have gone silent had that directory ever moved off the root.
+  It now uses `CONFIG.rstrip("/") + "/.claude/hooks"`, the same idiom as `AUDIT`.
+  New `.claude/hooks/test_deploy_drift.py` [M, all run 2026-09-16]: the old gate
+  FAILs 5 of 9; a copy with only the path bug FAILs exactly the path test; the fixed
+  gate passes 9/9. Sandbox, `H:` and `C:` copies are byte-identical (`cmp`). The
+  deployed gate returns `''` against the real repo, and a full `sessionstart` run
+  gave `0 FAIL, 0 WARN, 2 INFO` with no drift line. CLAUDE.md's "compares the two"
+  is now accurate.
 - `docs/claude-code-enforcement.md` does not mention the hook yet.
 
 ### CLAUDE.md split into an always-loaded core plus on-demand `docs/` (cause: token cost, and rules absent from most sessions)
