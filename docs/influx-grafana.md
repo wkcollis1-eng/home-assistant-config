@@ -25,6 +25,25 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
   active. **Lesson for future sessions: a narrative entry in CHANGELOG.md does
   NOT update this file's own "current state" prose — that has to be done as
   its own edit, the same day, or this file drifts exactly like this.**
+- **CORRECTED 2026-09-17: the store add-on is BACK as v6.0.0 - and v6.0.0 is
+  NOT a rollback to 1.8.10. DO NOT press Update on `a0d7b954_influxdb`.** The
+  next bullet was true 2026-08-28 to 2026-09-16. `hassio-addons/addon-influxdb`
+  is `archived: false` again and published v6.0.0 at 2026-09-17 04:55 UTC
+  [M, GitHub API `repos/.../releases`]. HA shows `update.influxdb_update`
+  installed 5.0.2, latest 6.0.0, `auto_update: False` [M, `/api/states`,
+  2026-09-17], so it applies IN PLACE to the stopped rollback, and nothing
+  applies it unless someone presses Update. What v6.0.0 changes [S, repo at
+  tag]: InfluxDB **1.13.1** (`influxdb/Dockerfile`, `ARG INFLUXDB_VERSION`),
+  and `index-version = "tsi1"` (`rootfs/etc/influxdb/templates/influxdb.gtpl`)
+  where 5.0.2's `rootfs/etc/influxdb/influxdb.conf` sets none (default
+  `inmem`) and the fork kept `inmem` (CHANGELOG 2026.09.08). `index-version`
+  governs "new shards" only [S, docs.influxdata.com/influxdb/v1/administration/config,
+  `[data] index-version`], so old shards stay `inmem` and new ones go `tsi1`:
+  a mixed index this house has never run. The rollback's ONLY value is being
+  the 1.8.10 that ran production. Updated, "start it again" becomes an
+  untested 1.13.1 over data frozen at the 2026-09-10 cutover - the 2026-09-08
+  side-by-side proved 1.12.4, not 1.13.1. The next bullet's "a backup is the
+  only way back" now means: only a backup gets 5.0.2 back once v6 is applied.
 - **THE OLD ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY
   WAY BACK TO IT.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed
   from the Community Add-ons store on **2026-08-28**. Searching the store for

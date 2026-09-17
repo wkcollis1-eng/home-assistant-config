@@ -47,6 +47,44 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.17] - 2026-09-17
+
+### Store InfluxDB add-on returned as v6.0.0; rollback `a0d7b954_influxdb` must NOT take it (docs only, no config change)
+
+Bill reported HA offering an InfluxDB update to v6. `docs/influx-grafana.md`
+said the store add-on was archived and in no store - true since 2026-08-28,
+false as of 04:55 UTC today. Corrected at the site (new CORRECTED bullet above
+the stale one, which is kept).
+
+Measured / read today:
+- `update.influxdb_update`: 5.0.2 -> 6.0.0, `auto_update: False`;
+  `update.influxdb_1_12_local_fork_update`: `5.0.2-influx1.12.4`, no update
+  [M, `/api/states`]
+- `sensor.influxdb_cpu_percent` = `unavailable` (rollback stopped);
+  `sensor.influxdb_1_12_local_fork_cpu_percent` = 1.28; `:8086 /ping` ->
+  `X-Influxdb-Version: 1.12.4` [M, single reads, 2026-09-17]
+- `hassio-addons/addon-influxdb`: `archived: false`, v6.0.0 published
+  2026-09-17T04:55:51Z [M, GitHub API]
+- v6.0.0 ships InfluxDB 1.13.1, Chronograf 1.11.5, Kapacitor 1.8.7
+  (`influxdb/Dockerfile`), sets `index-version = "tsi1"` (`influxdb.gtpl`);
+  5.0.2 set no index-version (default `inmem`); amd64 still built [S, repo at
+  tags `main` and `v5.0.2`]
+- `index-version` applies to new shards only [S, docs.influxdata.com
+  influxdb/v1/administration/config, `[data] index-version`]
+
+Decision recorded: do not update the rollback. Updating replaces the known-good
+1.8.10 with an untested 1.13.1 plus a mixed inmem/tsi1 index. Production (the
+1.12.4 fork) is unaffected either way.
+
+Applied at Bill's instruction, 12:46 UTC: `update.skip` on `update.influxdb_update`.
+State went `on` to `off` with `skipped_version: 6.0.0`, installed still 5.0.2 [M,
+`/api/states` before and after]. That removes the Update badge from the rollback add-on.
+Undo with `update.clear_skipped`. A later 6.0.x will show up again.
+
+Not established: v6.0.0 has not been run against this house's data. Whether
+the maintained v6 add-on should eventually replace the self-maintained fork is
+Bill's call and would need its own R2 sandbox run on 1.13.1.
+
 ## [2026.09.16] - 2026-09-16
 
 ### New Claude Code hook: `context_hygiene.py`, the stale-session pause (cause: token cost is session length)
