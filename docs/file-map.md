@@ -101,7 +101,13 @@ scripts/
 │                               without it exits 2 and says so. `--probe` first.
 ├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
 ├── csv_manager.py              CSV utilities
-└── fetch_bdl_degree_days.py    BDL degree day fetcher
+├── fetch_bdl_degree_days.py    BDL degree day fetcher
+└── influx_sandbox/             Two InfluxDB versions side by side on a COPY of the
+                                add-on's data, on Windows, off-host. Selftest
+                                proves each check fires and stays silent (R7).
+                                Run order and limits in its README. Output goes to
+                                C:/sandbox/influx-v6, never to H:. Delete the data
+                                copies afterwards: they are unencrypted house data.
 
 grafana/
 ├── dashboards/
