@@ -30,6 +30,7 @@ is calibrated against.
 | 2026-09-16 | ups-monitor V1.20's windowed gate PUBLISHES `Apparent Ri` on the next genuine rest->load onset (e.g. 14a), where V1.19 silently rejected 09-15. Falsified by a `ups.ri` "rejected (unstable/unloaded)" log, or no new `ri_sample_count`, on an onset whose load holds within +/-15 % across 5-45 s. Basis: replay + host harness on 4 recorded onsets, all publish, max deviation 3.3 % [M, n=4] | yes — written after the OTA, before any onset on V1.20 | **HIT** — same day, first onset on V1.20 (Bill's 16:00 test outage): published 146.7 mOhm at 16:01:21 from 30-45 s means of 12.906 V / -2.013 A, `ri_sample_count` 5 -> 6, no reject logged [M, device log + HA] |
 | 2026-09-16 | V1.20 `Battery Fully Charged` has ZERO ON->OFF transitions at float over the 7 days after it next turns on, except when V drops below 13.15 V (an outage). Falsified by any such drop with V >= 13.15 V. Basis: V1.19 dropped 5 times in ~12 h at \|I\| 0.102-0.182 A; hold limit now 0.30 A [M, n=5 — one night, so the tail beyond 0.182 A is unmeasured] | yes — written after the OTA, before the flag first re-latched | pending |
 | 2026-09-16 | On Bill's short (2-10 min) `switch.ups_outlet` outage on V1.20: (a) `ups.onset` logs `ONSET Ri` with `q=good` at a value inside 73-136 mOhm (08-31 97.6 and 09-15 108.7 at ~2.0-2.1 A, +/-25 %); (b) `ups.recharge` logs `RECHARGE Ri` on AC return — armed, because no survival sleep intervenes; (c) `OUTAGE END` duration lands within 2 min of the AC-off span (each end carries up to 60 s of uptime-sensor staleness). Falsified by a missing ONSET or RECHARGE line, `q=float-unsettled`, an onset value outside 73-136 mOhm, or a duration more than 2 min long. Apparent Ri is the separate row above | yes — written 16:00 with the log stream connected, before the switch was turned off | **HIT, all three** [M, device log + HA history]. (a) `ONSET Ri` 107.9 mOhm, `q=good`, at 2.5945 A, logged 208 ms after `switch.ups_outlet` went off (16:00:29.777). (b) `RECHARGE Ri` 106.6 mOhm, logged 381 ms after it came back on (16:08:56.781). (c) `OUTAGE END #20` recorded 8.0 min against a switch span of 8.45 min; the V1.19 `on_battery` method would have recorded 9.42. Also: Battery Power == V x I in 123/123 points through the outage, \|I\| up to 2.38 A |
+| 2026-09-17 | SDR antenna W5012 at its moved spot (09-17 entry): mean daily capture over outage-free EDT days 09-18..09-24 stays inside mean ± 2·sd·√(1/7+1/9) of the 9 outage-free days 09-07..09-16 — **electric 53.8–57.7%, gas 61.2–70.4%, water 69.1–73.2%** [D, from means 55.7 / 65.8 / 71.2 and sd 1.93 / 4.58 / 2.04 pp, M; capture = distinct `*_meter_last_seen` states / (86400 s / cadence 11.42 / 30.0 / 28.0 s)]. Falsified by any meter's 7-day mean outside its band. Basis: the antenna alone at the old spot moved nothing detectable over 60 min (z +0.24 / −1.85 / −1.41 against n=10 same-hour controls) [M]; that does not carry to the new spot ~0.93 λ away [D], so this is a genuine null test, not a replay. Gas caveat stated now: its control days already ran low late in the window (09-13 / 14 / 16 at 60 / 64 / 59%) [M], so a gas miss LOW on its own is not attributable to the antenna. Void if the antenna moves again inside the window; bands recomputed at the actual n if a day is lost to an outage | yes — written after Bill's 09-17 answer, before any data from after the move was read | pending |
 
 **Running score: 5 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
@@ -48,6 +49,79 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.17] - 2026-09-17
+
+### SDR antenna swapped (hardware, no config change) — first hour shows no detectable change
+
+**Bill [S]:** replaced the NESDR SMArt v5's stock 4.74" loaded-coil antenna
+with a Pulse 868-928 MHz antenna (L122.A covers W5012 RP-SMA male and W5017
+SMA male; which one is an open R14 question, `open_questions.yaml`) on a
+Joymax CX-6800SAA0B0200 magnetic base: Reverse SMA JACK on top, 2000 mm
+MR-195, SMA plug to the dongle [S: SSP-250091-01 rev A].
+
+**When, from the data [M]:** all three `*_last_seen` series stop at 16:12:01-16:12:16
+UTC and resume 16:16:16-16:16:41 UTC; the add-on log shows rtlamr2mqtt started
+12:16:13 EDT. The logged rtlamr command line is unchanged from 2026-08-25
+(`-symbollength=80 -centerfreq=912380000 -unique=false`), so the swap is the
+only variable.
+
+**First 64.8 min [M, InfluxDB `sensor.*_meter_last_seen`, distinct states,
+12:16:14-13:21:00 EDT] against the same clock window on 09-07..09-16 (n=10):**
+
+```
+  meter     cadence   post   control mean  sd     z      capture post / ctrl
+  electric  11.42 s    189      186.6     12.1   +0.20   55.5% / 54.8%  [D: n x cadence / 3886 s]
+  gas       30.0 s      65       81.0      9.1   -1.76   50.2% / 62.5%
+  water     28.0 s      93      100.4      4.3   -1.72   67.0% / 72.3%
+```
+
+No meter is outside its pre-swap spread. Gas ranks 232 of 233 against ALL
+pre-swap 65-min windows, but that control is confounded: in the 24 h before the
+swap gas ran 69-99 per window, lowest around midday, and the same clock hour
+read 67 on 09-16 and 73 on 09-15.
+
+**Water's shortfall sits entirely in its weakest 5-cycle phase [M].** Live
+phases 93/110 = 84.5% post against 21780/25792 = 84.4% over 233 control windows.
+The weakest phase went 0/27 against a control rate of 1115/6375 = 17.5%, and 30 of
+the 233 control windows also scored 0 there. Gap shape unchanged: post
+{1:58, 2:26, 3:6, 4:2} slots against control {1:15714, 2:5619, 3:1303, 4:309}.
+
+**What this does NOT establish:** that the antenna has no effect. One hour
+resolves nothing smaller than the swings above. Daily capture over 9
+outage-free days 09-07..09-16 [M]: electric 55.7% sd 1.93 pp, gas 65.8% sd 4.58 pp,
+water 71.2% sd 2.04 pp. Seven post days against those nine resolve about
+2.0 / 4.6 / 2.1 pp at 2 se [D: 2 x sd x sqrt(1/7 + 1/9)]. The 09-06 placement
+step (2026-09-11 entry) shows the RF front end CAN move all three meters together, so a
+week is a real test.
+
+**On paper [S, D]:** L122.A p.2 gives 2 dBi and return loss -8 dB, a mismatch
+loss of 0.75 dB [D: -10 log(1 - 10^-0.8)]; the Joymax base's VSWR <= 2.0 is at
+most 0.51 dB [D: |G| = 1/3]; the drawing gives no MR-195 loss figure, and the
+stock antenna has no spec in hand. Both [S] figures apply only once the
+antenna's part number is confirmed (R16).
+
+**Not pre-registered, on purpose.** A 7-day prediction would be made against an
+outstanding R14 question (connector identity, placement), which the 2026-08-26
+ledger note says not to do. Write it when Bill answers, before 09-24's data is
+read.
+
+**Answered, same day (Bill) [S]:** W5012, so the base's RP-SMA jack mates and
+the L122.A figures above apply (R16 closed). The first ~60 min were at the old
+spot (2nd floor, outside wall above the electric meter, ~3' up, at the corner
+of an ~18" x 24" metal end table), so the hour above is a single-variable
+result: **the antenna alone changed nothing detectable.** Re-run on the 60 min
+ending 13:16:14 EDT, clear of the move: z +0.24 / −1.85 / −1.41, n=10 [M].
+Bill then moved it toward the table's middle, facing downward, about 12" closer
+to the gas meter (opposite side of the house; water meter in the basement).
+12" is ~0.93 λ at 915 MHz [D: 299.79 / 915 m = 12.9 in], enough to change the
+multipath at the antenna, so nothing measured at the old spot carries over. The
+ledger row is therefore pre-registered for **antenna + new spot together** and
+cannot separate the two.
+
+R13: the electric resolution above reads 2.0 pp; to one decimal it is 1.9 pp
+[D: 2 * 1.933 * 0.504 = 1.948]. The ledger band uses the exact value.
+
+Cross-check for Bill's pasted log: InfluxDB holds electric 182, gas 63, water 90
+decodes for 12:16:14-13:17:59 EDT [M]; per-meter line counts in the log should match.
 
 ### Store InfluxDB add-on returned as v6.0.0; rollback `a0d7b954_influxdb` must NOT take it (docs only, no config change)
 

@@ -625,3 +625,40 @@
     commissioning Ri. Not asked further because nothing current depends on it;
     ask (VBUS lead separate from the fuse path? TB1 GND on its own wire to
     battery minus?) only if that absolute comparison is ever needed.
+
+- asked: 2026-09-17
+  question: >-
+    The new SDR antenna on the Joymax magnetic base: does its connector have a
+    HOLE in the centre (W5012, RP-SMA male) or a PIN (W5017, SMA male)? And is
+    the base in the spot the stock antenna held after the 09-06 placement work,
+    or somewhere else?
+  blocks: >-
+    The 7-day antenna prediction for the CHANGELOG ledger, and any conclusion
+    that the swap changed reception. The base's top connector is a Reverse SMA
+    JACK [S: Joymax SSP-250091-01 rev A]; L122.A (05/11) p.1 covers both
+    W5012 and W5017, and only the W5012 mates with that jack. A W5017 threads on
+    with no centre-conductor contact, and the 1-hour decode rates cannot
+    distinguish that case (CHANGELOG 2026-09-17). Placement is the other
+    variable the 09-06 step showed can move all three meters at once.
+  answered: >-
+    2026-09-17, Bill: "W5012. location for first ~60 minutes was same location;
+    2nd floor outside wall above the elec meter on ~3' off the ground right at
+    the corner of a metal end table over dimensions ~ 18" x 24". moved the
+    antenna further towards the middle of the end table facing downward, about
+    12" closer the gas meter which is on opposite side of the house 3" off the
+    ground and water meter in the basement."
+
+    Consequence: W5012 mates with the base's RP-SMA jack, so the L122.A [S]
+    figures apply (R16 closed). The first hour was at the old spot, so it is a
+    single-variable result: no detectable change from the antenna alone. The
+    move that followed is ~0.93 wavelength [D: 12 in / 12.9 in at 915 MHz], so
+    the 7-day ledger prediction tests antenna + new spot together, not the
+    antenna alone.
+
+    Clarified same day, Bill: "antenna hanging below the tabletop" - the
+    magnetic base is on the UNDERSIDE of the tabletop, so the metal plate sits
+    ABOVE the antenna, and all three meters are at or below the antenna
+    (electric outside and below, gas at ground level on the far side of the
+    house, water in the basement). The plate is therefore not in the path to
+    any meter - the favourable one of the two possible readings of "facing
+    downward".
