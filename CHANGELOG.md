@@ -84,6 +84,92 @@ Undo with `update.clear_skipped`. A later 6.0.x will show up again.
 Not established: v6.0.0 has not been run against this house's data. Whether
 the maintained v6 add-on should eventually replace the self-maintained fork is
 Bill's call and would need its own R2 sandbox run on 1.13.1.
+**(Superseded later the same day: the sandbox run below used the fork's data.)**
+
+### Sandbox: 1.12.4 (fork config) vs 1.13.1 (v6.0.0 config, tsi1) on a copy of the live fork's data
+
+Run at Bill's request. Nothing ran on the host except taking one backup, which he approved.
+
+**Source.** Backup `95bdd2c7`: `hassio.backup_partial`, `addons: [local_influxdb112]`,
+`homeassistant: false`, no password. It took 20 s, is 1,785,282,560 B, and reported
+`failed_addons: []` [M, `backup/info`]. **It is still on the host.** The download
+matched that size byte for byte, sha256 `e2a350c9e662b53e...`. Extracted
+`/data/influxdb`: 2,576,135,647 B, 40 shards, all `inmem`. `data/secret` is present, so
+v6's `init-users` would skip and create no users [M; script at tag = S].
+
+**The live fork did not stall during the backup or the download.** No 10 s interval with
+zero writes, and `pointsWrittenFail` = 0 [M, `/debug/vars` httpd counters, n=19
+intervals, 12:25:57-12:29:07 UTC]. The house writes a median of 1,800 pts/min
+[M, same series, n=12 pre-backup intervals]. HA sends points in batches, so a 10 s
+reading only takes a few distinct values.
+
+**Method.** The official Windows zips for 1.12.4 and 1.13.1, sha256 matched to the
+release notes. The fork side runs v5.0.2's `influxdb.conf`; the v6 side runs v6's
+`influxdb.gtpl` rendered (`index-version = "tsi1"`). Two separate copies, both servers
+on 127.0.0.1. Applied to BOTH sides only: subscriber, continuous queries and retention
+disabled, log level info. Harness: `scripts/influx_sandbox/` (run order in its
+README). Its selftest injects a fault for identity, index type and auth, and proves
+each check both fires and stays silent (5/5 PASS). After the run, all data copies
+(pristine, both run copies, the diag copies, the downloaded tar) were deleted from
+`C:\sandbox\influx-v6`. The binaries, logs, `results.json` and `diag_now.json` remain
+there, and backup `95bdd2c7` stays on the host as the source.
+
+| test | 1.12.4 fork | 1.13.1 v6 | source |
+|---|---|---|---|
+| startup: shards opened / index / error+warn lines | 24 / inmem / 0 | 24 / inmem / 0 | [M, log, n=1 start] |
+| whole-DB identity (metadata, per-measurement 14 d counts, first point, raw 24 h, SPC shape, users) | - | 2,186 / 2,186 sha256-identical | [M] |
+| same, after restart on the mixed store | - | 2,186 / 2,186 | [M] |
+| 170 live Grafana queries, `now()` pinned | - | 170 / 170 identical (17 empty on both) | [M, `diag_now.py`, fresh copies] |
+| Grafana round total, median | 1,344.2 ms | 1,386.2 ms | [M, n=11 interleaved rounds, Wilcoxon p=0.41: no detectable difference] |
+| per-query timing change >20% at p<0.01 | - | none of 170 | [M, n=11 each] |
+| new shard index | inmem | **tsi1** | [M, on-disk `index/` dir] |
+| mixed inmem+tsi1 range query, `SHOW TAG VALUES` | - | identical to 1.12.4 | [M] |
+| write throughput, mean of 3 runs x 2,000,000 pts | 214,097 pts/s | 191,327 pts/s | [M, n=3 v 3, Welch p=0.022, Mann-Whitney exact p=0.100 (the lowest possible at n=3 v 3)] |
+| private memory: startup / after queries / after 6M pts | 297.6 / 346.3 / 1,072.3 MiB | 362.2 / 364.1 / 1,185.5 MiB | [M, n=1 reading each, no test possible, so no ratio stated] |
+| auth (1.13.1, auth on): no creds / wrong pw / unknown user | - | 401 / 401 / 401 | [M] |
+| auth: non-admin user created by 1.12.4, read / write / CREATE DATABASE | - | 200 / 204 / refused | [M] |
+
+Meta store: 4 users, 3 admin, `ha_ro` non-admin [M].
+
+**Rollback works.** 1.13.1 was killed uncleanly with one point still only in the WAL.
+1.12.4, on the fork config, then opened that mixed directory with no errors. It read
+the tsi1 shard (2 of 2 probe points, including the WAL-only one), returned the SPC
+14-day query identical to the 1.12.4 control, and matched the control's count on all
+6,000,000 benchmark points [M].
+
+**The one new log line.** Once a tsi1 shard exists next to inmem ones, every start of
+EITHER version logs `lvl=warn msg="Mixed shard index types"` [M, 4 of 4 such starts].
+It is a warning, not an error. Nothing here reads add-on logs.
+
+**Write headroom.** Both versions have far more capacity than the house uses: 191,327
+/ 30 = ~6,400 times [D: slowest mean over 1,800 pts/min = 30 pts/s]. The throughput
+gap cannot be split between 1.13.1 and tsi1, because the benchmark databases were new
+and therefore tsi1 on the v6 side.
+
+**R13, two harness defects, both mine, recorded in `harness.py` where they sit:**
+1. The first pass reported 35 of 170 Grafana queries "different". All 35 use `now()`
+   with an aggregate and no `GROUP BY time()`, so each row is stamped `now()-24h`,
+   which moves between calls. `diag_now.py` on fresh copies: all 35 also differ
+   1.12.4 against 1.12.4, and 170/170 match with `now()` pinned.
+2. The auth-test write omitted `precision=s`, so a seconds timestamp was read as
+   nanoseconds (1970) and created a stray tsi1 shard in copy A. It surfaced as an
+   unexplained mixed-index warning; `influx_inspect export` confirmed it. No result
+   depended on that shard.
+
+**Not established:**
+- This ran the Windows builds on the PC, not the Debian container on the N100. Timing
+  and memory figures do not transfer. Identity and on-disk format results should [I];
+  that is falsified if the v6 image on the N100 opens the same data differently.
+- Only `influxd` with v6's rendered config ran. The packaged add-on did not: its s6
+  scripts, nginx, and the upgrades to Chronograf 1.11.5 and Kapacitor 1.8.7 (which
+  touch `chronograf.db` and `kapacitor.db`) are untested.
+- The run lasted about 6 minutes, so multi-day compaction and tsi1 memory growth are
+  unmeasured. Continuous queries, retention and subscriptions were off.
+- Only the fork's data was tested. HA's Update button applies v6 to
+  `a0d7b954_influxdb` (1.8.10 data frozen at 2026-09-10), which was not tested, so
+  "do not press Update on the rollback" stands.
+- Moving production from the fork to v6 would be a migration with its own plan
+  (different slug, and each add-on has its own `/data`). Not proposed here.
 
 ## [2026.09.16] - 2026-09-16
 

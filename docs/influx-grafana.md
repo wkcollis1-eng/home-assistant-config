@@ -44,6 +44,11 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
   untested 1.13.1 over data frozen at the 2026-09-10 cutover - the 2026-09-08
   side-by-side proved 1.12.4, not 1.13.1. The next bullet's "a backup is the
   only way back" now means: only a backup gets 5.0.2 back once v6 is applied.
+  **Sandboxed later on 2026-09-17 against the FORK's data** (CHANGELOG 2026.09.17):
+  identical results, auth works, and rolling back to 1.12.4 works. New: a "Mixed
+  shard index types" warning on every start. Windows builds only; the packaged
+  add-on was not run. The rollback's own 1.8.10 data was not tested, so the
+  instruction above stands.
 - **THE OLD ADD-ON IS ARCHIVED AND IS NOT IN ANY STORE. A BACKUP IS THE ONLY
   WAY BACK TO IT.** `a0d7b954_influxdb` (5.0.2) was deprecated and removed
   from the Community Add-ons store on **2026-08-28**. Searching the store for
