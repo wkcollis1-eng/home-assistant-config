@@ -68,3 +68,40 @@ consecutive blocks so a broken gate cannot wedge a session. It also now watches
 `dashboards/`, which it did not: editing `dashboards/views/*.yaml` never moved
 its mtime stamp, so the gate silently skipped on the one surface this file
 calls "the one place a broken entity is completely silent".
+
+**`deploy_drift()` checks every deployed hook** (corrected 2026-09-16). It
+compared only `ha_audit_gate.py` with its own tracked copy, so the other hooks
+could drift, or run with no tracked copy at all, with nothing said. The
+session-start output now names each deployed `*.py` that is `(differs)` or
+`(no tracked copy)`. Tests: `python .claude/hooks/test_deploy_drift.py`.
+**To change any hook:** edit it in `C:\sandbox`, copy it to BOTH
+`H:/.claude/hooks/` and `~/.claude/hooks/`, then `cmp` the copies.
+
+### `context_hygiene.py` - the stale-session pause (added 2026-09-16)
+
+A token-cost hook, not a CLAUDE.md gate. It is wired twice in
+`~/.claude/settings.json`: as the only `UserPromptSubmit` hook, and as a second
+`Stop` entry after `ha_audit_gate.py stop`. The thresholds, the reasoning and the
+measurement behind them are in the script's docstring. The install is recorded
+in CHANGELOG.md under 2026.09.16.
+
+**A prompt that comes back "Paused once (context_hygiene)"** was stopped by this
+hook, not by a deny rule and not by the audit gate. The session sat idle past the
+prompt-cache TTL while carrying a large context. Send the same prompt again to
+continue, or `/clear` first if it is a new task. It pauses once per idle spell.
+After a turn with a successful `git push` it may also print a one-line `/clear`
+suggestion. That one never blocks.
+
+**It fails open, except in one case: python cannot open the script at all.**
+Any error inside the script exits 0 silently. A missing or renamed file makes
+`python` exit 2 (measured 2026-09-16). Per the Claude Code hooks reference
+(`code.claude.com/docs/en/hooks.md`, "Exit code 2 behavior per event"), exit 2
+on `UserPromptSubmit` "blocks prompt processing and erases the prompt", and on
+`Stop` it "prevents Claude from stopping". This is the same
+unreachable-script trap as the 2026-08-25 move to H: above, with the opposite
+symptom: that session started in silence, whereas here no prompt would get
+through. **To remove or rename the hook, delete both settings entries first,
+then the file.**
+
+**Test:** `python .claude/hooks/test_hygiene.py` (27 checks, prints `FAILS: 0`).
+Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.

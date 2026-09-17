@@ -112,7 +112,16 @@ Left open:
   deployed gate returns `''` against the real repo, and a full `sessionstart` run
   gave `0 FAIL, 0 WARN, 2 INFO` with no drift line. CLAUDE.md's "compares the two"
   is now accurate.
-- `docs/claude-code-enforcement.md` does not mention the hook yet.
+- ~~`docs/claude-code-enforcement.md` does not mention the hook yet.~~
+  **RESOLVED same day** (Bill: "fix the 2 open items"). New section there covers what
+  "Paused once" means, the removal order, and how to test the hook. The doc also
+  records the `deploy_drift()` correction and the copy-to-both-sides procedure for
+  changing any hook.
+  **Correction to the HAZARD paragraph above (R13):** it named only
+  `UserPromptSubmit`. Per the Claude Code hooks reference
+  [S, `code.claude.com/docs/en/hooks.md`, "Exit code 2 behavior per event"], exit 2 on
+  `Stop` also "prevents Claude from stopping". So a missing hook file breaks BOTH
+  entries. The removal order stated above is still correct.
 
 ### CLAUDE.md split into an always-loaded core plus on-demand `docs/` (cause: token cost, and rules absent from most sessions)
 
