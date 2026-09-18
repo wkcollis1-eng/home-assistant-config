@@ -31,15 +31,21 @@ USAGE
 
 Set HA_URL to include the live statistics-buffer check; without it the audit
 correctly reports live-check-skipped (R8) and the harness expects that WARN.
+Since 2026-09-18 live-check-skipped is itself a covered rule, so that WARN on
+the CLEAN tree is a direction-2 failure, marked ENVIRONMENT: the harness cannot
+prove the live check stays silent without reaching HA.
 
 EXIT 0 = every covered rule fired when it should and the clean tree was clean.
 """
 
 import argparse
+import http.server
+import importlib.util
 import io
 import os
 import re
 import shutil
+import socket
 import subprocess
 
 try:
@@ -48,6 +54,7 @@ except ImportError:  # pragma: no cover
     yaml = None
 import sys
 import tempfile
+import threading
 
 # Default matches ha_audit.py so the two agree when this runs on the HA host
 # under shell_command, which sets no environment. Off-host sessions set
@@ -843,6 +850,109 @@ SOLO_FAULTS = [
 ]
 
 
+# ENVIRONMENT FAULTS. live-check-skipped is caused by the environment the audit
+# runs in, not by any file, so no tree edit can inject it. These drive the CLEAN
+# tree's ha_audit.py with a broken live credential, and assert on the MESSAGE:
+# the rule id alone was never the defect. Until 2026-09-18 every failed
+# HA_TOKEN fetch read "HA_TOKEN was rejected", including a refused connection
+# that never reached HA, so the WARN fired correctly and named the wrong fix.
+#
+# NEVER POINT THE FAKE TOKEN AT THE LIVE INSTANCE: each rejected token posts a
+# "Login attempt failed" notification. The 401 comes from a local stub, the
+# refusal from a port nothing listens on, and SUPERVISOR_TOKEN is removed so no
+# second route is tried.
+class _Stub401(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(401)
+        self.end_headers()
+
+    def log_message(self, *a):
+        pass
+
+
+def _closed_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def f_live_check_skipped(tree):
+    """[(case, ok, message seen)] - both cases must name the right fix.
+
+    Two cases, because each guards the other: "refused" alone would pass a
+    classifier that always says "never answered", and "401" alone would pass
+    the pre-2026-09-18 one that always said "rejected".
+
+    IN-PROCESS, NOT A SUBPROCESS AUDIT, because of the UI button's budget. HA
+    kills a shell_command at 60 s; on the host the suite took 51 s before this
+    case existed, 68 s when it ran two full audits for it, and 51 s again in
+    process [M, 2026-09-18, n=1 each, from the SSH add-on; one audit run 9 s].
+    So the tree's own ha_audit.py is imported and driven through the two calls
+    its main() makes, _live_states() into rule_statistics_buffer(). The WARN
+    checked here is the one the audit prints; only the rules this fault cannot
+    touch are skipped. 51 s leaves 9 s of headroom: any new rule that needs a
+    full run of its own should check the host time first.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "ha_audit_under_test", os.path.join(tree, "scripts", "ha_audit.py")
+    )
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    srv = http.server.HTTPServer(("127.0.0.1", 0), _Stub401)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    fake = {"HA_TOKEN": "audit-test-not-a-token", "SUPERVISOR_TOKEN": None}
+    cases = [
+        (
+            "connection refused",
+            dict(fake, HA_URL="http://127.0.0.1:%d" % _closed_port()),
+            "never answered",
+            "was rejected",
+        ),
+        (
+            "HTTP 401",
+            dict(fake, HA_URL="http://127.0.0.1:%d" % srv.server_port),
+            "was rejected (HTTP 401)",
+            "never answered",
+        ),
+    ]
+    saved = {k: os.environ.get(k) for k in ("HA_TOKEN", "HA_URL", "SUPERVISOR_TOKEN")}
+    out = []
+    try:
+        for case, env, want, never in cases:
+            for k, v in env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            del audit.findings[:]
+            audit.rule_statistics_buffer(audit._live_states())
+            msgs = [
+                m
+                for sev, r, m, _fix in audit.findings
+                if sev == "WARN" and r == "live-check-skipped"
+            ]
+            ok = any(want in m and never not in m for m in msgs)
+            out.append((case, ok, msgs[0] if msgs else "live-check-skipped absent"))
+    finally:
+        # This process's environment is shared with every later run_audit():
+        # restore it exactly, or the fake token would leak into them.
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        srv.shutdown()
+        srv.server_close()
+    return out
+
+
+ENV_FAULTS = [
+    ("live-check-skipped", f_live_check_skipped),
+]
+
+
 # THE RULE-ID INVENTORY IS DERIVED, NEVER TYPED. Until 2026-08-25 `UNCOVERED`
 # was a hand-kept list, and the counts appeared in three more places in
 # CLAUDE.md ("32 rule ids... proves 8", "9 of 33", "8 of 32"). All four had
@@ -1027,7 +1137,7 @@ def main():
     a = ap.parse_args()
     say = (lambda *x: None) if a.json else print
 
-    all_faults = FAULTS + SOLO_FAULTS
+    all_faults = FAULTS + SOLO_FAULTS + ENV_FAULTS
     covered = set(r for r, _ in all_faults)
     testable, info_only = inventory()
     uncovered = sorted(testable - covered)
@@ -1102,6 +1212,11 @@ def main():
         }
 
         def why_for(rid):
+            if rid == "live-check-skipped":
+                return (
+                    " -- ENVIRONMENT, not a broken rule: the harness itself "
+                    "could not reach HA, and the WARN's own message says why"
+                )
             if live_skipped and rid in LIVE_DEPENDENT:
                 return (
                     " -- ENVIRONMENT, not a broken rule: the live check did "
@@ -1164,6 +1279,16 @@ def main():
             say("   %-4s %s" % ("OK" if ok else "FAIL", rid))
             if not ok:
                 failures.append("%s did not fire" % rid)
+
+        # Environment faults reuse the clean tree: the fault is the env, not a file.
+        for rid, fn in [(r, f) for r, f in selected if (r, f) in ENV_FAULTS]:
+            say("\nDIRECTION 1  %s (environment faults, clean tree)" % rid)
+            for case, ok, msg in fn(clean):
+                say("   %-4s %s: %s" % ("OK" if ok else "FAIL", rid, case))
+                if not ok:
+                    failures.append(
+                        "%s (%s) named the wrong fix: %s" % (rid, case, msg[-160:])
+                    )
     finally:
         if a.keep:
             say("\ntrees kept at %s" % work)

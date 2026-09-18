@@ -700,7 +700,7 @@ def _live_states():
     """/api/states, or None when no token is reachable.
 
     The audit is offline by design and stays that way: every rule that needs
-    this degrades to an INFO saying it was skipped, never to silence. Silence
+    this degrades to a WARN (R8) saying it was skipped, never to silence. Silence
     would make a missing check indistinguishable from a passing one.
     Inside HA, shell_command inherits SUPERVISOR_TOKEN. Off-host, set HA_URL
     and HA_TOKEN.
@@ -739,6 +739,7 @@ def _live_states():
     if not attempts:
         return None, "no credential in this environment (HA_TOKEN unset). " + FIX
     why = []
+    tok_err = None
     for label, url, tok in attempts:
         try:
             req = urllib.request.Request(
@@ -748,6 +749,8 @@ def _live_states():
                 return json.load(fh), None
         except Exception as e:
             why.append("%s -> %s" % (label, e))
+            if label == "HA_TOKEN":
+                tok_err = (url, e)
     # Name what was available as well as what failed: "HA_TOKEN unset" is the
     # actionable half and it is invisible if only failures are listed.
     return None, (
@@ -755,10 +758,45 @@ def _live_states():
         % (
             ", ".join(present),
             "; ".join(why),
-            FIX
-            if "HA_TOKEN" not in present
-            else "HA_TOKEN was rejected - check the token is valid and not revoked",
+            FIX if "HA_TOKEN" not in present else _ha_token_fix(*tok_err),
         )
+    )
+
+
+def _ha_token_fix(url, e):
+    """The fix for a failed HA_TOKEN fetch, named from HOW it failed.
+
+    Until 2026-09-18 every failure here read "HA_TOKEN was rejected - check the
+    token is valid and not revoked". An off-host gate.py run with HA_URL unset
+    got a refused connection on localhost:8123 and was told to rotate a token HA
+    had never seen. R8 asks a skipped check to name THE fix, not a fix.
+    """
+    import urllib.error
+
+    # HTTPError subclasses URLError subclasses OSError: narrowest first.
+    if isinstance(e, urllib.error.HTTPError):
+        if e.code in (401, 403):
+            return (
+                "HA_TOKEN was rejected (HTTP %d) - check the token is valid "
+                "and not revoked" % e.code
+            )
+        return (
+            "HA answered HTTP %d, which is not an auth failure - check HA's "
+            "own log, not the token" % e.code
+        )
+    if isinstance(e, OSError):
+        return "HA never answered at %s, so the token was never checked - %s" % (
+            url,
+            "check HA is up and HA_URL is its address"
+            if os.environ.get("HA_URL")
+            else "HA_URL is unset, so that is the default; off-host, set HA_URL "
+            "to HA's address",
+        )
+    if isinstance(e, json.JSONDecodeError):
+        return "HA answered, but /api/states was not JSON - see the error above"
+    return (
+        "failed with no HTTP status (%s) - see the error above, and check "
+        "HA_URL is a full http:// address" % type(e).__name__
     )
 
 

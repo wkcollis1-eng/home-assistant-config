@@ -54,6 +54,83 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
 
+### `test_ha_audit.py`: `live-check-skipped` is now a covered rule (32 of 45)
+
+This closes the gap the next entry down left open. The previous fix was
+proven only by a hand-run matrix.
+- **What it asserts.** It is a new `ENV_FAULTS` class, because this fault lives
+  in the environment and no file edit can inject it. Direction 1 drives the
+  clean tree's `ha_audit.py` with a fake token through two cases. A refused
+  connection must say "never answered" and must not say "was rejected". A 401
+  from a local stub must say "was rejected (HTTP 401)". Each case guards
+  against the opposite wrong classifier. Direction 2 comes free from the
+  existing clean-tree run: with a working credential, the rule must not fire.
+  Without one it now fails the suite, marked ENVIRONMENT. Before this, a
+  missing credential already failed it via `entity-ref-unresolved` (`sun.sun`).
+- **Why in-process, not a subprocess audit.** The UI button
+  (`script.ha_audit_tests`) runs the suite as a `shell_command`, which HA kills
+  at 60 s. Measured on the host from the SSH add-on [M, n=1 each]:
+  - the suite before this change: 51 s
+  - with two extra full audits for the new case: 68 s, which would have broken
+    the button
+  - in-process, as shipped: 51 s
+  - one audit run: 9 s
+
+  So the case imports the tree's `ha_audit.py` and makes the same two calls its
+  `main()` makes: `_live_states()`, then `rule_statistics_buffer()`.
+- **Proven, R2/R7, in `C:\sandbox`.** Four runs with `--only
+  live-check-skipped`:
+  - the new audit code: passes
+  - the old always-"rejected" code: fails both cases
+  - a mutant with the 401 branch disabled: fails only the 401 case
+  - `HA_URL` unset: direction 2 fails with the ENVIRONMENT note
+
+  The full suite passes with 32 rules, off-host and on the host. The fake token
+  only ever reaches `127.0.0.1`, so there are no "Login attempt failed"
+  notifications.
+- **Found, not fixed.** 51 s leaves the button 9 s of headroom, so the next
+  rule that adds a full audit run will break it. And `packages/audit.yaml:25`
+  says the audit "runs in ~1.5 s", against the 9 s measured on the host today.
+
+### `ha_audit.py`: `live-check-skipped` names the fix from how the fetch failed, not "token rejected" for everything
+
+- **The defect.** `_live_states()` ended every failed `HA_TOKEN` fetch with
+  "HA_TOKEN was rejected - check the token is valid and not revoked", whatever
+  the exception was. Found today when an off-host `gate.py` run had `HA_URL`
+  unset. It got `WinError 10061` (connection refused) on `localhost:8123`, and
+  the WARN told the reader to rotate a token HA never saw. That breaks R8's
+  "name the fix".
+- **The fix.** A new `_ha_token_fix(url, e)` picks the message from the
+  exception. A 401 or 403 still reads "rejected". Any other HTTP status says it
+  is not an auth failure. A refused connection, DNS failure or timeout says HA
+  never answered, so the token was never checked, and names `HA_URL` (saying so
+  when it is unset). A non-JSON body gets its own message, and anything else a
+  neutral one. The `_live_states()` docstring said the skip degrades to an INFO;
+  it has been a WARN since R8, and now says so.
+- **Proven, R2/R7.** Tested in `C:\sandbox` against a fresh mirror, with a
+  local stub server standing in for HA, so the live instance never saw a bad
+  token (each one would post a "Login attempt failed" notification). Results
+  [M, 11-case matrix, old code vs new code]:
+  - OLD code: 5 of 11 right. Refused (with and without `HA_URL`), DNS, empty
+    `HA_URL`, HTTP 500 and non-JSON all read "rejected".
+  - NEW code: 11 of 11 right. Both success paths stay silent, including the
+    live read (1691 states).
+  - End to end: the sandbox audit with `HA_URL` unset WARNs with the new text;
+    with it set, 0 WARN.
+  - `test_ha_audit.py`: SUITE PASSED, 31 rules. The suite does not cover
+    `live-check-skipped` (it is in the `--list` gap), so the matrix above is
+    this fix's only proof. It was run by hand and is not mechanised.
+- **R13, a slip in this session.** A lint comparison meant to read stdin ran
+  the pre-commit hook's `ruff check --fix` against the file path instead. That
+  applied 23 unrelated auto-fixes (12 `UP020 io.open`, 8 `FURB167`, `PIE790`,
+  `UP024`) to the live `H:/scripts/ha_audit.py`. It was a Bash write, so
+  `ha_guard.py` never saw it. Found within a minute from the rule counts, and
+  restored from the tested sandbox copy (`cmp` identical, diff back to the 5
+  intended hunks). Nothing ran the script while it was rewritten. The lesson:
+  never expand a hook's `args` into a command that names a real file. Real lint
+  delta of the fix: +4 `UP031` (`%` formatting, the file's idiom), nothing
+  auto-fixable.
+
 ### `docs/off-host-access.md`: dangling InfluxDB pointers fixed; `yaml.safe_load` requirement stated (docs only, nothing deployed)
 
 - **Two pointers led nowhere.** The service table said InfluxDB had "Full detail
