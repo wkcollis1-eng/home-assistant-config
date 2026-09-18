@@ -31,7 +31,9 @@ Off-host gotchas, each of which has cost a session:
 - **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
   services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
   long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —
-  so add-on state cannot be *read* off-host. The `hassio` **services** are wide
+  so add-on state cannot be read *through `HA_TOKEN`*. **It CAN be read, over
+  SSH — see the next bullet; this said "cannot be read off-host" flatly until
+  2026-09-17 (R13).** The `hassio` **services** are wide
   open on the same token: `hassio.addon_start` / `addon_stop` /
   `addon_restart` / `backup_partial` / `restore_partial` / `host_reboot` all
   execute via `POST /api/services/hassio/<service>`. Measured 2026-08-31, when
@@ -41,6 +43,34 @@ Off-host gotchas, each of which has cost a session:
   `sensor.<addon>_cpu_percent`, `switch.<addon>`) — and note those entity ids
   are built from the add-on NAME, so a replacement add-on gets different ones
   and dashboards referencing the old names go unresolved.
+- **Add-on config and logs ARE readable off-host — but only from a LOGIN
+  shell.** `SUPERVISOR_TOKEN` is set by the SSH add-on's profile, not by its
+  sshd, so the shell form is the whole trick [M, 2026-09-17]:
+  ```bash
+  ssh ha-host 'bash -lc "ha apps info 6713e36e_rtlamr2mqtt --raw-json"'   # works
+  ssh ha-host  'ha apps info 6713e36e_rtlamr2mqtt --raw-json'             # unauthorized
+  ```
+  The second returns `Error: unauthorized: missing or invalid API token` and
+  looks exactly like a permissions problem that isn't one. `ha addons` still
+  works but prints a deprecation notice; `ha apps` is the current name.
+  - **Reading is all you get from the CLI.** `ha apps` in this version has no
+    `options` subcommand (`changelog info install logs rebuild restart start
+    stats stop uninstall update`), so an add-on's config can be read but not
+    written from it. Writing means `POST http://supervisor/addons/<slug>/options`
+    with `$SUPERVISOR_TOKEN`, from that same login shell.
+  - **That POST REPLACES the options dict, it does not merge.** Send the whole
+    dict with one field changed - read, modify, write back, then diff the
+    read-back. A partial body would silently drop the `meters:` list and take
+    the three utility meters with it.
+  - **`scp` to `ha-host` fails** - `subsystem request failed on channel 0`, the
+    add-on's sshd has no sftp subsystem. Pipe instead:
+    `ssh ha-host 'cat > /tmp/f.json' < local.json` [M, 2026-09-17].
+  - **The SSH add-on is uid 1000 `hassio` and CANNOT create files in
+    `/config`**, which is a root-owned symlink to `/homeassistant`
+    (`mkdir: can't create directory '/config/tmp': Permission denied`). Create
+    such a directory over the `H:` Samba share instead - that writes as root,
+    which is also what add-ons run as, so the result is writable by them
+    [M, 2026-09-17: `/config/tmp` created this way, `drwxr-xr-x root root`].
 - **Without `HA_CONFIG`** the script looks for `/config` and reports
   `pipelines.yaml not found`.
 - **`HA_URL` alone does NOT enable the live check - `HA_TOKEN` does.**
