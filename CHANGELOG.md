@@ -58,7 +58,7 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
 
-### battery-bank-monitor V1.26: HW counters survive a monitor power loss — NOT FLASHED, supersedes the unflashed V1.25
+### battery-bank-monitor V1.26: HW counters survive a monitor power loss — FLASHED 2026-09-18 15:58 EDT, supersedes the unflashed V1.25
 
 Bill confirmed that both power losses were his rewiring of the bank (R14
 answer, `open_questions.yaml`). He then asked: "any way to make the data
@@ -103,6 +103,15 @@ repo).
     loss].
   - Flash cost is ~21 + ~28 saves/day at idle (charge, energy) [D: 24 h
     simulated in the host harness at 8.66 mA / 0.114 W].
+    **R13, same day: the energy figure is wrong.** The harness modelled
+    ENERGY as net charge x V. The register accumulates gross |P|, and it
+    rose 1.124 Wh/h at idle [M: HA history, 24.8 h to 09-18 19:48Z,
+    n=1489] while net charge fell 8.6 mA. So energy saves run ~270/day
+    [D: 1.124 x 24 / 0.1]. Each counter is capped at one save per 60 s
+    read. NVS is 0x70000 = 112 pages [S: generated `partitions.csv`], so
+    neither rate is a wear concern. Corrected beside the original in the
+    YAML header and globals comments. The comment-only edit leaves the
+    2026.9.0 config_hash at 0x0f0cf6e4 [M: recompile].
 
 **Verified:**
 - Host harness `C:\sandbox\bank_v126\harness\` (`hwgen.py`). The on_boot
@@ -135,8 +144,43 @@ repo).
   hex-format false positive as V1.25's line 395 and the pre-existing
   DIAG_ALRT lines 2127 and 2129. No flag falls on this session's CHANGELOG
   or open-question text.
+- **R13, same day: the compile gate above ran on the wrong toolchain.** I
+  built with the local ESPHome 2026.8.2, but the Device Builder that will
+  build and flash V1.26 runs ESPHome 2026.9.0 [M:
+  `update.esphome_device_builder_update` installed 2026.9.0; that release's
+  `docker/Dockerfile` pins `esphome-device-builder==1.14.9`]. Re-run in a
+  2026.9.0 venv on a file byte-identical to H:: EXIT=0, `main.cpp.obj` and
+  `firmware.ota.bin` (1,006,848 B) newer than the YAML,
+  `config_hash=0x0f0cf6e4`, and the same single watchdog `-Wformat`
+  warning. The 2026.8.2 → 2026.9.0 source diff of `ina2xx_base`,
+  `ina2xx_i2c`, `globals`, `preferences`, template sensor and integration
+  sensor is cosmetic only: a log-string macro, type hints, and the
+  preferences syncer becoming a PollingComponent with the same 60 s
+  default. The driver still never writes 0x10 and, with
+  `reset_on_boot: false`, never resets the chip. 2026.9.0 adds one
+  validation WARNING (`ota` password wastes flash), about a setting
+  unchanged since V1.24. The hash the device reports after a Device
+  Builder flash is that build's, expected but not verified to be
+  0x0f0cf6e4.
 
-**NOT verified:** anything on the device.
+**Flashed 2026-09-18 15:58 EDT by Bill, from the Device Builder.**
+- The boot log reads `ESPHome version 2026.9.0 compiled on 2026-09-18
+  15:15:42 -0400` and `Project wkcollis1.battery-bank-monitor version
+  1.26`.
+- `sensor.battery_bank_monitor_esphome_version` reports config hash
+  **0x0f0cf6e4**, the hash of the 2026.9.0 build tested above [M]. The
+  device runs the tested config.
+- HW Net Charge carried through the flash: −3.7292 Ah at 19:14Z, then
+  −3.7355 Ah at 20:00Z, a drop of 6.3 mAh in 45.5 min ≈ 8.3 mA, the idle
+  drain [D from M]. The register was not reset and no offset was applied.
+- The Device Builder never flagged the update. Its hash refresh did run:
+  the 15:15:42 build time is one second before its 15:15:43
+  version-history commit. So why no flag showed is not established. HA's
+  ESPHome firmware update entities are disabled by default and compare
+  ESPHome versions only [S: HA 2026.9.3 `esphome/update.py`,
+  `_attr_entity_registry_enabled_default = False`].
+
+**NOT verified:** anything else on the device.
 - **First V1.26 boot.** Live HW Net Charge read −3.729 Ah [M, one reading,
   19:14Z], so the first boot should log `TEMP_LIMIT=0x7FFF but CHARGE kept
   counting ... first boot writing the sentinel` rather than V1.25's
