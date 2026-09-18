@@ -30,9 +30,13 @@ is calibrated against.
 | 2026-09-16 | ups-monitor V1.20's windowed gate PUBLISHES `Apparent Ri` on the next genuine rest->load onset (e.g. 14a), where V1.19 silently rejected 09-15. Falsified by a `ups.ri` "rejected (unstable/unloaded)" log, or no new `ri_sample_count`, on an onset whose load holds within +/-15 % across 5-45 s. Basis: replay + host harness on 4 recorded onsets, all publish, max deviation 3.3 % [M, n=4] | yes — written after the OTA, before any onset on V1.20 | **HIT** — same day, first onset on V1.20 (Bill's 16:00 test outage): published 146.7 mOhm at 16:01:21 from 30-45 s means of 12.906 V / -2.013 A, `ri_sample_count` 5 -> 6, no reject logged [M, device log + HA] |
 | 2026-09-16 | V1.20 `Battery Fully Charged` has ZERO ON->OFF transitions at float over the 7 days after it next turns on, except when V drops below 13.15 V (an outage). Falsified by any such drop with V >= 13.15 V. Basis: V1.19 dropped 5 times in ~12 h at \|I\| 0.102-0.182 A; hold limit now 0.30 A [M, n=5 — one night, so the tail beyond 0.182 A is unmeasured] | yes — written after the OTA, before the flag first re-latched | pending |
 | 2026-09-16 | On Bill's short (2-10 min) `switch.ups_outlet` outage on V1.20: (a) `ups.onset` logs `ONSET Ri` with `q=good` at a value inside 73-136 mOhm (08-31 97.6 and 09-15 108.7 at ~2.0-2.1 A, +/-25 %); (b) `ups.recharge` logs `RECHARGE Ri` on AC return — armed, because no survival sleep intervenes; (c) `OUTAGE END` duration lands within 2 min of the AC-off span (each end carries up to 60 s of uptime-sensor staleness). Falsified by a missing ONSET or RECHARGE line, `q=float-unsettled`, an onset value outside 73-136 mOhm, or a duration more than 2 min long. Apparent Ri is the separate row above | yes — written 16:00 with the log stream connected, before the switch was turned off | **HIT, all three** [M, device log + HA history]. (a) `ONSET Ri` 107.9 mOhm, `q=good`, at 2.5945 A, logged 208 ms after `switch.ups_outlet` went off (16:00:29.777). (b) `RECHARGE Ri` 106.6 mOhm, logged 381 ms after it came back on (16:08:56.781). (c) `OUTAGE END #20` recorded 8.0 min against a switch span of 8.45 min; the V1.19 `on_battery` method would have recorded 9.42. Also: Battery Power == V x I in 123/123 points through the outage, \|I\| up to 2.38 A |
-| 2026-09-17 | SDR antenna W5012 at its moved spot (09-17 entry): mean daily capture over outage-free EDT days 09-18..09-24 stays inside mean ± 2·sd·√(1/7+1/9) of the 9 outage-free days 09-07..09-16 — **electric 53.8–57.7%, gas 61.2–70.4%, water 69.1–73.2%** [D, from means 55.7 / 65.8 / 71.2 and sd 1.93 / 4.58 / 2.04 pp, M; capture = distinct `*_meter_last_seen` states / (86400 s / cadence 11.42 / 30.0 / 28.0 s)]. Falsified by any meter's 7-day mean outside its band. Basis: the antenna alone at the old spot moved nothing detectable over 60 min (z +0.24 / −1.85 / −1.41 against n=10 same-hour controls) [M]; that does not carry to the new spot ~0.93 λ away [D], so this is a genuine null test, not a replay. Gas caveat stated now: its control days already ran low late in the window (09-13 / 14 / 16 at 60 / 64 / 59%) [M], so a gas miss LOW on its own is not attributable to the antenna. Void if the antenna moves again inside the window; bands recomputed at the actual n if a day is lost to an outage | yes — written after Bill's 09-17 answer, before any data from after the move was read | pending |
+| 2026-09-17 | **Extremes-first bracket. (a) POSITIVE CONTROL: 0.9 dB - the lowest REACHABLE manual step, since -g 0 means AGC to rtl_tcp [S: rtl_tcp.c:509-511] - collapses rtl_433 decode count to under 10% of the AGC reference rate. If it does NOT collapse, the gain flags are not reaching the tuner and EVERY gain result today is void; that is the point of running it, because at verbosity:info the add-on drops rtl_tcp's own confirmation line, so this is the only check that does not depend on a log. (b) MAIN CLAIM, unchanged from the withdrawn row: no fixed gain beats AGC - neither extreme nor any mid point bisected afterwards exceeds the AGC reference on pooled per-meter decode count at P<0.05, Poisson rate-ratio, against BOTH AGC blocks. (c) Extremes alone cannot separate 'gain does not matter' from 'the optimum is interior', so AGC is kept as reference and a mid point is run before any flat verdict is accepted | yes - written 16:5x EDT, block 1 (AGC) still collecting, no block dump read yet | **HIT, all three** [M, rtl_433 25.12 -M level over rtlamr's own dump, 09-17 16:40-22:15 EDT; exact Poisson rate-ratio]. (a) 0.9 dB: 0 re-decodes in 20.45 min against AGC's 94 / 93 / 73, P = 3.7e-17 / 3.1e-17 / 1.3e-16 - the flags reach the tuner. (b) All six fixed steps (0.9 / 19.7 / 25.4 / 32.8 / 40.2 / 49.6 dB) fall BELOW all three AGC blocks (2.321 / 2.320 / 2.332 per min, pairwise P = 1); the closest, 49.6 dB at 43 decodes in 40.45 min, is 0.458x at P = 1.6e-05 / 1.5e-05 / 3.2e-05. (c) Four interior steps were run and the verdict is not flat: re-decode rate rises with delivered ADC level (Spearman rho 0.976, n=8 arms, P=3.3e-05, computed before block 9), and only AGC reaches the top of that curve without clipping. Limits [R11]: one evening, symbollength 80 only, one block per fixed arm. The advisory delivery metric (add-on log, declared 17:50 after block 2) has 49.6 and 40.2 dB TYING AGC (5.770 and 5.409 against 5.545 per min, P = 0.674 / 0.812) while re-decode margin halves - ties go to AGC by the rule |
+| 2026-09-17 | **Tuner gain is not where the SDR capture losses are.** In tonight's 8-block mirrored sweep (AGC / 19.7 / 32.8 / 44.5 dB, 40 min each, order ABCD DCBA so a linear time drift cancels in each pair), NO fixed gain beats the AGC control on rtl_433 decode count per block. Decision rule fixed in advance: falsified if any single fixed-gain setting beats BOTH AGC blocks on pooled per-meter decode count at P<0.05 on a Poisson rate-ratio test; counts are primary, SNR secondary, because the SNR sample is censored by the very thing being optimised (drop the gain and weak packets vanish rather than decoding weakly, so survivors' median SNR can RISE while capture FALLS). Basis: SNR medians 23.44 / 26.91 / 24.00 dB for water / gas / electric [M, n=19/13/3, 2026-09-17 16:18-16:34 EDT, rtl_433 25.12 -M level over rtlamr's own -samplefile dump] are a comfortable margin, not a marginal link - and electric, the meter whose capture is worst, is heard as LOUDLY as the other two when heard at all. The established binding constraint is window bandwidth, not sensitivity (symbollength 72->80 bought 1.111x bandwidth and 1.31x electric capture, P=0.0028, 2026-08-25). If I am wrong, I expect the win to come from AGC hunting on a bursty hopping signal rather than from raw sensitivity, in which case a MID gain wins and 44.5 dB does not | yes - written 16:42 EDT, after block 1 (AGC) began at 16:40 and before ANY block's dump was read | **WITHDRAWN before test** - Bill replaced the mirrored 4-gain design with extremes-first bracketing at 16:5x, before any block's dump was read. The claim is unchanged and re-registered on the row above against the design actually run; withdrawn rather than edited because the decision rule named blocks that will not exist |
+| 2026-09-17 | SDR antenna W5012 at its moved spot (09-17 entry): mean daily capture over outage-free EDT days 09-18..09-24 stays inside mean ± 2·sd·√(1/7+1/9) of the 9 outage-free days 09-07..09-16 — **electric 53.8–57.7%, gas 61.2–70.4%, water 69.1–73.2%** [D, from means 55.7 / 65.8 / 71.2 and sd 1.93 / 4.58 / 2.04 pp, M; capture = distinct `*_meter_last_seen` states / (86400 s / cadence 11.42 / 30.0 / 28.0 s)]. Falsified by any meter's 7-day mean outside its band. Basis: the antenna alone at the old spot moved nothing detectable over 60 min (z +0.24 / −1.85 / −1.41 against n=10 same-hour controls) [M]; that does not carry to the new spot ~0.93 λ away [D], so this is a genuine null test, not a replay. Gas caveat stated now: its control days already ran low late in the window (09-13 / 14 / 16 at 60 / 64 / 59%) [M], so a gas miss LOW on its own is not attributable to the antenna. Void if the antenna moves again inside the window; bands recomputed at the actual n if a day is lost to an outage | yes — written after Bill's 09-17 answer, before any data from after the move was read | pending — re-registered 2026-09-18 against the final configuration (row below); scored HERE |
+| 2026-09-18 | **RE-REGISTRATION of the 09-17 antenna row above, against the final configuration** (Bill, 09-17: re-register the 09-18..09-24 row against whatever the gain sweep leaves running). Not a new claim: bands, falsifier and void conditions are the 09-17 row's, unchanged, and it is scored there. Final configuration, set 2026-09-18 08:07:37 EDT by `sdr_gain_set.py agc --samplefile off` and read back from the add-on log: AGC (no `-g`, no `-tunergain`), `-symbollength=80`, `-s 2621440`, `-centerfreq=912380000`, `-unique=false`, no `-samplefile`. In every tuner and decoder parameter that is the command line the 09-07..09-16 control days ran (unchanged since 2026-08-25, per the 09-17 swap entry). **So the antenna + gain confound the instruction anticipated does not arise: AGC won, gain is not a second variable, and the row stays a single-variable test of W5012 + new spot.** The measured gain effect, for reading it anyway: no fixed r82xx step reached AGC on rtl_433 re-decode rate; the best, 49.6 dB, ran 0.458x at 43 against 94 / 93 / 73 decodes, P ≤ 3.2e-05 against each AGC block [M, gain row above]. Deviations inside the window: (1) 09-18 00:00-08:07:30 ran with the IQ dump ON, a disk write of blocks rtlamr had already decoded (one 65,536 B block per published reading [M: 226/226, 217/217, 173/173 blocks against publishes in three 09-17 blocks]), which changes no tuner or decoder parameter; (2) one add-on restart, publishing stopped 08:07:30.0 and rtlamr was up again at 08:07:36.6, a gap under 7 s [M, add-on log], under 0.01% of the day [D: 7 / 86400]. The 09-17 22:20-22:25 symbollength-88 trial fell on 09-17, outside the window | yes — written ~08:15 EDT 09-18, after the handover restart and BEFORE any per-meter 09-18 figure was computed. Seen beforehand: the pooled publish count 22:25:46-08:07:32 (3288), used only to check dump alignment | n/a — re-registration; scored on the 09-17 row |
 
-**Running score: 5 hits, 5 misses, 1 falsified, 1 withdrawn.** Six of the first seven were
+**Running score: 6 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
+2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
 to a short sample. Every miss was a short-sample fit. That is the whole lesson of
@@ -48,7 +52,154 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.18] - 2026-09-18
+
+### SDR gain sweep closed: AGC kept, IQ dump off; the overnight AGC/80 run holds the evening's delivery
+
+**Config (add-on options, by `scripts/sdr_gain_set.py agc --samplefile off`, 08:07:37 EDT):**
+`-samplefile` removed from `custom_parameters.rtlamr`, nothing else - the dry-run diff and
+the read-back both show that one leaf. Running now: AGC (no `-g`, no `-tunergain`),
+`-symbollength=80`, `-s 2621440`. All three meters published within ~2 min of the restart
+[M, add-on log: water 3, gas 4, electric 5 by 08:09:48]. This was Bill's 09-17 "22:30"
+handover, which had not run: the 22:25:46 revert restart kept `-samplefile`, and the dump
+grew overnight to 215,547,904 B.
+
+**Verdict - AGC.** Scored on the 09-17 gain ledger row (HIT, all three). Every fixed r82xx
+step lost to all three AGC blocks on the pre-registered rtl_433 metric; the closest, 49.6 dB,
+ran 0.458x (43 against 94 / 93 / 73 decodes) at P ≤ 3.2e-05 [M]. Block 9, the third AGC
+control (21:43:59-22:15:17, partial - Bill stopped the sweep there), replicated blocks 1
+and 4: 2.332 against 2.321 / 2.320 re-decodes/min, ratio 1.005, P=1 against each [M, n=73].
+
+**symbollength 88 trial (09-17 22:20:05-22:25:43, AGC): FAILED its safety gate, reverted
+to 80.** Pre-registered in the sweep's RESUME.md as break/no-break, FAIL = any meter at
+zero. Electric published 0 in 5.63 min against 16.4 expected at the AGC/80 rate
+(P=1.8e-07); water 1 against 7.1 (P=0.016); gas 1 against 7.8 (P=0.0077); pooled 2
+against 31.4 (P=5.6e-11) [M, add-on log; exact Poisson rate-ratio against b1+b4+b9's
+624 publishes in 111.96 min]. It cannot separate the two things 88 changed - the
+decoder's chip length, and a 2,883,584 Hz sample rate above librtlsdr's 2.4 MHz lossy
+threshold [S: librtlsdr `rtlsdr_set_sample_rate`] - and its IQ was lost to the revert
+restart, so the cause is open. It fell on 09-17, outside the antenna ledger window.
+
+**Overnight AGC/80, 09-17 22:25:46 -> 09-18 08:07:30 (581.7 min), from the dump Bill asked
+to have analysed:**
+
+| meter | delivery (add-on log), night vs evening | rtl_433 re-decode, night vs evening |
+|---|---|---|
+| water | 1.398 vs 1.268/min, P=0.31 | 1.021 vs 1.055/min, P=0.76 |
+| gas | 1.339 vs 1.393/min, P=0.66 | **0.469 vs 0.697/min, ratio 0.673, P=0.0028** |
+| electric | 2.915 vs 2.912/min, P=1 | 0.590 vs 0.572/min, P=0.89 |
+| pooled | 5.652 vs 5.573/min, P=0.76 | 2.080 vs 2.324/min, P=0.11 |
+
+[M: night n = 3288 publishes / 1210 rtl_433 lines; evening = AGC blocks b1+b4+b9,
+624 / 260 in ~112 min; exact Poisson rate-ratio.] Delivery is flat hour by hour as well:
+chi-square against a constant rate over the 9 full hours, P = 0.93 / 0.998 / 0.87 for
+water / gas / electric. Levels match the evening: median rssi -2.42 / -3.17 / -1.30 dB,
+snr 25.93 / 25.93 / 27.13 [M, n = 594 / 273 / 343]; hourly mean |mag| 16.3-19.1 against
+17.7-18.0 in the evening AGC blocks; samples at the rails 0.007-0.044% per hour, against
+0.019-0.026% in b4/b9 and 0.89-1.14% in the two fixed gains that clipped [M] (both rails
+summed).
+
+What it says: AGC/80 delivery - the readings HA actually receives - held its evening rate
+across nearly ten unattended hours. Gas re-decode margin ran lower overnight while its
+delivery did not. That agrees with the ledger's gas caveat (gas already ran low late in
+the control window) and does not bear on the gain decision: no fixed step recovered a
+single gas re-decode.
+
+What it does NOT establish [R11]: one night only; rtl_433 re-decode measures margin, not
+delivery; and water's hourly re-decode shape depends on the counting convention (raw lines
+flat, chi-square P=0.30; lines deduplicated on (id, reading, time) vary, P=0.008), so no
+time-of-day claim is made for it.
+
+**Open, unexplained:** decoding each dumped 65,536 B block on its own recovers different
+packets from decoding the file whole (block 9: water 7 vs 30, gas 27 vs 18). Padding each
+block with noise at its own floor changed nothing, so it is not decoder warm-up. Every
+sweep arm used the whole-file method, so the between-arm comparisons stand; what a
+per-packet "yield" means physically is not settled.
+
+**Dump deleted by Bill, same day** (`/config/tmp/rtlamr_912.38M_2621.44k.cu8`, 215.5 MB;
+the Claude Code auto-mode classifier had refused the delete as irreversible, so it was left
+to him). A byte-identical copy (sha256 257b5c95...) remains at
+`C:\sandbox\sdr\sweep\overnight_agc80_2225_to_0807.cu8`; with the dump off, nothing
+recreates the file.
+
+### First night at the moved antenna spot: no detectable change in reads/min or reception age (analysis only, nothing deployed)
+
+Bill asked for 23:00-08:00 EDT on 09-17/18 (W5012 under the metal table's middle, facing
+down, since ~13:16 09-17 - **Bill [S], 09-18: "same spot", not moved since, so the antenna
+ledger row is NOT voided**) against the same window on the 7 nights 09-10..09-16 (stock
+antenna, old spot). AGC / symbollength 80 on all 8 nights; the sweep and the 88 trial ended
+22:25, before the window; no outage on any night - no stretch over 10 min with all three
+meters silent [M].
+
+Source: InfluxDB `sensor.<m>_meter_last_seen`, one point per decode (the recorder has
+excluded these since 2026-08-22). Validated on last night against the add-on log: 753 / 724 /
+1581 points against 753 / 724 / 1581 publishes, exact [M]. Reception age is the
+`*_meter_age` formula (now - last decode) evaluated from 1 s decode times, because that
+sensor renders once a minute and typical gaps are 11-30 s [R18]. Its recorded nightly max
+sits at or below the computed longest gap on all 24 meter-nights, within its 1-min sampling [M].
+
+| meter | reads/min, last vs prev 7 | mean age | longest gap | time with age > 1 min |
+|---|---|---|---|---|
+| water | 1.394 vs 1.477 ± 0.057, P=0.23 | 27.2 vs 25.4 ± 1.3 s, P=0.28 | 3.27 vs 2.80 ± 0.66 min, P=0.53 | 8.3 vs 6.6 ± 1.1 %, P=0.21 |
+| gas | 1.341 vs 1.304 ± 0.131, P=0.80 | 36.1 vs 36.5 ± 4.0 s, P=0.92 | 3.25 vs 3.50 ± 0.50 min, P=0.65 | 19.7 vs 20.4 ± 3.7 %, P=0.85 |
+| electric | 2.928 vs 2.878 ± 0.104, P=0.67 | 14.8 vs 15.2 ± 0.7 s, P=0.59 | 1.93 vs 1.98 ± 0.47 min, P=0.94 | 1.4 vs 1.6 ± 0.4 %, P=0.65 |
+
+[M: n = 1 night against 7, mean ± sd; prediction-interval t, df=6, two-sided.] All twelve
+of last night's figures lie inside the previous seven nights' own range.
+
+What it does NOT establish [R11]: one night. The night-to-night spread limits what one night
+can detect at P<0.05 to a reads/min shift of about 10.2% water, 26.4% gas, 9.4% electric
+[D: 2.447 · sd · √(8/7) / mean]; anything smaller is invisible here. Antenna and spot changed
+together (the 09-17 hour at the old spot put the antenna alone at no detectable change, n=10
+controls). It does NOT score the 09-17 antenna ledger row - 7 full days against 9 - and
+reading this one night early leaves that row's bands unchanged. Evidence:
+`C:\sandbox\sdr\overnight_compare\` (`compare.py`, `compare_report.txt`).
+
 ## [2026.09.17] - 2026-09-17
+
+### R13 — `docs/sdr-signal-level.md` had the gain instruction backwards (docs only, nothing deployed)
+
+Bill asked which flag sets gain, `-g` or `-tunergain`. Answer: **both, and
+neither alone.** The doc as written this morning said `-g 40` on `rtltcp` was
+sufficient because "`rtlamr` never sets gain at all (no gain flag exists in
+`flags.go`)". Wrong on both halves, and it would have produced a whole antenna
+placement survey measuring AGC decisions rather than positions — with every
+gate passing, because nothing here is machine-checkable.
+
+- `rtl_tcp -g 40` does set gain: non-zero takes the manual-gain branch,
+  `rtlsdr_set_tuner_gain_mode(dev, 1)` then `rtlsdr_set_tuner_gain`
+  [S: `rtl_tcp.c:509-521`].
+- `rtlamr` then **undoes it**: after connecting it runs
+  `if !gainFlagSet { rcvr.SetGainMode(true) }` [S: `main.go:98-122`, v0.9.5],
+  which sends command 3 param 0 [S: `rtltcp.go:196-199,228-233`], passed
+  straight to `rtlsdr_set_tuner_gain_mode` [S: `rtl_tcp.c:324-326`] — 0 being
+  automatic. So the as-found system is on AGC no matter what `-g` says.
+- `rtlamr -tunergain=40` is required to suppress that, and — separately —
+  **sets nothing itself.** `rcvr.HandleFlags()` runs at `main.go:328`, before
+  `NewReceiver` connects at `main.go:341`/`:91`; it writes to a nil `TCPConn`,
+  panics on the error, `recover()` swallows it, and the return value is
+  discarded [S: `rtltcp.go:101-147,186-188`]. Silent at every verbosity. Only
+  `-centerfreq` and `-samplerate` survive, because `NewReceiver` re-sends those
+  two after Connect — the same mechanism as ERROR 3 in
+  `docs/addons/rtlamr2mqtt-recommended.yaml`.
+
+**How the error got in:** the claim named `flags.go` and `flags.go` was read.
+The gain flags are registered one package away, by the vendored
+`bemasher/rtltcp` `RegisterFlags()` [S: `rtltcp.go:83-98`]. Worse, the correct
+behaviour was already written down in this repo on 2026-08-25 —
+`rtlamr2mqtt-recommended.yaml:354-356` states the `SetGainMode(true)` default
+explicitly — and was not cross-read. R6 was followed to the letter and still
+produced a false [S], because reading *the file the claim names* is not the
+same as reading *the file the behaviour lives in*.
+
+Corrected in place with the R13 record kept in the bullet (§3), and the three
+consequences chased down: §7 (RSSI valid only at fixed gain), §8 step 3 (fix
+both flags for the survey, re-check they match at each spot), §9 (rollback is
+to drop both; a forgotten `-g 40` is inert, not harmful). `docs/pending.md`
+P17 updated. Identity of what was read, 2026-09-17: rtlamr `v0.9.5` (the
+Dockerfile pin), `bemasher/rtltcp` `3aed81c166c5` (its `go.mod` pin), osmocom
+`rtl-sdr` master `rtl_tcp.c`; the add-on ships Alpine's rtl-sdr build, so its
+line numbers may differ — the command numbers are wire protocol and do not.
 
 ### New doc: `docs/sdr-signal-level.md` — an instrument for antenna work (docs only, nothing deployed)
 
