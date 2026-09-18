@@ -83,6 +83,23 @@ Off-host gotchas, each of which has cost a session:
   coverage gap) **and** the `sun.sun` false positive returns, because the live
   union is what suppresses it. The audit is not "fully offline by design"; it
   is offline-capable and measurably worse offline.
+- **Load `secrets.yaml` with `yaml.safe_load` - never grep, `cut`, a
+  `split(':')`, or bare `yaml.load`.** Off-host there is no HA environment, so
+  credentials come straight from `H:/secrets.yaml` (set `HA_CONFIG='H:/'` - it
+  is not a persistent env var, and the snippet falls back to `/config`). Every
+  `influxdb_*` value there is quoted, a hand parser keeps the quotes, and the
+  failure does not look like a parse bug [M, 2026-09-18, all four `influxdb_*`
+  keys, PyYAML 6.0.3, one probe each]:
+  - hand-parsed user/pass against the right URL: InfluxDB `/query` returns
+    **401** - indistinguishable from a rotated password, and rotating `ha_ro`
+    is an open recommendation (Grafana, **Auth**, below), so the wrong
+    conclusion is ready-made;
+  - hand-parsed URL: `URLError` before any request is sent;
+  - `yaml.load(f)` with no `Loader`: `TypeError` on PyYAML 6.
+
+  `safe_load` reads the whole file and the same credentials return 200. The
+  snippet is in `docs/influx-grafana.md`, §InfluxDB 1.x, **Credentials**;
+  `scripts/grafana_snapshot.py` and `scripts/spc_verify.py` load it the same way.
 - **`git` on `H:` WORKS as of 2026-09-10 - both bullets that stood here were
   stale.** They said git "does not just refuse, it hangs" (measured 2026-08-25:
   `git ls-files --error-unmatch` did not return inside 2 minutes, `git diff HEAD`
@@ -108,7 +125,7 @@ has the full history and gotchas. Everything here was verified 2026-09-11.
 |---|---|---|
 | `H:` config tree | yes | Samba mount, `\\10.0.0.210\config` |
 | HA REST/WebSocket API | yes | `HA_TOKEN` (persistent Windows user env var) against `10.0.0.210:8123`. Full gotchas (Supervisor 401s, `HA_URL` vs `HA_TOKEN`) in SESSION PROTOCOL above. |
-| InfluxDB 1.x | yes | `10.0.0.210:8086`, credentials in `secrets.yaml`. Full detail below. |
+| InfluxDB 1.x | yes | `10.0.0.210:8086`, credentials in `secrets.yaml`, loaded with `yaml.safe_load` only (gotcha above). Full detail and the loading snippet in `docs/influx-grafana.md`, §InfluxDB 1.x, **Credentials**. |
 | **Grafana** | **no** | see below |
 | git (`H:` as a working tree) | yes | see SESSION PROTOCOL above — works as of 2026-09-10 |
 | sandbox / scratch copies | n/a | `C:\sandbox` — fixed local path, see R2 above. Not `H:`, not a temp dir. |
@@ -123,9 +140,9 @@ missing env var, there is no host-mapped port to point one at.
 
 **The route that works:** SSH to the host and run the script there, where the
 Docker hostname resolves natively and `secrets.yaml` is read as `/config/secrets.yaml`
-directly (no `GRAFANA_URL`/`GRAFANA_TOKEN` override needed on-host — those only
-matter for the Windows-side path in the credential-loading snippet under
-INFLUXDB below).
+directly (no `GRAFANA_URL`/`GRAFANA_TOKEN` override needed on-host — those env
+vars only matter when the script runs Windows-side; `scripts/grafana_snapshot.py`
+reads them at lines 72-73, ahead of `secrets.yaml`).
 
 ```bash
 ssh ha-host "python3 /config/scripts/grafana_snapshot.py --probe"

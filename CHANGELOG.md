@@ -54,6 +54,25 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
 
+### `docs/off-host-access.md`: dangling InfluxDB pointers fixed; `yaml.safe_load` requirement stated (docs only, nothing deployed)
+
+- **Two pointers led nowhere.** The service table said InfluxDB had "Full detail
+  below", and the Grafana section cited "the credential-loading snippet under
+  INFLUXDB below". No such section exists in the file. Both "below"s were written
+  relative to CLAUDE.md, and the 2026-09-16 split moved that section to
+  `docs/influx-grafana.md`. Both now point there (§InfluxDB 1.x, **Credentials**).
+  The Grafana pointer was also wrong about content: that snippet reads only
+  `INFLUXDB_*`. The `GRAFANA_URL`/`GRAFANA_TOKEN` overrides it described are
+  read at `scripts/grafana_snapshot.py` lines 72-73, which is where it now points.
+- **New gotcha: load `secrets.yaml` with `yaml.safe_load`.** Measured
+  2026-09-18 against the live `H:/secrets.yaml` with PyYAML 6.0.3 [M, one
+  probe each, no value printed]. All four `influxdb_*` values are quoted, so a
+  grep, `cut` or `split(':')` keeps the quotes and gets every one wrong. Those
+  values give InfluxDB `/query` a **401** with the right URL, which reads like a
+  rotated password. A hand-parsed URL gives `URLError`. A bare `yaml.load(f)`
+  raises `TypeError`. `safe_load` returns 200. Both scripts that read the file
+  already use it; nothing in code changed.
+
 ### SDR gain sweep closed: AGC kept, IQ dump off; the overnight AGC/80 run holds the evening's delivery
 
 **Config (add-on options, by `scripts/sdr_gain_set.py agc --samplefile off`, 08:07:37 EDT):**
