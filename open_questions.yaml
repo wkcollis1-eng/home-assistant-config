@@ -662,3 +662,65 @@
     house, water in the basement). The plate is therefore not in the path to
     any meter - the favourable one of the two possible readings of "facing
     downward".
+
+- asked: 2026-09-18
+  question: >-
+    For the bank discharge test: what load (roughly how many watts), and does
+    it come on in ONE step from off - no fan-only or low-power stage first?
+  blocks: >-
+    Whether the test can yield an Apparent Ri sample, and the test-procedure
+    advice for it. battery-bank-monitor V1.25 arms only on a single step to
+    >= 25 A (~330 W at the bank) from <= 5 A within 10 s; the 2026-07-16 14:22
+    heater event (rest -> -10.4 A for ~10 s -> -40 A) did not arm [M, replay].
+  answered: >-
+    2026-09-18, Bill: "since the system is a manual transfer switch, i start
+    with all breakers off and start with the basement router, fridge, ups, and
+    so on. so it could start at below 25w for a short period. typical average
+    load is 300-400w."
+
+    Consequence: the test itself will not produce an Apparent Ri sample. The
+    load builds breaker by breaker, so it never jumps from <= 5 A to >= 25 A in
+    one step; V1.25 logs "Ri step not armed" once when the total first passes
+    25 A, or nothing if it never does. 300-400 W is ~26-34 A at the bank
+    [D: W / 0.903 inverter RTE / ~13.0 V]. An Ri sample needs a deliberate
+    single-step load of >= ~330 W from rest, held >= 45 s.
+
+- asked: 2026-09-18
+  question: >-
+    How will the discharge test end - the inverter's low-voltage cutoff, you
+    switching the load off, or a battery BMS disconnecting the busbar?
+  blocks: >-
+    Whether the test cycle gets a SW-vs-HW CYCLE CONFIRM at the recharge. The
+    monitor is powered from the busbars (Bill, 2026-08-26); a busbar
+    disconnect power-cycles the INA228, zeroing CHARGE, and V1.25 then
+    invalidates the HW anchor (by design - it was silently wrong before).
+  answered: >-
+    2026-09-18, Bill: "test will end by flipping the 30a breaker off before LVD
+    at inverter or bms."
+
+    Consequence: the monitor keeps power through the test, so the INA228 CHARGE
+    register and the HW anchor survive, and the recharge anchor's CYCLE CONFIRM
+    compares the whole test cycle. The third ledger prediction of 2026-09-18 is
+    therefore not voided by the test's ending.
+
+- asked: 2026-09-18
+  question: >-
+    Was the battery monitor's power interrupted on 2026-07-17 about 3:05 PM
+    EDT and on 2026-08-31 about 4:50 PM EDT (unplugged, fuse, busbar work)?
+  blocks: >-
+    Classing those two events as deliberate or as an unexplained supply fault.
+    Both were reboots on UNCHANGED firmware with the INA228 CHARGE register
+    zeroed, i.e. INA228 power loss [D from M]; the 09-07 OTA reboot kept it.
+    If neither was deliberate, the monitor lost power twice for no known
+    reason - and a monitor that loses power is dark in an outage (CORE).
+    Nothing in the discharge test waits on this.
+  answered: >-
+    2026-09-18, Bill: "was re-wiring the battery bank, so power was dropped
+    from the monitor for a short period."
+
+    Consequence: deliberate, not a supply fault; the CORE concern is closed.
+    These are rewiring sessions other than the 08-04 one recorded above: the
+    CHARGE register ran straight through 08-04 [M, daily series], so that
+    rewire did not drop the INA228. Bill then asked for the HW data to survive
+    such a power loss - battery-bank-monitor V1.26 bridges the counters across
+    a detected INA228 reset instead of only invalidating the anchor.

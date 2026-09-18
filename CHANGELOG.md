@@ -34,6 +34,10 @@ is calibrated against.
 | 2026-09-17 | **Tuner gain is not where the SDR capture losses are.** In tonight's 8-block mirrored sweep (AGC / 19.7 / 32.8 / 44.5 dB, 40 min each, order ABCD DCBA so a linear time drift cancels in each pair), NO fixed gain beats the AGC control on rtl_433 decode count per block. Decision rule fixed in advance: falsified if any single fixed-gain setting beats BOTH AGC blocks on pooled per-meter decode count at P<0.05 on a Poisson rate-ratio test; counts are primary, SNR secondary, because the SNR sample is censored by the very thing being optimised (drop the gain and weak packets vanish rather than decoding weakly, so survivors' median SNR can RISE while capture FALLS). Basis: SNR medians 23.44 / 26.91 / 24.00 dB for water / gas / electric [M, n=19/13/3, 2026-09-17 16:18-16:34 EDT, rtl_433 25.12 -M level over rtlamr's own -samplefile dump] are a comfortable margin, not a marginal link - and electric, the meter whose capture is worst, is heard as LOUDLY as the other two when heard at all. The established binding constraint is window bandwidth, not sensitivity (symbollength 72->80 bought 1.111x bandwidth and 1.31x electric capture, P=0.0028, 2026-08-25). If I am wrong, I expect the win to come from AGC hunting on a bursty hopping signal rather than from raw sensitivity, in which case a MID gain wins and 44.5 dB does not | yes - written 16:42 EDT, after block 1 (AGC) began at 16:40 and before ANY block's dump was read | **WITHDRAWN before test** - Bill replaced the mirrored 4-gain design with extremes-first bracketing at 16:5x, before any block's dump was read. The claim is unchanged and re-registered on the row above against the design actually run; withdrawn rather than edited because the decision rule named blocks that will not exist |
 | 2026-09-17 | SDR antenna W5012 at its moved spot (09-17 entry): mean daily capture over outage-free EDT days 09-18..09-24 stays inside mean ± 2·sd·√(1/7+1/9) of the 9 outage-free days 09-07..09-16 — **electric 53.8–57.7%, gas 61.2–70.4%, water 69.1–73.2%** [D, from means 55.7 / 65.8 / 71.2 and sd 1.93 / 4.58 / 2.04 pp, M; capture = distinct `*_meter_last_seen` states / (86400 s / cadence 11.42 / 30.0 / 28.0 s)]. Falsified by any meter's 7-day mean outside its band. Basis: the antenna alone at the old spot moved nothing detectable over 60 min (z +0.24 / −1.85 / −1.41 against n=10 same-hour controls) [M]; that does not carry to the new spot ~0.93 λ away [D], so this is a genuine null test, not a replay. Gas caveat stated now: its control days already ran low late in the window (09-13 / 14 / 16 at 60 / 64 / 59%) [M], so a gas miss LOW on its own is not attributable to the antenna. Void if the antenna moves again inside the window; bands recomputed at the actual n if a day is lost to an outage | yes — written after Bill's 09-17 answer, before any data from after the move was read | pending — re-registered 2026-09-18 against the final configuration (row below); scored HERE |
 | 2026-09-18 | **RE-REGISTRATION of the 09-17 antenna row above, against the final configuration** (Bill, 09-17: re-register the 09-18..09-24 row against whatever the gain sweep leaves running). Not a new claim: bands, falsifier and void conditions are the 09-17 row's, unchanged, and it is scored there. Final configuration, set 2026-09-18 08:07:37 EDT by `sdr_gain_set.py agc --samplefile off` and read back from the add-on log: AGC (no `-g`, no `-tunergain`), `-symbollength=80`, `-s 2621440`, `-centerfreq=912380000`, `-unique=false`, no `-samplefile`. In every tuner and decoder parameter that is the command line the 09-07..09-16 control days ran (unchanged since 2026-08-25, per the 09-17 swap entry). **So the antenna + gain confound the instruction anticipated does not arise: AGC won, gain is not a second variable, and the row stays a single-variable test of W5012 + new spot.** The measured gain effect, for reading it anyway: no fixed r82xx step reached AGC on rtl_433 re-decode rate; the best, 49.6 dB, ran 0.458x at 43 against 94 / 93 / 73 decodes, P ≤ 3.2e-05 against each AGC block [M, gain row above]. Deviations inside the window: (1) 09-18 00:00-08:07:30 ran with the IQ dump ON, a disk write of blocks rtlamr had already decoded (one 65,536 B block per published reading [M: 226/226, 217/217, 173/173 blocks against publishes in three 09-17 blocks]), which changes no tuner or decoder parameter; (2) one add-on restart, publishing stopped 08:07:30.0 and rtlamr was up again at 08:07:36.6, a gap under 7 s [M, add-on log], under 0.01% of the day [D: 7 / 86400]. The 09-17 22:20-22:25 symbollength-88 trial fell on 09-17, outside the window | yes — written ~08:15 EDT 09-18, after the handover restart and BEFORE any per-meter 09-18 figure was computed. Seen beforehand: the pooled publish count 22:25:46-08:07:32 (3288), used only to check dump alignment | n/a — re-registration; scored on the 09-17 row |
+| 2026-09-18 | battery-bank-monitor V1.25 publishes `Apparent Ri` on the discharge test's first single-stage rest->load step (>= 25 A from <= 5 A, load within ±15 % across 5-45 s), at **2.4-3.7 mOhm**, and `bank.ri` logs exactly one line for the event. Falsified by no publish AND no `bank.ri` reject / abort / not-armed line for such a step, or a value outside the band. Basis: the V1.25 lambda, compiled on the host and replayed on the 07-16 17:42 heater step, reads 3.041 mOhm at all 10 tick phases [M, n=1 step]; the ±20 % band covers pack temperature and load not being matched [I] | yes — written after the V1.25 build, before it was flashed | pending |
+| 2026-09-18 | The pre-test top-up (the first clean full-charge anchor on V1.25) logs `RECON` quality OK with a recommended rate of **0.9-2.8 %/mo**, and both recon entities leave Unknown. Falsified by a rate outside the band, a quality other than OK, or the entities still Unknown after a clean anchor. Basis [D]: since the 07-16 anchor the INA228 CHARGE register has seen ~12.0 Ah leave that the SW ledger never booked (1.42 %/mo over ~64 d), ±0.49 %/mo at the 1 µV offset maximum [S: TI SLYS021A p1], plus an internal term of 0-0.9 %/mo (95 % bound, LiFePO4 report 2026-08-26) | yes — written after the V1.25 build, before it was flashed | pending |
+| 2026-09-18 | At the post-test recharge anchor, `bank.hwcheck` `CYCLE CONFIRM` logs SW net − HW net **positive, and +4 to +13 mA times the cycle's hours**: the <50 mA drain the SW deadband drops (8.66 mA since 08-31 [D from M], ±50 %). That is agreement to well under 1 % of ~800 Ah throughput. Falsified by a negative delta or one outside the band. Void if the INA228 loses power inside the cycle (V1.25 then logs the reset and has no anchor to compare). Basis [D]: one ADC feeds both integrators, so gain cancels | yes — written after the V1.25 build, before it was flashed | pending |
+| 2026-09-18 | **RE-REGISTRATION of the three battery-bank rows above against V1.26**, which superseded V1.25 before either was flashed. Not a new claim: the claims, bands and falsifiers are unchanged and are scored on their own rows. They carry over because: (1) the Ri lambda behaves identically, since synth and replay output from V1.26 is byte-identical to V1.25's [M]; (2) RECON reads the SW ledger, which V1.26 does not touch; (3) CYCLE CONFIRM's delta arithmetic is unchanged, and only a bridge count is appended. Where row 38 says "first clean full-charge anchor on V1.25", read V1.26. **Row 39's void condition stands as written:** a cycle in which the INA228 loses power is void even though V1.26 bridges it. A bridge carries up to ~10.3 mAh at idle [D: 10 + 8.66 mA x 120 s / 3600] plus whatever flowed while the monitor was off, and the band was not sized for that. Row 37 is scored on the first single-stage step of >= 25 A from <= 5 A. Per Bill's 09-18 R14 answer, the staged breaker start will not arm one, so the step may be a deliberate heater step rather than part of the test | yes — written after the V1.26 build, before it was flashed | n/a — re-registration; scored on the rows above |
 
 **Running score: 6 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
@@ -53,6 +57,163 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
+
+### battery-bank-monitor V1.26: HW counters survive a monitor power loss — NOT FLASHED, supersedes the unflashed V1.25
+
+Bill confirmed that both power losses were his rewiring of the bank (R14
+answer, `open_questions.yaml`). He then asked: "any way to make the data
+persistant with a power loss at the monitor?" V1.26 is V1.25 plus that
+change, so the device goes from V1.24 to V1.26 in one flash. The change is in
+firmware only, OBSERVABILITY only. It is installed byte-identical at
+`esphome/battery-bank-monitor.yaml` and
+`C:\repos\Lifepo4-Battery-Banks\INA228 Monitor\` (not committed in either
+repo).
+
+- **Most of the data already survived a power loss.** All 23
+  `restore_value` globals V1.25 had (29 of 49 in V1.26 [M: YAML parse]) and
+  both SW cycle integrations (`restore: true`)
+  persist: anchors, recon inputs, lifetime and outage totals, and Ri
+  statistics. Globals are polled every 1 s and saved only when they change,
+  and flash commits every 60 s [S: ESPHome 2026.8.2
+  `components/preferences/__init__.py` l.18; `globals_component.h`
+  `store_value_`]. The one thing lost was the INA228's own CHARGE and ENERGY
+  registers, which V1.25 could only detect and then give up on.
+- **V1.26 bridges an INA228 reset instead of invalidating the anchor.**
+  - HW Net Charge and HW Energy now report the register plus a persisted
+    offset, and save their last value in 10 mAh and 0.1 Wh steps.
+  - A boot that confirms a reset (TEMP_LIMIT sentinel gone AND |CHARGE|
+    ≤ 0.5 Ah) sets the offset to that saved value. The series continues and
+    the HW anchor stays valid. `CYCLE CONFIRM` prints how many resets the
+    cycle bridged.
+  - If the sentinel is gone but CHARGE is still counting, this is the first
+    boot on sentinel firmware, not a reset. V1.25 would have invalidated the
+    anchor here.
+  - An unreadable chip, or nothing saved to bridge from, invalidates the
+    anchor as in V1.25.
+  - `discharge_peak_a_raw` is now persisted too.
+- **Limits.**
+  - Neither ledger sees charge that moves while the monitor is off.
+  - A bridge loses the HW charge since the last save: ≤ 10 mAh plus about
+    2 min of flow. That is ~10.3 mAh at idle [D: 10 + 8.66 mA x 120 s / 3600]
+    and 1.0 Ah at 30 A [D: 30 x 120 / 3600].
+  - A reset of the INA228 alone, with the ESP staying up, is caught only at
+    the next boot, and then only if CHARGE is still within 0.5 Ah. They share
+    one 3V3 rail, so it is not expected [I; falsified by a
+    `bank.hwcheck` "kept counting" line after a boot that followed a power
+    loss].
+  - Flash cost is ~21 + ~28 saves/day at idle (charge, energy) [D: 24 h
+    simulated in the host harness at 8.66 mA / 0.114 W].
+
+**Verified:**
+- Host harness `C:\sandbox\bank_v126\harness\` (`hwgen.py`). The on_boot
+  check and the HW Net Charge / HW Energy / delta lambdas are extracted
+  verbatim, compiled with zig c++ `-Wall -Wextra` (0 warnings), and run
+  against a simulated INA228 register file (TEMP_LIMIT resets to 7FFFh,
+  40-bit CHARGE, ENERGY). The 11 scenarios cover an ESP-only reboot, a
+  bridged reset, a double reset, an unreadable chip, nothing saved, a read
+  before the check, 24 h of flash cadence, and a counting register with an
+  anchor present. **V1.26 passes 25 of 25 checks.** Fault direction:
+  - V1.25 fails 12 of them;
+  - a mutant without the "still counting" guard fails 2 (it double-counts);
+  - a mutant without the publish gate fails 7.
+- Ri is unchanged: synth and replay output from the V1.26 lambda is
+  byte-identical to V1.25's.
+- `esphome compile` 2026.8.2 from PowerShell:
+  - EXIT=0; `main.cpp.obj` and `firmware.ota.bin` (1,044,944 B) are newer
+    than the YAML;
+  - `config_hash=0x3666204b`;
+  - one `-Wformat` warning, the same pre-existing watchdog line, moved to
+    2539.
+- R3: 21 hunks and 127 lines added. 2,540 of 2,550 V1.25 lines carry over
+  byte-identical [M: difflib]. Reverse-applying the patch reproduces V1.25
+  byte for byte. No removed line is a comment. A stale "LOST on reboot"
+  comment is annotated, not deleted.
+- The final line keeps its bare LF.
+- R17 (`check_provenance.py --all`, diffed against the V1.25 YAML and the
+  committed CHANGELOG / `open_questions.yaml`) raises 3 new flags. All three
+  are the `bank.hwcheck` log formats (YAML lines 444, 452, 457), the same
+  hex-format false positive as V1.25's line 395 and the pre-existing
+  DIAG_ALRT lines 2127 and 2129. No flag falls on this session's CHANGELOG
+  or open-question text.
+
+**NOT verified:** anything on the device.
+- **First V1.26 boot.** Live HW Net Charge read −3.729 Ah [M, one reading,
+  19:14Z], so the first boot should log `TEMP_LIMIT=0x7FFF but CHARGE kept
+  counting ... first boot writing the sentinel` rather than V1.25's
+  `power-on reset detected`. A later `Restart` press must log `sentinel
+  intact`.
+- **The bridge itself.** Only a real power loss of the monitor exercises it.
+- **Flash BEFORE the pre-test top-up.** Suppose V1.24 seeded the anchor at
+  the top-up and V1.26 then booted with CHARGE within ±0.5 Ah of 0. There
+  would be no saved value yet, so the fresh anchor would be invalidated.
+
+**Ledger:** rows 37-39 were written against V1.25. They carry over to V1.26
+through a re-registration row, not an edit. **R17 fix to the V1.25 entry
+below:** its note quoting a false-positive literal tripped the same check,
+so the literal is spelled out (same session, uncommitted).
+
+### battery-bank-monitor V1.25 written ahead of the discharge test — NOT FLASHED
+
+Bill asked for a check of Apparent Ri against ups-monitor, and of the two
+Unknown entities, before a full discharge test. Firmware only, OBSERVABILITY
+layer only. V/I, alarms, `bank_state`, SOC and runtime are untouched. The full
+reasoning sits in the V1.25 header of `esphome/battery-bank-monitor.yaml`,
+which is byte-identical to `C:\repos\Lifepo4-Battery-Banks\INA228 Monitor\`
+(not committed in either repo).
+
+- **Deployed = H: before this change [M].** The baseline sandbox compile gave
+  `config_hash=0xf357cc42`, the hash the device reports.
+- **Apparent Ri: the formula was right, the capture was fragile.** Ported
+  from the UPS: the windowed gate (5-20 s vs 30-45 s means), Ri taken on the
+  30-45 s means, and every reject logged. Added for the bank: Ri = ΔV/ΔI,
+  since its rest point may carry up to 5 A, and "abort" / "not armed" logs.
+  Measured on a host build of both lambdas [M]:
+  - the 07-16 17:42 step reads 3.142 → 3.041 mOhm (evaluation point ~37.5 s
+    instead of 45 s);
+  - V1.24 silently lost 2 of 9 synthetic cases that should publish;
+  - at a −4 A rest, V1.24 read 2.090 where the linear cell is 2.200 (V1.25:
+    2.2000);
+  - the real 14:22 staged load now logs "not armed" instead of nothing.
+- **The two Unknowns are waiting for full-charge anchors, as designed.** The
+  only clean anchor was 2026-07-16 19:52Z; V1.23 (the HW register) was
+  flashed the next day.
+  - The delta needs one anchor.
+  - Unseen drain needs a second one with ≥ `recon_min_ah_in`.
+- **Three defects in those paths, fixed:**
+  - the delta was read on its own 60 s clock (up to 1.33 Ah of skew at 80 A);
+  - the 20 Ah recon gate would have discarded the 64-day bracket at the
+    pre-test top-up (~12 Ah [D]); it is now 1 Ah, and only brackets of 14 d
+    or more reach the entities;
+  - the manual "Mark as Fully Charged" button reset the counters the recon
+    reads without moving its epoch.
+- **INA228 power-on reset is now detected.** A TEMP_LIMIT sentinel is read at
+  boot, and a restart invalidates the HW anchor. This is not hypothetical:
+  CHARGE restarted from 0 on 2026-07-17 19:05Z and 2026-08-31 20:50Z, both
+  reboots on unchanged firmware, while the 09-07 OTA reboot kept it [M].
+  TEMP_LIMIT reset is 7FFFh [S: SLYS021A §7.6.1.17 p29]; p17 of the same
+  datasheet says 0xFFFF, and the 0x7FFE sentinel differs from both.
+
+**Verified:**
+- `esphome compile` 2026.8.2 from PowerShell: EXIT=0, `main.cpp.obj` newer
+  than the YAML, `firmware.ota.bin` 1,043,456 B, `config_hash=0xfe9db154`.
+  The one `-Wformat` warning is pre-existing: the watchdog log line, also
+  present in the baseline.
+- The Ri lambda compiles on the host (zig c++ `-Wall -Wextra`) with 0 warnings.
+- R3: 16 intended hunks; 2,320 of 2,351 deployed lines are byte-identical.
+- R17: `check_provenance.py` flags one added line, 395. It is a false positive:
+  a `%04X` hex format after its zero-x prefix reads as a multiplier, the
+  same as the pre-existing DIAG_ALRT log lines 2016 and 2018. (Quoting the
+  literal here tripped the same check, so it is spelled out.)
+
+**NOT verified:** anything on the device. The POR check proves itself on
+the first V1.25 boot. The TEMP_LIMIT register has never been written, so that
+boot must log `power-on reset detected (TEMP_LIMIT=0x7FFF)`: the check fires.
+A later `Restart` press must log `sentinel intact`: the check stays silent.
+
+**Open:**
+- three R14 questions in `open_questions.yaml`: the test load and how it
+  switches on, how the test ends, and the cause of the two power losses;
+- three pre-registered predictions in the ledger above.
 
 ### `test_ha_audit.py`: `live-check-skipped` is now a covered rule (32 of 45)
 
