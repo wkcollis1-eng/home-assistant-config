@@ -5,6 +5,10 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        # HA itself writes .HA_VERSION with no trailing newline. "Fixing" it
+        # here leaves the live H: file one byte off the committed one after
+        # every HA update. Found 2026-09-18 committing 2026.9.2.
+        exclude: "^\\.HA_VERSION$"
       # --unsafe parses YAML for syntax but does not resolve custom tags.
       # Required for Home Assistant and ESPHome configs, which use !secret,
       # !include and !lambda - a plain safe_load fails on all of them with
