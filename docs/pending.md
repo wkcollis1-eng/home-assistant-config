@@ -171,7 +171,11 @@ windows", which is UNTESTED. If it produces zero decodes, the route is dead and
 the fallback needs Bill's authorisation (it takes the meter alarms blind).
 
 NEEDS BILL (R12): one add-on config change plus a restart - see that doc's
-section 3, including why -g 40 is required and -s 2621440 must be kept.
+section 3, including why fixed gain takes BOTH rtltcp -g 40 and rtlamr
+-tunergain=40 (the first sets it, the second stops rtlamr handing the tuner
+back to AGC on connect; -g 40 on its own is inert), and why -s 2621440 must be
+kept. The doc's gain bullet asserted the opposite until 2026-09-17 - corrected
+in place with the source citations, R13.
 
 DO NOT move the antenna while the 09-18..09-24 ledger row is live; the survey
 in section 8 voids it.

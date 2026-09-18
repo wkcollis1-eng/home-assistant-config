@@ -100,22 +100,57 @@ As logged on 2026-09-17 [M: add-on log, which prints the full command line]:
 Append:
 
 ```
-  rtlamr:  ... -samplefile=/config/tmp/rtlamr_912.38M_2621.44k.cu8
+  rtlamr:  ... -samplefile=/config/tmp/rtlamr_912.38M_2621.44k.cu8 -tunergain=40
   rtltcp:  ... -g 40
 ```
 
 - **`-samplefile` passes through untouched.** `build_rtlamr_args` extends the
   arg list with the custom string verbatim; it only strips `-server` and
   defaults `-unique=true` when absent [S: `buildcmd.py:39-52`].
-- **`-g 40` is REQUIRED for position comparisons, and `-s 2621440` must stay.**
-  `rtl_tcp` enables automatic gain whenever `-g` is absent (`rtl_tcp.c:509`),
-  and AGC moves the very quantity being compared. `rtlamr` never sets gain at
-  all (no gain flag exists in `flags.go`), so unlike the sample rate - which
-  rtlamr overrides on connect, see `rtlamr2mqtt-recommended.yaml` ERROR 3 -
-  gain set here STICKS. Keep `-s 2621440`: `build_rtltcp_args` inserts
-  `-s 2048000` if no `-s` is present in the custom string [S:
-  `buildcmd.py:85-87`]. `-g` is in dB (`rtl_tcp.c:428` scales by 10) and snaps
-  to the tuner's nearest supported step.
+- **Fixed gain needs BOTH `-g 40` AND `-tunergain=40`. Neither works alone,
+  and `-s 2621440` must stay.** AGC moves the very quantity being compared, so
+  a survey run under it measures the AGC loop, not the antenna.
+  - **`-g 40` on `rtltcp` is the half that SETS it.** gain 0 - the default -
+    takes the `rtlsdr_set_tuner_gain_mode(dev, 0)` branch, i.e. automatic;
+    non-zero takes mode 1 (manual) and then `rtlsdr_set_tuner_gain(dev, gain)`
+    [S: `rtl_tcp.c:509-521`]. `-g` is in dB, scaled by 10 at `rtl_tcp.c:428`,
+    and snaps to the tuner's nearest supported step.
+  - **`-tunergain=40` on `rtlamr` is the half that KEEPS it.** It sets nothing
+    itself (below), but it is the only way to stop rtlamr handing the tuner
+    back to AGC. After connecting, rtlamr runs
+    `if !gainFlagSet { rcvr.SetGainMode(true) }` [S: `main.go:98-122`, rtlamr
+    v0.9.5]; `SetGainMode(true)` sends command 3 with param **0**
+    [S: `rtltcp.go:196-199,228-233`]; rtl_tcp passes that param straight to
+    `rtlsdr_set_tuner_gain_mode` [S: `rtl_tcp.c:324-326`], and 0 is automatic.
+    Any of `-gainbyindex -tunergainmode -tunergain -agcmode` clears
+    `gainFlagSet`; `-tunergain=40` is the one that records the value it is
+    matching. Use the `=` form - the add-on splits the string on whitespace.
+  - **Why the rtlamr half sets nothing.** The flag's own command is sent by
+    `rcvr.HandleFlags()`, called at `main.go:328` - BEFORE `rcvr.NewReceiver()`
+    at `main.go:341` connects at `main.go:91`. It writes to a nil `TCPConn`,
+    the resulting error is panicked, the deferred `recover()` inside
+    `HandleFlags` swallows it, and `main.go:328` discards the return value
+    [S: `rtltcp.go:101-147,186-188`]. Nothing is logged at any verbosity. Only
+    `-centerfreq` and `-samplerate` survive that, because `NewReceiver`
+    re-sends those two explicitly after Connect - the same mechanism as ERROR 3
+    in `rtlamr2mqtt-recommended.yaml`. So the two flags must agree by hand:
+    nothing checks that 40 equals 40.
+  - **R13 - this bullet asserted the OPPOSITE until 2026-09-17.** It read
+    "`rtlamr` never sets gain at all (no gain flag exists in `flags.go`), so
+    gain set here STICKS". Both halves are false, and acting on it would have
+    produced a whole survey of AGC decisions with every gate passing. The gain
+    flags are real but are registered by the vendored `bemasher/rtltcp`
+    package's `RegisterFlags()` [S: `rtltcp.go:83-98`], not by rtlamr's own
+    `flags.go` - reading the one file named in the claim is what missed them.
+    `rtlamr2mqtt-recommended.yaml:354-356` already recorded the correct
+    behaviour on 2026-08-25 and was not cross-read when this was written.
+  - Keep `-s 2621440`: `build_rtltcp_args` inserts `-s 2048000` if no `-s` is
+    present in the custom string [S: `buildcmd.py:85-87`].
+  - Identity of what was read, 2026-09-17 (R16): rtlamr `v0.9.5` (the version
+    the add-on Dockerfile pins) and the `bemasher/rtltcp` commit its `go.mod`
+    pins, `3aed81c166c5`; `rtl_tcp.c` from osmocom `rtl-sdr` master. The
+    add-on ships Alpine's rtl-sdr build, so its line numbers may differ - the
+    command numbers and the param semantics are the wire protocol and do not.
 - **The filename is load-bearing.** rtl_433 detects centre frequency, sample
   rate and format from the path: a number suffixed `M`/`MHz`, a number suffixed
   `k`/`ksps`, and `cu8` [S: README:627-641]. `rtlamr_912.38M_2621.44k.cu8`
@@ -180,8 +215,9 @@ The whole route rests on one untested claim. Check it on the first dump:
   is why it compares POSITIONS but cannot explain the loss mechanism.
 - **It is not capture rate.** Capture stays measured by the `last_seen` route.
   Never quote one as evidence for the other.
-- **RSSI here is relative to gain**, not dBm. Valid for A/B at a FIXED `-g`;
-  meaningless as an absolute figure.
+- **RSSI here is relative to gain**, not dBm. Valid for A/B at a fixed gain
+  (BOTH flags of section 3 - `-g 40` alone is not fixed gain); meaningless as
+  an absolute figure.
 - **Level depends on which hop channel a packet landed on**, and multipath is
   frequency-selective. A single decode says nothing; compare medians with n
   stated (R17).
@@ -201,7 +237,8 @@ below, gas at ground level on the far side of the house, water in the basement].
    control. Keep the element perpendicular to the plate and not flat against it.
 2. Dwell: n >= 10 decodes PER METER per spot. Gas is the binding constraint at
    ~1.0 decode/min [M: 65 in 64.8 min, 2026-09-17], so >= 10 min per spot.
-3. Fixed -g for the whole survey. Note it in the write-up.
+3. Fixed gain for the whole survey: `-g 40` AND `-tunergain=40`, section 3.
+   Note BOTH in the write-up, and confirm they still match before each spot.
 4. Per spot, per meter: median SNR, IQR, n. Compare the best spot against the
    current one with Mann-Whitney U; report p, and do not call a winner on
    medians alone (R17).
@@ -215,9 +252,12 @@ or mark that row WITHDRAWN (never delete it) and re-register at the chosen spot.
 
 ## 9. Rollback
 
-Remove `-samplefile=...` from the rtlamr custom parameters, restart the add-on,
-delete `/config/tmp/*.cu8`. Leaving `-g 40` is harmless and arguably better than
-AGC, but it is a change from as-found: say so if it stays.
+Remove `-samplefile=...` and `-tunergain=40` from the rtlamr custom parameters,
+restart the add-on, delete `/config/tmp/*.cu8`. That alone restores as-found
+behaviour: with no gain flag on rtlamr, it re-enables AGC on connect regardless
+of `-g 40`, so a forgotten `-g 40` left in `rtltcp` is inert rather than
+harmful. To KEEP fixed gain, keep both flags and say so - that is the change
+from as-found, and it is the pair, never `-g` on its own.
 
 ## 10. Open [I], each with its falsifier
 
