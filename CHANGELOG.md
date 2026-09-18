@@ -38,8 +38,9 @@ is calibrated against.
 | 2026-09-18 | The pre-test top-up (the first clean full-charge anchor on V1.25) logs `RECON` quality OK with a recommended rate of **0.9-2.8 %/mo**, and both recon entities leave Unknown. Falsified by a rate outside the band, a quality other than OK, or the entities still Unknown after a clean anchor. Basis [D]: since the 07-16 anchor the INA228 CHARGE register has seen ~12.0 Ah leave that the SW ledger never booked (1.42 %/mo over ~64 d), ±0.49 %/mo at the 1 µV offset maximum [S: TI SLYS021A p1], plus an internal term of 0-0.9 %/mo (95 % bound, LiFePO4 report 2026-08-26) | yes — written after the V1.25 build, before it was flashed | pending |
 | 2026-09-18 | At the post-test recharge anchor, `bank.hwcheck` `CYCLE CONFIRM` logs SW net − HW net **positive, and +4 to +13 mA times the cycle's hours**: the <50 mA drain the SW deadband drops (8.66 mA since 08-31 [D from M], ±50 %). That is agreement to well under 1 % of ~800 Ah throughput. Falsified by a negative delta or one outside the band. Void if the INA228 loses power inside the cycle (V1.25 then logs the reset and has no anchor to compare). Basis [D]: one ADC feeds both integrators, so gain cancels | yes — written after the V1.25 build, before it was flashed | pending |
 | 2026-09-18 | **RE-REGISTRATION of the three battery-bank rows above against V1.26**, which superseded V1.25 before either was flashed. Not a new claim: the claims, bands and falsifiers are unchanged and are scored on their own rows. They carry over because: (1) the Ri lambda behaves identically, since synth and replay output from V1.26 is byte-identical to V1.25's [M]; (2) RECON reads the SW ledger, which V1.26 does not touch; (3) CYCLE CONFIRM's delta arithmetic is unchanged, and only a bridge count is appended. Where row 38 says "first clean full-charge anchor on V1.25", read V1.26. **Row 39's void condition stands as written:** a cycle in which the INA228 loses power is void even though V1.26 bridges it. A bridge carries up to ~10.3 mAh at idle [D: 10 + 8.66 mA x 120 s / 3600] plus whatever flowed while the monitor was off, and the band was not sized for that. Row 37 is scored on the first single-stage step of >= 25 A from <= 5 A. Per Bill's 09-18 R14 answer, the staged breaker start will not arm one, so the step may be a deliberate heater step rather than part of the test | yes — written after the V1.26 build, before it was flashed | n/a — re-registration; scored on the rows above |
+| 2026-09-18 | The first boot of battery-bank-monitor V1.27 (an OTA flash, so the ESP reboots and the INA228 keeps power) publishes `INA228 Reset Check` = **`INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - HW anchor not yet seeded`**. This is the first observable proof that V1.26's first boot (15:58) wrote the 0x7FFE sentinel, since no boot-time log line can reach the API stream (V1.27 entry). Falsified by `TEMP_LIMIT=0x7FFF but CHARGE kept counting` (the sentinel was never written), by any other branch, or by the entity staying Unknown after the device reconnects. Void if the monitor loses power between now and the flash. Basis: V1.26 first-boot logic on the host harness [M]; HW Net Charge was continuous across the V1.26 flash and the 16:11 Restart [M]; ESP-only reboots kept CHARGE on 09-07 and 09-18 [M] | yes — written after the V1.27 build, before it was flashed | **HIT** — same day. Bill flashed at 16:21 EDT. `sensor.basement_battery_bank_monitor_ina228_reset_check` read exactly the predicted string at 20:21:33Z [M, HA state; Bill's screenshot]. The device reports config hash 0x6b05d980, the tested 2026.9.0 build [M], and HW Net Charge was continuous across the flash (−3.73870 → −3.73884 Ah) [M]. So V1.26's first boot did write the sentinel, and neither the 16:11 Restart nor this flash reset the INA228 |
 
-**Running score: 6 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
+**Running score: 7 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
@@ -57,6 +58,67 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
+
+### battery-bank-monitor V1.27: the boot reset check publishes its result — FLASHED 2026-09-18 16:21 EDT
+
+At 16:11 Bill pressed Restart to see the `sentinel intact` line. No
+`bank.hwcheck` line appeared, and neither did the `V1.26 boot` banner.
+
+**Cause [M, his log]:** the reboot came at 16:11:31.2, and the first
+streamed line at 16:11:36.999, 5.8 s later. The check runs ~0.2 s into
+boot [I: on_boot priority −200 plus a 200 ms delay]. At that point Wi-Fi is
+not up, and serial logging is off (`baud_rate: 0`).
+
+So the V1.25/V1.26 check could be read only by chance, and never after a
+power loss nobody was watching, which is the unattended moment it exists
+for. That was my design error (R13, noted at the V1.26 entry).
+
+- V1.27 also publishes the message to a new diagnostic text sensor,
+  **"INA228 Reset Check"**. HA receives an entity's state when it connects,
+  so the outcome survives the gap and is kept in history.
+- One message, two outputs: each branch formats its existing text once,
+  then logs it and publishes it.
+- No logic change. The branches, thresholds and counters are V1.26's.
+  HW Net Charge was continuous across the 16:11 Restart (−3.73723 Ah at
+  16:11:02, −3.73735 Ah at 16:11:37 [M]).
+
+**Verified:**
+- Host harness: V1.27 passes 32 of 32. That is V1.26's 25 checks plus 7
+  new ones: after every simulated boot, exactly one publish, naming the
+  right branch. V1.26 fails exactly the 7 new checks and passes the 25, so
+  the logic is unchanged. Both versions print the same 14 log lines.
+- Ri synth/replay output is byte-identical.
+- `esphome compile` 2026.9.0 (the Device Builder's version):
+  - EXIT=0; `main.cpp.obj` and `firmware.ota.bin` (1,007,088 B) are newer
+    than the YAML;
+  - `config_hash=0x6b05d980`;
+  - one warning, the pre-existing watchdog `-Wformat`. The `snprintf`
+    calls add none.
+- R3: 17 hunks. 2,667 of 2,674 V1.26 lines carry over byte-identical, and
+  the reverse patch reproduces V1.26.
+  - The only removed lines are the title, the version, the boot banner and
+    five `ESP_LOG` openers. No comment was removed.
+  - R17: no new provenance flags against V1.26.
+
+**NOT verified:** anything on the device. The pre-registered prediction is
+the ledger row above: the flash itself should publish `sentinel intact`.
+**Open after the flash:**
+- run `gen_reference.py`, since the new entity makes ENTITIES.md stale,
+  which the audit FAILs on;
+- add an `entity_notes.yaml` annotation.
+
+**Flashed 2026-09-18 16:21 EDT by Bill, from the Device Builder.** The
+ledger row scored a **HIT**:
+- `sensor.basement_battery_bank_monitor_ina228_reset_check` reads
+  `INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - HW
+  anchor not yet seeded` [M]. So V1.26's first boot wrote the sentinel.
+- The device reports config hash 0x6b05d980, the tested build [M].
+- HW Net Charge was continuous across the flash [M].
+- Annotated in `entity_notes.yaml`, and `gen_reference.py` was re-run.
+- **Correction to "Open" above:** the new entity did NOT make ENTITIES.md
+  stale. The audit read 0 FAIL before the annotation, because ESPHome
+  device entities enter ENTITIES.md only once annotated. I had stated that
+  FAIL as fact without checking it.
 
 ### battery-bank-monitor V1.26: HW counters survive a monitor power loss — FLASHED 2026-09-18 15:58 EDT, supersedes the unflashed V1.25
 
@@ -186,6 +248,11 @@ repo).
   counting ... first boot writing the sentinel` rather than V1.25's
   `power-on reset detected`. A later `Restart` press must log `sentinel
   intact`.
+  **R13, same day: neither line can ever be seen.** The check runs ~0.2 s
+  into boot. Wi-Fi is not up yet and serial is off, so the API log stream
+  first connected 5.8 s after Bill's 16:11 Restart [M] and missed it. A
+  verification plan resting on an unobservable log line is no plan. V1.27
+  publishes the outcome to an entity.
 - **The bridge itself.** Only a real power loss of the monitor exercises it.
 - **Flash BEFORE the pre-test top-up.** Suppose V1.24 seeded the anchor at
   the top-up and V1.26 then booted with CHARGE within ±0.5 Ah of 0. There

@@ -349,6 +349,9 @@ sensor.backup_essentials_peak_watts:
 sensor.backup_essentials_sampled:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
   note: 1/min sample so the 24h buffer is 1440 not 43200
+sensor.basement_battery_bank_monitor_ina228_reset_check:
+  group: BATTERY BANK MONITOR (esphome/battery-bank-monitor.yaml)
+  note: V1.27 - this boot's INA228 reset verdict; intact / first boot / BRIDGED / INVALIDATED
 sensor.basement_dew_point:
   group: DEHUMIDIFIER (configuration.yaml)
   note: ''

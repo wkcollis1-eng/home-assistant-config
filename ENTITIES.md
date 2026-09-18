@@ -47,6 +47,12 @@ sensor.monitoring_load                   HA host + UPS outlet + router; runs the
 sensor.monitoring_peak_watts             flat load, peak is near running
 ```
 
+## BATTERY BANK MONITOR (esphome/battery-bank-monitor.yaml)
+
+```
+sensor.basement_battery_bank_monitor_ina228_reset_check  V1.27 - this boot's INA228 reset verdict; intact / first boot / BRIDGED / INVALIDATED
+```
+
 ## CLIMATE NORMS
 
 ```
