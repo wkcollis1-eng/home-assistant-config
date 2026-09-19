@@ -175,6 +175,14 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
   Samba-side copy; either read it on-host or use `sqlite3 .backup`
   (lock-aware) run on-host, never a raw `cp` over the network share. Full
   narrative: CHANGELOG.md 2026.09.12.
+  **CORRECTED 2026-09-18: the `sqlite3 .backup` CLI never finishes on this live
+  DB.** It copies 100 pages per step [S, sqlite `shell.c.in:10098`], and any
+  write by another process restarts it. HA writes every second, so on 2026-09-18
+  it cycled at 2.7 of 4.9 GB: the mtime kept moving, the size never did [M].
+  Use one step instead, which takes a single read snapshot. It finished in 11 s
+  on-host [M]:
+  `sqlite3.connect("file:/config/home-assistant_v2.db?mode=ro", uri=True).backup(dst, pages=-1)`
+  (as root: `sudo python3 ...`).
 - **Strings and attributes ARE stored**, not just numerics: a non-numeric
   sensor gets a `state` field (plus `*_str` attribute fields). That is how the
   R900 Leak/LeakNow/BackFlow/NoUse fields had history predating their sensors.
@@ -215,6 +223,16 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
   series. What still holds: it **cannot DROP a measurement** — that needs
   admin, measured 403 on 2026-08-31 with ALL PRIVILEGES held. Non-admin write
   is the floor HA's own integration imposes; it is not a preference.
+  **CORRECTED 2026-09-18: that last sentence is true and misleading - `ha_ro`
+  CAN ERASE HISTORY.** `DELETE` and `DROP SERIES` need only WRITE [S, influxql
+  v1.4.1 `ast.go:2352,2386`, the version influxdb v1.12.4's `go.mod` pins];
+  measured the same day, 252 points deleted as `ha_ro` (CHANGELOG 2026.09.18,
+  SDR glitch repair). So a leaked `ha_ro` can remove points, not only add them.
+  **Send credentials as Basic auth (or `u`/`p` in the URL query), never in a
+  POST form body:** 1.12.4 reads them only from those two places
+  [S, `services/httpd/handler.go:2785-2820` at v1.12.4], and a body-credential
+  POST - the natural shape for a `DELETE` - gets a 401 (or a connection reset)
+  that looks like a bad password [M, sandbox 1.12.4, 2026-09-18].
   **Never echo the value** into a log, a debug URL, a commit or a chat
   transcript; `spc_seed.py` masks it in its debug URL (line 175).
 

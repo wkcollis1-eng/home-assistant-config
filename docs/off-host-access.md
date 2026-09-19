@@ -71,6 +71,13 @@ Off-host gotchas, each of which has cost a session:
     such a directory over the `H:` Samba share instead - that writes as root,
     which is also what add-ons run as, so the result is writable by them
     [M, 2026-09-17: `/config/tmp` created this way, `drwxr-xr-x root root`].
+    **`sudo -n` works, with no password** [M, 2026-09-18], so root on the
+    host's own disk is available when it is really needed, e.g. an edit to the
+    recorder DB with HA core stopped. There SQLite locking is reliable, which
+    it never is over Samba. Stop and start core from a LOGIN shell:
+    `bash -lc "ha core stop"` / `"ha core start"`. On 2026-09-18 the manual stop
+    held, the watchdog (`watchdog: True`) did not restart core, and the
+    shutdown checkpointed the WAL away [M]. **A stop is still an R12 act: ask first.**
 - **Without `HA_CONFIG`** the script looks for `/config` and reports
   `pipelines.yaml not found`.
 - **`HA_URL` alone does NOT enable the live check - `HA_TOKEN` does.**
