@@ -59,6 +59,122 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
 
+### Two SDR glitches repaired in recorder history and statistics, live utility meters, InfluxDB and the energy CSV (data only, no config change)
+
+Bill reported both. What they were [M, recorder history + `statistics_short_term` + InfluxDB]:
+
+- **Water, 2026-09-13 11:23:23-11:35:03 EDT.** `sensor.water_meter_reading` published
+  `0` three times, between three drops of ALL THREE SDR meters to `unavailable`
+  (11:23:03, 11:31:45, 11:34:42). The recovery 0 -> 165,948.2 gal was counted as use.
+- **Electric, 2026-09-18 17:30:29 EDT.** One decode of 4,191,767 counts = true
+  3,143,191 + 1,048,576, and 1,048,576 = 2^20 [D] - one bit. At 0.01 kWh/count
+  that is 41,917.67 kWh [D], not "4.2M kWh" (4.2M is the raw count).
+
+Where the damage had spread [M]:
+
+- **Long-term statistics sums (kept forever):** `water_meter_reading` +1,659,482;
+  `water_meter_volume`, `water_daily`, `water_monthly` +165,948.2 gal from the
+  15:35Z 5-min row; `electric_meter_reading` +4,191,767; `electric_meter_energy`
+  +41,917.67 kWh (the jump, plus the drop back read as a meter reset: it was deep
+  enough to cross HA's reset threshold [S, HA 2026.9.3 `sensor/recorder.py:493`]);
+  `utility_electric_daily`/`_monthly` +10,485.76 kWh from the 21:30Z row.
+- **Live states still inflated at 19:18 EDT:** `water_monthly`,
+  `utility_electric_daily`, `utility_electric_monthly`. `utility_meter` drops a
+  negative adjustment, so the spike stayed in [S, `utility_meter/sensor.py:523`].
+- **Energy dashboard** water (its source is `sensor.water_daily`, `.storage/energy`)
+  showed 165,948+ gal on 9/13. `energy_daily_master.csv` 9/13 water = 166,007.2 gal.
+  Tonight's 00:15 export would have written the electric spike into the 9/18 row.
+- **InfluxDB:** the raw points, plus the power chain at 62.9 MW 17:30:29-17:40:08
+  (derivative, 10-min window), `utility_electric_power_mean` wrong until 18:39:53,
+  `utility_electric_power_rate` NEGATIVE 18:29:28-18:30:11 (when the bad sample aged
+  out of its 60-min window), `sem_vs_utility_error` -99.99 %.
+
+Repair, each part approved by Bill beforehand (R12):
+
+1. **`recorder/adjust_sum_statistics` x8**, from the 5-min row where each jump
+   landed, not the top of the hour: adjusting from the hour would have shifted 7 clean
+   rows before the glitch. Verified against a 6,832-row snapshot [M]: 6,676 shifted by
+   exactly the offset, 156 untouched, 0 mismatches.
+2. **`utility_meter.calibrate` at 19:18:25 EDT:** `utility_electric_daily`
+   10,500.41 -> 14.65, `utility_electric_monthly` 10,778.04 -> 292.28 kWh,
+   `water_monthly` 167,466.1 -> 1,517.9 gal. **A calibrate that drops the value is
+   itself read as a meter reset** and adds the new value to the sum: +14.65, +292.28,
+   +1,517.9 landed in the 23:15Z row, as the source predicts [S, `sensor/recorder.py`
+   801-818]. Cancelled by 3 more adjustments [M]: 3 shifted, 6,837 untouched,
+   0 mismatches. Anyone calibrating a `utility_meter` downward should expect this.
+3. **InfluxDB: 252 points deleted, 685 `value` fields rewritten** (value minus
+   offset, at each point's own timestamp; InfluxDB merges fields on an identical
+   point, so the attribute fields are untouched). Rehearsed on a sandbox 1.12.4
+   loaded with the real points (R2): verify reported 937 errors before apply and 0
+   after, and a re-apply changed nothing. **The rehearsal caught a bug that would have
+   made every production DELETE fail**: credentials in a POST form body return 401
+   (now in `docs/influx-grafana.md`). Production [M]: 252 deleted, 685 rewritten,
+   6,915 neighbouring points identical, 0 errors. Script, snapshot for put-back and
+   CSV originals: `C:\Users\wkcol\ha-data-repairs\2026-09-18-sdr-glitch\`.
+4. **`daily_energy_export.py --date 2026-09-13`** run on-host into a scratch dir
+   seeded with the live master, diffed, then installed. 9/13 water
+   166,007.2 -> 59.0 gal. Diff [M]: 1 of 83 master lines, one field; daily file,
+   the 11:00 and TOTAL water cells only. This rewrites a CSV row, which CLAUDE.md
+   forbids by default; Bill approved it for this row.
+
+Verified after [M, `recorder/statistics_during_period`, daily change]: Energy dashboard
+water for 9/13 = 59.0 gal; `electric_meter_energy` for 9/18 = 14.82 kWh at 19:30 EDT.
+
+5. **Recorder raw history and the statistics columns `adjust_sum` cannot reach**,
+   with HA core stopped 19:44-19:46 EDT. This was added after Bill saw both graphs
+   still spiking. The plan had been to let the raw rows purge; that was my
+   recommendation, and it was the wrong call for "delete them in the recorder".
+   The `utility_electric_power_avg` history graph and the `water_monthly` more-info
+   graph both read `states`. There is no per-row API, so this was a direct SQLite
+   edit, root on the host (`rec_fix.py`, same windows and predicates as InfluxDB):
+   - **`states`:** 252 spike rows deleted; their 16 successors' `old_state_id`
+     re-pointed past the deleted chain; 689 offset rows `state - offset`.
+   - **statistics `state` column** of the 4 utility meters (1,854 rows) and the 6
+     five-minute zeros of the water reading and volume.
+   - **mean/min/max of the 7 measurement sensors** (36 rows), recomputed the way HA
+     2026.9.3 does [S, `sensor/recorder.py:129-166,704-715`,
+     `recorder/statistics.py:168-173`]. **The recomputation was proven first**: on
+     the 155 untouched periods in the window it reproduces HA's stored values
+     (0 mismatches), and the run aborts on any mismatch.
+
+   Rehearsed on an on-host copy, then run live, with identical results [M]:
+   2,853 rows changed = planned (a guard rolls back on any other count); a
+   full-table EXCEPT against the pre-edit copy found 0 unplanned differences across
+   ~23.8M `states` rows and both statistics tables; re-planning afterwards found
+   nothing to do, and all 182 periods reproduce. `quick_check` = ok. After restart
+   [M]: recorder recording, backlog 0; `utility_electric_power_avg` max for
+   17:25-18:45 is 2,488 W (was 10,566,119); `water_monthly` max for 9/13-9/18 is
+   1,518.0 gal (was 167,466); hourly `utility_electric_power` for 17:00 EDT reads
+   mean 1,560 W / max 3,634 W (was 10.26 MW / 62.9 MW).
+   **Where a spike was deleted, the previous value now holds** (HA's own semantics),
+   e.g. `utility_electric_power_mean` sits flat for 70 min, 17:30-18:40.
+   **The restart cost** [M, log]: the SEM utility meters logged `invalid new state`
+   at startup, so each dropped ~2 min of increments (~0.07 kWh on whole-home at ~2 kW
+   [D]). The CSV export reads source statistics and is unaffected. Rollback: the
+   exact pre-edit file is `/tmp/recfix/pre_live.db` in the SSH add-on (lost when that
+   add-on restarts), and every changed row's before/after is in
+   `recorder_live_changes.json` in the repair folder.
+   **My error, recorded (R13):** the first backup used the `sqlite3 .backup` CLI,
+   which never finishes on a DB HA writes every second. `docs/influx-grafana.md`
+   recommended it and is corrected; a single-step Python `backup()` took 11 s.
+
+**Left open, and why:**
+
+- **No guard was added, so the next glitch will do the same.** The `*_volume` and
+  `*_energy` templates' `availability:` rejects only unknown/unavailable, so a `0`
+  or a 2^20 jump passes straight into four `total_increasing` chains.
+- **Cause of the water zeros is [I].** The simultaneous `unavailable` on all three
+  meters points at the rtlamr2mqtt process or its MQTT connection cycling, with a 0
+  published on reconnect. Falsified if the add-on log shows no restart or reconnect at
+  11:23 on 9/13. `binary_sensor.rtlamr2mqtt_running` stayed `on`, but it polls too
+  slowly to rule out a short restart (R18).
+- **Pre-existing and unrelated:** the utility meters trail their source
+  (`utility_electric_daily` by 0.30 kWh, `_monthly` by 0.79 kWh, `water_monthly` by
+  11.4 gal [M]). The gaps were there before the glitch and the calibration kept them.
+  Mechanism [S, `utility_meter/sensor.py:449-479`]: with `periodically_resetting`
+  on, the increment across an `unavailable` gap is dropped. Which gaps produced
+  these particular figures is [I].
+
 ### battery-bank-monitor V1.27: the boot reset check publishes its result — FLASHED 2026-09-18 16:21 EDT
 
 At 16:11 Bill pressed Restart to see the `sentinel intact` line. No
