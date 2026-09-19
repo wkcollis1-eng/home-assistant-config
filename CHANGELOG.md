@@ -59,6 +59,123 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.18] - 2026-09-18
 
+### NEXT SESSION: SDR reading guard + add-on config drift check (DESIGN ONLY, nothing built)
+
+Open item at Bill's request; tracked as P18 in `docs/pending.md`. The next session
+implements it.
+
+**Why.** Bill, 2026-09-18: the 9/13 water glitch (repair entry below) was his
+config typo. The data shows what it did [M, InfluxDB attributes on the 9/13 zero
+points]: from 11:23:23 to 11:35:03 EDT the water meter ran as `protocol: r900bcd`
+instead of `r900`, and for part of that window as `name: water_meter_bcd`.
+`r900bcd` is a valid decoder, wrong for the Neptune R900 v4, and it read the same
+frames as 0. No schema check can see a valid-but-wrong protocol. Nothing
+downstream questioned a 0, so it reached the utility meters, the statistics, the
+Energy dashboard, InfluxDB and the CSV.
+
+**The moment it must survive:** an add-on config edit, or a bad radio frame, at
+any hour with nobody watching. **"Working" at that moment:** no bad reading reaches
+any accumulator, and Bill hears within 10 min if the fault persists.
+
+**Layer A: reading guard (catches the effect, within one reading).**
+Convert in place, keeping the same unique_ids so entity ids, statistics and every
+consumer are unchanged: `sensor.gas_meter_volume`, `sensor.water_meter_volume`,
+`sensor.electric_meter_energy` (`packages/utility_meters.yaml`) become
+trigger-based templates. The raw `*_reading` entities stay raw, as evidence.
+For each new reading c = raw * scale, against the last accepted value a, with
+dt = time since a was accepted (kept in a restored attribute):
+
+1. c <= 0, or c < a: reject.
+2. c - a within the tight limit, 1.5 * R * max(dt, 60 s): accept.
+3. c - a beyond the absurd limit, 100 * R * max(dt, 3600 s): reject; never
+   accepted automatically.
+4. Otherwise hold c as pending. Accept only if the next reading is >= pending and
+   within rule 2 of it.
+
+On reject or hold the sensor keeps the last good value.
+
+- **R = measured max consumption rate** [M, InfluxDB raw series, windows >= 300 s,
+  2026-08-21 to 09-18]: gas 41.62 ft3/h (n=303 windows), water 118.93 gal/h
+  (n=1,256), electric 9.03 kWh/h (n=32,549). **Counter decreases: 0 of 34,435
+  value changes** [M], so rule 1 has no false positives in the record.
+- **Alarm, notify on failure only:** status not ok for more than 10 min sends one
+  notification naming the meter, the rejected value and the reason. 10 min is
+  about 5 water frames at 112 s, the same basis as `sdr_leak_now_hold_minutes`.
+  Single-frame rejections are silent and counted in an attribute. A lag no larger
+  than the rule-2 limit (an accepted small flip being caught up) does not alarm.
+- **`script.sdr_guard_reanchor(meter)`** accepts the current reading
+  unconditionally, for a real change: meter replaced, scale recalibrated.
+- **Implementation route** [S, `template/coordinator.py:132-148` at 2026.9.3]: a
+  trigger-template block's `variables:` is rendered once per trigger and reaches
+  both state and attributes, so the decision is computed once. `this` is
+  per-entity and NOT available in block-level `variables:`; read the sensor's own
+  previous state and attributes with `states()`/`state_attr()` by entity id.
+
+**Replay evidence** [M, offline, over the real readings; scripts and data in
+`C:\Users\wkcol\ha-data-repairs\2026-09-18-sdr-glitch\guard-design\`]:
+
+- 34,435 genuine value changes: 0 rejected, 0 held.
+- 9/13 water zeros: 3 of 3 rejected by rule 1. 9/18 electric 2^20 spike:
+  rejected by rule 3.
+- Readings scaled up tenfold, or halved, for 30 min: 0 faulty readings accepted;
+  the alarm fires.
+- A 12 h outage: 0 readings rejected or held.
+- Random single-bit flips in bits 0-23, n=200 per meter: caught 195, 183 and 178
+  (gas, water, electric). Those accepted are at most 16 counts; they hold the
+  sensor until real use passes them (worst 164 min water, 19 min electric), with
+  zero net error.
+
+**Layer B: config drift (catches the cause, names the field).**
+
+- `scripts/export_sdr_config.py` writes the add-on options to
+  `sdr/rtlamr2mqtt_options.json`, GENERATED and tracked, the same pattern as
+  `dashboards/lovelace/`. It gives the add-on config its first version history;
+  today 9/13's change is recorded only in the data.
+- `ha_audit` rule `sdr-config-drift`:
+  - WARN with the field diff until re-exported, e.g.
+    `meters[2].protocol: r900 -> r900bcd`.
+  - FAIL: a `sensor.<name>_reading` referenced in `packages/` with no meter of
+    that name; a duplicate id; a protocol outside the add-on schema.
+  - WARN, naming the fix, when the options cannot be read (R8).
+  - Where it reads from: on-host, the Supervisor API with `$SUPERVISOR_TOKEN`;
+    off-host, `ssh ha-host 'bash -lc "ha apps info 6713e36e_rtlamr2mqtt --raw-json"'`.
+
+**Open decisions for Bill: ask first, and build nothing that depends on them
+until answered (R14 discipline):**
+
+1. **The guarded sensors HOLD their last good value while the raw reading is
+   unavailable**, instead of going unavailable. That deviates from CLAUDE.md's
+   "MUST add `availability:` guard to every new template sensor"; staleness is
+   already covered by the `*_stale` sensors. Probable side benefit [I]: the
+   utility meters stop dropping the increment across add-on restarts (the 0.30 kWh,
+   0.79 kWh and 11.4 gal gaps measured today). Falsified if `utility_electric_daily`
+   still trails `electric_meter_energy`'s day change after an add-on restart.
+2. **The drift rule fires on every add-on change, intentional ones too.** The
+   workflow becomes: edit the add-on config, run the export, commit.
+
+**Known gaps:**
+
+- A self-consistent upward shift smaller than rule 3 (electric: under 903 kWh per
+  hour elapsed [D, 100 * 9.03]) is accepted after one reading. Only Layer B catches
+  it, and only at the next audit.
+- Gas R is summer-only data (R11). The winter peak is unmeasured; the physical
+  bound is the Navien plus furnace nameplate inputs, and the furnace input is
+  Bill's to give (R14) if a tighter bound is wanted. What would show the limit is
+  wrong: any gas rule-3 rejection during a real heat call. The alarm reports it,
+  and the guard holds, so no data is lost.
+
+**Gates for the build:**
+
+- R2/R7 through HA's own engine: `POST /api/template` with injected inputs, both
+  directions, and the verdicts must match `replay2.py`.
+- `test_ha_audit.py` coverage for `sdr-config-drift`: SUITE PASSED.
+- `validate_ha --strict`.
+- `gen_reference`, for the new alarm binary_sensors and the reanchor script.
+- `ha_audit` 0 FAIL; `check_config` valid.
+- `template.reload`. No restart is needed unless a `shell_command` is added.
+- OBSERVE statistics continuity on the three converted sensors: no reset at
+  conversion.
+
 ### Two SDR glitches repaired in recorder history and statistics, live utility meters, InfluxDB and the energy CSV (data only, no config change)
 
 Bill reported both. What they were [M, recorder history + `statistics_short_term` + InfluxDB]:

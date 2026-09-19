@@ -183,6 +183,29 @@ in section 8 voids it.
 
 ---
 
+### P18 — SDR reading guard + add-on config drift check: build it [HIGH]
+```
+NEXT SESSION ITEM, at Bill's request 2026-09-18. The full design is in
+CHANGELOG.md [2026.09.18], "NEXT SESSION: SDR reading guard" - read that, not
+this summary.
+
+WHY: 9/13 water zeros were a valid-but-wrong add-on protocol (Bill's typo), and
+nothing downstream questioned a 0. Two glitches had to be hand-repaired out of
+statistics, utility meters, InfluxDB, the CSV and recorder states.
+
+WHAT: Layer A - the three *_meter_* template sensors become trigger-based and
+reject/hold implausible readings (limits from measured max rates), with a
+10-min alarm and a reanchor script. Layer B - export the rtlamr2mqtt options to
+a tracked file, and an ha_audit rule sdr-config-drift.
+
+STATE: design only, replay-tested offline. Nothing deployed.
+
+FIRST ACTION: ask Bill the two open decisions in that entry (hold-vs-unavailable,
+drift-rule workflow). Build nothing that depends on them until answered.
+```
+
+---
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
