@@ -105,3 +105,45 @@ then the file.**
 
 **Test:** `python .claude/hooks/test_hygiene.py` (27 checks, prints `FAILS: 0`).
 Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.
+
+### `model_router.py` + `ha-gate` agent - the Sonnet/Opus split (added 2026-09-19, RETIRED 2026-09-21)
+
+**Retired because it cost more tokens than it saved.** It was a `PreToolUse`
+`Bash` hook that denied the five mechanical gate scripts (`gate.py`,
+`ha_audit.py`, `validate_ha.py`, `gen_reference.py`, `export_dashboards.py`) on
+the Opus thread and routed them to a `model: sonnet` subagent, to keep their
+output out of the main context. Its premise, "six reruns of a 60-line gate", was
+never measured before it was built. Measured 2026-09-21 over the main-thread
+transcripts of 2026-08-21..2026-09-21:
+
+- **What one spawn cost:** median 20,946 cache-write + 61,017 cache-read tokens
+  [M, n=4 ha-gate transcripts, all 2026-09-19]; the smallest total was 71,192
+  [D: 19,565 + 51,627]. The cost is fixed: every spawn starts cold, loads the
+  system prompt, tools and CLAUDE.md, and re-reads them on each tool call.
+- **What it kept out of Opus:** `gate.py` output median 661 chars, max 2,907
+  [M, n=45 non-sandbox runs]; no routed script printed more than 4,714 chars
+  [M, n=515 non-sandbox runs]. A delegated call still put a median 836 chars of prompt
+  and returned verdict into the main thread [M, n=6 Agent calls].
+
+So each run saved a few hundred chars of Opus context and spent 70K+ Sonnet
+tokens doing it. The proposal that prompted the measurement - extending it to
+`C:\sandbox` - would only have added spawns: 110 sandbox runs, median 1,234
+chars each [M, same window].
+
+**The lesson:** delegate to a subagent for token savings only when the output it
+hides is far larger than a spawn's fixed cost, and measure the output before
+building. The safety argument was sound and is not why it went: `gate.py`
+generates its verdict string, so a cheaper model transcribing it could not
+upgrade an assurance level.
+
+**Removed 2026-09-21 (Bill authorised), in this order:** the `settings.json`
+entry first, then `~/.claude/agents/ha-gate.md`, then `model_router.py` from
+`~/.claude/hooks/` and `H:/.claude/hooks/`, with `test_model_router.py`. The H:
+copies were never committed; the source survives only in the 2026-09-19 session
+transcripts. The settings edit took effect mid-session - a command the router
+denies ran unrouted right after it [M, n=1 probe, and the saved router denied the
+same command] - so the files could go in the same session.
+
+`HA_GATE_CONFIG`, `HA_GATE_URL`, `HA_GATE_AUDIT` and `HA_GATE_STAMP` in
+`ha_audit_gate.py` and `ha_validate_edit.py` are unrelated: they configure the
+audit hooks, and they stay. The `HA_GATE=1` command prefix now means nothing.
