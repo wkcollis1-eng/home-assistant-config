@@ -724,3 +724,66 @@
     rewire did not drop the INA228. Bill then asked for the HW data to survive
     such a power loss - battery-bank-monitor V1.26 bridges the counters across
     a detected INA228 reset instead of only invalidating the anchor.
+
+- asked: 2026-09-21
+  question: >-
+    What IP address and Wi-Fi network does the Main Floor ecobee show on its
+    own screen (its About or Wi-Fi page) right now?
+  blocks: >-
+    Any fix for the Main Floor homekit_controller drop (DHCP reservation,
+    re-pair, or a watchdog change), and any move of climate.main_floor
+    consumers to the ecobee cloud integration. Evidence, 2026-09-21 ~08:30 EDT
+    [M, from 10.0.0.105]: entry 01KSBJ7V... in setup_retry, "Timeout while
+    waiting for connection" to its stored 10.0.0.96:36563; 0/4 pings to
+    10.0.0.96 with ARP Incomplete (nothing on the LAN holds that IP); 0/2
+    pings to its stored IPv6; one ping sweep of 10.0.0.1-254 (1 s timeout)
+    found ONE ecobee-OUI MAC, 44:61:32:ED:ED:F8 at 10.0.0.37 = Upstairs (its
+    stored pairing IP, and its EUI-64 IPv6 ...feed:edf8 matches). Main Floor's
+    MAC, 44:61:32:CE:7A:83 [D: EUI-64 of ...fece:7a83], did not answer at any
+    address. Unavailable since 2026-09-21 00:23:21 EDT, one minute BEFORE the
+    watchdog reload, so the reload did not cause it. Bill reports the ecobee
+    app still connects, so the thermostat has an internet path, but it is not
+    reachable on 10.0.0.0/24: a different SSID or subnet, AP client isolation,
+    or a wedged LAN stack are all consistent, and only the screen tells them
+    apart.
+  answered: >-
+    2026-09-21, Bill, from the router's device list (not the thermostat
+    screen): Main-Floor, IPv4 10.0.0.96, link-local fe80::4661:32ff:fece:7a83,
+    MAC 44:61:32:CE:7A:83, comments "DHCP NA Ethernet" (read here as
+    lease type / RSSI / connection - my reading of the columns).
+
+    Consequence: it is the IP HA dials, so "new address" is out, and a
+    10.0.0.x lease puts it on the main LAN, so "other SSID or subnet" is out.
+    The MAC matches the EUI-64 derivation above, now confirmed. Re-tested
+    08:47 EDT [M, from 10.0.0.105]: 10.0.0.96 still 0/4 ping, ARP Incomplete,
+    no connect on :36563; Upstairs 10.0.0.37 2/2. A router lease is not proof
+    the device answers now. Left standing: a stuck thermostat network stack,
+    or the access point it joins through - the thermostat joins by Wi-Fi, so
+    "Ethernet" most likely means the router sees it through something wired
+    to it. Follow-up question below.
+
+- asked: 2026-09-21
+  question: >-
+    What access point, extender or mesh pod is wired to the router that the
+    Main Floor thermostat would join through?
+  blocks: >-
+    Which box to restart if reseating the Main Floor thermostat does not bring
+    homekit_controller back, and whether that box isolates its Wi-Fi clients
+    from the wired LAN - which would explain the ecobee cloud path working
+    (climate.main_floor_2 read 69.8 F [M, one read, 08:32-08:47 EDT]) while HA cannot reach
+    10.0.0.96. Two HomeKit outages in the recorder window (09-15, 330 min;
+    09-21 from 00:23 EDT, ongoing), so a reseat that works once does not
+    close this.
+  answered: >-
+    2026-09-21, Bill: the thermostat joins through a named access point (name kept out of
+    this public repo). He pulled the thermostat off its base and restarted it, and it now
+    works. Verified 10:56 EDT [M, from 10.0.0.105]: 10.0.0.96 answers 3/3
+    pings; climate.main_floor (homekit_controller, per the entity registry)
+    reads "off" - the HVAC mode, not unavailable - since 10:40:08 EDT, current
+    70 F; sensor.main_floor_current_temperature 69.62 F, updated 10:55:53 EDT.
+
+    Consequence: the reseat cleared it, which is consistent with a stuck
+    thermostat network stack. A fresh Wi-Fi association would also clear an
+    AP-side fault, so this does not clear the access point [I]. If it drops a third
+    time (after 09-15 and 09-21), reseat the thermostat first, then restart
+    that access point.
