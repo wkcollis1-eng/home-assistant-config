@@ -787,3 +787,44 @@
     AP-side fault, so this does not clear the access point [I]. If it drops a third
     time (after 09-15 and 09-21), reseat the thermostat first, then restart
     that access point.
+
+- asked: 2026-09-21
+  question: >-
+    What does the Cyclenbatt 12V 10Ah label or manual give for maximum charge
+    current and charge voltage, and does it say the BMS balances cells (and
+    above what voltage)?
+  blocks: >-
+    The top-off charger's setpoint and current limit for the UPS pack, and
+    whether a top-off can do anything for the 09-15 capacity shortfall
+    (2.53 Ah vs 4.18 Ah LVD-to-LVD [M, one test each]) - a BMS with no
+    balancer cannot be balanced by charging. DIY-LiFePO4-UPS
+    docs/component-selection.md lists the BMS over-voltage cutoff at
+    14.4-14.6 V, so a 14.4 V setpoint sits at its lower edge.
+  answered: >-
+    2026-09-21, Bill: Cyclenbatt says 0.5C charge is acceptable (5 A on the
+    10 Ah pack). Charge voltage and BMS balancing were NOT answered - re-asked
+    in the entry below, with the charge temperature range added.
+
+- asked: 2026-09-21
+  question: >-
+    From the same Cyclenbatt 12V 10Ah label or manual: what charge voltage
+    does it give, what charge temperature range, and does it say the BMS
+    balances cells (and above what voltage)?
+  blocks: >-
+    Profile P1 (UPS pack) setpoint and temperature gate in
+    Lifepo4-Battery-Banks/Top-Off Charger/top-off-charger-design.md, and the
+    one-trimpot conflict with the bank hold. component-selection.md puts the
+    BMS over-voltage cutoff at 14.4-14.6 V; if the label gives a 14.6 V charge
+    voltage, one of the two is wrong.
+  answered: >-
+    2026-09-21, Bill: Cyclenbatt charge voltage 14.4-14.60 V; charge only
+    above 32 F; no mention of BMS balance details.
+
+    Consequences: (1) P1 is unblocked. One V_SET of 14.40 V serves both packs
+    (bank ceiling 14.58 V, the measured LiTime peak), so the one-trimpot
+    conflict is gone. (2) DIY-LiFePO4-UPS docs/component-selection.md gives
+    14.4-14.6 V as the BMS over-voltage cutoff. That is the label's charge
+    range, so the BMS cutoff is undocumented [I: a maker would not rate
+    charging at its own cutoff]. Flagged to Bill; that doc is not edited.
+    (3) Whether the BMS balances cannot be settled from documentation. The
+    matched-load capacity test before and after a top-off is the only measure.
