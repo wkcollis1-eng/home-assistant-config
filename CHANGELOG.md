@@ -60,6 +60,38 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
 
+### R20 checkpoint: the first live compaction, and two transcript facts the hook got wrong
+
+This closes the live test the next entry down left open. Bill ran `/compact` at 10:22
+(manual, 214,227 tokens [M: its compact_boundary record]). **The re-injection worked:**
+the checkpoint came back verbatim (3,519 chars [M]), judged fresh (written 10:20:40,
+after the 80% crossing at 10:13:51 [M: compactions.log]), with the session-start
+audit baseline. **Two things were wrong (R13):**
+
+- **The header and the log line read `?` for the trigger and size.** The
+  compact_boundary record is not on disk when `SessionStart` runs: Claude Code writes
+  the boundary, the summary and this hook's own output as one batch afterwards
+  (transcript lines 734-750; `scan()` reads the boundary once it is there) [M, n=1].
+  The tests treated "boundary not yet written" as the rare case; it is the usual one.
+  Fix: trigger and size are no longer copied into the header or the log (R10: the
+  boundary record holds them; scoring joins by session and time). Log columns are now
+  now, session, window, ref, written, status, chars; the one line written before this
+  fix has two more.
+- **The transcript is not in time order.** At that `/compact` Claude Code re-appended
+  117 earlier records (same uuids, stamped 12:07-12:20Z) after records stamped 14:21Z
+  [M, n=1]. It did no harm this time, but with copies after the crossing the old code
+  calls a stale checkpoint fresh and misses the nudge. Fix: the compaction segment is
+  decided by timestamp (responses newer than the latest-stamped compaction, exact
+  copies merged), and `last_context` reuses that one definition.
+- Tests: `test_hygiene.py` 64 checks (6 new). One fixture was corrected: it stamped a
+  boundary before the response it was meant to follow, which only file order allowed.
+  Against the previous hook the suite gives 6 FAILs (the 3 ordering cases, plus the
+  old header and log format); against this one, 0. `mutate_hygiene.py`: 14 of 14
+  mutations caught (4 new).
+
+**Left open:** no auto-compaction has been observed yet (n=0). The fix does not depend
+on whether its boundary is on disk in time.
+
 ### R20 checkpoint: what must survive a compaction goes on disk (Claude Code hooks)
 
 Bill set `/autocompact 200K` (09:18) to cut token cost and asked how to do it

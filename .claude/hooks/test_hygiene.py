@@ -426,7 +426,7 @@ check(
 )
 check(
     "compaction after the last response -> silent",
-    run(PT, up + [bnd(10)], sid="p1"),
+    run(PT, up[:2] + [asst(60, 170_000), bnd(10)], sid="p1"),
     None,
 )
 two = [
@@ -469,6 +469,39 @@ check(
     run(PT, big, sid="p1"),
     "context",
 )
+# File order is not time order: on 2026-09-23 a /compact re-appended 117
+# earlier records (same uuids) after newer ones. Copies below are the same dicts.
+a0 = asst(3000, 60_000)
+dup = [a0] + up + [a0]
+ckpt("p13")
+check(
+    "old records re-appended at the tail, 170K, no checkpoint -> nudge",
+    run(PT, dup, sid="p13"),
+    "context",
+    has=("context 170K",),
+)
+ckpt("p13", 300)
+check(
+    "  ...written after the crossing -> silent",
+    run(PT, dup, sid="p13"),
+    None,
+)
+ob = bnd(4000)
+oldb = [asst(4500, 190_000), ob, asst(3000, 60_000), asst(600, 165_000)]
+oldb += [asst(0, 170_000), ob]
+ckpt("p14")
+check(
+    "an old compaction record re-appended at the tail -> still nudges",
+    run(PT, oldb, sid="p14"),
+    "context",
+)
+ob5 = bnd(5000)
+newer = [ob5, asst(900, 165_000), asst(300, 170_000), bnd(100), ob5]
+check(
+    "an old compaction record re-appended after a newer one -> newer counts, silent",
+    run(PT, newer, sid="p14"),
+    None,
+)
 check("malformed stdin -> silent", run(PT, [], raw="{not json"), None)
 
 SS = "sessionstart"
@@ -488,8 +521,8 @@ check(
     "fresh checkpoint -> re-injected verbatim, no WARN",
     run(SS, done, sid="c1", extra=C),
     "context",
-    has=(body, "auto compaction at 185K", "0 FAIL, 0 WARN, 2 INFO"),
-    lacks=("WARN (R8",),
+    has=(body, "verbatim after a compaction. Written", "0 FAIL, 0 WARN, 2 INFO"),
+    lacks=("WARN (R8", "compaction at", "?"),
 )
 ckpt("c2", 900)
 check(
@@ -518,8 +551,8 @@ check(
     "boundary not written yet, fresh -> no WARN",
     run(SS, nobnd, sid="c4", extra=C),
     "context",
-    has=(body,),
-    lacks=("WARN (R8",),
+    has=(body, "verbatim after a compaction. Written"),
+    lacks=("WARN (R8", "compaction at", "?"),
 )
 ckpt("c4", 900)
 check(
@@ -539,7 +572,7 @@ check(
     "manual compact below the line, written this stretch -> no WARN",
     run(SS, early, sid="c5", extra=C),
     "context",
-    has=("manual compaction at 100K",),
+    has=(body,),
     lacks=("WARN (R8",),
 )
 ckpt("c5", 4000)
@@ -548,6 +581,24 @@ check(
     run(SS, early, sid="c5", extra=C),
     "context",
     has=("STALE", "began at"),
+)
+# 2026-09-23 as observed: no earlier compaction, the session's first records
+# re-appended at /compact, this compaction's boundary not yet on disk.
+redup = pre + pre[:2]
+ckpt("c6", 900)
+check(
+    "re-appended copies, written before the crossing -> STALE",
+    run(SS, redup, sid="c6", extra=C),
+    "context",
+    has=("STALE", "crossed 80%"),
+)
+ckpt("c6", 300)
+check(
+    "re-appended copies, written after the crossing -> no WARN",
+    run(SS, redup, sid="c6", extra=C),
+    "context",
+    has=(body, "0 FAIL, 0 WARN, 2 INFO"),
+    lacks=("WARN (R8",),
 )
 check(
     "source startup -> silent",
@@ -625,12 +676,15 @@ check(
     has=("handler failed",),
 )
 with open(os.path.join(CK, "compactions.log"), encoding="utf-8") as f:
-    st8 = [ln.split("\t")[7] for ln in f.read().splitlines()]
+    rows = [ln.split("\t") for ln in f.read().splitlines()]
+st8 = [r[5] for r in rows]
 check(
-    "log: one line per compaction, statuses in order",
+    "log: one line per compaction, 7 columns, statuses in order",
     None
-    if st8[:3] == ["fresh", "stale", "missing"] and len(st8) == 12
-    else {"log": st8},
+    if st8[:3] == ["fresh", "stale", "missing"]
+    and len(st8) == 14
+    and all(len(r) == 7 for r in rows)
+    else {"log": st8, "widths": sorted({len(r) for r in rows})},
     None,
 )
 
@@ -654,7 +708,7 @@ for p in (files[-1], max(files, key=os.path.getmtime)):
     t0 = time.time()
     b, rsp, au = ch.scan(p)
     print(
-        f"      scan: boundaries={[(x[1], x[2]) for x in b][-3:]} responses={len(rsp)} audit={verdict_line(au[-1][1]) if au else None!r}  {1000 * (time.time() - t0):.0f} ms"
+        f"      scan: boundaries={len(b)} responses={len(rsp)} audit={verdict_line(au[-1][1]) if au else None!r}  {1000 * (time.time() - t0):.0f} ms"
     )
     t0 = time.time()
     out = run(PT, [], raw=json.dumps({"session_id": "timing", "transcript_path": p}))

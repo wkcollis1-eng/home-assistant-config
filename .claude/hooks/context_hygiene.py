@@ -126,13 +126,8 @@ def last_context(recs):
 
     None also when a compaction follows it: the old size no longer applies.
     """
-    for r in reversed(recs):
-        if is_boundary(r):
-            return None
-        n = ctx_of(r)
-        if n is not None:
-            return n, epoch(r["timestamp"])
-    return None
+    resp = segment_responses(recs)
+    return (resp[-1][1], resp[-1][0]) if resp else None
 
 
 def load_state():
@@ -277,16 +272,21 @@ def stamp(t):
 
 
 def segment_responses(recs):
-    """[(epoch, tokens)] of main-thread responses after the newest compaction in recs."""
-    out = []
+    """[(epoch, tokens)] of main-thread responses after the newest compaction in recs.
+
+    By timestamp, never by file order: at a /compact on 2026-09-23 Claude Code
+    re-appended 117 earlier records (same uuids) after newer ones [M, n=1]. So
+    the newest compaction is the latest-stamped one, and exact copies merge.
+    """
+    floor = max((epoch(r["timestamp"]) for r in recs if is_boundary(r)), default=0.0)
+    out = set()
     for r in recs:
-        if is_boundary(r):
-            out = []
-            continue
         n = ctx_of(r)
         if n is not None:
-            out.append((epoch(r["timestamp"]), n))
-    return out
+            t = epoch(r["timestamp"])
+            if t > floor:
+                out.add((t, n))
+    return sorted(out)
 
 
 def run_start(resp, thr):
@@ -341,12 +341,13 @@ def on_tool(inp):
 
 
 def scan(path):
-    """Whole transcript -> (boundaries, responses, audits), oldest first.
+    """Whole transcript -> (boundaries, responses, audits), sorted by time.
 
-    boundaries [(epoch, trigger, preTokens)], responses [(epoch, tokens)],
-    audits [(epoch, text)] of the SessionStart audit context. Lines are
-    pre-filtered by substring; records are then classified by their own fields,
-    because a response that merely quotes those strings is still a response.
+    boundaries [epoch], responses [(epoch, tokens)], audits [(epoch, text)] of
+    the SessionStart audit context. Lines are pre-filtered by substring; records
+    are then classified by their own fields, because a response that merely
+    quotes those strings is still a response. Sorted and de-duplicated because
+    file order is not time order (see segment_responses).
     """
     bnd, resp, aud = [], [], []
     with open(path, "rb") as f:
@@ -363,10 +364,7 @@ def scan(path):
                 continue
             a = r.get("attachment") or {}
             if is_boundary(r):
-                md = r.get("compactMetadata") or {}
-                bnd.append(
-                    (epoch(r["timestamp"]), md.get("trigger", "?"), md.get("preTokens"))
-                )
+                bnd.append(epoch(r["timestamp"]))
             elif (
                 r.get("type") == "attachment"
                 and a.get("type") == "hook_additional_context"
@@ -379,7 +377,7 @@ def scan(path):
                 n = ctx_of(r)
                 if n is not None:
                     resp.append((epoch(r["timestamp"]), n))
-    return bnd, resp, aud
+    return sorted(set(bnd)), sorted(set(resp)), sorted(set(aud))
 
 
 def log_line(*fields):
@@ -392,20 +390,27 @@ def log_line(*fields):
 
 
 def on_compact(inp):
-    """LOG columns: now, session, trigger, preTokens, window, ref, written, status, chars."""
+    """LOG columns: now, session, window, ref, written, status, chars.
+
+    The compaction's trigger and size are in its compact_boundary record, which
+    scoring joins by session and time; they are not copied here (R10). The first
+    line, 2026-09-23T10:22:48, predates that and has trigger "?" and preTokens
+    None after the session column: that record was not on disk yet.
+    """
     if inp.get("source") != "compact":
         return None
     now = time.time()
     sid = inp.get("session_id", "")
     bnd, resp, aud = scan(inp["transcript_path"])
-    # Whether this compaction's boundary is already written when the hook runs
-    # is not documented, so handle both: the newest boundary is this one only
-    # if no response came after it.
-    if bnd and not any(t > bnd[-1][0] for t, _ in resp):
-        this, start = bnd[-1], (bnd[-2][0] if len(bnd) > 1 else 0.0)
+    # Is this compaction's boundary on disk yet? On a /compact on 2026-09-23 it
+    # was not: it is flushed in one batch with this hook's own output [M, n=1].
+    # So the else branch is the usual one; the first stays for any compaction
+    # that differs. The newest boundary is this one only if no response followed.
+    if bnd and not any(t > bnd[-1] for t, _ in resp):
+        this, start = bnd[-1], (bnd[-2] if len(bnd) > 1 else 0.0)
     else:
-        this, start = (now, "?", None), (bnd[-1][0] if bnd else 0.0)
-    seg = [(t, n) for t, n in resp if start < t <= this[0]]
+        this, start = now, (bnd[-1] if bnd else 0.0)
+    seg = [(t, n) for t, n in resp if start < t <= this]
     win = window()
     since = run_start(seg, int(NUDGE_AT * win)) if win else None
     ref = since or (seg[0][0] if seg else start)
@@ -452,16 +457,10 @@ def on_compact(inp):
         )
     if body:
         parts.append(
-            "R20 CHECKPOINT %s, re-injected verbatim after a %s compaction at %s "
-            "tokens. Written %s. Its verdicts are quoted, not paraphrased - prefer them "
-            "to the summary's wording. Update it at the next milestone.\n---\n%s\n---"
-            % (
-                ck,
-                this[1],
-                "%dK" % (this[2] // 1000) if this[2] else "?",
-                hhmm(written),
-                body[:CKPT_MAX],
-            )
+            "R20 CHECKPOINT %s, re-injected verbatim after a compaction. Written %s. "
+            "Its verdicts are quoted, not paraphrased - prefer them to the summary's "
+            "wording. Update it at the next milestone.\n---\n%s\n---"
+            % (ck, hhmm(written), body[:CKPT_MAX])
         )
     if aud:
         try:
@@ -483,8 +482,6 @@ def on_compact(inp):
     log_line(
         stamp(now),
         sid,
-        this[1],
-        this[2],
         win,
         stamp(ref),
         stamp(written),

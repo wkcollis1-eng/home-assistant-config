@@ -103,7 +103,7 @@ symptom: that session started in silence, whereas here no prompt would get
 through. **To remove or rename the hook, delete both settings entries first,
 then the file.**
 
-**Test:** `python .claude/hooks/test_hygiene.py` (58 checks, prints `FAILS: 0`), then
+**Test:** `python .claude/hooks/test_hygiene.py` (64 checks, prints `FAILS: 0`), then
 `python .claude/hooks/mutate_hygiene.py` (prints `MUTATIONS MISSED: 0`).
 Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.
 
@@ -118,7 +118,14 @@ Neither entry can wedge a session if the script goes missing: exit 2 on
 `PostToolUse` only shows stderr to Claude, and on `SessionStart` only to the user
 (hooks.md, "Exit code 2 behavior per event"). **There is deliberately no
 PreCompact entry** - there, exit 2 blocks the compaction and at the context limit
-the request fails. Per-compaction record: `~/.claude/checkpoints/compactions.log`.
+the request fails. Per-compaction record: `~/.claude/checkpoints/compactions.log`,
+columns now, session, window, ref, written, status, chars. Two transcript facts
+measured on the first live compaction (2026-09-23, n=1) shape the code: **the
+compact_boundary record is not yet on disk when the `SessionStart` hook runs** (it is
+written in one batch with the hook's output), so the hook cannot read the trigger or
+size and does not try; and **the transcript is not in time order** (that `/compact`
+re-appended 117 older records, same uuids), so every segment decision is by timestamp
+and never by file order.
 
 ### `model_router.py` + `ha-gate` agent - the Sonnet/Opus split (added 2026-09-19, RETIRED 2026-09-21)
 

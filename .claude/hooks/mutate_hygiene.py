@@ -11,7 +11,7 @@ MUT = [
     ("no subagent skip", 'if inp.get("agent_id"):', "if False:"),
     (
         "boundary-written branch never taken",
-        "if bnd and not any(t > bnd[-1][0] for t, _ in resp):",
+        "if bnd and not any(t > bnd[-1] for t, _ in resp):",
         "if False:",
     ),
     (
@@ -32,8 +32,28 @@ MUT = [
     ("no truncation", "body[:CKPT_MAX]", "body"),
     (
         "boundary found by substring",
-        "            if is_boundary(r):\n                md",
-        '            if b"compact_boundary" in line:\n                md',
+        "            if is_boundary(r):\n                bnd.append",
+        '            if b"compact_boundary" in line:\n                bnd.append',
+    ),
+    ("responses before the newest compaction kept", "if t > floor:", "if True:"),
+    (
+        "segment in file order",
+        "out = set()\n    for r in recs:\n        n = ctx_of(r)\n        if n is not None:\n"
+        '            t = epoch(r["timestamp"])\n            if t > floor:\n'
+        "                out.add((t, n))\n    return sorted(out)",
+        "out = []\n    for r in recs:\n        n = ctx_of(r)\n        if n is not None:\n"
+        '            t = epoch(r["timestamp"])\n            if t > floor:\n'
+        "                out.append((t, n))\n    return out",
+    ),
+    (
+        "newest compaction by file order",
+        'floor = max((epoch(r["timestamp"]) for r in recs if is_boundary(r)), default=0.0)',
+        'floor = ([epoch(r["timestamp"]) for r in recs if is_boundary(r)] or [0.0])[-1]',
+    ),
+    (
+        "scan not sorted",
+        "return sorted(set(bnd)), sorted(set(resp)), sorted(set(aud))",
+        "return bnd, resp, aud",
     ),
     (
         "no 4 MB fallback",
