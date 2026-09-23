@@ -1,7 +1,9 @@
 # ===============================================================
 # COMPLETE CONFIGURATION.YAML - ENERGY PERFORMANCE TRACKING
 # ===============================================================
-# Version: Final with Auto HDD + Live Weather + Santa Fe Dehumidifier
+# Version: Final with Auto HDD + Live Weather + Aprilaire E080 Dehumidifier
+# (this line said "Santa Fe Dehumidifier" until 2026-09-23; the Santa Fe
+# Classic was retired and E080 cycles are logged from 2026-08-05)
 #
 # INSTRUCTIONS:
 # 1. Backup your current configuration.yaml
@@ -1959,7 +1961,7 @@ input_number:
     mode: box
 
   # ===============================================================
-  # DEHUMIDIFIER CONTROL (Santa Fe Classic)
+  # DEHUMIDIFIER CONTROL (Aprilaire E080 since 2026-08-05; was Santa Fe Classic)
   # ===============================================================
   dehumidifier_dewpoint_threshold:
     name: "Dehumidifier Dew Point Threshold"
@@ -2006,7 +2008,17 @@ input_number:
     mode: box
     icon: mdi:arrow-collapse-down
 
-  # === DEW-POINT BAND — PRIMARY CONTROL as of 2026-07-30 ===
+  # === DEW-POINT BAND — PRIMARY CONTROL 2026-07-30 to 2026-08-03; DORMANT since ===
+  # DORMANT (verified 2026-09-23). The controlled variable went back to RH on
+  # 2026-08-03 - see the note on dehumidifier_should_run, which also explains
+  # why the rationale below was a Santa Fe artefact (a frosted coil that
+  # heated the room). Nothing in YAML reads dp_on / dp_off any more: their
+  # only reference is a row on the dehumidifier dashboard. Both hold 54.0
+  # live [M, /api/states 2026-09-23] - a zero-width band, harmless only while
+  # dormant. Set a real band (dp_off < dp_on) BEFORE any return to dew-point
+  # control. dp_stall_threshold below is NOT dormant:
+  # dehumidifier_rh_stall_shutdown reads it.
+  #
   # Replaces the RH band as the controlled variable. Rationale from 12 h of
   # logged data: over that window indoor absolute humidity moved 0.17 g/m3
   # and dew point 0.55 degF, while RH swung 2.66 points. r(RH, temperature)
@@ -2241,6 +2253,11 @@ input_number:
 
   # Compressor gate threshold — Santa Fe Classic: fan ~50-120W, compressor ~500-600W
   # Initial value 250W sits cleanly between bands; tune after observing real power curves
+  # The two lines above describe the retired Santa Fe. Aprilaire E080
+  # (2026-09-23): compressor 465.8 +/- 6.5 W steady [M, n=340 runs,
+  # 2026-08-07..09-22, minutes 10-14], fan-only ~57.8 W [M, CHANGELOG
+  # 2026-08-24 entry]. The live gate is 150 W [M, /api/states 2026-09-23],
+  # between the two.
   dehumidifier_power_threshold:
     name: "Dehumidifier Power Threshold"
     min: 50
@@ -3078,10 +3095,14 @@ template:
           {{ temp >= min_temp and rh > rh_on }}
 
       # ===============================================================
-      # DEHUMIDIFIER COMPRESSOR ACTIVE (Santa Fe Classic ~540W tuned)
+      # DEHUMIDIFIER COMPRESSOR ACTIVE (Aprilaire E080, 465.8 W steady
+      # [M, n=340 runs]; this header said "Santa Fe Classic ~540W tuned"
+      # until 2026-09-23)
       # Switch guard prevents false triggers from Kasa sensor glitches.
       # Threshold referenced from input_number for field tuning without
       # YAML edits. Validate 250W starting point against real power curves.
+      # (250 W was the Santa Fe starting point; the E080 gate is 150 W -
+      # see dehumidifier_power_threshold.)
       # ===============================================================
       - name: "Dehumidifier Compressor Active"
         unique_id: dehumidifier_compressor_active

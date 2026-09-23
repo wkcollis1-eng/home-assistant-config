@@ -1,7 +1,8 @@
 # ===============================================================
 # COMPLETE AUTOMATIONS.YAML - ENERGY MONITORING
 # ===============================================================
-# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders + Santa Fe Dehumidifier
+# Includes: Bill saving, Auto HDD tracking, Alerts, Reminders + Aprilaire E080 Dehumidifier
+# (this line said "Santa Fe Dehumidifier" until 2026-09-23; the Santa Fe was retired)
 # ===============================================================
 
 # ===============================================================
@@ -1959,7 +1960,7 @@
 
 
 # ===============================================================
-# DEHUMIDIFIER PERFORMANCE TRACKING (Santa Fe Classic Tuned)
+# DEHUMIDIFIER PERFORMANCE TRACKING (Aprilaire E080; was "Santa Fe Classic Tuned")
 # Triggers on compressor_active (power-gated), not switch state.
 # Control automations (auto_on / auto_off) are unchanged above.
 # ===============================================================
