@@ -1,62 +1,53 @@
 
-# Residential Latent Load Management: Santa Fe Dehumidifier Performance Framework
+# Residential Latent Load Management: Basement Dehumidifier (Aprilaire E080)
 
-This module provides a high-fidelity monitoring and control framework for residential dehumidification, specifically optimized for a **Santa Fe Classic** unit integrated via Home Assistant. It transitions moisture control from basic relative humidity (RH) tracking to a precise, dew-point-driven performance baseline.
+The basement dehumidifier is an **Aprilaire E080**, free-standing (not ducted), draining to a condensate pump it shares with the Navien water heater. It replaced a Santa Fe Classic, which is retired; E080 cycles are logged from 2026-08-05. Home Assistant switches it through a Kasa smart plug (`switch.dehumidifier`), which also meters its power.
 
-## Technical Overview
-The system treats the dehumidifier as a critical component of the residential thermal envelope. By monitoring instantaneous power consumption alongside basement psychrometric data, the framework calculates real-time efficiency metrics, characterizes the moisture infiltration rate (**Hold Time**), and validates equipment health (**Pull-Down Rate**).
+**This file names the helpers; it does not copy their values.** Every threshold is a field-tunable `input_number` declared in `configuration.yaml` - read the live value from the helper, never from a document. Until 2026-09-23 this README restated the Santa Fe's values (a 250 W gate, a 52 °F dew-point target, a 4 h cap) and had drifted off all three: the second-copy failure CLAUDE.md R10 exists to prevent. Entity meanings live in `ENTITIES.md`, which is generated.
 
-### The "Power Gate" Logic (Critical Configuration)
-A central feature of this framework is the **250W Power Gate**. The Santa Fe Classic operates in two distinct electrical tiers:
-*   **Fan-Only/Defrost Mode (~120W):** The unit circulates air or melts frost but is not actively removing moisture.
-*   **Dehumidification Mode (~540W):** The compressor is engaged, and latent heat is being removed.
+## Controlled variable: relative humidity
 
-**The system uses `input_number.dehumidifier_power_threshold` (defaulted to 250W) as the logical gate.** This ensures that all performance metrics—including runtime, duty cycle, and pull-down rates—differentiate between the unit simply "running" and the unit actually "working." Metrics are only recorded when power exceeds this gate, providing a true representation of energy-to-moisture removal efficiency.
+Control is an RH band on the SHT45 basement node (`sensor.basement_th_node_basement_humidity`). RH was restored as the controlled variable on 2026-08-03 after a four-day dew-point experiment. Why - the Santa Fe's frosted coil was heating the room, and the objective is a mold limit, which follows RH - is in the comment on `binary_sensor.dehumidifier_should_run`. The dew-point band helpers (`input_number.dehumidifier_dp_on_threshold` / `_dp_off_threshold`) are dormant: nothing in YAML reads them.
 
----
+## The power gate
 
-## Logic Flow & State Machine
+`binary_sensor.dehumidifier_compressor_active` is on when the plug is on and its power exceeds `input_number.dehumidifier_power_threshold`, which separates the compressor from fan-only running. If the threshold helper cannot be read, the sensor goes unavailable rather than substitute a guess.
 
-### 1. Demand Calculation (`Should Run` Logic)
-The system calculates `sensor.basement_dew_point` using the Magnus-Tetens approximation. Demand is triggered via `binary_sensor.dehumidifier_should_run` when:
-*   **Basement Dew Point** > `input_number.dehumidifier_dewpoint_threshold` (Baseline: 52°F).
-*   **Basement Temperature** > 60°F (Safety lockout to prevent evaporator icing).
+Measured on the E080: compressor 465.8 +/- 6.5 W steady [M, n=340 runs, 2026-08-07..09-22, minutes 10-14 of each run]; fan-only ~57.8 W [M, CHANGELOG 2026-08-24 entry].
 
-### 2. Control & Protection Logic
-*   **Auto-On:** Triggered when demand is present, provided the unit has been off for at least **30 minutes** (Internal pressure equalization and short-cycle protection).
-*   **Auto-Off:** Triggered when conditions are cleared **OR** the unit reaches a **4-hour maximum runtime** safety limit.
-*   **State Detection:** The `binary_sensor.dehumidifier_compressor_active` uses the 250W gate to filter out fan-only cycles.
+## Logic flow
 
-### 3. Performance Analytics
-Upon cycle completion, the system executes two primary engineering calculations:
-*   **Pull-Down Rate:** $\Delta \text{Dew Point} / \text{Cycle Duration}$. This validates that the unit is removing moisture at the expected rate (e.g., °F/hr).
-*   **Hold Time:** The duration between the end of the last cycle and the start of the next. This serves as a proxy for the basement's vapor barrier integrity and infiltration levels.
-
----
-
-## Entity Registry
-
-### Primary Control & Logic
-| Entity | Function |
+| Entity | What it does |
 | :--- | :--- |
-| `input_number.dehumidifier_dewpoint_threshold` | Target dew point for basement stability (Default: 52°F). |
-| `input_number.dehumidifier_power_threshold` | **The Gate:** Differentiates Fan (~120W) from Compressor (~540W). |
-| `binary_sensor.dehumidifier_should_run` | Logic gate for automation triggers. |
-| `binary_sensor.dehumidifier_compressor_active` | Power-gated sensor used for high-fidelity metric tracking. |
+| `binary_sensor.dehumidifier_should_run` | On when basement temperature >= `dehumidifier_min_temp` AND RH > `dehumidifier_rh_on_threshold`. Unavailable when the sensor or helper cannot be read, so a dead node cannot start the unit. |
+| `automation.dehumidifier_auto_on` | Starts the unit on `should_run`, unless local control is on or the min-off lockout (`dehumidifier_min_off_minutes`) has not elapsed. |
+| `automation.dehumidifier_auto_off` | Stops it when RH falls to `dehumidifier_rh_off_threshold`, subject to the min-run guard (`dehumidifier_min_run_minutes`) and the condensation veto. |
+| `automation.dehumidifier_max_runtime_backstop` | Stops it after `dehumidifier_max_runtime_hours` of switch-on wall-clock time, which no power dip resets. |
+| `automation.dehumidifier_force_on_backstop` | Runs it, bypassing min-off, when RH exceeds the mold ceiling (`dehumidifier_rh_force_on`) or the basement dew point closes on the coldest measured surface. |
+| `automation.dehumidifier_control_sensor_loss_shutdown` | Stops it when the SHT45 RH has been unreadable for 10 min. |
+| `automation.dehumidifier_rh_stall_shutdown` | Stops it when dew-point improvement stalls below `dehumidifier_dp_stall_threshold`. **Disabled** - the automation was `off` on 2026-09-23. |
+| `input_boolean.dehumidifier_local_control` | Hands control to the E080's own humidistat for commissioning runs. HA holds the plug on, and reminds hourly once `dehumidifier_local_control_max_hours` is passed. |
 
-### Performance Telemetry
-| Entity | Function |
+## Performance analytics
+
+Each compressor cycle is bracketed by `dehumidifier_cycle_start_capture` and `dehumidifier_cycle_end_capture`, which trigger on `compressor_active`, not on the switch.
+
+| Entity | Measures |
 | :--- | :--- |
-| `sensor.dehumidifier_pull_down_rate` | Efficiency: Dew Point °F reduction per hour. |
-| `sensor.dehumidifier_hold_time` | Infiltration: Hours environment stayed below threshold. |
-| `sensor.dehumidifier_duty_cycle_24h` | Percent of time unit was actively dehumidifying (24h window). |
-| `sensor.dehumidifier_dew_point_margin` | Real-time delta between current state and threshold. |
+| `sensor.dehumidifier_pull_down_rate` | Basement dew-point drop per hour over the last cycle. |
+| `sensor.dehumidifier_hold_time` | Hours between the end of one cycle and the start of the next. |
+| `sensor.dehumidifier_duty_cycle_24h` | Share of the last 24 h with the compressor running. |
+| `sensor.dehumidifier_runtime_today` | Compressor-only runtime today. |
+| `counter.dehumidifier_cycles_today` | Compressor cycles started today. |
+| `sensor.dehumidifier_avg_cycle_minutes` | Mean cycle length. |
+| `sensor.dehumidifier_dew_point_margin` | Basement dew point against `dehumidifier_dewpoint_threshold`. Display only: no control reads that helper. |
 
-### Operational Tracking
-| Entity | Function |
-| :--- | :--- |
-| `sensor.dehumidifier_runtime_today` | Cumulative **compressor-only** runtime for the current day. |
-| `counter.dehumidifier_cycles_today` | Total number of compressor cycles initiated. |
-| `sensor.dehumidifier_avg_cycle_minutes` | Mean duration of active dehumidification cycles. |
+Compressor health is watched by the steady-watts SPC in `packages/spc.yaml`. Those watts rise with inlet temperature, +5.20 +/- 0.35 W/°F [M, n=46 daily means, 2026-08-08..09-22, basement 67.8-71.9 °F] - see `docs/pending.md` P3 before reading a seasonal drift as a fault.
 
----
+**Hold time is not an infiltration measure on its own.** Over 2026-08-07..09-22 the basement's moisture gain between cycles tracked main-floor humidity (t=11.1) and not outdoor humidity (t=0.17, p=0.86) [M, n=340 off-periods, Newey-West standard errors].
+
+## What is not measured
+
+**Water removed.** The ratings are 65 pt/day and IEF 2.35 L/kWh [S: ENERGY STAR record 4510066, test per 10 CFR 430 Subpart B App. X1], and 80 pt/day at 80 °F / 60 % RH and 185 CFM free-standing [S: Aprilaire 10015109 B2209062A, Specifications]. The condensate goes to a shared pump whose cycles (median 15 s) are below its Kasa plug's polling resolution, and it is not weighed (Bill, 2026-09-23), so litres per kWh is unverified.
+
+What is verified is the electrical side: 3.98 +/- 0.10 A [M, n=340 runs] against 5.1 A rated at the 80 °F point [S: Aprilaire 10015109, Specifications] - lower, as expected at a 67.5-72.0 °F inlet [M].
