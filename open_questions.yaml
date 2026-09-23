@@ -974,3 +974,82 @@
     VIN+/VIN- at the breakout with NO series resistor. The separate display-on
     effect (sd 1.7-4.8 mA while the panel is lit, n=7, Wilcoxon p 0.016) is NOT
     explained by any of this and still needs the remote-display-switch test.
+
+- asked: 2026-09-21
+  question: >-
+    Does the Cyclenbatt label give an UPPER charge temperature limit?
+  blocks: >-
+    Closing RQ-11 in DIY-LiFePO4-UPS/Top-Off-Charger/top-off-charger-design.md.
+    Rev 0.5 drops the DS18B20 (Bill, 2026-09-22: indoor, climate-controlled),
+    so no firmware stop can enforce an upper limit; RQ-11 closes by siting only
+    if the label's limit sits above indoor ambient. Logged here 2026-09-22 - it
+    was asked in the design doc's Q2 on 09-21 but never entered.
+  answered: >-
+    2026-09-22, Bill: nothing noted on the battery. He asked whether 140 F is
+    the general LiFePO4 figure; answered in session that no figure can be
+    cited for this pack (cells undocumented, R16), so RQ-11 closes by siting
+    (indoor, conditioned), not by a number.
+
+- asked: 2026-09-21
+  question: >-
+    Is the on-hand 5 A charger-lead fuse a mini (ATM/APM) or a regular (ATC)
+    blade, and whose make?
+  blocks: >-
+    O2 in the Top-Off Charger design: citing the fuse's DC interrupt rating
+    from its own datasheet instead of the [I] it is now. Logged here
+    2026-09-22 - asked in the design doc's Q3 on 09-21 but never entered.
+  answered: >-
+    2026-09-22, Bill: mini (ATM/APM) blade from an AKOSN 45-piece assortment
+    kit (Amazon B0DNC57LR9). The listing states no voltage rating, no
+    interrupt rating and no standard [read 2026-09-22], so there is no
+    datasheet to cite and O2 cannot close on this fuse: RQ-5 stays unproven
+    unless a branded 5 A mini fuse with a published DC interrupt rating
+    replaces it.
+
+- asked: 2026-09-22
+  question: >-
+    Which 3-stage charger will pre-charge the UPS pack (make and model off its
+    label), and what absorb voltage and end-of-charge behaviour does its label
+    or manual give?
+  blocks: >-
+    Top-Off Charger rev 0.5, the new procedure (3-stage charge first, the
+    top-balance hold after it turns off): whether section 10.1 needs a rest
+    wait before Start, and where the 14.40 V hold (FW-7) sits relative to the
+    charger's absorb voltage. Under R16 its spec cannot be cited until the
+    identifier comes off the unit.
+  answered: >-
+    2026-09-22, Bill: Amazon B0BM9H759L. From the LISTING, read 2026-09-22 -
+    not the unit's label: Dylannet, Model P20, Mfr part TB-30020A (Huizhou
+    Haitan Technology). LiFePO4 mode 14.6 V. 12 V output up to 20 A, "3 level
+    power adjustment" with the levels not stated, and "Charge the battery
+    below 10AH with the minimum current". At full charge it "automatically
+    enters trickle charging ... and adopts the latest pulse repair function",
+    so it does not turn off. Temperature compensation with automatic
+    winter/summer switching. The unresolved parts are the entry below.
+
+- asked: 2026-09-22
+  question: >-
+    On the Dylannet P20: what is the lowest of its three current levels (the
+    LCD shows current while charging), and does its manual say the
+    trickle/pulse-repair stage runs in LiFePO4 mode?
+  blocks: >-
+    Keeping the P20 as the pre-charge step in the Top-Off Charger procedure.
+    RQ-1 caps this pack at 5.0 A and its BMS is 10 A; the listing gives 20 A
+    max with the levels unstated. Moot if the pre-charge step is dropped
+    (recommended in session 2026-09-22) - answer "dropped" to close it.
+  answered: >-
+    2026-09-22, Bill: the P20's LiFePO4 mode offers 5 A / 10 A / 20 A, and 5 A
+    is the setting for this 10 Ah pack (meets RQ-1's 5.0 A). Repair/pulse is
+    lead-acid only, not offered in LiFePO4 mode. He asks instead whether the
+    HDR-30-15 can do the whole charge and the top-off without harming the
+    pack or the PSU - "prove it to me".
+
+    R13, 2026-09-22: the "drop the P20" recommendation above was WRONG. It
+    treated the HDR-30-15 running in overload for a whole bulk phase as rev
+    0.4's accepted job, and the HDR-60-12's recharge as precedent. HDR-30-SPEC
+    (2026-04-03) p.2 classes overload as a "fault condition" ("Constant
+    current limiting within 50% ~ 100% rated output voltage, recovers
+    automatically after fault condition is removed"), and the p.3 derating
+    curve rates load to 100% only. The HDR-60-12 precedent was a transient of
+    minutes (09-15 README, n=1), not hours. Reversed: the P20 at 5 A does the
+    bulk; the HDR-30-15 does the top-off hold only.
