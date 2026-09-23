@@ -13,6 +13,7 @@ archive_monthly_gas_heat_cost          state:input_button.save_gas_bill         
 archive_monthly_hdd                    23:58:15                                                            single     automations.yaml  [pipeline]
 basement_th_node_offline               state:binary_sensor.basement_th_node_node_status +1 more            single     watchdog.yaml
 basement_th_node_sensor_fault          state:binary_sensor.basement_th_node_basement_sensor_fault +1 more  single     watchdog.yaml
+billing_period_start_lookup            state:input_datetime.electricity_meter_read_date +3 more            queued     billing_overview.yaml
 capture_daily_ac_cost                  23:59:45                                                            single     automations.yaml  [pipeline]
 capture_daily_ac_min_per_cycle         23:55:30                                                            single     automations.yaml  [pipeline]
 capture_daily_ac_watts                 23:59:00                                                            single     spc.yaml  [pipeline]
@@ -122,4 +123,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more             parallel   watchdog.yaml
 ```
 
-113 automations.
+114 automations.

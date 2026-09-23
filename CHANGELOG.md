@@ -57,6 +57,125 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.22] - 2026-09-22
+
+### Cost Overview view + billing-period backing entities (Energy Performance)
+
+Bill asked for one view holding the billing period in progress (consumption and
+cost per unit), last period's cost and consumption, and year-to-date cost and
+consumption against last year to date, all on a billing-period basis.
+
+**The moment it must survive:** the October Save Bill press, and every later one,
+with nobody watching. Last year's value must reach the prior-year archive exactly
+once, including on a repeat press or a corrected re-save. And on any day the SDR
+goes deaf or a statistics lookup comes back empty, the card shows unavailable,
+never a plausible stale number.
+
+**Added: `packages/billing_overview.yaml`** (design notes and limits in its header).
+- `input_datetime.electricity_meter_read_date`, `input_datetime.gas_meter_read_date`:
+  the bill's service-period END. Bill, 2026-09-22 (R14): the existing "Bill Date"
+  helpers hold the STATEMENT date, not the read date.
+- `input_number.electric_period_start_kwh`, `input_number.gas_period_start_ft3` and
+  automation `billing_period_start_lookup`. On a read-date change or a Save Bill
+  press it reads the SDR meter's long-term statistic at 12:00 local on the read
+  date through `recorder.get_statistics`. Checked in the core 2026.9.3 source (a
+  naive time is taken as local) and live: 2026-09-08 returned one row each,
+  electric 31,267.46 kWh and gas 569,388 ft3 [M, LTS hourly `state`]; a date before
+  SDR commissioning returned `{}` with the id key absent. It zeroes the start
+  first, so any failure leaves the period sensor unavailable.
+- `sensor.electric_billing_period_kwh`, `sensor.gas_billing_period_ccf`: live meter
+  minus the stored start. Unavailable with no start, a stale SDR, a live value
+  below the start, or a read date older than the latest statement by at least
+  that bill's day count.
+- 48 prior-year slots `input_number.<u>_archive_ly_<mon>_<field>`, and
+  `input_text.electric_archive_years` / `gas_archive_years` (the year each main
+  archive slot holds).
+- `sensor.electric_bills_ytd`, `sensor.gas_bills_ytd`: the one YTD definition per
+  utility. State is YTD $; attributes carry units, last-year figures and
+  `missing_months` / `missing_months_last_year`.
+
+**Changed: `automations.yaml`.** `save_electric_bill_button` and
+`save_gas_bill_button` gain a prior-year roll before the archive overwrite, gated
+on the slot's year stamp rather than on values: a value guard would roll a
+corrected re-save of this year's bill into last year. 84 of the 86 automations
+parse identical, and reversing the edit reproduces the original byte for byte
+[M, R3].
+
+**Seeded after Bill approved the values:** `_ly_` Jan..Sep from
+Residential-HVAC-Performance-Baseline-/data/monthly_summary.csv, 2025 rows (36
+writes, read back exact); year lists `2026` for Jan..Sep and `2025` for Oct..Dec.
+Keying evidence [M, live /api/states against the CSV]: the live Jan..Jun slots
+equal the CSV 2026-01..06 rows (24 values), Oct..Dec equal its 2025 rows (12
+values), its 2025-09 row equals the `*_last_year` helpers, and the live Jul..Sep
+slots differ from 2025, so they were written in 2026.
+`monthly_electricity_eversource.csv` is keyed by SERVICE month, one month earlier
+than the archive, and was not used.
+
+**Observed after the reload [M, /api/states 2026-09-22 21:45 EDT]:** electric YTD
+$1,137.71 and 4,558 kWh against $1,552.44 and 5,284 kWh last year; gas YTD
+$1,096.28 and 598 CCF against $1,091.50 and 601 CCF; `missing_months` empty on
+both. Equal to the harness's expected sums [D: sum of the nine Jan..Sep slots].
+These are bill totals over nine statement months per side with no weather
+normalisation, so the differences say nothing about efficiency.
+
+**Verified:** an R2 harness of 56 checks rendered through the live Jinja engine
+(`/api/template`, read-only). The clean seed is silent, and each fault fires:
+skipped month, unseeded prior-year month, unreadable year list, zero start, stale
+SDR, read date from an older bill, unset read date, live below start, empty and
+row-less statistics responses, first vs repeat vs two-year-old roll, unreadable
+stamp list. All 13 view cards render with 0 errors.
+
+**Open:**
+- The current-period cards stay unavailable until the meter-read dates are set.
+  Bill's instruction is to find the date each SDR reading crossed the bill's
+  reading, which needs the present reading printed on each bill
+  (`open_questions.yaml`).
+- The read-date helpers were created holding TODAY, the input_datetime default
+  when there is no `initial` (core 2026.9.3 `input_datetime/__init__.py:281`).
+  Harmless while the starts are 0; a Save Bill press before the real dates are set
+  would store noon today as the period start.
+- The view is not pasted yet, so `dashboard-not-pasted` WARNs until it is.
+- P19: the older `*_last_year` helpers are now a second copy of the latest
+  month's `_ly_` slot (R10), and their single-field guard misfires.
+
+### Same day: current-period read dates set from the bills (closes the open question)
+
+Bill sent both September statements [S]. Eversource statement 09/10/26, p.2,
+meter 10626149V: service 08/11/26 to 09/10/26, current read 31302 kWh, Actual.
+CNG statement 09/15/2026, p.2 "Your Meter Details", meter 561309: service
+08/13/26 to 09/11/26, current read 5694 CCF, Actual.
+
+His method was to date each read by the hour the SDR crossed the bill's reading
+[M, LTS hourly `state`, 168 of 168 rows per meter]:
+- Electric crossed 31302 kWh in the hour starting 09:00 EDT on 09/10 (31,301.62
+  to 31,302.01), the printed service-end date. So the SDR agrees with the
+  register to within the day, and the 55 kWh SDR-vs-LCD gap in the
+  utility_meters.yaml calibration note is not a standing offset.
+- Gas crossed 569,400 ft3 at 18:00 EDT on 09/08, three days before the printed
+  date. That is not a disagreement: the dial reads whole CCF and summer use ran
+  ~27 ft3/day [D: 74 ft3 from 09/08 18:00 to 09/11 12:00], so it showed 5694
+  from 09/08 to about 09/12. At summer rates the crossing cannot date a gas
+  read; the bill's date is authoritative and the SDR is consistent with it
+  (569,474 at noon 09/11). At winter rates the crossing resolves to hours.
+
+Set `input_datetime.electricity_meter_read_date` = 2026-09-10 and
+`input_datetime.gas_meter_read_date` = 2026-09-11 (prior value: the 2026-09-22
+placeholder). The first live run of `billing_period_start_lookup` took the
+found-row branch and stored 31,305.8 kWh and 569,474 ft3, the LTS noon values
+[M]. Observed: electric period 186.8 kWh on day 12, gas 4.2 CCF on day 11 [M,
+/api/states 21:46 EDT]. This supersedes the first two "Open" bullets above.
+
+Limit: the noon start sits 3.8 kWh above the bill's electric read [D: 31,305.8 -
+31,302], so this period reads 3.8 kWh below what Eversource will bill. For gas
+the gap to CNG's count is anything up to 1 CCF, set by the dial's resolution.
+
+### Same day: Cost Overview pasted and confirmed live
+
+Bill pasted the view. `export_dashboards.py` now lists it as the dashboard's 7th
+view, and its keys equal `dashboards/views/cost-overview.yaml` exactly (the UI
+added only `cards: []`, as it does on every sections view). `dashboard-not-pasted`
+cleared: audit 0 FAIL, 0 WARN, 2 INFO.
+
 ## [2026.09.18] - 2026-09-18
 
 ### NEXT SESSION: SDR reading guard + add-on config drift check (DESIGN ONLY, nothing built)

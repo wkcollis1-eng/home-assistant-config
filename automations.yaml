@@ -1176,6 +1176,57 @@
         value: >
           {% set archive_val = states('input_number.electric_archive_' ~ (month_name | trim) ~ '_kwh') | float(0) %}
           {{ archive_val if archive_val != current_kwh else states('input_number.electricity_bill_kwh_last_year') | float(0) }}
+    # Prior-year roll (2026-09-22; see packages/billing_overview.yaml). The
+    # slot overwritten below may hold this statement month from an EARLIER
+    # year: move that value to _ly_ first and stamp the slot with this bill's
+    # year. A repeat press or a corrected re-save finds the stamp already equal
+    # to this year and does not roll, so this year never lands in _ly_. A slot
+    # more than one year old rolls in as 0 (YTD reports it missing). An
+    # unreadable stamp list skips the roll and says so.
+    - variables:
+        roll_year: >
+          {% set dt = states('input_datetime.electricity_bill_date') %}
+          {{ (dt | as_datetime).year if dt not in ['unknown', 'unavailable', 'none'] else now().year }}
+        roll_years: "{{ states('input_text.electric_archive_years').split(',') }}"
+        roll_i: "{{ (bill_month | int(0)) - 1 }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ roll_years | count == 12 and roll_years[roll_i] != (roll_year | string) }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.electric_archive_ly_{{ month_name | trim }}_amount"
+              data:
+                value: >
+                  {{ states('input_number.electric_archive_' ~ (month_name | trim) ~ '_amount') | float(0)
+                     if roll_years[roll_i] == ((roll_year | int(0)) - 1) | string else 0 }}
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.electric_archive_ly_{{ month_name | trim }}_kwh"
+              data:
+                value: >
+                  {{ states('input_number.electric_archive_' ~ (month_name | trim) ~ '_kwh') | float(0)
+                     if roll_years[roll_i] == ((roll_year | int(0)) - 1) | string else 0 }}
+            - service: input_text.set_value
+              target:
+                entity_id: input_text.electric_archive_years
+              data:
+                value: "{{ (roll_years[:roll_i] + [roll_year | string] + roll_years[roll_i + 1:]) | join(',') }}"
+        - conditions:
+            - condition: template
+              value_template: "{{ roll_years | count != 12 }}"
+          sequence:
+            - service: persistent_notification.create
+              data:
+                title: "Electric prior-year roll skipped"
+                message: >
+                  input_text.electric_archive_years is not a 12-entry year list
+                  ({{ states('input_text.electric_archive_years') }}), so the
+                  {{ (month_name | trim) | upper }} slot was overwritten
+                  without moving last year's value to _ly_. Last-year-to-date
+                  on Cost Overview is wrong for that month until it is fixed.
+      default: []
     - service: input_number.set_value
       target:
         entity_id: "input_number.electric_archive_{{ month_name | trim }}_amount"
@@ -1239,6 +1290,57 @@
         value: >
           {% set archive_val = states('input_number.gas_archive_' ~ (month_name | trim) ~ '_ccf') | float(0) %}
           {{ archive_val if archive_val != current_ccf else states('input_number.gas_bill_ccf_last_year') | float(0) }}
+    # Prior-year roll (2026-09-22; see packages/billing_overview.yaml). The
+    # slot overwritten below may hold this statement month from an EARLIER
+    # year: move that value to _ly_ first and stamp the slot with this bill's
+    # year. A repeat press or a corrected re-save finds the stamp already equal
+    # to this year and does not roll, so this year never lands in _ly_. A slot
+    # more than one year old rolls in as 0 (YTD reports it missing). An
+    # unreadable stamp list skips the roll and says so.
+    - variables:
+        roll_year: >
+          {% set dt = states('input_datetime.gas_bill_date') %}
+          {{ (dt | as_datetime).year if dt not in ['unknown', 'unavailable', 'none'] else now().year }}
+        roll_years: "{{ states('input_text.gas_archive_years').split(',') }}"
+        roll_i: "{{ (bill_month | int(0)) - 1 }}"
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ roll_years | count == 12 and roll_years[roll_i] != (roll_year | string) }}"
+          sequence:
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.gas_archive_ly_{{ month_name | trim }}_amount"
+              data:
+                value: >
+                  {{ states('input_number.gas_archive_' ~ (month_name | trim) ~ '_amount') | float(0)
+                     if roll_years[roll_i] == ((roll_year | int(0)) - 1) | string else 0 }}
+            - service: input_number.set_value
+              target:
+                entity_id: "input_number.gas_archive_ly_{{ month_name | trim }}_ccf"
+              data:
+                value: >
+                  {{ states('input_number.gas_archive_' ~ (month_name | trim) ~ '_ccf') | float(0)
+                     if roll_years[roll_i] == ((roll_year | int(0)) - 1) | string else 0 }}
+            - service: input_text.set_value
+              target:
+                entity_id: input_text.gas_archive_years
+              data:
+                value: "{{ (roll_years[:roll_i] + [roll_year | string] + roll_years[roll_i + 1:]) | join(',') }}"
+        - conditions:
+            - condition: template
+              value_template: "{{ roll_years | count != 12 }}"
+          sequence:
+            - service: persistent_notification.create
+              data:
+                title: "Gas prior-year roll skipped"
+                message: >
+                  input_text.gas_archive_years is not a 12-entry year list
+                  ({{ states('input_text.gas_archive_years') }}), so the
+                  {{ (month_name | trim) | upper }} slot was overwritten
+                  without moving last year's value to _ly_. Last-year-to-date
+                  on Cost Overview is wrong for that month until it is fixed.
+      default: []
     - service: input_number.set_value
       target:
         entity_id: "input_number.gas_archive_{{ month_name | trim }}_amount"

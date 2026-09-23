@@ -204,6 +204,25 @@ FIRST ACTION: ask Bill the two open decisions in that entry (hold-vs-unavailable
 drift-rule workflow). Build nothing that depends on them until answered.
 ```
 
+### P19 — `*_last_year` bill helpers: a second copy, with a guard that misfires [LOW]
+```
+Found 2026-09-22 building the Cost Overview (CHANGELOG [2026.09.22]).
+
+1. R10. input_number.{electricity,gas}_bill_{amount,kwh|ccf}_last_year now hold
+   the same value as the new *_archive_ly_<latest statement month>_* slot. Six
+   sensors in configuration.yaml read them (effective_rate_last_year x2,
+   usage_change_yoy x2, bill_change_yoy x2; the rate_change_yoy pair reads the
+   first two), and the live Billing view shows four.
+2. Their Save Bill guard compares ONE field (`archive_val != current_*`). When
+   this year's integer kWh or CCF equals last year's for that month, that helper
+   silently keeps the PREVIOUS month's last-year value. The new _ly_ roll is
+   gated on the year stamp and is not affected.
+
+FIX (not built): point the six sensors at the _ly_ slot for the latest statement
+month, then retire the four helpers and their eight save-automation steps.
+Touches the existing Billing view's YoY cards, so it needs its own session.
+```
+
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here

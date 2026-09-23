@@ -3,6 +3,9 @@
 # no longer exists is simply dropped from ENTITIES.md and
 # reported. Seeded 2026-08-23 from CLAUDE.md's old ENTITIES block.
 
+automation.billing_period_start_meter_lookup:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: read-date change or Save Bill; zeroes the start first; failure-only notice
 automation.capture_daily_water_overnight_min:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: 00/01/02/03/04/05 :00:45
@@ -183,6 +186,9 @@ input_datetime.dehumidifier_spc_last_capture:
 input_datetime.dehumidifier_spc_last_seed:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: startup seed, never a capture
+input_datetime.electricity_meter_read_date:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: the bill's service-period END (meter read) - NOT the statement date
 input_datetime.fridge_spc_last_capture:
   group: SPC — FRIDGE (packages/spc.yaml)
   note: measured captures only
@@ -195,6 +201,9 @@ input_datetime.furnace_spc_last_capture:
 input_datetime.furnace_spc_last_seed:
   group: SPC — FURNACE (packages/spc.yaml)
   note: startup seed, never a capture
+input_datetime.gas_meter_read_date:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: the bill's service-period END (meter read) - NOT the statement date
 input_datetime.ha_audit_last_run:
   group: AUDIT (packages/audit.yaml)
   note: ''
@@ -234,12 +243,18 @@ input_number.dehumidifier_rh_on_threshold:
 input_number.dhw_bill_thm:
   group: DHW ARCHIVES
   note: entry field (Therms → auto CCF)
+input_number.electric_period_start_kwh:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: SDR kWh at 12:00 on the read date; 0 = no valid start
 input_number.fridge_power_threshold:
   group: SPC — FRIDGE (packages/spc.yaml)
   note: default 50W
 input_number.furnace_power_threshold:
   group: SPC — FURNACE (packages/spc.yaml)
   note: default 300W
+input_number.gas_period_start_ft3:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: SDR ft3 at 12:00 on the read date; 0 = no valid start
 input_number.ha_audit_fail_count:
   group: AUDIT (packages/audit.yaml)
   note: ''
@@ -292,6 +307,12 @@ input_number.water_regen_threshold_gal:
 input_select.dehumidifier_last_stop_reason:
   group: DEHUMIDIFIER (configuration.yaml)
   note: conditions_cleared|max_runtime
+input_text.electric_archive_years:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: year each electric_archive_<mon> slot holds, Jan..Dec; gates the _ly_ roll
+input_text.gas_archive_years:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: year each gas_archive_<mon> slot holds, Jan..Dec; gates the _ly_ roll
 script.ha_audit:
   group: AUDIT (packages/audit.yaml)
   note: '"Run HA Audit" — the one to call'
@@ -466,6 +487,12 @@ sensor.efficiency_deviation_index:
 sensor.efficiency_deviation_month:
   group: MONTHLY REPORT
   note: ''
+sensor.electric_billing_period_kwh:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: since the meter read; unavailable if no start, SDR stale, or read date older than the latest bill
+sensor.electric_bills_ytd:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: THE YTD definition - state $; attrs kwh, cost/kwh_last_year, missing_months[_last_year]
 sensor.electric_meter_ert_type:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: ''
@@ -548,6 +575,12 @@ sensor.furnace_running_watts_upper:
 sensor.furnace_runtime_today:
   group: SPC — FURNACE (packages/spc.yaml)
   note: ''
+sensor.gas_billing_period_ccf:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: since the meter read; unavailable if no start, SDR stale, or read date older than the latest bill
+sensor.gas_bills_ytd:
+  group: BILLING OVERVIEW (packages/billing_overview.yaml)
+  note: THE YTD definition - state $; attrs ccf, cost/ccf_last_year, missing_months[_last_year]
 sensor.gas_dhw_usage_month:
   group: ENERGY METRICS
   note: ''

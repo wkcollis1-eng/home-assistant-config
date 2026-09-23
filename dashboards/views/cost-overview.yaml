@@ -1,0 +1,271 @@
+# Cost Overview - Energy Performance dashboard (new view, 2026-09-22).
+# Backing entities: packages/billing_overview.yaml. Billing-period basis:
+# current period = since the utility's meter read; last period = latest bill;
+# YTD = bills by statement month, Jan..latest, vs the same months last year.
+# Install: Energy Performance > pencil > "+" (add view) > Save, open the new
+# view's editor > three-dot > Edit in YAML, replace everything with this file
+# from `title:` down, Save. Then run scripts/export_dashboards.py.
+title: Cost Overview
+path: cost-overview
+icon: mdi:cash-multiple
+type: sections
+max_columns: 2
+sections:
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Current billing period (in progress)
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.electric_billing_period_kwh' -%}
+          {{ '{:,.0f} kWh'.format(states(s) | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set rd = states('input_datetime.electricity_meter_read_date') -%}
+          {%- set r = state_attr('input_datetime.electricity_meter_read_date', 'timestamp') -%}
+          {%- set b = state_attr('input_datetime.electricity_bill_date', 'timestamp') -%}
+          {%- set n = states('input_number.electricity_bill_days') | float(30) -%}
+          {%- if r is not number -%}Electric · enter the meter read date below
+          {%- elif b is number and (b - r) / 86400 >= n -%}Electric · read date {{ rd }} is from an older bill
+          {%- elif not is_state('binary_sensor.electric_meter_stale', 'off') -%}Electric · SDR meter not being heard
+          {%- elif not has_value('sensor.electric_billing_period_kwh') -%}Electric · no period start stored for {{ rd }} - set the meter read date
+          {%- else -%}Electric · since {{ rd }} · day {{ state_attr('sensor.electric_billing_period_kwh', 'days') }}
+          {%- endif -%}
+        icon: mdi:flash
+        color: "{{ 'amber' if has_value('sensor.electric_billing_period_kwh') else 'red' }}"
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: "{{ '${:.4f}/kWh'.format(states('sensor.electricity_effective_rate') | float(0)) }}"
+        secondary: Electric rate · last bill, all-in
+        icon: mdi:cash
+        color: amber
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.gas_billing_period_ccf' -%}
+          {{ '{:,.1f} CCF'.format(states(s) | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set rd = states('input_datetime.gas_meter_read_date') -%}
+          {%- set r = state_attr('input_datetime.gas_meter_read_date', 'timestamp') -%}
+          {%- set b = state_attr('input_datetime.gas_bill_date', 'timestamp') -%}
+          {%- set n = states('input_number.gas_bill_days') | float(30) -%}
+          {%- if r is not number -%}Gas · enter the meter read date below
+          {%- elif b is number and (b - r) / 86400 >= n -%}Gas · read date {{ rd }} is from an older bill
+          {%- elif not is_state('binary_sensor.gas_meter_stale', 'off') -%}Gas · SDR meter not being heard
+          {%- elif not has_value('sensor.gas_billing_period_ccf') -%}Gas · no period start stored for {{ rd }} - set the meter read date
+          {%- else -%}Gas · since {{ rd }} · day {{ state_attr('sensor.gas_billing_period_ccf', 'days') }}
+          {%- endif -%}
+        icon: mdi:fire
+        color: "{{ 'orange' if has_value('sensor.gas_billing_period_ccf') else 'red' }}"
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: "{{ '${:.2f}/CCF'.format(states('sensor.gas_effective_rate') | float(0)) }}"
+        secondary: Gas rate · last bill, all-in (fixed charges included)
+        icon: mdi:cash
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Meter read dates (service-period end on the bill, not the statement date)
+      - type: custom:mushroom-entity-card
+        entity: input_datetime.electricity_meter_read_date
+        name: Electric Meter Read
+        icon: mdi:calendar-check
+        fill_container: true
+        layout: vertical
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-entity-card
+        entity: input_datetime.gas_meter_read_date
+        name: Gas Meter Read
+        icon: mdi:calendar-check
+        fill_container: true
+        layout: vertical
+        grid_options:
+          columns: 6
+          rows: 2
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Last billing period (latest bill)
+      - type: custom:mushroom-template-card
+        primary: "{{ '${:,.2f}'.format(states('input_number.electricity_bill_amount') | float(0)) }}"
+        secondary: >-
+          Electric · stmt {{ states('input_datetime.electricity_bill_date') }} · prev bill
+          {{ '${:,.2f}'.format(states('input_number.electricity_bill_amount_previous') | float(0)) }}
+        icon: mdi:flash
+        color: amber
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: "{{ '{:,.0f} kWh'.format(states('input_number.electricity_bill_kwh') | float(0)) }}"
+        secondary: >-
+          Electric · {{ states('input_number.electricity_bill_days') | int(0) }} days · prev bill
+          {{ '{:,.0f} kWh'.format(states('input_number.electricity_bill_kwh_previous') | float(0)) }}
+        icon: mdi:lightning-bolt
+        color: amber
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: "{{ '${:,.2f}'.format(states('input_number.gas_bill_amount') | float(0)) }}"
+        secondary: >-
+          Gas · stmt {{ states('input_datetime.gas_bill_date') }} · prev bill
+          {{ '${:,.2f}'.format(states('input_number.gas_bill_amount_previous') | float(0)) }}
+        icon: mdi:fire
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: "{{ '{:,.0f} CCF'.format(states('input_number.gas_bill_ccf') | float(0)) }}"
+        secondary: >-
+          Gas · {{ states('input_number.gas_bill_days') | int(0) }} days · prev bill
+          {{ '{:,.0f} CCF'.format(states('input_number.gas_bill_ccf_previous') | float(0)) }}
+        icon: mdi:meter-gas
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Year to date (bills by statement month) vs same months last year
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set e = 'sensor.electric_bills_ytd' -%}
+          {%- set g = 'sensor.gas_bills_ytd' -%}
+          {{ '${:,.2f}'.format(states(e) | float(0) + states(g) | float(0)) if has_value(e) and has_value(g) else '—' }}
+        secondary: >-
+          {%- set e = 'sensor.electric_bills_ytd' -%}
+          {%- set g = 'sensor.gas_bills_ytd' -%}
+          {%- set ly = state_attr(e, 'cost_last_year') | float(0) + state_attr(g, 'cost_last_year') | float(0) -%}
+          {%- set d = states(e) | float(0) + states(g) | float(0) - ly -%}
+          Total utility · {{ state_attr(e, 'year') }} to date vs {{ '${:,.2f}'.format(ly) }} last year
+          ({{ '+' if d >= 0 else '−' }}{{ '${:,.2f}'.format(d | abs) }})
+        icon: mdi:cash-multiple
+        color: >-
+          {%- set ns = namespace(miss=[]) -%}
+          {%- for s in ['sensor.electric_bills_ytd', 'sensor.gas_bills_ytd'] -%}
+          {%- set ns.miss = ns.miss + (state_attr(s, 'missing_months') or []) + (state_attr(s, 'missing_months_last_year') or []) -%}
+          {%- endfor -%}
+          {{ 'red' if ns.miss or not (has_value('sensor.electric_bills_ytd') and has_value('sensor.gas_bills_ytd')) else 'green' }}
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 12
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {{ '${:,.2f}'.format(states(s) | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {%- set ly = state_attr(s, 'cost_last_year') | float(0) -%}
+          {%- set d = states(s) | float(0) - ly -%}
+          {%- set m1 = state_attr(s, 'missing_months') or [] -%}
+          {%- set m0 = state_attr(s, 'missing_months_last_year') or [] -%}
+          Electric · Jan–{{ state_attr(s, 'through') }} vs {{ '${:,.2f}'.format(ly) }}
+          ({{ '+' if d >= 0 else '−' }}{{ '${:,.2f}'.format(d | abs) }})
+          {%- if m1 %} · MISSING {{ state_attr(s, 'year') }}: {{ m1 | join(', ') }}{% endif -%}
+          {%- if m0 %} · MISSING {{ (state_attr(s, 'year') | int(0)) - 1 }}: {{ m0 | join(', ') }}{% endif -%}
+        icon: mdi:flash
+        color: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {{ 'red' if (state_attr(s, 'missing_months') or state_attr(s, 'missing_months_last_year') or not has_value(s)) else 'amber' }}
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {{ '{:,.0f} kWh'.format(state_attr(s, 'kwh') | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {%- set ly = state_attr(s, 'kwh_last_year') | float(0) -%}
+          {%- set d = state_attr(s, 'kwh') | float(0) - ly -%}
+          Electric · Jan–{{ state_attr(s, 'through') }} vs {{ '{:,.0f}'.format(ly) }} kWh
+          ({{ '+' if d >= 0 else '−' }}{{ '{:,.0f}'.format(d | abs) }})
+        icon: mdi:lightning-bolt
+        color: >-
+          {%- set s = 'sensor.electric_bills_ytd' -%}
+          {{ 'red' if (state_attr(s, 'missing_months') or state_attr(s, 'missing_months_last_year') or not has_value(s)) else 'amber' }}
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {{ '${:,.2f}'.format(states(s) | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {%- set ly = state_attr(s, 'cost_last_year') | float(0) -%}
+          {%- set d = states(s) | float(0) - ly -%}
+          {%- set m1 = state_attr(s, 'missing_months') or [] -%}
+          {%- set m0 = state_attr(s, 'missing_months_last_year') or [] -%}
+          Gas · Jan–{{ state_attr(s, 'through') }} vs {{ '${:,.2f}'.format(ly) }}
+          ({{ '+' if d >= 0 else '−' }}{{ '${:,.2f}'.format(d | abs) }})
+          {%- if m1 %} · MISSING {{ state_attr(s, 'year') }}: {{ m1 | join(', ') }}{% endif -%}
+          {%- if m0 %} · MISSING {{ (state_attr(s, 'year') | int(0)) - 1 }}: {{ m0 | join(', ') }}{% endif -%}
+        icon: mdi:fire
+        color: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {{ 'red' if (state_attr(s, 'missing_months') or state_attr(s, 'missing_months_last_year') or not has_value(s)) else 'orange' }}
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {{ '{:,.0f} CCF'.format(state_attr(s, 'ccf') | float(0)) if has_value(s) else '—' }}
+        secondary: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {%- set ly = state_attr(s, 'ccf_last_year') | float(0) -%}
+          {%- set d = state_attr(s, 'ccf') | float(0) - ly -%}
+          Gas · Jan–{{ state_attr(s, 'through') }} vs {{ '{:,.0f}'.format(ly) }} CCF
+          ({{ '+' if d >= 0 else '−' }}{{ '{:,.0f}'.format(d | abs) }})
+        icon: mdi:meter-gas
+        color: >-
+          {%- set s = 'sensor.gas_bills_ytd' -%}
+          {{ 'red' if (state_attr(s, 'missing_months') or state_attr(s, 'missing_months_last_year') or not has_value(s)) else 'orange' }}
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2

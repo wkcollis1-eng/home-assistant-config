@@ -53,6 +53,22 @@ sensor.monitoring_peak_watts             flat load, peak is near running
 sensor.basement_battery_bank_monitor_ina228_reset_check  V1.27 - this boot's INA228 reset verdict; intact / first boot / BRIDGED / INVALIDATED
 ```
 
+## BILLING OVERVIEW (packages/billing_overview.yaml)
+
+```
+automation.billing_period_start_meter_lookup  read-date change or Save Bill; zeroes the start first; failure-only notice
+input_datetime.electricity_meter_read_date    the bill's service-period END (meter read) - NOT the statement date
+input_datetime.gas_meter_read_date            the bill's service-period END (meter read) - NOT the statement date
+input_number.electric_period_start_kwh        SDR kWh at 12:00 on the read date; 0 = no valid start
+input_number.gas_period_start_ft3             SDR ft3 at 12:00 on the read date; 0 = no valid start
+input_text.electric_archive_years             year each electric_archive_<mon> slot holds, Jan..Dec; gates the _ly_ roll
+input_text.gas_archive_years                  year each gas_archive_<mon> slot holds, Jan..Dec; gates the _ly_ roll
+sensor.electric_billing_period_kwh            since the meter read; unavailable if no start, SDR stale, or read date older than the latest bill
+sensor.electric_bills_ytd                     THE YTD definition - state $; attrs kwh, cost/kwh_last_year, missing_months[_last_year]
+sensor.gas_billing_period_ccf                 since the meter read; unavailable if no start, SDR stale, or read date older than the latest bill
+sensor.gas_bills_ytd                          THE YTD definition - state $; attrs ccf, cost/ccf_last_year, missing_months[_last_year]
+```
+
 ## CLIMATE NORMS
 
 ```

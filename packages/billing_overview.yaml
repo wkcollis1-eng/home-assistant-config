@@ -1,0 +1,645 @@
+# packages/billing_overview.yaml
+# Backing entities for Energy Performance > "Cost Overview"
+# (dashboards/views/cost-overview.yaml). Everything is on a BILLING-PERIOD
+# basis, not calendar months (Bill, 2026-09-22):
+#
+#   CURRENT PERIOD  consumption since the utility's last meter read, from the
+#                   SDR revenue meters. The unit price beside it is the last
+#                   bill's all-in rate, READ from sensor.electricity_effective_rate
+#                   / sensor.gas_effective_rate, never recomputed (R10)
+#   LAST PERIOD     the latest bill - the existing input_number.*_bill_* helpers
+#   YEAR TO DATE    bills whose STATEMENT month is Jan..M of year Y (M and Y
+#                   from the latest statement date) vs the same months of Y-1
+#
+# PERIOD START. input_datetime.*_bill_date holds the STATEMENT date, not the
+# meter-read date (Bill, 2026-09-22), so the read date is its own helper.
+# billing_period_start_lookup stores the SDR meter's long-term statistic at
+# 12:00 local on that date; consumption = live meter - stored start. Noon
+# because the read time within the day is unknown, so the start is off by at
+# most half a day's use. It ZEROES the start before looking up, so a failed or
+# empty lookup (date before SDR commissioning 2026-08-21, SDR deaf that hour,
+# a future date) leaves the period sensor UNAVAILABLE - never a plausible
+# number carried over from the previous period (R8). The period sensor is
+# also unavailable once a newer statement is entered against an old read date.
+#
+# PRIOR-YEAR ARCHIVE. The 12 electric/gas_archive_<mon>_* slots carry no year,
+# so each Save Bill overwrites the same month one year earlier. Save Bill
+# (automations.yaml) now moves that older value into *_archive_ly_<mon>_*
+# first. input_text.<utility>_archive_years records the year each main slot
+# holds (Jan..Dec, comma-separated), so a repeat press, or a corrected re-save
+# of a month already saved this year, never rolls this year onto last year.
+# A slot more than one year old rolls in as 0, which YTD reports as missing.
+#
+# SEED (2026-09-22). _ly_ Jan..Sep and the year lists came from
+# Residential-HVAC-Performance-Baseline-/data/monthly_summary.csv, which is
+# keyed by statement month like the archive: its 2026-01..06 rows equal the
+# live Jan..Jun slots, and its 2025-09 row equals the *_last_year helpers. NOT
+# monthly_electricity_eversource.csv - that one is keyed by SERVICE month, one
+# month earlier. _ly_ Oct..Dec stay 0: no statement-month data for 2024 in a
+# trusted keying. The Oct..Dec 2026 saves fill them before YTD reads them.
+#
+# LIMITS (stated, not papered over):
+#  - Between typing a new statement date and pressing Save, YTD already spans
+#    that month and lists it in missing_months (the slot is still last year's).
+#  - Two statements dated in one calendar month collide in one slot - the
+#    archive's existing design. Statements land ~10th (electric) and ~15th
+#    (gas), so that takes 10+ days of drift.
+#  - A change to input_number.*_meter_scale mid-period rescales the live
+#    meter but not the stored start, so the period figure jumps.
+
+input_datetime:
+  # The bill's service-period END (meter read), not the statement date.
+  electricity_meter_read_date:
+    name: "Electric Meter Read Date"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+
+  gas_meter_read_date:
+    name: "Gas Meter Read Date"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-check
+
+input_text:
+  # Year held by each <utility>_archive_<mon>_* slot, Jan..Dec. Written only by
+  # the Save Bill automations; seeded 2026-09-22.
+  electric_archive_years:
+    name: "Electric archive slot years"
+    max: 100
+    icon: mdi:calendar-range
+
+  gas_archive_years:
+    name: "Gas archive slot years"
+    max: 100
+    icon: mdi:calendar-range
+
+input_number:
+  # SDR meter reading at 12:00 on the meter-read date. Written only by
+  # billing_period_start_lookup; 0 = no valid start (period sensor unavailable).
+  electric_period_start_kwh:
+    name: "Electric meter at period start"
+    min: 0
+    max: 10000000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "kWh"
+
+  gas_period_start_ft3:
+    name: "Gas meter at period start"
+    min: 0
+    max: 100000000
+    step: 1
+    mode: box
+    unit_of_measurement: "ft³"
+
+  # Prior-year archive: the same statement month one year before the matching
+  # electric/gas_archive_<mon>_* slot. Same bounds as those slots.
+  electric_archive_ly_jan_amount:
+    name: "Archive LY: Jan Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_feb_amount:
+    name: "Archive LY: Feb Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_mar_amount:
+    name: "Archive LY: Mar Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_apr_amount:
+    name: "Archive LY: Apr Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_may_amount:
+    name: "Archive LY: May Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_jun_amount:
+    name: "Archive LY: Jun Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_jul_amount:
+    name: "Archive LY: Jul Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_aug_amount:
+    name: "Archive LY: Aug Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_sep_amount:
+    name: "Archive LY: Sep Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_oct_amount:
+    name: "Archive LY: Oct Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_nov_amount:
+    name: "Archive LY: Nov Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_dec_amount:
+    name: "Archive LY: Dec Electric $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  electric_archive_ly_jan_kwh:
+    name: "Archive LY: Jan Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_feb_kwh:
+    name: "Archive LY: Feb Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_mar_kwh:
+    name: "Archive LY: Mar Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_apr_kwh:
+    name: "Archive LY: Apr Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_may_kwh:
+    name: "Archive LY: May Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_jun_kwh:
+    name: "Archive LY: Jun Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_jul_kwh:
+    name: "Archive LY: Jul Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_aug_kwh:
+    name: "Archive LY: Aug Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_sep_kwh:
+    name: "Archive LY: Sep Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_oct_kwh:
+    name: "Archive LY: Oct Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_nov_kwh:
+    name: "Archive LY: Nov Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  electric_archive_ly_dec_kwh:
+    name: "Archive LY: Dec Electric kWh"
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+  gas_archive_ly_jan_amount:
+    name: "Archive LY: Jan Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_feb_amount:
+    name: "Archive LY: Feb Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_mar_amount:
+    name: "Archive LY: Mar Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_apr_amount:
+    name: "Archive LY: Apr Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_may_amount:
+    name: "Archive LY: May Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_jun_amount:
+    name: "Archive LY: Jun Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_jul_amount:
+    name: "Archive LY: Jul Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_aug_amount:
+    name: "Archive LY: Aug Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_sep_amount:
+    name: "Archive LY: Sep Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_oct_amount:
+    name: "Archive LY: Oct Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_nov_amount:
+    name: "Archive LY: Nov Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_dec_amount:
+    name: "Archive LY: Dec Gas $"
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+  gas_archive_ly_jan_ccf:
+    name: "Archive LY: Jan Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_feb_ccf:
+    name: "Archive LY: Feb Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_mar_ccf:
+    name: "Archive LY: Mar Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_apr_ccf:
+    name: "Archive LY: Apr Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_may_ccf:
+    name: "Archive LY: May Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_jun_ccf:
+    name: "Archive LY: Jun Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_jul_ccf:
+    name: "Archive LY: Jul Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_aug_ccf:
+    name: "Archive LY: Aug Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_sep_ccf:
+    name: "Archive LY: Sep Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_oct_ccf:
+    name: "Archive LY: Oct Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_nov_ccf:
+    name: "Archive LY: Nov Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+  gas_archive_ly_dec_ccf:
+    name: "Archive LY: Dec Gas CCF"
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+
+template:
+  - sensor:
+      - name: "Electric Billing Period kWh"
+        unique_id: electric_billing_period_kwh
+        unit_of_measurement: "kWh"
+        icon: mdi:flash
+        availability: >
+          {% set v = states('sensor.electric_meter_energy') %}
+          {% set s = states('input_number.electric_period_start_kwh') | float(0) %}
+          {% set r = state_attr('input_datetime.electricity_meter_read_date', 'timestamp') %}
+          {% set b = state_attr('input_datetime.electricity_bill_date', 'timestamp') %}
+          {% set n = states('input_number.electricity_bill_days') | float(30) %}
+          {{ v not in ['unknown','unavailable','none','']
+             and is_state('binary_sensor.electric_meter_stale', 'off')
+             and r is number and s > 0 and v | float(0) >= s
+             and (b is not number or (b - r) / 86400 < n) }}
+        state: >
+          {% set v = states('sensor.electric_meter_energy') %}
+          {{ (v | float(0) - states('input_number.electric_period_start_kwh') | float(0)) | round(1)
+             if v not in ['unknown','unavailable','none',''] else 0 }}
+        attributes:
+          period_start: "{{ states('input_datetime.electricity_meter_read_date') }}"
+          days: >
+            {% set r = state_attr('input_datetime.electricity_meter_read_date', 'timestamp') %}
+            {{ ((now().timestamp() - r) // 86400) | int(0) if r is number else none }}
+
+      - name: "Gas Billing Period CCF"
+        unique_id: gas_billing_period_ccf
+        unit_of_measurement: "CCF"
+        icon: mdi:fire
+        availability: >
+          {% set v = states('sensor.gas_meter_volume') %}
+          {% set s = states('input_number.gas_period_start_ft3') | float(0) %}
+          {% set r = state_attr('input_datetime.gas_meter_read_date', 'timestamp') %}
+          {% set b = state_attr('input_datetime.gas_bill_date', 'timestamp') %}
+          {% set n = states('input_number.gas_bill_days') | float(30) %}
+          {{ v not in ['unknown','unavailable','none','']
+             and is_state('binary_sensor.gas_meter_stale', 'off')
+             and r is number and s > 0 and v | float(0) >= s
+             and (b is not number or (b - r) / 86400 < n) }}
+        # 1 CCF = 100 ft3; the start is stored in the meter's own unit (ft3).
+        state: >
+          {% set v = states('sensor.gas_meter_volume') %}
+          {{ ((v | float(0) - states('input_number.gas_period_start_ft3') | float(0)) / 100) | round(2)
+             if v not in ['unknown','unavailable','none',''] else 0 }}
+        attributes:
+          period_start: "{{ states('input_datetime.gas_meter_read_date') }}"
+          days: >
+            {% set r = state_attr('input_datetime.gas_meter_read_date', 'timestamp') %}
+            {{ ((now().timestamp() - r) // 86400) | int(0) if r is number else none }}
+
+      # "Year to date" is defined ONCE per utility (R10): the state is YTD $,
+      # and consumption and the last-year figures are attributes over the same
+      # month range. A slot counts only if input_text.*_archive_years says it
+      # holds the statement year; every other month in range is listed in
+      # missing_months. Last year counts a _ly_ slot only if it is > 0.
+      - name: "Electric Bills YTD"
+        unique_id: electric_bills_ytd
+        unit_of_measurement: "$"
+        icon: mdi:flash
+        availability: >
+          {{ state_attr('input_datetime.electricity_bill_date', 'month') is number
+             and states('input_text.electric_archive_years').split(',') | count == 12 }}
+        state: >
+          {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+          {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+          {% set y = state_attr('input_datetime.electricity_bill_date', 'year') | string %}
+          {% set ys = states('input_text.electric_archive_years').split(',') %}
+          {% set ns = namespace(t=0.0) %}
+          {% for i in range(m) %}{% if i < ys | count and ys[i] == y %}{% set ns.t = ns.t + states('input_number.electric_archive_' ~ mo[i] ~ '_amount') | float(0) %}{% endif %}{% endfor %}
+          {{ ns.t | round(2) }}
+        attributes:
+          year: "{{ state_attr('input_datetime.electricity_bill_date', 'year') }}"
+          through: >
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {{ ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] if m > 0 else none }}
+          kwh: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {% set y = state_attr('input_datetime.electricity_bill_date', 'year') | string %}
+            {% set ys = states('input_text.electric_archive_years').split(',') %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% if i < ys | count and ys[i] == y %}{% set ns.t = ns.t + states('input_number.electric_archive_' ~ mo[i] ~ '_kwh') | float(0) %}{% endif %}{% endfor %}
+            {{ ns.t | round(0) }}
+          cost_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% set ns.t = ns.t + states('input_number.electric_archive_ly_' ~ mo[i] ~ '_amount') | float(0) %}{% endfor %}
+            {{ ns.t | round(2) }}
+          kwh_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% set ns.t = ns.t + states('input_number.electric_archive_ly_' ~ mo[i] ~ '_kwh') | float(0) %}{% endfor %}
+            {{ ns.t | round(0) }}
+          missing_months: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {% set y = state_attr('input_datetime.electricity_bill_date', 'year') | string %}
+            {% set ys = states('input_text.electric_archive_years').split(',') %}
+            {% set ns = namespace(miss=[]) %}
+            {% for i in range(m) %}{% if not (i < ys | count and ys[i] == y) %}{% set ns.miss = ns.miss + [mo[i]] %}{% endif %}{% endfor %}
+            {{ ns.miss }}
+          missing_months_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.electricity_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(miss=[]) %}
+            {% for i in range(m) %}{% if states('input_number.electric_archive_ly_' ~ mo[i] ~ '_amount') | float(0) <= 0 %}{% set ns.miss = ns.miss + [mo[i]] %}{% endif %}{% endfor %}
+            {{ ns.miss }}
+
+      - name: "Gas Bills YTD"
+        unique_id: gas_bills_ytd
+        unit_of_measurement: "$"
+        icon: mdi:fire
+        availability: >
+          {{ state_attr('input_datetime.gas_bill_date', 'month') is number
+             and states('input_text.gas_archive_years').split(',') | count == 12 }}
+        state: >
+          {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+          {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+          {% set y = state_attr('input_datetime.gas_bill_date', 'year') | string %}
+          {% set ys = states('input_text.gas_archive_years').split(',') %}
+          {% set ns = namespace(t=0.0) %}
+          {% for i in range(m) %}{% if i < ys | count and ys[i] == y %}{% set ns.t = ns.t + states('input_number.gas_archive_' ~ mo[i] ~ '_amount') | float(0) %}{% endif %}{% endfor %}
+          {{ ns.t | round(2) }}
+        attributes:
+          year: "{{ state_attr('input_datetime.gas_bill_date', 'year') }}"
+          through: >
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {{ ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] if m > 0 else none }}
+          ccf: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {% set y = state_attr('input_datetime.gas_bill_date', 'year') | string %}
+            {% set ys = states('input_text.gas_archive_years').split(',') %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% if i < ys | count and ys[i] == y %}{% set ns.t = ns.t + states('input_number.gas_archive_' ~ mo[i] ~ '_ccf') | float(0) %}{% endif %}{% endfor %}
+            {{ ns.t | round(0) }}
+          cost_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% set ns.t = ns.t + states('input_number.gas_archive_ly_' ~ mo[i] ~ '_amount') | float(0) %}{% endfor %}
+            {{ ns.t | round(2) }}
+          ccf_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(t=0.0) %}
+            {% for i in range(m) %}{% set ns.t = ns.t + states('input_number.gas_archive_ly_' ~ mo[i] ~ '_ccf') | float(0) %}{% endfor %}
+            {{ ns.t | round(0) }}
+          missing_months: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {% set y = state_attr('input_datetime.gas_bill_date', 'year') | string %}
+            {% set ys = states('input_text.gas_archive_years').split(',') %}
+            {% set ns = namespace(miss=[]) %}
+            {% for i in range(m) %}{% if not (i < ys | count and ys[i] == y) %}{% set ns.miss = ns.miss + [mo[i]] %}{% endif %}{% endfor %}
+            {{ ns.miss }}
+          missing_months_last_year: >
+            {% set mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %}
+            {% set m = state_attr('input_datetime.gas_bill_date', 'month') | int(0) %}
+            {% set ns = namespace(miss=[]) %}
+            {% for i in range(m) %}{% if states('input_number.gas_archive_ly_' ~ mo[i] ~ '_amount') | float(0) <= 0 %}{% set ns.miss = ns.miss + [mo[i]] %}{% endif %}{% endfor %}
+            {{ ns.miss }}
+
+automation:
+  - id: billing_period_start_lookup
+    alias: "Billing Period Start - Meter Lookup"
+    description: >
+      Stores the SDR revenue meter's long-term statistic at 12:00 on the
+      utility's meter-read date as the start of the billing period in
+      progress. Zeroes the start first, so any failure leaves the
+      sensor.*_billing_period_* entity unavailable rather than stale, and
+      notifies only when no statistic exists for that hour.
+    mode: queued
+    max: 4
+    triggers:
+      - trigger: state
+        entity_id: input_datetime.electricity_meter_read_date
+        not_to:
+          - unknown
+          - unavailable
+        id: electric
+      - trigger: state
+        entity_id: input_button.save_electric_bill
+        not_to:
+          - unknown
+          - unavailable
+        id: electric
+      - trigger: state
+        entity_id: input_datetime.gas_meter_read_date
+        not_to:
+          - unknown
+          - unavailable
+        id: gas
+      - trigger: state
+        entity_id: input_button.save_gas_bill
+        not_to:
+          - unknown
+          - unavailable
+        id: gas
+    actions:
+      - variables:
+          read_entity: >
+            {{ 'input_datetime.electricity_meter_read_date' if trigger.id == 'electric'
+               else 'input_datetime.gas_meter_read_date' }}
+          stat_id: >
+            {{ 'sensor.electric_meter_energy' if trigger.id == 'electric'
+               else 'sensor.gas_meter_volume' }}
+          start_entity: >
+            {{ 'input_number.electric_period_start_kwh' if trigger.id == 'electric'
+               else 'input_number.gas_period_start_ft3' }}
+          read_date: "{{ states(read_entity) }}"
+      - action: input_number.set_value
+        target:
+          entity_id: "{{ start_entity }}"
+        data:
+          value: 0
+      - condition: template
+        value_template: "{{ read_date not in ['unknown', 'unavailable', 'none', ''] }}"
+      # Naive times are local: recorder.get_statistics passes them through
+      # dt_util.as_utc, which assumes DEFAULT_TIME_ZONE (core 2026.9.3).
+      - action: recorder.get_statistics
+        data:
+          statistic_ids:
+            - "{{ stat_id }}"
+          start_time: "{{ read_date }} 12:00:00"
+          end_time: "{{ read_date }} 13:00:00"
+          period: hour
+          types:
+            - state
+        response_variable: stats
+      # No statistic for that hour returns {} with the id key ABSENT, not [].
+      - variables:
+          rows: "{{ stats.statistics.get(stat_id, []) }}"
+          start_value: >
+            {{ rows[0].state | float(0) if rows | count > 0 and rows[0].state is defined else 0 }}
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ start_value | float(0) > 0 }}"
+            sequence:
+              - action: input_number.set_value
+                target:
+                  entity_id: "{{ start_entity }}"
+                data:
+                  value: "{{ start_value | float(0) }}"
+        default:
+          - action: persistent_notification.create
+            data:
+              notification_id: "billing_period_start_{{ trigger.id }}"
+              title: "Billing period start not found"
+              message: >
+                No long-term statistic for {{ stat_id }} at 12:00 on
+                {{ read_date }}, so the {{ trigger.id }} current-period card on
+                Cost Overview stays unavailable. Check the meter read date
+                against the bill's service period, then re-enter it or press
+                Save Bill to retry.
