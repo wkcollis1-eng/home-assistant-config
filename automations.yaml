@@ -4418,14 +4418,26 @@
 # On Save Gas Bill: write that bill's DHW-corrected heating cost into the
 # current-season slot (1=Jul .. 12=Jun), keyed off the bill date to stay
 # consistent with the gas_archive month keying.
+# DHW pairing (Bill, 2026-09-23, pending.md P20 item 4): a statement dated
+# month M subtracts the Navien DHW for month M-1. CNG service runs ~12th of M-1
+# to ~11th of M, so M-1 is the nearer calendar month; with furnace runtime 0 min
+# Jun-Sep 2026 [M, reports/hvac_daily_2026.csv], M-1 leaves $5.01 of "heating"
+# in Jul+Aug 2026 and M leaves $26.64 [D, n=2 bills]. dhw_bill_thm holds
+# whichever month was saved last, so this runs on EITHER button and writes only
+# when the last Save DHW was for M-1; in the other order it waits for the second
+# press. The archive-ok stamp is written only when a slot is (P20 item 2).
 # ===============================================================
 - id: archive_monthly_gas_heat_cost
   alias: "Archive Monthly Gas Heating Cost (season store)"
-  description: "On Save Gas Bill, write gas_heating_cost_month into the current-season slot keyed off the bill date"
+  description: "On Save Gas Bill or Save DHW, write gas_heating_cost_month into the season slot keyed off the bill date, once the previous month's Navien DHW is saved"
   mode: single
   trigger:
     - platform: state
       entity_id: input_button.save_gas_bill
+      id: bill
+    - platform: state
+      entity_id: input_button.save_dhw
+      id: dhw
   action:
     - variables:
         capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
@@ -4439,8 +4451,21 @@
           {% set d = (cur_season | int(0)) - (bill_season | int(0)) %}
           {{ 'cs' if d == 0 else 'ls' if d == 1 else 'ls2' if d == 2 else 'none' }}
         cost: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
+        # Months as y*12 + (m-1), so Dec -> Jan crosses the year correctly.
+        # save_dhw_button files a press under the month BEFORE it (entered on
+        # the 1st for the prior month); the button state is the press time, UTC.
+        dhw_pressed: "{{ states('input_button.save_dhw') }}"
+        dhw_idx: >
+          {% set p = (dhw_pressed | as_datetime) if dhw_pressed not in ['unknown', 'unavailable', 'none', ''] else none %}
+          {{ -1 if p is none else (p | as_local).year * 12 + (p | as_local).month - 2 }}
+        bill_idx: "{{ (bill_year | int(0)) * 12 + (bill_month | int(0)) - 1 }}"
+        dhw_label: "{{ '%d-%02d' | format((dhw_idx | int(0)) // 12, (dhw_idx | int(0)) % 12 + 1) if (dhw_idx | int(-1)) >= 0 else 'none' }}"
+        need_label: "{{ '%d-%02d' | format(((bill_idx | int(0)) - 1) // 12, ((bill_idx | int(0)) - 1) % 12 + 1) }}"
+        # save_dhw_button skips a 0 entry; so does this, or the sensor's fixed-share
+        # fallback (71.9% [D: 566/787 CCF, CLAUDE.md BASELINES]) would be archived
+        dhw_ready: "{{ (dhw_idx | int(-1)) == (bill_idx | int(0)) - 1 and states('input_number.dhw_bill_thm') | float(0) > 0 }}"
     - choose:
-        - conditions: "{{ arr != 'none' }}"
+        - conditions: "{{ arr != 'none' and dhw_ready }}"
           sequence:
             - service: input_number.set_value
               target:
@@ -4450,7 +4475,18 @@
             - service: system_log.write
               data:
                 level: info
-                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}) = ${{ cost }}"
+                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}, DHW {{ dhw_label }}, trigger: {{ trigger.id }}) = ${{ cost }}"
+            - service: input_datetime.set_datetime
+              target:
+                entity_id: input_datetime.gas_heat_cost_archive_last_ok
+              data:
+                datetime: "{{ capture_stamp }}"
+        - conditions: "{{ arr != 'none' }}"
+          sequence:
+            - service: system_log.write
+              data:
+                level: info
+                message: "Gas heating cost not written (trigger: {{ trigger.id }}): bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }} subtracts {{ need_label }} DHW, last Save DHW was {{ dhw_label }}"
       default:
         - service: system_log.write
           data:
@@ -4463,15 +4499,17 @@
 # guard fires once per year; startup catch-up covers a reboot across Jul 1.
 # Stamp is written BEFORE the shift so a partial failure cannot re-fire and
 # double-shift (which would destroy a season of data).
+# Catch-up (P20 item 1, 2026-09-23): the condition used to pass only ON Jul 1,
+# so HA down for all of Jul 1 skipped the roll for a year, silently. It now
+# rolls on any day, from either trigger, while the stamp's season (Jul-Jun,
+# named by its starting year) is older than the current one. An unset or
+# unparseable stamp still rolls only on Jul 1: mid-season, nothing can tell a
+# rolled store from an unrolled one. The stamp string is local time and is
+# read as such (as_datetime leaves it naive; 2026.9.3 source).
 # ===============================================================
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.gas_heat_cost_archive_last_ok
-      data:
-        datetime: "{{ capture_stamp }}"
 - id: reset_season_gas_heat_cost
   alias: "Reset Gas Heating Season (Jul 1)"
-  description: "On Jul 1 roll season store ls2<-ls<-cs and zero current season, once per year with startup catch-up"
+  description: "Roll season store ls2<-ls<-cs and zero current season once per season: Jul 1 00:08, or the first 00:08/startup after it"
   mode: single
   trigger:
     - platform: time
@@ -4484,12 +4522,12 @@
     - condition: template
       value_template: >
         {% set last = states('input_datetime.gas_heat_season_last_reset') %}
-        {% if not (now().month == 7 and now().day == 1) %}
-          false
-        {% elif last in ['unknown', 'unavailable', '1970-01-01 00:00:00'] %}
-          true
+        {% set d = (last | as_datetime) if last not in ['unknown', 'unavailable', '1970-01-01 00:00:00'] else none %}
+        {% set cur_season = now().year if now().month >= 7 else now().year - 1 %}
+        {% if d is none %}
+          {{ now().month == 7 and now().day == 1 }}
         {% else %}
-          {{ (last | as_datetime | as_local).year != now().year }}
+          {{ (d.year if d.month >= 7 else d.year - 1) < cur_season }}
         {% endif %}
   action:
     - service: input_datetime.set_datetime
@@ -4510,7 +4548,7 @@
     - service: system_log.write
       data:
         level: info
-        message: "Gas heating season rolled over on Jul 1 (ls2<-ls<-cs, cs zeroed; trigger: {{ trigger.id }})"
+        message: "Gas heating season rolled over {{ now().strftime('%Y-%m-%d') }} (ls2<-ls<-cs, cs zeroed; trigger: {{ trigger.id }})"
 
 # ===============================================================
 # DEHUMIDIFIER CONTROL-SENSOR LOSS

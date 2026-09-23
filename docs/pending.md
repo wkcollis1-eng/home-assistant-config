@@ -223,42 +223,6 @@ month, then retire the four helpers and their eight save-automation steps.
 Touches the existing Billing view's YoY cards, so it needs its own session.
 ```
 
-### P20 — gas heating season store: rollover can be skipped for a year; misplaced "ok" stamp [MEDIUM]
-```
-Found 2026-09-23 fixing the Gas Heating Cost charts (CHANGELOG [2026.09.23]).
-The store was mis-seeded (2025-26 in cs, not ls); the data repair is a separate
-item, open_questions.yaml 2026-09-23. These are the defects that remain after it.
-
-1. reset_season_gas_heat_cost only passes its condition ON Jul 1 (now().month
-   == 7 and now().day == 1), from either trigger. If HA is down for all of Jul 1,
-   the startup catch-up on Jul 2 is refused and the roll is skipped for a year.
-   The next July bill then lands in cs_1 over LAST July, and every later bill
-   overwrites the season it should have followed. Nothing warns. Fix (not
-   built): allow the catch-up on any day while the stamp's season is older than
-   the current season, i.e. compare seasons, not calendar years on Jul 1 only.
-2. archive_monthly_gas_heat_cost stamps input_datetime.gas_heat_cost_archive_
-   last_ok AFTER its choose, so the stamp runs on the default "NOT archived"
-   branch too. The step also sits below the rollover's banner comment, so it
-   reads as part of the rollover. Fix: move it inside the archived branch.
-3. ls2 (2024-25) was never seeded, so the Calendar Year chart's "Last year"
-   line reads Jan-Jun 2025 as $0 until Jul 1 2027 rolls it out. Needs Bill's
-   2024-25 bills (not in InfluxDB: gas_heating_cost_month starts 2026-07-13).
-   UPDATE same day: Jan-Jun 2025 need no more bills. The retired
-   seed_2025_gas_archive (git 9b356be) holds them, and its May/Jun/Jul equal
-   Bill's CNG PDFs. With monthly_dhw_navien.csv, the season method gives
-   ls2_7..12 = 207.28 / 218.82 / 148.53 / 96.44 / 40.13 / 16.22 [D]. Not
-   written; Jul-Dec 2024 (ls2_1..6) are never charted.
-4. The archive fires on Save Gas Bill, mid-month, but that month's Navien DHW
-   total is only entered after month end (dhw_bill_thm changed 08-01, 09-11
-   [M]). So every save uses the PREVIOUS month's DHW. Jul/Aug 2026 archived 5 /
-   0 against 15.72 / 10.92 with their own DHW; repair.py corrects those two.
-   Sep 2026 (11.14) will be wrong the same way. The seed method (statement
-   month = Navien month, reproduced 11/11) needs the archive to run again when
-   the DHW for that month is entered. Fix (not built): also trigger the archive on a
-   dhw_bill_thm change and write the slot of the latest gas_bill_date, OR ask
-   Bill whether the intended pairing is the bill's service period instead.
-```
-
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
@@ -276,4 +240,7 @@ P12   InfluxDB CQs retired, Grafana SPC re-sourced               RESOLVED
 P13   statistics-buffer check                                    RESOLVED
 P15   backup essentials: coffee maker -> SEM Family Room,
       reload + card paste both confirmed live, see CHANGELOG      DEPLOYED
+P20   gas heating season store: rollover catch-up, archive
+      stamp, Jan-Jun 2025 fill, previous-month DHW pairing
+      (Bill, 2026-09-23); CHANGELOG [2026.09.23]                DEPLOYED
 ```

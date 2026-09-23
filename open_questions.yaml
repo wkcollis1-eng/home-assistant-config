@@ -1157,3 +1157,23 @@
     /api/states 14:01 UTC]. Snapshot and put-back:
     ha-data-repairs/2026-09-23-gas-heat-season/before-20260923-100133.json +
     restore.py. cs_3 (Sep, 11.14) is still provisional - P20 item 4.
+
+- asked: 2026-09-23
+  question: >-
+    Which Navien month should each gas bill subtract: the previous month
+    (statement M minus DHW of M-1, what the archive has always done) or the
+    same month (the seed's method, which the 10:01 repair assumed)? And after
+    the sandbox tests, gates and check_config pass, may the store be rewritten
+    and automation.reload run?
+  blocks: >-
+    P20 items 1-4 and the Jan-Jun 2025 ls2 fill. The pairing decides cs_1/cs_2,
+    all of ls, and ls2_7..12. Evidence put to Bill: CNG service ~12th of M-1 to
+    ~11th of M [S: 2025 bills]; furnace 0 min Jun-Sep 2026 [M]; phantom Jul+Aug
+    2026 heating $5.01 (M-1) vs $26.64 (M) [D, n=2].
+  answered: >-
+    2026-09-23, Bill (AskUserQuestion): "Previous month (Recommended)" and
+    "Yes, write + reload". Applied 11:03 (repair_prev_month.py --apply): stamp
+    first, 19 writes, all 36 slots + stamp read back equal. check_config
+    "valid", automation.reload, rollover did not fire. this season 16.14, last
+    season 1046.1 [M]. R13: the 10:01 cs_1/cs_2 change (previous entry) is
+    reversed. CHANGELOG [2026.09.23], P20 closed.

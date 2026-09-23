@@ -192,11 +192,99 @@ read back equal to target; ls2 untouched. `sensor.gas_heat_season_cost_current`
 went 1048.73 -> 37.78 and `_last` 0 -> 1067.47 [M: /api/states, 14:01 UTC].
 Put-back: `restore.py before-20260923-100133.json` (in ha-data-repairs). Sep
 2026 (cs_3 = 11.14) is still built on Aug's DHW - P20 item 4.
+R13, 11:03 same day: the cs_1/cs_2 change in this apply was REVERSED, and
+"still built on Aug's DHW" is not a defect. Bill chose previous-month pairing.
+See "Gas heating season store: P20 closed" below.
 
 **Charts live on Heating HVAC Diagnostics, 2026-09-23** (Bill pasted them). After
 `export_dashboards.py`, both cards in `dashboards/lovelace/lovelace.yaml` parse
 equal to the two snippets. The Energy Performance > Weekly copies (cards 4 and 5
 in `energy_performance.yaml`) are still the old versions: not pasted yet.
+
+### Gas heating season store: P20 closed; previous-month DHW pairing (R13: reverses the 10:01 cs_1/cs_2 change)
+
+Bill asked for P20 items 1-4 and the Jan-Jun 2025 "Last year" fill, with the
+write + reload approved (R12). He chose the DHW pairing: **a statement dated
+month M subtracts the Navien DHW for month M-1.**
+
+**The moments it must survive:** HA down for all of Jul 1; a gas bill saved
+before last month's Navien DHW is entered.
+
+**Why M-1** (Bill's decision; the evidence put to him): CNG service runs ~12th
+of M-1 to ~11th of M [S: Bill's 2025 CNG bills, service periods 4/11-5/12,
+5/13-6/11, 6/12-7/11]. Furnace runtime was 0 min Jun-Sep 2026 [M:
+reports/hvac_daily_2026.csv], so any "heating" left in those bills is error:
+M-1 leaves $5.01 across Jul+Aug 2026, M leaves $26.64 [D, n=2 bills, one
+summer; no significance test, so this is a direction, not a measured bias].
+M-1 is also what the automation has always done. Under either pairing the
+subtraction still counts gas-range use as heating.
+
+**R13, this morning's work, corrected here and not tidied away:**
+- The "Same day" paragraph above called the Jul/Aug 2026 archives (5 / 0) a
+  defect, and `repair.py` changed them to 15.72 / 10.92. That assumed same-month
+  pairing. Under Bill's pairing HA's own 5 / 0 were right, so they are restored.
+- P20 item 4 said Sep's 11.14 "will be wrong the same way". It is right.
+- The same-month method reproducing the seed 11/11 [D] showed what the seed
+  did, not what is right.
+
+**automations.yaml.** 2 of 86 automations changed. The other 84 parse
+identical, and the file is byte-identical outside the edited span [M].
+- `reset_season_gas_heat_cost` (item 1) rolls on any day, from 00:08 or startup,
+  while the stamp's season (Jul-Jun) is older than the current one. An unset or
+  unparseable stamp still rolls only on Jul 1. The harness found a second old
+  defect, not in P20: the old condition also refused when the stamp was earlier
+  in the same calendar year (Jun 30 stamp, Jul 1 roll).
+- `archive_monthly_gas_heat_cost` (items 2, 4) triggers on Save Gas Bill OR
+  Save DHW. It writes only when the last Save DHW press was for the bill month
+  minus one AND `dhw_bill_thm` > 0. Otherwise it logs "not written ... subtracts
+  YYYY-MM DHW, last Save DHW was YYYY-MM" at info. The
+  `gas_heat_cost_archive_last_ok` stamp moved into the archived branch, so
+  `binary_sensor.gas_heat_cost_archive_stale` now also fires when a bill has
+  waited more than 35 days for its DHW.
+- Tested (R2/R7) by rendering the sandbox templates on the live template engine
+  (`/api/template`, render only), with now()/states() substituted:
+  - 13 rollover cases: the live 2026-06-15 stamp (would roll), HA down all of
+    Jul 1 (rolls; old code did not), Dec->Jan.
+  - 11 archive cases: both press orders, the Jan wrap, a 22:30 EDT press that is
+    Oct 1 in UTC, DHW 0, never pressed.
+  - SUITE PASSED on the sandbox. Injected same-month pairing gave 5 FAILs;
+    moving the stamp back after the choose gave 2 FAILs [M].
+  - Harness: `p20_harness.py` in ha-data-repairs.
+
+**Data** (`repair_prev_month.py` in ha-data-repairs, applied 11:03):
+- Every target is recomputed from the live gas_archive_* / dhw_archive_* helpers
+  and `monthly_dhw_navien.csv`. The script refuses if they disagree, and was
+  proven to refuse on an injected mismatch.
+- `gas_heat_season_last_reset` was written FIRST: 2026-06-15 -> 2026-09-23
+  11:03:28. Under item 1, the old stamp would have rolled the repaired store at
+  the first 00:08 after the reload.
+- 19 writes:
+  - cs_1/cs_2 back to HA's 5.0 / 0.0.
+  - ls_1..12 re-derived.
+  - ls2_7..12 (Jan-Jun 2025) = 208.90 / 211.23 / 156.27 / 93.23 / 37.03 /
+    9.79 [D] (item 3; ls2_1..6 are never charted and stay 0).
+- All 36 slots and the stamp read back equal.
+- `sensor.gas_heat_season_cost_current` 37.78 -> 16.14 and `_last`
+  1067.47 -> 1046.1 [M: /api/states after the reload].
+- Put-back for the slots: `restore.py before-prev-20260923-110328.json`. **Do
+  not put the old stamp back while this automation is loaded - it will roll.**
+
+**Gate:**
+1. SYNTAX: PASS (parse-clean).
+2. SEMANTIC: 0 FAIL, 0 WARN, 2 INFO across 20 pipelines.
+3. DEPLOYED: check_config "valid", so PASS (HA-certified).
+4. RELOAD: automation.reload.
+5. OBSERVE:
+   - HA loaded both triggers.
+   - The rollover's last_triggered is still null and the stamp is unchanged
+     after the reload.
+   - The rollover condition on live state = False.
+   - The archive chain on live state pairs the Sep bill with Aug DHW and
+     computes 11.14 = cs_3.
+
+**Not verified:** a real button press end to end, which would write a live slot;
+the October bill or DHW entry will show it. The Calendar chart's "Last year"
+Jan-Jun 2025 now has values, but nobody has looked at it on the dashboard.
 
 ## [2026.09.22] - 2026-09-22
 

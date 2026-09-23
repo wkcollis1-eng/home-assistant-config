@@ -9,7 +9,7 @@ held nothing the config did not already state.
 ```
 accumulate_filter_runtime              23:58:00                                                            single     automations.yaml
 archive_monthly_cdd                    23:58:30                                                            single     automations.yaml  [pipeline]
-archive_monthly_gas_heat_cost          state:input_button.save_gas_bill                                    single     automations.yaml  [pipeline]
+archive_monthly_gas_heat_cost          state:input_button.save_gas_bill +1 more                            single     automations.yaml  [pipeline]
 archive_monthly_hdd                    23:58:15                                                            single     automations.yaml  [pipeline]
 basement_th_node_offline               state:binary_sensor.basement_th_node_node_status +1 more            single     watchdog.yaml
 basement_th_node_sensor_fault          state:binary_sensor.basement_th_node_basement_sensor_fault +1 more  single     watchdog.yaml
