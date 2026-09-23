@@ -118,6 +118,18 @@ stored them as `"true"` and every threshold line on six charts vanished with eve
 gate passing. Five more had sat unnoticed in the dehumidifier view.* Gate:
 `dashboard-bare-boolean` before a paste, `dashboard-boolean-key` after one.
 
+### R20
+
+*2026-09-23: at a 400K window over 09-16..09-23, 13 of 29 Reads after a compaction
+re-read a file read before it [M, n=29 Reads, 5 compactions] - detail the summary
+did not carry. The session-start audit verdict, added by a hook, is only
+summarised at a compaction, because the audit hook matches `startup|resume`. The
+same day Bill lowered the auto-compact window to 200K for a cost trial, which
+multiplies compactions (28 a week against 1 at 400K [I, transcript replay]), so the
+loss would have multiplied with it.* Gate: `context_hygiene.py` `posttooluse` and
+`sessionstart` (matcher `compact`); 58 checks, 10 of 10 mutations caught. Two of
+the new tests first let a mutation through - each claimed a case it never built.
+
 ### CONSTRAINTS - dashboards/ is a source copy
 
 Earned 2026-08-23: P12 repointed two rows at `utility_electric_power_avg`, all

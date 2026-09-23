@@ -103,8 +103,22 @@ symptom: that session started in silence, whereas here no prompt would get
 through. **To remove or rename the hook, delete both settings entries first,
 then the file.**
 
-**Test:** `python .claude/hooks/test_hygiene.py` (27 checks, prints `FAILS: 0`).
+**Test:** `python .claude/hooks/test_hygiene.py` (58 checks, prints `FAILS: 0`), then
+`python .claude/hooks/mutate_hygiene.py` (prints `MUTATIONS MISSED: 0`).
 Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.
+
+**R20 checkpoint (added 2026-09-23).** Two more entries: `PostToolUse` with no
+matcher (`posttooluse`) and `SessionStart` matcher `compact` (`sessionstart`). A line
+starting "R20 CHECKPOINT DUE" is the nudge: context has passed 80% of
+`autoCompactWindow` and `~/.claude/checkpoints/<session>.md` is older than that
+crossing. It repeats after every tool call until the file is written. After a
+compaction, the checkpoint comes back verbatim with the session-start audit verdict,
+and "WARN (R8, context_hygiene)" means it was missing, stale or over 8,000 chars.
+Neither entry can wedge a session if the script goes missing: exit 2 on
+`PostToolUse` only shows stderr to Claude, and on `SessionStart` only to the user
+(hooks.md, "Exit code 2 behavior per event"). **There is deliberately no
+PreCompact entry** - there, exit 2 blocks the compaction and at the context limit
+the request fails. Per-compaction record: `~/.claude/checkpoints/compactions.log`.
 
 ### `model_router.py` + `ha-gate` agent - the Sonnet/Opus split (added 2026-09-19, RETIRED 2026-09-21)
 

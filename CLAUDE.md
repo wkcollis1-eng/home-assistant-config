@@ -112,7 +112,7 @@ is not is worse than one known to rest on judgement.
 | lever | covers | where |
 |---|---|---|
 | `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
-| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", and running the audit at session start / after any turn that changed `H:` | `~/.claude/settings.json` + `~/.claude/hooks/` |
+| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
 
@@ -310,6 +310,18 @@ silently ignored. Generated YAML counts - quote in the dumper, do not trust it.
 *Why: 2026-09-16, bare `y:` keys in a pasted view erased every threshold line on
 six charts with every gate passing.* Gate: `dashboard-bare-boolean` before a
 paste, `dashboard-boolean-key` after one.
+
+### R20 — What must survive a compaction goes on disk before the compaction
+Keep `~/.claude/checkpoints/<session id>.md` current at each milestone, under
+8,000 chars, in these sections: goal / verdicts verbatim / tagged figures /
+decisions and why / disproven theories / open questions to Bill / next step /
+files touched. After a compaction its verdicts are the record and the summary is
+a paraphrase; a WARN that it was missing or stale is read aloud in the next message.
+*Why: 2026-09-23, a compaction summary is written by the model and only CLAUDE.md,
+memory, a few files and hook output come back from disk; 13 of 29 Reads after a
+compaction re-read a file already read [M].* Gate: `context_hygiene.py` nudges
+from 80% of `autoCompactWindow` until the file is written, re-injects it after
+every compaction, and WARNs (R8) when it was stale or missing.
 
 ## Engineering Standards (ALWAYS APPLY)
 - Measure-first: **the operational form of this is R15-R18 — follow those, not this bullet.** Flag uncertainty before stating any figure; verify specs from primary sources; never assert ungrounded numbers

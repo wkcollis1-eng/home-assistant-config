@@ -39,6 +39,7 @@ is calibrated against.
 | 2026-09-18 | At the post-test recharge anchor, `bank.hwcheck` `CYCLE CONFIRM` logs SW net − HW net **positive, and +4 to +13 mA times the cycle's hours**: the <50 mA drain the SW deadband drops (8.66 mA since 08-31 [D from M], ±50 %). That is agreement to well under 1 % of ~800 Ah throughput. Falsified by a negative delta or one outside the band. Void if the INA228 loses power inside the cycle (V1.25 then logs the reset and has no anchor to compare). Basis [D]: one ADC feeds both integrators, so gain cancels | yes — written after the V1.25 build, before it was flashed | pending |
 | 2026-09-18 | **RE-REGISTRATION of the three battery-bank rows above against V1.26**, which superseded V1.25 before either was flashed. Not a new claim: the claims, bands and falsifiers are unchanged and are scored on their own rows. They carry over because: (1) the Ri lambda behaves identically, since synth and replay output from V1.26 is byte-identical to V1.25's [M]; (2) RECON reads the SW ledger, which V1.26 does not touch; (3) CYCLE CONFIRM's delta arithmetic is unchanged, and only a bridge count is appended. Where row 38 says "first clean full-charge anchor on V1.25", read V1.26. **Row 39's void condition stands as written:** a cycle in which the INA228 loses power is void even though V1.26 bridges it. A bridge carries up to ~10.3 mAh at idle [D: 10 + 8.66 mA x 120 s / 3600] plus whatever flowed while the monitor was off, and the band was not sized for that. Row 37 is scored on the first single-stage step of >= 25 A from <= 5 A. Per Bill's 09-18 R14 answer, the staged breaker start will not arm one, so the step may be a deliberate heater step rather than part of the test | yes — written after the V1.26 build, before it was flashed | n/a — re-registration; scored on the rows above |
 | 2026-09-18 | The first boot of battery-bank-monitor V1.27 (an OTA flash, so the ESP reboots and the INA228 keeps power) publishes `INA228 Reset Check` = **`INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - HW anchor not yet seeded`**. This is the first observable proof that V1.26's first boot (15:58) wrote the 0x7FFE sentinel, since no boot-time log line can reach the API stream (V1.27 entry). Falsified by `TEMP_LIMIT=0x7FFF but CHARGE kept counting` (the sentinel was never written), by any other branch, or by the entity staying Unknown after the device reconnects. Void if the monitor loses power between now and the flash. Basis: V1.26 first-boot logic on the host harness [M]; HW Net Charge was continuous across the V1.26 flash and the 16:11 Restart [M]; ESP-only reboots kept CHARGE on 09-07 and 09-18 [M] | yes — written after the V1.27 build, before it was flashed | **HIT** — same day. Bill flashed at 16:21 EDT. `sensor.basement_battery_bank_monitor_ina228_reset_check` read exactly the predicted string at 20:21:33Z [M, HA state; Bill's screenshot]. The device reports config hash 0x6b05d980, the tested 2026.9.0 build [M], and HW Net Charge was continuous across the flash (−3.73870 → −3.73884 Ah) [M]. So V1.26's first boot did write the sentinel, and neither the 16:11 Restart nor this flash reset the INA228 |
+| 2026-09-23 | The 200K auto-compact trial (from 09:18) with the R20 checkpoint lowers the priced cost per main-thread call by at least 5% against 09-16..09-23 at Opus 5.5 weights (cache read 0.05x, 1 h write 2x, output 5x of base input) [I: transcript replay predicts −9.1%, from 5,652 calls]. Falsified by priced cost per call not below the baseline, by a median first call after compaction above 75K (the replay turns a loss there), or by more than 1.9 re-reads per compaction [D: 13 / 7]. Void if the week has under 5 compactions. | yes — written before any trial data was analysed | pending |
 
 **Running score: 7 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
@@ -58,6 +59,35 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
+
+### R20 checkpoint: what must survive a compaction goes on disk (Claude Code hooks)
+
+Bill set `/autocompact 200K` (09:18) to cut token cost and asked how to do it
+without losing accuracy. **The moment it must survive:** an auto-compaction mid-run
+with nobody watching. Working means the next call starts with the verdicts and
+open questions word for word, and a stale checkpoint says so.
+
+- `context_hygiene.py posttooluse` (new `PostToolUse` entry, all tools): from 80% of
+  `autoCompactWindow` (read from settings, never copied), asks after each tool call
+  for `~/.claude/checkpoints/<session>.md` until it is newer than the crossing.
+  Skipped in subagents. 34-47 ms per call [M, n=1 each, 1.7 MB and 18.1 MB transcripts].
+- `context_hygiene.py sessionstart` (new `SessionStart` entry, matcher `compact`):
+  re-injects the checkpoint verbatim (8,000-char cap; hook context over 10,000 is
+  replaced by a preview [S: hooks.md, "Add context for Claude"]), the session-start
+  audit verdict read from the transcript, and a WARN when the checkpoint was missing
+  or stale. One line per compaction in `~/.claude/checkpoints/compactions.log`.
+- No PreCompact hook: a missing script exits 2, which blocks the compaction and at
+  the context limit fails the request. No PostCompact hook: the summary is already
+  in the transcript (R10).
+- Tests: `.claude/hooks/test_hygiene.py` 58 checks (27 existing + 31 new), and
+  `.claude/hooks/mutate_hygiene.py` 10 of 10 mutations caught. Two new tests first
+  missed their mutation; both were fixed before deploy. Live, n=1: the nudge fired
+  on the first tool call after the settings edit and went silent once the file existed.
+- R20 in CLAUDE.md, scar in `docs/rules-history.md`, prediction pre-registered in
+  the ledger above.
+
+**Left open:** the re-injection has not yet run on a real compaction; the first one
+is the live test (check `compactions.log`).
 
 ### Gas Heating Cost charts: two chart defects, one data defect (charts NOT yet live)
 
