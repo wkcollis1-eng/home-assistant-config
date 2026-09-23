@@ -828,3 +828,149 @@
     charging at its own cutoff]. Flagged to Bill; that doc is not edited.
     (3) Whether the BMS balances cannot be settled from documentation. The
     matched-load capacity test before and after a top-off is the only measure.
+
+- asked: 2026-09-21
+  question: >-
+    How far is the basement router from the battery monitor and its INA228
+    sense leads, is it the WiFi access point the monitor and the basement TH
+    node connect to, and was it moved, re-set-up or given new firmware or
+    settings between mid-July and mid-September?
+  blocks: >-
+    The remedy for the INA228 idle current noise (5-min sd 9 mA in July, 15-18
+    mA since 2026-09-16 [M, InfluxDB]): ferrite or RC filter on the sense pair,
+    moving the router or the leads, or a board-level fix. The noise, the
+    quiet windows and the router go together: in 45 quiet windows
+    (2026-08-24..09-21) the router's Kasa plug drew less power (p 6e-15) and
+    read a weaker signal (p 1e-23), and its weekly signal rose -42 -> -32 dBm
+    with the noise trend (Spearman 0.89, p 0.0015, n 9 weeks) [M]. Upstairs
+    clients did not move.
+  answered: >-
+    2026-09-21, Bill: the router sits on a metal shelf 16" above and 24"
+    horizontal from the monitor; the TH node is on the monitor's shelf,
+    directly below the router. Whether the router is the access point both
+    nodes use, and whether it changed between mid-July and mid-September,
+    were NOT answered - re-asked in the entry below.
+
+    Consequence: router-to-monitor is ~29" in a straight line [D: sqrt(16^2 +
+    24^2) = 28.8"], so the monitor, its sense leads and the TH node all sit
+    close to the router. The shorted-input test (sense pair lifted, VIN+
+    shorted to VIN- for ~1 h in a noisy stretch) still decides leads vs board.
+    The geometry adds a second cheap test: more distance between router and
+    monitor.
+
+- asked: 2026-09-21
+  question: >-
+    Is the basement router the WiFi access point the battery monitor and the
+    basement TH node connect to, and was it moved, re-set-up or given new
+    firmware or settings between mid-July and mid-September?
+  blocks: >-
+    Reading the router plug's weekly signal rise, -42 -> -32 dBm, which tracks
+    the monitor noise (Spearman 0.89, p 0.0015, n 9 weeks) [M], as a router
+    change or a change elsewhere - and so which remedy for the INA228 idle
+    noise to try first. Distance part answered in the entry above.
+  answered: >-
+    2026-09-22, Bill, by intervention rather than recollection: he relocated
+    the basement router at ~14:00 ET and reports the noise reduced. He also
+    reports it reduces further while the button is held and the panel is lit -
+    logged separately, see the INA228 noise entries.
+
+    The access-point half is answered by the move itself [M, InfluxDB, 20-min
+    blocks, 13:00 -> 15:00+ ET]: the router's own Kasa plug went -30.5 ->
+    -40.5 dBm and the basement TH node -29.2 -> -36.9 dBm, while the monitor
+    went -37.8 -> -36.5 dBm, i.e. unchanged. The TH node sits on the monitor's
+    shelf directly below the router (entry above), so the two are co-located;
+    one AP cannot move 8-10 dB for one and 0 dB for the other. THE MONITOR IS
+    NOT ASSOCIATED TO THE BASEMENT ROUTER.  <-- WRONG. See the R13 correction at
+    the end of this entry. Both read SSID "Lake Poco", which is shared across
+    access points and so identifies nothing - the firmware publishes no BSSID.
+
+    Separately, the monitor's own link stepped -31.3 -> -38.4 dBm during
+    09-21 14:00-20:00 ET, a day BEFORE the move, while the TH node moved the
+    other way (+2.8 dB) - consistent with a roam to another AP, cause unknown.
+    <-- ALSO WRONG: it is Bill's 09-21 ~13:00 box lift. R13 correction below.
+
+    Consequence for the remedy, and it reorders it: the noise fell while the
+    monitor's own link was unchanged, so nothing carried by the monitor's WiFi
+    link explains it. The router is an RF aggressor near the sense pair, not
+    the monitor's peer. Sense-pair remedies (twist the pair, ferrite, a
+    capacitor across VIN+/VIN- at the breakout with NO series resistor) now
+    rank above anything link-related. The mid-July-to-mid-September half is
+    moot: the intervention supersedes the correlation it existed to
+    disambiguate.
+
+    NOT yet established. The post-move quiet run was 1 h 40 min at the time of
+    writing, against a 14-day pre-move record of 4 runs >= 90 min, 1 run
+    >= 150 min and 0 runs >= 240 min [M, 15-min windows, sd < 8 mA, n=1333].
+    It is not yet outside the pre-move distribution. Verdict rule set here:
+    continuous sd < 8 mA past 4 h beats every run on record.
+
+    R13 CORRECTION, 2026-09-22, same day, same session. The two sentences
+    marked WRONG above were wrong. Bill: BOTH the bank monitor and the
+    basement TH node are on the basement router, a Netgear R6400, and the
+    -7.1 dB step is his box lift, not a roam. The inference failed because it
+    assumed two co-located radios must track one AP's movement alike. At
+    2.4 GHz (lambda 4.9") in a basement with a metal shelf and a 500 Ah bank,
+    0.7-1.8 m is a multipath field, not a free-space one: the TH node happened
+    to track path loss (-7.7 dB [M] vs -7.3 dB predicted [D: 20*log10(72/31.2)])
+    and the monitor did not. Two co-located radios splitting is exactly what
+    multipath does, so the observation never carried the conclusion drawn from
+    it. The consequence paragraph above still stands, but on the evidence in
+    the 2026-09-22 entry below, not on this one.
+
+- asked: 2026-09-22
+  question: >-
+    Does the basement router's client list show the Battery Bank Monitor
+    (MAC ac:27:6e:7c:b4:70) as one of its clients, and how many access points
+    does "Lake Poco" run on?
+  blocks: >-
+    Confirming by inspection what the 2026-09-22 relocation established by
+    inference - that the monitor associates to a different AP than the TH node
+    beside it. It also decides whether the monitor's unexplained -7.1 dB step
+    during 09-21 14:00-20:00 ET was a roam. A BSSID sensor in the firmware
+    (ESPHome wifi_info) would answer it permanently and make any future roam
+    visible, but it is only worth adding if there is more than one AP to tell
+    apart.
+  answered: >-
+    2026-09-22, Bill: both the bank monitor and the basement TH node are on the
+    basement router, a Netgear R6400. Three radios carry "Lake Poco" - the
+    Xfinity modem (2nd-floor guest bedroom), a Netgear RS1000 (2nd-floor master
+    bedroom) and the R6400 (basement). He also supplied the two moves the data
+    had been trying to read: 2026-09-21 ~13:00 ET he put a box under the
+    basement router, lifting it ~4" off the shelf; 2026-09-22 ~14:00 ET he
+    moved it ~3 ft west, now ~6 ft from the bank monitor.
+
+    Consequence 1: the -7.1 dB step in the monitor's RSSI during 09-21
+    14:00-20:00 ET is the box lift, not a roam. A BSSID sensor is no longer
+    needed to answer "which AP" - he has - though with three radios one would
+    still make a future roam visible. Demoted to optional.
+
+    Consequence 2, and it is the one that reorders the remedies. The two moves
+    are a three-level dose-response on the noise [M, 15-min windows, sd of
+    sensor.battery_bank_monitor_battery_current, fraction of windows below
+    8 mA]:
+      A  on the metal shelf, 28.8" from the monitor:  55/720 = 0.076, median sd 14.7 mA
+      B  +4" box lift, 31.2":                         29/96  = 0.302, median sd 16.7 mA
+      C  moved 3 ft west, 72":                         8/8   = 1.000, median sd  6.4 mA
+    Fisher A vs B p 3.7e-9; B vs C p 1.5e-4; A vs C p 2.1e-9. AUTOCORRELATION
+    CAVEAT: B and C are single contiguous blocks and the sd series is
+    autocorrelated, so those p-values overstate. A-to-B is the well-powered
+    step - 96 windows across a full day/night cycle. C rested on 120 min of the
+    240 min run-length rule set in the entry above at the time of writing.
+
+    THE NOISE TRACKS THE ROUTER'S PHYSICAL PROXIMITY TO THE METAL SHELF AND THE
+    SENSE LEADS, NOT THE RF LEVEL AT THE MONITOR'S ANTENNA. The lift moved the
+    monitor's RSSI -7.1 dB and the move moved it +1.3 dB - opposite directions -
+    while the noise fell at BOTH steps, so RSSI is not the mediator. The lift
+    also added only 2.4" of straight-line distance [D: sqrt(20^2+24^2) = 31.2"
+    vs sqrt(16^2+24^2) = 28.8", +8%], which no far-field argument turns into a
+    4.0x change in quiet fraction [D: 0.302/0.076, Fisher p 3.7e-9 above] - but
+    taking the router off the shared metal shelf does. Near-field or conducted
+    coupling through the shelf structure into the INA228 differential pair is
+    the [I] that fits both steps; it has not been tested directly.
+
+    Remedy order that follows: (1) the router stays off and away from the metal
+    shelf - done, free, and the largest measured lever; (2) route the sense
+    leads away from the shelf, twist the pair, ferrite; (3) a capacitor across
+    VIN+/VIN- at the breakout with NO series resistor. The separate display-on
+    effect (sd 1.7-4.8 mA while the panel is lit, n=7, Wilcoxon p 0.016) is NOT
+    explained by any of this and still needs the remote-display-switch test.
