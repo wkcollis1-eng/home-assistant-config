@@ -1307,3 +1307,40 @@
     /api/dashboards/uid/hvac-status]: version 36, updated 2026-09-23
     14:46:41-04:00; all 47 served query targets equal
     grafana/dashboards/hvac_status.json (0 differ; v35 had 26).
+
+- asked: 2026-09-23
+  question: >-
+    Aprilaire E080 condensate: where does it drain, and can you catch one full
+    compressor run in a container and weigh the water in grams, noting the
+    start time? (Runs last 16 min [M, median, n=345, 2026-08-07..09-23].)
+  blocks: >-
+    Any verdict on the E080's water removal against its rating, 65 pt/day and
+    IEF 2.35 L/kWh [S: ENERGY STAR pd_id 4510066, 10 CFR 430 Subpt B App X1].
+    The plug gives energy per run, 0.121 kWh [M, n=345]; litres removed is not
+    derivable from the basement T/RH sensor (room volume unknown, moisture
+    buffered in materials).
+  answered: >-
+    2026-09-23, Bill: "condensate drains to a condensate pump shared with the
+    navien hwh. will not capture and weigh the water." So the E080's water
+    removal against 65 pt/day and IEF 2.35 L/kWh stays UNVERIFIED - by
+    decision, not omission; do not re-ask the weighing. Its electrical draw,
+    stability and control were verified from the plug and the SHT45 [M, n=340
+    runs, 2026-08-07..09-22]. The shared pump is no substitute counter: it is
+    on the HWH recirc Kasa plug, and its cycles (median 15 s) are below that
+    plug's polling resolution (packages/spc.yaml, HWH recirc threshold note) -
+    R18, the sampler is slower than the event.
+
+- asked: 2026-09-23
+  question: >-
+    Is the E080 free-standing, or ducted (to the air handler, or with its own
+    supply/return runs)?
+  blocks: >-
+    Which rated airflow the condensate figure is compared against: 185 CFM at
+    0.0 in. w.c. vs 135 / 85 CFM at 0.2 / 0.4 [S: Aprilaire 10015109 B2209062A,
+    Specifications]. The "Ducting: None (free-standing unit)" in
+    baseline-repo/SYSTEM_SPECIFICATIONS.md describes the retired Santa Fe.
+  answered: >-
+    2026-09-23, Bill: "freestanding, not ducted." The applicable rating is
+    therefore the 0.0 in. w.c. one: 185 CFM, 80 pt/day at 80 F / 60 % RH [S:
+    Aprilaire 10015109 B2209062A, Specifications]. Recorded in
+    SYSTEM_SPECIFICATIONS.md in the Residential-HVAC-Performance-Baseline- repo.
