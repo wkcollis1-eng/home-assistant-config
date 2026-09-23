@@ -627,7 +627,7 @@ BTU/CCF:              103,700
 Heating efficiency:   90.3 CCF/1k HDD (Navien-corrected 2025)
 DHW ratio:            28.1% (220.8/787 CCF Navien-metered)
 Heating ratio:        71.9% (566/787 CCF)
-Annual HDD65:         6,270 (2025 actual); climate normal 5,270
+Annual HDD65:         6,270 (2025 actual); climate normal 5,873 (BDL NCEI 1991-2020 [M: sum of 365 ACIS BDL daily normals]; the 5,270 here until 2026-09-23 was a hard-coded dict's sum, not a BDL normal)
 Annual electricity:   6,730 kWh
 Baseline power:       200W (quiet house)
 Annual gas:           787 CCF
