@@ -1,0 +1,419 @@
+# HAND-MAINTAINED - Energy Performance > Monthly view. LIVE: equals the live view.
+# 2026-09-23: re-made from .storage/lovelace.energy_performance after Bill's paste.
+# The copy staged here earlier repointed the _bdl Heating Efficiency gauge to
+# sensor.hvac_heating_efficiency_12m, which would have made it a duplicate of the
+# gauge already on that sensor (my design error, R13). Bill deleted the gauge
+# instead; the editor also added `cards: []`. This file is what he pasted.
+# Paste: dashboard > pencil > Monthly tab > view menu > Edit in YAML > replace all.
+title: Monthly
+path: monthly
+icon: mdi:calendar-month
+type: sections
+max_columns: 2
+sections:
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Month to Date
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''input_number.hdd_cumulative_month_auto'') | round(1) }}'
+        secondary: HDD MTD
+        icon: mdi:snowflake
+        color: cyan
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''input_number.cdd_cumulative_month_auto'') | round(1) }}'
+        secondary: CDD MTD
+        icon: mdi:sun-thermometer
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_total_heat_runtime_month'') | round(2) }}'
+        secondary: Heat Runtime MTD (h)
+        icon: mdi:fire
+        color: green
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_furnace_runtime_month_2'') | float(0) | round(1) }}h'
+        secondary: Furnace Runtime MTD
+        icon: mdi:clock-outline
+        color: deep-orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_furnace_cycles_month_2'') | int(0) }}'
+        secondary: '{{ (states(''sensor.hvac_furnace_cycles_month_2'') | int(0) / now().day) | round(1)
+          }} cycles/day'
+        icon: mdi:counter
+        color: indigo
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_ac_runtime_month'') | float(0) | round(2) }}h'
+        secondary: AC Runtime MTD
+        icon: mdi:air-conditioner
+        color: blue
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_runtime_per_hdd_month'') | round(1) }} min/HDD'
+        secondary: Furnace Runtime/HDD (MTD)
+        icon: mdi:speedometer
+        color: blue
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 5
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{% set mpc = states(''sensor.hvac_furnace_min_per_cycle_month'') | float(0) %} {{
+          "{:.2f}".format(mpc) }} min'
+        secondary: '{% set mpc = states(''sensor.hvac_furnace_min_per_cycle_month'') | float(0) %}
+          {{ ''Long'' if mpc >= 15 else (''Normal'' if mpc >= 8 else (''Short'' if mpc >= 5 else ''Very
+          short'')) }} cycles MTD'
+        icon: mdi:timer-cog
+        color: '{% set mpc = states(''sensor.hvac_furnace_min_per_cycle_month'') | float(0) %} {{
+          ''green'' if mpc >= 8 else (''orange'' if mpc >= 5 else ''red'') }}'
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 5
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_zone_balance_month'') | round(0) }}%'
+        secondary: Zone Balance 2F (MTD)
+        icon: mdi:scale-balance
+        color: teal
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_chaining_index_month'') | float(1) | round(2) }}'
+        secondary: Chaining Index (MTD)
+        icon: mdi:link-variant
+        color: '{% set idx = states(''sensor.hvac_chaining_index_month'') | float(1) %} {{ ''green''
+          if idx >= 1.4 else (''orange'' if idx >= 1.2 else ''red'') }}'
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 4
+          rows: 2
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Season Archive
+      - type: custom:apexcharts-card
+        header:
+          title: Furnace Min/Cycle — Monthly Archive
+          show: true
+          show_states: false
+        apex_config:
+          chart:
+            type: bar
+            height: 240
+          plotOptions:
+            bar:
+              columnWidth: 55%
+              borderRadius: 3
+              dataLabels:
+                position: top
+          dataLabels:
+            enabled: true
+            offsetY: -18
+            style:
+              fontSize: 11px
+            formatter: |
+              EVAL:function(val) { return (val !== null && val > 0) ? val.toFixed(1) : '—'; }
+          xaxis:
+            type: category
+            categories:
+              - Jan
+              - Feb
+              - Mar
+              - Apr
+              - May
+              - Jun
+              - Jul
+              - Aug
+              - Sep
+              - Oct
+              - Nov
+              - Dec
+          yaxis:
+            min: 0
+            max: 20
+            tickAmount: 4
+            title:
+              text: min/cycle
+          annotations:
+            yaxis:
+              - 'y': 8
+                borderColor: '#E24B4A'
+                strokeDashArray: 4
+                label:
+                  text: 8 min threshold
+                  position: left
+                  offsetX: 8
+                  style:
+                    color: '#E24B4A'
+                    background: transparent
+                    fontSize: 11px
+          colors:
+            - '#FF8C00'
+            - '#B4B2A9'
+          legend:
+            show: true
+            position: top
+          tooltip:
+            'y':
+              formatter: |
+                EVAL:function(val, opts) {
+                  if (val === null || val === 0) return 'No data';
+                  if (opts.seriesIndex === 1) return val.toFixed(1) + ' σ';
+                  return val.toFixed(1) + ' min/cycle';
+                }
+        series:
+          - name: Mean min/cycle
+            entity: input_number.furnace_mpc_archive_jan
+            data_generator: |
+              const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+              return months.map((m, i) => [i, parseFloat(hass.states[`input_number.furnace_mpc_archive_${m}`]?.state) || null]);
+          - name: σ
+            entity: input_number.furnace_mpc_sigma_archive_jan
+            type: line
+            curve: smooth
+            stroke_width: 2
+            data_generator: |
+              const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+              return months.map((m, i) => [i, parseFloat(hass.states[`input_number.furnace_mpc_sigma_archive_${m}`]?.state) || null]);
+      - type: custom:apexcharts-card
+        header:
+          title: Short-Cycle % — Monthly Archive
+          show: true
+          show_states: false
+        apex_config:
+          chart:
+            type: bar
+            height: 240
+          plotOptions:
+            bar:
+              columnWidth: 55%
+              borderRadius: 3
+          xaxis:
+            type: category
+            categories:
+              - Jan
+              - Feb
+              - Mar
+              - Apr
+              - May
+              - Jun
+              - Jul
+              - Aug
+              - Sep
+              - Oct
+              - Nov
+              - Dec
+          yaxis:
+            min: 0
+            max: 100
+            tickAmount: 4
+            labels:
+              formatter: |
+                EVAL:function(val) { return val + '%'; }
+            title:
+              text: '% days below 8 min'
+          annotations:
+            yaxis:
+              - 'y': 50
+                borderColor: '#BA7517'
+                strokeDashArray: 3
+                label:
+                  text: 50%
+                  position: right
+                  style:
+                    color: '#BA7517'
+                    background: transparent
+          colors:
+            - '#E24B4A'
+          legend:
+            show: false
+          tooltip:
+            'y':
+              formatter: |
+                EVAL:function(val) { return val !== null ? val.toFixed(1) + '% short-cycle days' : 'No data'; }
+        series:
+          - name: Short-cycle %
+            entity: input_number.furnace_short_cycle_archive_jan
+            data_generator: |
+              const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+              return months.map((m, i) => [i, parseFloat(hass.states[`input_number.furnace_short_cycle_archive_${m}`]?.state) || null]);
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Gas Efficiency — Rolling 12M
+      - type: gauge
+        entity: sensor.hvac_heating_efficiency_12m
+        name: Heating Efficiency (CCF/1k HDD)
+        min: 80
+        max: 120
+        needle: true
+        segments:
+          - from: 0
+            color: '#43a047'
+          - from: 99
+            color: '#ffeb3b'
+          - from: 108
+            color: '#db4437'
+        grid_options:
+          columns: 8
+          rows: 4
+      - type: gauge
+        entity: sensor.hvac_building_load_ua_12m
+        name: Building UA (BTU/hr-°F)
+        min: 400
+        max: 700
+        needle: true
+        segments:
+          - from: 100
+            color: '#43a047'
+          - from: 530
+            color: '#ffeb3b'
+          - from: 580
+            color: '#db4437'
+        grid_options:
+          columns: 8
+          rows: 4
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_heating_efficiency_12m'') | round(1) }} CCF/1k HDD'
+        secondary: Heating Efficiency (12M)
+        icon: mdi:fire
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_performance_vs_baseline'') | round(1) }}%'
+        secondary: Efficiency vs Baseline
+        icon: mdi:gauge
+        color: '{% set p = states(''sensor.hvac_performance_vs_baseline'') | float(0) %} {{ ''red''
+          if p > 10 else (''orange'' if p > 5 else ''green'') }}'
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.hvac_building_load_ua_12m'') | round(0) }} BTU/hr-°F'
+        secondary: Building UA (12M)
+        icon: mdi:home-thermometer
+        color: teal
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.site_eui_estimate'') | round(1) }} kBTU/ft²-yr'
+        secondary: Site EUI
+        icon: mdi:lightning-bolt
+        color: amber
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+  - type: grid
+    column_span: 2
+    cards:
+      - type: heading
+        heading: Annual Projections & Last Year
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.projected_annual_electricity_kwh'') | round(0) }} kWh'
+        secondary: Projected Electric
+        icon: mdi:flash
+        color: yellow
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''sensor.projected_annual_gas_ccf'') | round(0) }} CCF'
+        secondary: Projected Gas
+        icon: mdi:fire
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: ${{ states('input_number.electricity_bill_amount_last_year') | round(2) }}
+        secondary: LY Electric $
+        icon: mdi:flash
+        color: yellow
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: ${{ states('input_number.gas_bill_amount_last_year') | round(2) }}
+        secondary: LY Gas $
+        icon: mdi:fire
+        color: orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''input_number.electricity_bill_kwh_last_year'') | round(0) }} kWh'
+        secondary: LY Electric kWh
+        icon: mdi:lightning-bolt
+        color: amber
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+      - type: custom:mushroom-template-card
+        primary: '{{ states(''input_number.gas_bill_ccf_last_year'') | round(0) }} CCF'
+        secondary: LY Gas CCF
+        icon: mdi:meter-gas
+        color: deep-orange
+        features_position: bottom
+        vertical: true
+        grid_options:
+          columns: 6
+          rows: 2
+cards: []

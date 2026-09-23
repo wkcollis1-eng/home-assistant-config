@@ -1048,86 +1048,18 @@
         level: info
 
 # ===============================================================
-# MONTHLY HDD ARCHIVE (for rolling 12-month efficiency calculations)
+# MONTHLY HDD / CDD ARCHIVE: RETIRED 2026-09-23
+# archive_monthly_hdd (23:58:15) and archive_monthly_cdd (23:58:30, mirrored it
+# for cooling season analysis) copied hdd/cdd_cumulative_month_auto (which
+# already included the last day, added at 23:56:30) into
+# input_number.hdd_archive_<m> / cdd_archive_<m> on the last day of the month,
+# for rolling 12-month efficiency calculations. Those read official BDL
+# (sensor.bdl_degree_days) since the 2026-09-23 audit, so nothing read the archive.
 # ===============================================================
-- id: archive_monthly_hdd
-  alias: "Archive Monthly HDD"
-  description: "Archives month's total HDD to rolling 12-month archive on last day of month"
-  mode: single
-  trigger:
-    - platform: time
-      at: "23:58:15"
-  condition:
-    # Only run on last day of month
-    - condition: template
-      value_template: >
-        {% set tomorrow = now() + timedelta(days=1) %}
-        {{ tomorrow.day == 1 }}
-  action:
-    - variables:
-        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-        # Note: hdd_cumulative_month_auto already includes today's HDD (added at 23:56:30)
-        month_hdd: "{{ states('input_number.hdd_cumulative_month_auto') | float(0) }}"
-        month_name: >
-          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[now().month - 1] }}
-    - service: input_number.set_value
-      target:
-        entity_id: "input_number.hdd_archive_{{ month_name }}"
-      data:
-        value: "{{ month_hdd | round(1) }}"
-    - service: system_log.write
-      data:
-        message: "Monthly HDD archived: {{ month_name | upper }} = {{ month_hdd | round(1) }} HDD"
-        level: info
-
-# ===============================================================
-# MONTHLY CDD ARCHIVE (mirrors HDD archive for cooling season analysis)
-# ===============================================================
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.hdd_archive_last_ok
-      data:
-        datetime: "{{ capture_stamp }}"
-- id: archive_monthly_cdd
-  alias: "Archive Monthly CDD"
-  description: "Archives month's total CDD to rolling 12-month archive on last day of month"
-  mode: single
-  trigger:
-    - platform: time
-      at: "23:58:30"
-  condition:
-    # Only run on last day of month
-    - condition: template
-      value_template: >
-        {% set tomorrow = now() + timedelta(days=1) %}
-        {{ tomorrow.day == 1 }}
-  action:
-    - variables:
-        capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-        # Note: cdd_cumulative_month_auto already includes today's CDD (added at 23:56:30)
-        month_cdd: "{{ states('input_number.cdd_cumulative_month_auto') | float(0) }}"
-        month_name: >
-          {% set months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] %}
-          {{ months[now().month - 1] }}
-    - service: input_number.set_value
-      target:
-        entity_id: "input_number.cdd_archive_{{ month_name }}"
-      data:
-        value: "{{ month_cdd | round(1) }}"
-    - service: system_log.write
-      data:
-        message: "Monthly CDD archived: {{ month_name | upper }} = {{ month_cdd | round(1) }} CDD"
-        level: info
 
 # ===============================================================
 # BILL SAVE AUTOMATIONS
 # ===============================================================
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.cdd_archive_last_ok
-      data:
-        datetime: "{{ capture_stamp }}"
 - id: save_electric_bill_button
   alias: "Save Electric Bill - Button Press"
   trigger:
@@ -3302,7 +3234,7 @@
 
           Check:
           - Python script /config/scripts/climate_norms_today.py
-          - CSV file /config/climate_daily_norms.csv
+          - CSV file /config/climate_daily_norms_bdl.csv
 
 # STARTUP VALIDATION: Check for corrupt cumulative values
 - id: validate_input_numbers_startup
@@ -3493,7 +3425,7 @@
 
           Check:
           - /config/scripts/climate_norms_today.py exists
-          - /config/climate_daily_norms.csv exists
+          - /config/climate_daily_norms_bdl.csv exists
           - Python dependencies are installed
 
           You can test manually with:

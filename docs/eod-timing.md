@@ -65,8 +65,8 @@ its entities would collide, so the common case never reaches the gate at all.
   sensor depends on `monthly_tracking_capture_last_ok`.
 - New month accumulators go in `capture_daily_monthly_tracking`, NOT
   `capture_daily_hdd`.
-- `archive_monthly_hdd` / `_cdd` read the month accumulators, so they must run
-  after 23:56:30. They do (23:58:15 / 23:58:30).
+- `archive_monthly_hdd` / `_cdd` read the month accumulators, so they ran
+  after 23:56:30 (23:58:15 / 23:58:30). Both retired 2026-09-23.
 - The 00:20 buffer backup runs after all captures; the 00:30 audit after it.
 
 ### SNAPSHOT RULE
@@ -141,8 +141,6 @@ TIME      AUTOMATION                          STALE DETECTOR
 23:56:30  capture_daily_monthly_tracking      monthly_report_stale
 23:56:45  capture_daily_runtime_per_cdd       runtime_per_cdd_capture_stale
 23:57:00  CSV daily report
-23:58:15  archive_monthly_hdd                 hdd_archive_stale
-23:58:30  archive_monthly_cdd                 cdd_archive_stale
 23:58:30  CSV monthly report (last day only)
 23:59:00  capture_daily_ac_watts              ac_spc_capture_stale
 23:59:00  capture_daily_cooling_kwh_cdd       cooling_kwh_cdd_spc_capture_stale

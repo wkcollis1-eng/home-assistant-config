@@ -1513,22 +1513,6 @@ views:
             grid_options:
               columns: 6
               rows: 2
-          - type: gauge
-            entity: sensor.hvac_heating_efficiency_12m_bdl
-            name: Heating Efficiency (CCF/1k HDD) using BDL
-            min: 80
-            max: 120
-            needle: true
-            segments:
-              - from: 0
-                color: '#43a047'
-              - from: 99
-                color: '#ffeb3b'
-              - from: 108
-                color: '#db4437'
-            grid_options:
-              columns: 8
-              rows: 4
       - type: grid
         column_span: 2
         cards:
@@ -1594,6 +1578,7 @@ views:
             grid_options:
               columns: 6
               rows: 2
+    cards: []
   - title: Billing
     path: billing
     icon: mdi:currency-usd
@@ -2026,8 +2011,8 @@ views:
               {# 2025 billing-aligned reference from baseline report v1.2.1        #} {# Report uses KBDL HDD, billing-aligned DHW; calendar year 2025     #} {# Investigation threshold: >10% above 95.5 (>105 CCF/1kHDD)        #} {# Action threshold: >15% above 95.5 (>110 CCF/1kHDD)               #} {% set eff_base_2025      = 95.5 %} {% set eff_delta_2025     = ((eff / eff_base_2025 - 1) * 100) | round(1) %} {% set report_investigate = 105.0 %} {% set report_action      = 110.0 %}
               {% set ua       = states('sensor.hvac_building_load_ua_12m') | float(0) %} {% set ua_base  = states('input_number.building_ua_baseline') | float(480) %} {% set ua_delta = ((ua / ua_base - 1) * 100) | round(1) %} {% set ua_diff  = (ua - ua_base) | round(0) | int(0) %}
               {% set eui      = states('sensor.site_eui_estimate') | float(0) %} {% set eui_base = states('input_number.site_eui_baseline') | float(41.7) %} {% set eui_delta = ((eui / eui_base - 1) * 100) | round(1) %}
-              {# ================================================================ #} {# ARCHIVE ROLLUP — gas, DHW, HDD, CDD, electric all 12 months     #} {# ================================================================ #} {% set months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %} {% set ns = namespace(hdd_12m=0, cdd_12m=0, gas_12m=0, dhw_12m=0, elec_12m=0) %} {% for m in months %} {% set ns.hdd_12m  = ns.hdd_12m  + states('input_number.hdd_archive_'          ~ m)         | float(0) %} {% set ns.cdd_12m  = ns.cdd_12m  + states('input_number.cdd_archive_'          ~ m)         | float(0) %} {% set ns.gas_12m  = ns.gas_12m  + states('input_number.gas_archive_'          ~ m ~ '_ccf') | float(0) %} {% set ns.dhw_12m  = ns.dhw_12m  + states('input_number.dhw_archive_'          ~ m)         | float(0) %} {% set ns.elec_12m = ns.elec_12m + states('input_number.electric_archive_'     ~ m ~ '_kwh') | float(0) %} {% endfor %} {% set heat_ccf_12m = (ns.gas_12m - ns.dhw_12m) | round(1) %} {% set dhw_pct   = ((ns.dhw_12m  / ns.gas_12m)  * 100) | round(1) if ns.gas_12m  > 0 else 0 %} {% set heat_pct  = (100 - dhw_pct) | round(1) %} {% set gas_btu   = ns.gas_12m  * 103700 %} {% set elec_btu  = ns.elec_12m * 3412 %} {% set total_btu = gas_btu + elec_btu %} {% set gas_share  = ((gas_btu  / total_btu) * 100) | round(0) if total_btu > 0 else 0 %} {% set elec_share = ((elec_btu / total_btu) * 100) | round(0) if total_btu > 0 else 0 %}
-              {# ================================================================ #} {# WEATHER CONTEXT                                                  #} {# ================================================================ #} {% set hdd_normal     = 5270 %} {% set cdd_normal     = 650  %} {% set hdd_vs_normal  = ((ns.hdd_12m / hdd_normal - 1) * 100) | round(1) %} {% set cdd_vs_normal  = ((ns.cdd_12m / cdd_normal - 1) * 100) | round(1) if ns.cdd_12m > 0 else 0 %} {% set hdd_vs_abs     = hdd_vs_normal | abs %} {% set cdd_vs_abs     = cdd_vs_normal | abs %}
+              {# ================================================================ #} {# ARCHIVE ROLLUP — gas, DHW, HDD, CDD, electric all 12 months     #} {# ================================================================ #} {% set months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] %} {% set ns = namespace(hdd_12m=0, cdd_12m=0, gas_12m=0, dhw_12m=0, elec_12m=0) %} {# 2026-09-23: 12M HDD/CDD are official BDL (ACIS, sensor.bdl_degree_days); they were the #} {# sums of the HA proxy input_number.hdd_archive_* / cdd_archive_* #} {% set ns.hdd_12m = state_attr('sensor.bdl_degree_days', 'trailing_12_sum') | float(0) %} {% set ns.cdd_12m = state_attr('sensor.bdl_degree_days', 'trailing_12_cdd_sum') | float(0) %} {% for m in months %}   {% set ns.gas_12m  = ns.gas_12m  + states('input_number.gas_archive_'          ~ m ~ '_ccf') | float(0) %} {% set ns.dhw_12m  = ns.dhw_12m  + states('input_number.dhw_archive_'          ~ m)         | float(0) %} {% set ns.elec_12m = ns.elec_12m + states('input_number.electric_archive_'     ~ m ~ '_kwh') | float(0) %} {% endfor %} {% set heat_ccf_12m = (ns.gas_12m - ns.dhw_12m) | round(1) %} {% set dhw_pct   = ((ns.dhw_12m  / ns.gas_12m)  * 100) | round(1) if ns.gas_12m  > 0 else 0 %} {% set heat_pct  = (100 - dhw_pct) | round(1) %} {% set gas_btu   = ns.gas_12m  * 103700 %} {% set elec_btu  = ns.elec_12m * 3412 %} {% set total_btu = gas_btu + elec_btu %} {% set gas_share  = ((gas_btu  / total_btu) * 100) | round(0) if total_btu > 0 else 0 %} {% set elec_share = ((elec_btu / total_btu) * 100) | round(0) if total_btu > 0 else 0 %}
+              {# ================================================================ #} {# WEATHER CONTEXT                                                  #} {# ================================================================ #} {# 2026-09-23: BDL NCEI 1991-2020 annual normals (sensor.climate_norms_today). They were #} {# 5270 / 650: 5270 is the sum of a hard-coded monthly dict that matched no BDL normal. #} {% set hdd_normal = state_attr('sensor.climate_norms_today', 'annual_hdd_normal') | float(0) | round(0) | int(0) %} {% set cdd_normal = state_attr('sensor.climate_norms_today', 'annual_cdd_normal') | float(0) | round(0) | int(0) %} {% set hdd_vs_normal  = ((ns.hdd_12m / hdd_normal - 1) * 100) | round(1) if hdd_normal > 0 and ns.hdd_12m > 0 else 0 %} {% set cdd_vs_normal  = ((ns.cdd_12m / cdd_normal - 1) * 100) | round(1) if ns.cdd_12m > 0 and cdd_normal > 0 else 0 %} {% if 0 in [hdd_normal, cdd_normal, ns.hdd_12m, ns.cdd_12m] %}<p style="color:#ff6b6b;"><b>⚠️ BDL degree days unavailable</b> (sensor.bdl_degree_days trailing_12 / sensor.climate_norms_today normals) - every HDD/CDD comparison on this card is invalid until they return.</p>{% endif %} {% set hdd_vs_abs     = hdd_vs_normal | abs %} {% set cdd_vs_abs     = cdd_vs_normal | abs %}
               {# ================================================================ #} {# COST IMPLICATIONS                                                #} {# ================================================================ #} {% set gas_rate  = states('sensor.gas_effective_rate') | float(1.68) %} {% set elec_rate = 0.29 %}
               {# Heating — extra spend vs baseline over trailing 12M HDD #} {% set extra_ccf_eff  = ((eff - eff_base) / 1000 * ns.hdd_12m) | round(1) %} {% set extra_cost_eff = (extra_ccf_eff * gas_rate) | round(0) | int(0) %}
               {# UA forward-looking penalty at climate normal #} {% set ua_extra_btu_yr  = (ua - ua_base) * hdd_normal * 24 %} {% set ua_extra_ccf_yr  = (ua_extra_btu_yr / (103700 * 0.95)) | round(1) %} {% set ua_extra_cost_yr = (ua_extra_ccf_yr * gas_rate) | round(0) | int(0) %}

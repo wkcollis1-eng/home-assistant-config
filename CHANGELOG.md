@@ -60,6 +60,291 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
 
+### Heat-season audit, phase 3: F4 live, proxy HDD/CDD archive and _bdl twins retired
+
+Bill, 2026-09-23: "for low hdd days-stay as it i,  run command_line.reload +
+template.reload; dashboards are live."
+
+**The unattended moment:** Sep 30 at 23:58, the first month-end with no HDD/CDD archive,
+and the 00:30 audit after it. Working means:
+- no automation writes a helper that no longer exists;
+- no stale detector watches a stamp that will never move;
+- the audit reports 0 FAIL on 18 pipelines.
+
+**F5 answered: the runtime/HDD SPC stays as it is.** It gets no low-HDD exclusion and no
+HDD banding. Nothing was changed.
+
+**F4 is live.**
+- `check_config` returned valid.
+- `command_line.reload` + `template.reload` ran at 18:46:59Z.
+- Observed at 18:47Z [M, /api/states]:
+  - `sensor.kbdl_degree_days_24h` ok: hdd65 9.5, n_obs 24, max_gap_h 1.0
+  - `hvac_hdd65_today`: 9.9 (proxy) -> 9.5, `basis: KBDL obs`
+  - `hvac_cdd65_today`: 0.0, `basis: KBDL obs`
+  - both `*_pipeline_healthy` sensors on
+
+**Both Lovelace pastes are live.** `export_dashboards.py` was re-run.
+- Analysis: the live view equals `dashboards/views/energy-performance-analysis.yaml`. The
+  file's "NOT LIVE" header line was corrected.
+- Monthly: re-made from live.
+- **Mistake (R13):** the Monthly copy staged in phase 2 repointed the `_bdl` gauge to
+  `sensor.hvac_heating_efficiency_12m`. That would have duplicated the gauge already on
+  that sensor. Bill deleted the gauge instead of pasting mine, and the editor added
+  `cards: []`.
+
+**Cleanup (a): retired.** Bill's earlier "Yes" covered this "once nothing reads them".
+After the pastes, the only live-dashboard mention of `hdd_archive` is inside a Jinja
+comment.
+- Removed, each with a tombstone comment that keeps the removed comments' substance:
+  - configuration.yaml:
+    - `input_number.hdd_archive_<m>` / `cdd_archive_<m>` (24)
+    - `input_datetime.hdd_archive_last_ok` / `cdd_archive_last_ok`
+    - `binary_sensor.hdd_monthly_archive_stale` / `cdd_monthly_archive_stale`
+    - `sensor.hvac_heating_efficiency_12m_bdl` / `hvac_performance_vs_baseline_bdl`, which
+      had been aliases since phase 1
+  - automations.yaml: `archive_monthly_hdd` (23:58:15) and `archive_monthly_cdd`
+    (23:58:30). Each one's `set_datetime` step sat after the next section's header
+    comment. The spans follow the YAML structure, and the BILL SAVE header stays.
+  - pipelines.yaml: both entries. 20 -> 18 pipelines.
+  - docs/eod-timing.md: the two schedule rows. The ordering bullet is kept in the past
+    tense. 23:58:30 stays in the table for the CSV monthly report.
+- Kept:
+  - the shared "Monthly archives. 35 days" comment, which still explains Gas Heat Cost
+    Archive Stale;
+  - the history comments that name `hdd_archive_*`;
+  - all recorder history.
+- Last values of all 32 entities: `C:\Users\wkcol\ha-data-repairs\2026-09-23-bdl-archive-retire\before.json`.
+  Pre-edit copies of the files are in `rollback\` beside it.
+- R3: each file's edit was reversed and matched the original byte for byte. Untouched
+  lines: configuration.yaml 7360, automations.yaml 4555, pipelines.yaml 452,
+  eod-timing.md 159.
+- R2: the same edit script, replayed on fresh copies of the H: files, reproduced the
+  sandbox result exactly. H: had not moved since the sync.
+- Gates:
+  - Sandbox: gate.py SYNTAX PASS (parse-clean). The audit gave 0 FAIL, 1 WARN, 2 INFO
+    across 18 pipelines after gen_reference.
+  - `test_ha_audit.py`: "SUITE PASSED - 32 rule(s) proven in both directions".
+  - H:: `check_config` returned valid at 18:56:39Z.
+  - Then `automation`, `template`, `input_number` and `input_datetime` reloads, all 200 at
+    18:57Z.
+- Observed [M, /api/states]: 26 of the 32 are gone. The 6 with registry entries (2
+  automations, 2 binary sensors, 2 sensors) are `unavailable`, `restored: true`. The
+  kept neighbours read as before:
+  - `hvac_heating_efficiency_12m` 102.4
+  - `hvac_performance_vs_baseline` 13.4
+  - `gas_heat_cost_archive_stale` off
+  - `archive_monthly_gas_heating_cost_season_store` on
+  - 36 furnace-archive input_numbers present
+- The 6 orphaned registry entries were then removed. Bill: "remove the 6 leftover registry
+  entries". Each was confirmed an orphan first (`unavailable`, `restored: true`, platform
+  automation/template, no config entry). The entries are saved in `registry_before.json`
+  beside the state snapshot. After `config/entity_registry/remove`, all 6 read
+  `not_found`, and none remains in `/api/states`.
+
+**Cleanup (b) is live.** Bill: "grafana dashoard live". Verified [M, Grafana
+/api/dashboards/uid/hvac-status]:
+- version 36, updated 2026-09-23 14:46:41-04:00
+- all 47 served query targets equal `grafana/dashboards/hvac_status.json` (v35 had 26
+  that differed)
+
+### Heat-season audit, phase 2: daily HDD/CDD from KBDL observations (F4)
+
+Bill, 2026-09-23: "run command_line.reload and template.reload;  switch to the NWS KBDL
+hourly observations; Yes". **The unattended moment:** a January day with api.weather.gov
+down. Working means `hvac_hdd65_today` keeps a value from the proxy, says so
+(`basis: proxy`), and never reads 0 because a fetch failed.
+
+**Phase 1 reload.** `command_line.reload` + `template.reload` ran at 17:16:35Z. Observed
+after [M, /api/states]:
+- HVAC Heating Efficiency 12M: 102.4
+- Building Load UA 12M: 528
+- Weather Severity vs Normal MTD: -7.9% [M]
+
+The Analysis paste is still outstanding.
+
+**F4: KBDL is now the daily degree-day basis.**
+- New `scripts/kbdl_degree_days.py` feeds the new `sensor.kbdl_degree_days_24h`, a
+  command_line sensor (scan 600 s, timeout 45 s).
+  - It computes trailing 24 h HDD65/CDD65 as 65 - (max+min)/2 of KBDL METARs, hourly plus
+    specials, from api.weather.gov.
+  - 5-minute obs are dropped: whole-degree C and untested. MADIS QC X/Q are rejected.
+  - State is `ok`, `insufficient` (under 12 obs or a gap over 6 h) or `error`.
+  - It always exits 0. A non-zero exit resets a command_line sensor's attributes to {}
+    [S: core 2026.9.3 command_line/sensor.py].
+- `HVAC HDD65 Today` / `HVAC CDD65 Today` are redefined in place, with no second sensor (R10).
+  - The KBDL value is used when that sensor is `ok` and has a number; otherwise the old
+    proxy 24 h mean is.
+  - New attribute `basis`: `KBDL obs` / `proxy`.
+  - They are unavailable only when KBDL and the proxy are both out.
+- `CDD Pipeline Healthy` / `HDD Pipeline Healthy` now check `hvac_cdd65_today` /
+  `hvac_hdd65_today` as their input, not the proxy alone.
+- Evidence [M, n=752 days 2024-09-01..2026-09-22, 486 heating; IEM archive of the same
+  METAR stream, scored against ACIS BDL daily]:
+  - (max+min)/2 HDD: bias +0.06, sd 0.57, MAE 0.34 HDD/day
+  - mean of the same obs, the proxy's method: sd 1.42, MAE 0.90
+  - CDD: bias -0.08, sd 0.39, MAE 0.18
+- Thresholds: MIN_OBS=12 and MAX_GAP_H=6.0 lie beyond anything seen in those 752 days
+  (min 20 obs, max gap 4 h [M]). The exact values are judgement.
+- R2/R7:
+  - `compute()` replayed: interior gap 6.00 h gives ok; 6.02 h and 11 obs give insufficient.
+  - Both templates rendered on the live engine [M, 2026-09-23]:
+    - KBDL absent / `insufficient` / `ok` with no number: the proxy (HDD 9.8, CDD 0.0,
+      equal to live), `basis: proxy`.
+    - `ok` 9.46: 9.5, `basis: KBDL obs`.
+- **Not live until `command_line.reload` + `template.reload`.** Asked (R12).
+- **Mistake (R13):** during development, one curl to api.weather.gov carried Bill's email
+  address in its User-Agent. The script's User-Agent carries no contact.
+
+**Cleanup (c), done.** CLAUDE.md BASELINES read "climate normal 5,270", which was the sum
+of the removed hard-coded dict. It now reads 5,873 [M: sum of 365 ACIS BDL 1991-2020 daily
+normals]. 90.3 / 493 / 6,270 are untouched (NO REBASE).
+
+**Cleanup (b), built and staged, NOT DEPLOYED:** `grafana/dashboards/hvac_status.json`.
+- 28 query/refId/expression leaves changed, in panels 4, 5, 10, 11, 21, 22 and 25. Every
+  other leaf is unchanged (R3).
+- Degree days use last() + fill(previous). HA writes only on change, so an empty day means
+  unchanged, and max() of a trailing-24 h value is not a day's HDD.
+- Daily buckets use tz('America/New_York').
+- The 7 d legs are `time > now() - 8d ... LIMIT 7 OFFSET 1` (31 d: `LIMIT 30`). They take
+  complete local days only: no partial first day and no today.
+- Counters keep max() [M: max <= last on every NY day, sem_furnace_daily n=60].
+- Panels 4/5, 24 h leg: they now divide by `hvac_cdd/hdd65_today`, not a mean outdoor
+  temperature.
+- Scored against ACIS, Sep 1-22 [M]:
+  - HDD: old bias +1.43, MAE 1.82 (n=18); new +0.21, 0.50 (n=19)
+  - CDD: old +1.43, 2.71 (n=20); new -0.58, 0.74 (n=21)
+- Every query was executed in InfluxDB 1.12.4, and panels 4/5 were run through Grafana
+  /api/ds/query.
+- The deploy (`grafana_snapshot.py --deploy`) was refused by Claude Code's auto-mode
+  classifier and was not worked around. Grafana still serves v35.
+
+**Cleanup (a), groundwork.** New `dashboards/views/energy-performance-monthly.yaml`: the
+live Monthly view, with the one gauge that read `sensor.hvac_heating_efficiency_12m_bdl`
+now reading `sensor.hvac_heating_efficiency_12m`.
+- R3: the dedented export equals the live `.storage` view, and exactly 1 leaf differs.
+- NOT LIVE until pasted. Once both views are pasted and `export_dashboards.py` is re-run,
+  nothing reads the `_bdl` twins or the `hdd_archive_*`/`cdd_archive_*` pipeline, and
+  they can be retired.
+
+**Left open** (open_questions.yaml, 2026-09-23):
+- F5, runtime/HDD banding: re-asked.
+- the F4 reload
+- the two pastes and the Grafana deploy
+
+Also open:
+- Panel 4's 24 h leg is empty before and after this change: no `sem_ac_energy` points in
+  24 h. This is pre-existing.
+- The 24 h ratio legs read Inf when HDD or CDD is 0.
+- Panels 20 and 24 (no degree days) still bucket daily counters in UTC.
+- Nothing alerts on a prolonged KBDL `error` or BDL `stale`.
+
+### Heat-season audit: every degree-day comparison now uses BDL
+
+Bill, before heating season: audit the HDD / heat-season logic, metrics and dashboards, and
+make every degree-day comparison use BDL data. **The unattended moment:** a January night
+with ACIS unreachable. Working means the 12M metrics keep reading BDL from the last good
+CSV, and anything that cannot be computed reads `unavailable`. It must never fall back to a
+constant that looks like a real value. NO REBASE (Bill 2026-09-16) is respected: 90.3, 493,
+6,270, HDD59 and 0.844 are untouched.
+
+**What was not BDL, and is now** (all figures [M] from ACIS StnData sid BDL, 2026-09-23,
+unless tagged otherwise):
+
+- **Daily norms.** `climate_daily_norms.csv` did not match BDL. Its annual sum was 6,128 HDD
+  against the NCEI 1991-2020 BDL normal of 5,873. The closest 18-year BDL window, 2004-2021,
+  still gave an MAE of 2.76 HDD/day with a +1.18 bias [n=365 days]. It is replaced by
+  `climate_daily_norms_bdl.csv`, built by the new `scripts/build_bdl_daily_norms.py`:
+  - Means are the ACIS `"normal": "91"` values. `"91"` and `"1"` both return 5,873;
+    `"81"` returns 5,988.
+  - min / max / p10 / p90 are the BDL values observed on each date, 1991-2020.
+  - There are 365 rows with 30 samples each; the annual CDD normal is 813.
+  - The old file is kept, unused (CSV rule).
+- **Weather Severity vs Normal MTD / Progress MTD.** The normal was a hard-coded monthly
+  dict, a third normal that matched neither BDL nor the CSV. It summed to 5,270 [D: sum of
+  its 12 values] and ran low all heating season: Oct 280 vs BDL 381, Nov 540 vs 682 [D].
+  The sensors now read `mtd_hdd_normal` / `month_hdd_normal` from `climate_norms_today`, and
+  read `unavailable` when the norms fail. On 09-23 the change moved them as follows
+  [M: live /api/states vs /api/template with the new script's output substituted]:
+  - vs Normal MTD: +15.7% → -7.9% [M]
+  - Progress: 88.7% → 51.9% [M]
+
+  Their numerator, `hvac_hdd65_cumulative_month`, is still HA's proxy HDD (open question,
+  daily basis).
+- **HVAC Heating Efficiency 12M, Building Load UA 12M, Projected Annual Gas CCF.** These
+  used the proxy `hdd_archive_*` as their HDD. They now use ACIS `trailing_12` from
+  `sensor.bdl_degree_days`.
+  - Proxy vs ACIS over the same 12 months: 5,988.1 vs 6,023.
+  - Rendered on the live engine: efficiency 102.4 (proxy 103.0; identical to the existing
+    `_bdl` twin's 102.4) and UA 528 (proxy 531).
+  - Availability is now `trailing_12_count == 12`. The fallback constants
+    (`{{ 90.3 }}`, `{{ 493 }}`) are now `none`, because a fallback equal to the baseline
+    read as "exactly on baseline" (R8).
+  - Projected Gas: its HDD branch runs only for unbilled months, and every month is
+    currently billed. It was proven by forcing January unbilled: 764, matching the hand
+    calculation of 764. Without trailing_12 it would have silently read 634; it now reads
+    `unavailable`.
+- **`_bdl` twins.** `hvac_heating_efficiency_12m_bdl` and `hvac_performance_vs_baseline_bdl`
+  are now aliases of the main sensors, kept for the dashboard gauge (R10: one definition).
+- **vs-baseline sensors (both).** They gained availability; they used to read 0 (on
+  baseline) whenever their input was missing.
+
+**Scripts.**
+- `climate_norms_today.py` looks up rows by (month, day). Matching on DayOfYear returned
+  the NEXT day's norms from Mar 1 of a leap year, and the day-366 clamp tripped
+  `climate_norms_stale` on a leap Dec 31. Next leap year: 2028. Tested on 2028-02-29,
+  2028-03-01 and 2028-12-31. New attributes: `month_hdd_normal`, `mtd_hdd_normal`,
+  `annual_hdd_normal`, `annual_cdd_normal`, `source`.
+- `fetch_bdl_degree_days.py`:
+  - An ACIS failure used to exit 1, and HA 2026.9.3's command_line sensor then resets
+    every attribute to `{}` [S: core 2026.9.3 command_line/sensor.py]. That blanked
+    trailing_12 and every 12M metric for up to a day. It now serves the last good CSV with
+    `status: stale` and a `detail`, and exits 1 only when no CSV exists.
+  - The CSV write goes through a temp file and `os.replace`.
+  - New attribute: `trailing_12_cdd_sum`.
+  - Clean run: every shared key is identical to the old script and the CSV is
+    byte-identical.
+  - Fault runs (unreachable host, ACIS error): old exit 1 with blank output; new exit 0,
+    stale, t12 = 6,023.
+
+**Dashboard, NOT LIVE until pasted:** `dashboards/views/energy-performance-analysis.yaml`.
+It is the live Analysis view with the ARCHIVE ROLLUP card corrected:
+- 12M HDD/CDD come from BDL (`trailing_12_sum` / `trailing_12_cdd_sum`) instead of the
+  proxy archive sums.
+- The normals are `annual_hdd_normal` / `annual_cdd_normal` instead of 5270 / 650.
+- A red line appears if any of those inputs is missing.
+
+Rendered on the live engine:
+- 12M HDD: 5,988 vs 5,270, +13.6% → 6,023 vs 5,873, +2.6% [D: 6023/5873-1].
+- 12M CDD: 623 vs 650 → 900 vs 813.
+
+`dashboard-not-pasted` WARNs until it is pasted and `export_dashboards.py` re-run. Paste it
+AFTER the reload that loads the new attributes, or the red line shows.
+
+**Verified.**
+- R3: every configuration.yaml hunk falls inside an intended span, and 7,428 of 7,480 live
+  lines are unchanged. Every live comment line survives: one dropped Jinja comment was
+  restored. automations.yaml (2 path strings) and entity_notes.yaml (3 notes) reverse-edit
+  byte-identical.
+- The view reverse-edits to the live view, and every key outside the card's content is
+  identical.
+- R2/R7: every new template was rendered on the live engine clean and with its fault
+  injected (trailing_12 absent, 11 months, norms error, zero normal). Each fault read
+  unavailable or unknown, never a number.
+
+**Left open** (open_questions.yaml, 2026-09-23):
+- the reload/restart and the paste;
+- the daily HDD basis and the runtime/HDD floor;
+- retiring the `_bdl` twins and the proxy archive;
+- the Grafana HDD panels;
+- the CLAUDE.md "climate normal 5,270" line.
+
+Also open:
+- Nothing alerts on a prolonged `status: stale`.
+- `HVAC UA Degradation Alert` still reads `float(493)` when UA is unavailable. That is
+  unchanged behaviour: it could not fire on missing data before, and cannot now.
+- `hvac_performance_vs_baseline` now reads about +13% [D: 102.4/90.3-1]. The NO-REBASE
+  ruling keeps 90.3, so this is expected, not a defect.
+
 ### R20 checkpoint: the first live compaction, and two transcript facts the hook got wrong
 
 This closes the live test the next entry down left open. Bill ran `/compact` at 10:22

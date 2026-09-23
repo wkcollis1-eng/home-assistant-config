@@ -35,16 +35,7 @@
 # =============================================================================
 
 pipelines:
-  archive_monthly_cdd:
-    label: "cdd"
-    kind: accumulator
-    defined_in: "automations.yaml"
-    at: "23:58:30"
-    stamp: "input_datetime.cdd_archive_last_ok"
-    season: "cooling"
-    stale_detector: "binary_sensor.cdd_monthly_archive_stale"
-    buffer_slots: 0
-    dynamic_buffer: true   # entity ids are built from templates at runtime
+  # archive_monthly_cdd, archive_monthly_hdd: retired 2026-09-23 (CHANGELOG).
   archive_monthly_gas_heat_cost:
     label: "gas heat cost"
     kind: accumulator
@@ -53,16 +44,6 @@ pipelines:
     stamp: "input_datetime.gas_heat_cost_archive_last_ok"
     season: "heating"
     stale_detector: "binary_sensor.gas_heat_cost_archive_stale"
-    buffer_slots: 0
-    dynamic_buffer: true   # entity ids are built from templates at runtime
-  archive_monthly_hdd:
-    label: "hdd"
-    kind: accumulator
-    defined_in: "automations.yaml"
-    at: "23:58:15"
-    stamp: "input_datetime.hdd_archive_last_ok"
-    season: "heating"
-    stale_detector: "binary_sensor.hdd_monthly_archive_stale"
     buffer_slots: 0
     dynamic_buffer: true   # entity ids are built from templates at runtime
   capture_daily_ac_cost:

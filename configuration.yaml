@@ -1607,156 +1607,14 @@ input_number:
     mode: box
 
   # ===============================================================
-  # 12-MONTH ARCHIVE - HDD (for rolling efficiency calculations)
+  # 12-MONTH ARCHIVE - HDD / CDD: RETIRED 2026-09-23
+  # hdd_archive_jan..dec (for rolling efficiency calculations) and
+  # cdd_archive_jan..dec (mirrored them for cooling season analysis) held the
+  # HA proxy month totals, written by archive_monthly_hdd / _cdd. The 12-month
+  # figures read official BDL (sensor.bdl_degree_days trailing_12) since the
+  # 2026-09-23 audit, so nothing read them. Last values:
+  # C:/Users/wkcol/ha-data-repairs/2026-09-23-bdl-archive-retire/before.json
   # ===============================================================
-  hdd_archive_jan:
-    name: "Archive: Jan HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_feb:
-    name: "Archive: Feb HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_mar:
-    name: "Archive: Mar HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_apr:
-    name: "Archive: Apr HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_may:
-    name: "Archive: May HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_jun:
-    name: "Archive: Jun HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_jul:
-    name: "Archive: Jul HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_aug:
-    name: "Archive: Aug HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_sep:
-    name: "Archive: Sep HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_oct:
-    name: "Archive: Oct HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_nov:
-    name: "Archive: Nov HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-  hdd_archive_dec:
-    name: "Archive: Dec HDD"
-    min: 0
-    max: 2000
-    step: 0.1
-    mode: box
-
-  # ===============================================================
-  # 12-MONTH ARCHIVE - CDD (mirrors HDD archive for cooling season analysis)
-  # ===============================================================
-  cdd_archive_jan:
-    name: "Archive: Jan CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_feb:
-    name: "Archive: Feb CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_mar:
-    name: "Archive: Mar CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_apr:
-    name: "Archive: Apr CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_may:
-    name: "Archive: May CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_jun:
-    name: "Archive: Jun CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_jul:
-    name: "Archive: Jul CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_aug:
-    name: "Archive: Aug CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_sep:
-    name: "Archive: Sep CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_oct:
-    name: "Archive: Oct CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_nov:
-    name: "Archive: Nov CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
-  cdd_archive_dec:
-    name: "Archive: Dec CDD"
-    min: 0
-    max: 500
-    step: 0.1
-    mode: box
 
   # ===============================================================
   # 12-MONTH ARCHIVE - FURNACE MIN/CYCLE MEAN
@@ -3034,17 +2892,8 @@ input_datetime:
     has_time: true
     icon: mdi:check-circle
 
-  hdd_archive_last_ok:
-    name: "HDD Monthly Archive Last OK"
-    has_date: true
-    has_time: true
-    icon: mdi:check-circle
-
-  cdd_archive_last_ok:
-    name: "CDD Monthly Archive Last OK"
-    has_date: true
-    has_time: true
-    icon: mdi:check-circle
+  # hdd_archive_last_ok / cdd_archive_last_ok (HDD/CDD Monthly Archive Last OK):
+  # retired 2026-09-23 with the proxy HDD/CDD monthly archive.
 
   gas_heat_cost_archive_last_ok:
     name: "Gas Heat Cost Monthly Archive Last OK"
@@ -3436,29 +3285,7 @@ template:
       # WITHIN the current month, and these run at 23:58 on a day this
       # detector should not have to know. 35 days is true whether the archive
       # fires on the 1st or the last day, and needs no calendar special cases.
-      - name: "HDD Monthly Archive Stale"
-        unique_id: hdd_archive_stale
-        device_class: problem
-        state: >
-          {% set last = states('input_datetime.hdd_archive_last_ok') %}
-          {% if last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
-            false
-          {% else %}
-            {% set d = last | as_datetime | as_local %}
-            {{ true if d is none else (now() - d).days > 35 }}
-          {% endif %}
-
-      - name: "CDD Monthly Archive Stale"
-        unique_id: cdd_archive_stale
-        device_class: problem
-        state: >
-          {% set last = states('input_datetime.cdd_archive_last_ok') %}
-          {% if last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
-            false
-          {% else %}
-            {% set d = last | as_datetime | as_local %}
-            {{ true if d is none else (now() - d).days > 35 }}
-          {% endif %}
+      # HDD / CDD Monthly Archive Stale: retired 2026-09-23 with their archives.
 
       - name: "Gas Heat Cost Archive Stale"
         unique_id: gas_heat_cost_archive_stale
@@ -3538,10 +3365,11 @@ template:
         unique_id: cdd_pipeline_healthy
         icon: mdi:thermometer-check
         state: >
-          {% set proxy_ok = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {# 2026-09-23: the input is hvac_cdd65_today (KBDL, proxy fallback), not the proxy alone #}
+          {% set input_ok = states('sensor.hvac_cdd65_today') not in ['unknown', 'unavailable'] %}
           {% set not_stale = is_state('binary_sensor.cdd_capture_stale', 'off') %}
           {% set rolling = states('sensor.cdd_rolling_7_day_auto') | float(-1) %}
-          {{ proxy_ok and not_stale and rolling >= 0 }}
+          {{ input_ok and not_stale and rolling >= 0 }}
 
       - name: "Runtime per CDD Pipeline Healthy"
         unique_id: runtime_per_cdd_pipeline_healthy
@@ -3714,9 +3542,19 @@ template:
         state_class: measurement
         icon: mdi:snowflake
         # Unavailable if outdoor temp proxy is unavailable (fail-fast)
+        # ^ 2026-09-23: now unavailable only when KBDL AND the proxy are both out.
+        # KBDL observations are the basis (sensor.kbdl_degree_days_24h, Bill's
+        # answer to F4); the proxy mean is the fallback when KBDL is not "ok".
+        # The proxy's mean method scored sd 1.42 HDD/day vs ACIS against KBDL's
+        # 0.57 [M, n=752 days]. Attribute basis names the source (R8).
         availability: >
-          {{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
+          {{ is_state('sensor.kbdl_degree_days_24h', 'ok')
+             or states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
         state: >
+          {% set k = state_attr('sensor.kbdl_degree_days_24h', 'hdd65') %}
+          {% if is_state('sensor.kbdl_degree_days_24h', 'ok') and k is number %}
+            {{ k | round(1) }}
+          {% else %}
           {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
           {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
           {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
@@ -3725,6 +3563,12 @@ template:
           {% if t is not none %}
             {{ [65 - t, 0] | max | round(1) }}
           {% endif %}
+          {% endif %}
+        attributes:
+          basis: >
+            {{ 'KBDL obs' if is_state('sensor.kbdl_degree_days_24h', 'ok')
+                 and state_attr('sensor.kbdl_degree_days_24h', 'hdd65') is number
+               else 'proxy' }}
 
       - name: "HVAC CDD65 Today"
         unique_id: hvac_cdd65_today
@@ -3732,9 +3576,17 @@ template:
         state_class: measurement
         icon: mdi:sun-thermometer
         # Unavailable if outdoor temp proxy is unavailable (fail-fast)
+        # ^ 2026-09-23: KBDL first, proxy fallback - same change and reason as
+        # HVAC HDD65 Today above. KBDL CDD vs ACIS: bias -0.08, sd 0.39, MAE
+        # 0.18 CDD/day [M, n=752 days].
         availability: >
-          {{ states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
+          {{ is_state('sensor.kbdl_degree_days_24h', 'ok')
+             or states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] }}
         state: >
+          {% set k = state_attr('sensor.kbdl_degree_days_24h', 'cdd65') %}
+          {% if is_state('sensor.kbdl_degree_days_24h', 'ok') and k is number %}
+            {{ k | round(1) }}
+          {% else %}
           {% set mean_raw = states('sensor.hvac_outdoor_temp_mean_24h') %}
           {% set mean_t = mean_raw | float(none) if mean_raw not in ['unknown', 'unavailable'] else none %}
           {% set proxy = states('sensor.hvac_outdoor_temp_hartford_proxy') %}
@@ -3743,6 +3595,12 @@ template:
           {% if t is not none %}
             {{ [t - 65, 0] | max | round(1) }}
           {% endif %}
+          {% endif %}
+        attributes:
+          basis: >
+            {{ 'KBDL obs' if is_state('sensor.kbdl_degree_days_24h', 'ok')
+                 and state_attr('sensor.kbdl_degree_days_24h', 'cdd65') is number
+               else 'proxy' }}
 
       # Indoor dew point from upstairs (drives 99% of cooling calls).
       # Magnus formula: DP = 243.04 * α / (17.625 - α) where α = ln(RH/100) + 17.625*T/(243.04+T)
@@ -5057,36 +4915,17 @@ template:
       # Rolling 12-month heating efficiency from archived monthly data
       # Uses ACTUAL Navien-metered DHW subtraction (not fixed ratio)
       # Updates when archives change (monthly), immune to midnight oscillation
+      # 2026-09-23: HDD denominator is official BDL (ACIS trailing_12 on
+      # sensor.bdl_degree_days); it was the HA proxy hdd_archive_*. Bill: every
+      # degree-day comparison uses BDL. Proxy archive vs ACIS over the same 12
+      # months: 5,988.1 vs 6,023 [M]; Apr 472.3 vs 412 (pre-fix coordinates).
+      # Missing BDL data now reads unavailable/unknown, not 90.3: the old
+      # fallback made absent data look exactly on-baseline (R8).
       - name: "HVAC Heating Efficiency 12M"
         unique_id: hvac_heating_efficiency_12m
         unit_of_measurement: "CCF/1k HDD"
         state_class: measurement
         icon: mdi:chart-bell-curve-cumulative
-        state: >
-          {% set months = ['jan','feb','mar','apr','may','jun',
-                           'jul','aug','sep','oct','nov','dec'] %}
-          {% set ns = namespace(ccf=0, dhw=0, hdd=0) %}
-          {% for m in months %}
-            {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
-            {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
-            {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
-          {% endfor %}
-          {# Heating = Total Gas - Actual DHW (Navien-metered) #}
-          {% set heating_ccf = ns.ccf - ns.dhw %}
-          {% if ns.hdd >= 100 and heating_ccf > 0 %}
-            {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
-          {% else %}
-            {{ 90.3 }}
-          {% endif %}
-
-      - name: "HVAC Heating Efficiency 12M (BDL)"
-        unique_id: hvac_heating_efficiency_12m_bdl
-        unit_of_measurement: "CCF/1k HDD"
-        state_class: measurement
-        icon: mdi:chart-bell-curve-cumulative
-        # BDL-denominator twin of hvac_heating_efficiency_12m: identical net-space-heat
-        # numerator (gas_archive_ccf - dhw_archive), but official BDL HDD from the BDL
-        # Degree Days sensor's trailing_12 attribute instead of the HA proxy archive.
         availability: >
           {{ state_attr('sensor.bdl_degree_days', 'trailing_12_count') | int(0) == 12 }}
         state: >
@@ -5099,21 +4938,19 @@ template:
             {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
             {% set ns.hdd = ns.hdd + (t12[m] | float(0) if (t12 is mapping and m in t12) else 0) %}
           {% endfor %}
+          {# Heating = Total Gas - Actual DHW (Navien-metered) #}
           {% set heating_ccf = ns.ccf - ns.dhw %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {{ ((heating_ccf / ns.hdd) * 1000) | round(1) }}
           {% else %}
-            {{ 90.3 }}
+            {{ none }}
           {% endif %}
 
-      - name: "HVAC Performance vs Baseline (BDL)"
-        unique_id: hvac_performance_vs_baseline_bdl
-        unit_of_measurement: "%"
-        state_class: measurement
-        state: >
-          {% set current = states('sensor.hvac_heating_efficiency_12m_bdl') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
-          {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
+      # HVAC Heating Efficiency 12M (BDL) / HVAC Performance vs Baseline (BDL):
+      # retired 2026-09-23. They began as BDL-denominator twins of
+      # hvac_heating_efficiency_12m / hvac_performance_vs_baseline; the 2026-09-23
+      # audit moved the BDL definition INTO those sensors, leaving the twins as
+      # aliases (R10), and no dashboard read them after Bill's paste that day.
 
       # Rolling 12-month DHW total from Navien-metered archives
       - name: "DHW Gas 12M"
@@ -5135,19 +4972,25 @@ template:
       # Matches METHODOLOGY.md: 0.95 AFUE (submittal-verified), balance-point-adjusted HDD, fireplace contribution
       # Uses ACTUAL Navien-metered DHW subtraction (not fixed ratio)
       # Updates when archives change (monthly), immune to midnight oscillation
+      # 2026-09-23: HDD65 is official BDL (ACIS trailing_12), was the proxy
+      # hdd_archive_* - same change and reason as hvac_heating_efficiency_12m.
+      # The balance-point ratio is untouched (NO REBASE, Bill 2026-09-16).
       - name: "HVAC Building Load UA 12M"
         unique_id: hvac_building_load_ua_12m
         unit_of_measurement: "BTU/hr-°F"
         state_class: measurement
         icon: mdi:home-thermometer
+        availability: >
+          {{ state_attr('sensor.bdl_degree_days', 'trailing_12_count') | int(0) == 12 }}
         state: >
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
+          {% set t12 = state_attr('sensor.bdl_degree_days', 'trailing_12') %}
           {% set ns = namespace(ccf=0, dhw=0, hdd=0) %}
           {% for m in months %}
             {% set ns.ccf = ns.ccf + states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
             {% set ns.dhw = ns.dhw + states('input_number.dhw_archive_' ~ m) | float(0) %}
-            {% set ns.hdd = ns.hdd + states('input_number.hdd_archive_' ~ m) | float(0) %}
+            {% set ns.hdd = ns.hdd + (t12[m] | float(0) if (t12 is mapping and m in t12) else 0) %}
           {% endfor %}
           {# Heating = Total Gas - Actual DHW (Navien-metered) #}
           {% set heating_ccf = ns.ccf - ns.dhw %}
@@ -5159,13 +5002,16 @@ template:
             {% set fp_btu = fp_heat * 1000000 %}
             {{ ((furnace_btu + fp_btu) / (ns.hdd * bp_ratio * 24)) | round(0) }}
           {% else %}
-            {{ 493 }}
+            {{ none }}
           {% endif %}
 
+      # 2026-09-23: availability added to both vs-baseline sensors. They read a
+      # state of 0, i.e. exactly on baseline, whenever their 12M input was missing (R8).
       - name: "HVAC Performance vs Baseline"
         unique_id: hvac_performance_vs_baseline
         unit_of_measurement: "%"
         state_class: measurement
+        availability: "{{ states('sensor.hvac_heating_efficiency_12m') | float(0) > 0 }}"
         state: >
           {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
           {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
@@ -5175,6 +5021,7 @@ template:
         unique_id: ua_performance_vs_baseline
         unit_of_measurement: "%"
         state_class: measurement
+        availability: "{{ states('sensor.hvac_building_load_ua_12m') | float(0) > 0 }}"
         state: >
           {% set current = states('sensor.hvac_building_load_ua_12m') | float(493) %}
           {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
@@ -5193,50 +5040,63 @@ template:
         unit_of_measurement: "%"
         state_class: measurement
         icon: mdi:thermometer-alert
+        # 2026-09-23: the normal is the BDL NCEI 1991-2020 month-to-date sum from
+        # sensor.climate_norms_today. It was a hard-coded dict - a THIRD normal,
+        # matching neither BDL nor the norms CSV (R10) - that ran low all heating
+        # season: Oct 280 vs BDL 381, Nov 540 vs 682 [D]. Unknown (not 0%) when
+        # the MTD normal is 0, i.e. July.
+        availability: >
+          {{ is_state('sensor.climate_norms_today', 'ok') and
+             state_attr('sensor.climate_norms_today', 'mtd_hdd_normal') is number and
+             has_value('sensor.hvac_hdd65_cumulative_month') }}
         state: >
           {# Monthly normal HDD65 for CT (18-year climate avg ~5,270 annual) #}
-          {% set monthly_normals = {
-            1: 1085, 2: 925, 3: 750, 4: 420, 5: 155, 6: 20,
-            7: 0, 8: 5, 9: 55, 10: 280, 11: 540, 12: 1035
-          } %}
-          {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
-          {% set month_normal = monthly_normals[now().month] | float(1) %}
+          {# ^ the dict that comment described is gone - see the note above. #}
           {# Calculate days in current month correctly (handles December) #}
-          {% set next_month = now().replace(day=28) + timedelta(days=4) %}
-          {% set last_day = next_month - timedelta(days=next_month.day) %}
-          {% set days_in_month = last_day.day %}
-          {% set daily_rate = month_normal / days_in_month %}
-          {% set expected = daily_rate * now().day %}
-          {{ ((hdd / expected - 1) * 100) | round(1) if expected > 0 else 0 }}
+          {# ^ that calculation is gone too (2026-09-23): the norms script sums #}
+          {# the daily normals from day 1 to today instead. #}
+          {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
+          {% set expected = state_attr('sensor.climate_norms_today', 'mtd_hdd_normal') | float(0) %}
+          {{ ((hdd / expected - 1) * 100) | round(1) if expected > 0 else none }}
 
       - name: "Weather Severity Progress MTD"
         unique_id: weather_severity_progress_mtd
         unit_of_measurement: "%"
         state_class: measurement
         icon: mdi:progress-clock
+        # 2026-09-23: BDL month normal from sensor.climate_norms_today, replacing
+        # the same hard-coded dict as Weather Severity vs Normal MTD above.
+        availability: >
+          {{ is_state('sensor.climate_norms_today', 'ok') and
+             state_attr('sensor.climate_norms_today', 'month_hdd_normal') is number and
+             has_value('sensor.hvac_hdd65_cumulative_month') }}
         state: >
           {# Monthly normal HDD65 for CT (18-year climate avg ~5,270 annual) #}
-          {% set monthly_normals = {
-            1: 1085, 2: 925, 3: 750, 4: 420, 5: 155, 6: 20,
-            7: 0, 8: 5, 9: 55, 10: 280, 11: 540, 12: 1035
-          } %}
+          {# ^ superseded 2026-09-23 - see the note above. #}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
-          {% set month_normal = monthly_normals[now().month] | float(1) %}
-          {{ ((hdd / month_normal) * 100) | round(1) if month_normal > 0 else 0 }}
+          {% set month_normal = state_attr('sensor.climate_norms_today', 'month_hdd_normal') | float(0) %}
+          {{ ((hdd / month_normal) * 100) | round(1) if month_normal > 0 else none }}
 
+      # 2026-09-23: unbilled months project from BDL HDD (ACIS trailing_12, the
+      # last completed occurrence of that month - what hdd_archive_<m> held, on
+      # the proxy basis). Unavailable without it: a missing month's HDD read as
+      # 0 and silently dropped that month's heating from the projection.
       - name: "Projected Annual Gas CCF"
         unique_id: projected_annual_gas_ccf
         unit_of_measurement: "CCF"
+        availability: >
+          {{ state_attr('sensor.bdl_degree_days', 'trailing_12_count') | int(0) == 12 }}
         state: >
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
+          {% set t12 = state_attr('sensor.bdl_degree_days', 'trailing_12') %}
           {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(90.3) %}
           {% set dhw_annual = states('sensor.dhw_gas_12m') | float(42) %}
           {% set dhw_monthly = dhw_annual / 12 %}
           {% set ns = namespace(actual=0, projected=0) %}
           {% for m in months %}
             {% set gas = states('input_number.gas_archive_' ~ m ~ '_ccf') | float(0) %}
-            {% set hdd = states('input_number.hdd_archive_' ~ m) | float(0) %}
+            {% set hdd = t12[m] | float(0) if (t12 is mapping and m in t12) else 0 %}
             {% set dhw = states('input_number.dhw_archive_' ~ m) | float(dhw_monthly) %}
             {% if gas > 0 %}
               {# Month has been billed — use actual #}
@@ -6435,10 +6295,11 @@ template:
         unique_id: hdd_pipeline_healthy
         icon: mdi:thermometer-check
         state: >
-          {% set proxy_available = states('sensor.hvac_outdoor_temp_hartford_proxy') not in ['unknown', 'unavailable'] %}
+          {# 2026-09-23: the input is hvac_hdd65_today (KBDL, proxy fallback), not the proxy alone #}
+          {% set input_ok = states('sensor.hvac_hdd65_today') not in ['unknown', 'unavailable'] %}
           {% set not_stale = is_state('binary_sensor.hdd_capture_stale', 'off') %}
           {% set valid_days = states('sensor.hdd_valid_days_7d') | int(0) %}
-          {{ proxy_available and not_stale and valid_days >= 5 }}
+          {{ input_ok and not_stale and valid_days >= 5 }}
 
       # --- Runtime/HDD Pipeline Health ---
       - name: "Runtime per HDD Pipeline Healthy"
@@ -7429,6 +7290,9 @@ sensor:
 # Reads climate_daily_norms.csv (18 years of data) to provide
 # expected HDD/CDD values for today based on historical averages.
 # Updates once daily at startup and midnight.
+# 2026-09-23: now reads climate_daily_norms_bdl.csv - NCEI 1991-2020 normals
+# for Bradley BDL, built by scripts/build_bdl_daily_norms.py. The 18-year file
+# was not BDL (annual 6,128 vs 5,873 [M]); it is kept, unused.
 # ===============================================================
 
 command_line:
@@ -7449,10 +7313,12 @@ command_line:
         - trailing_12
         - trailing_12_sum
         - trailing_12_count
+        - trailing_12_cdd_sum  # 2026-09-23
         - added
         - updated
         - rows
-        - status
+        - status  # "ok", or "stale" = ACIS unreachable, serving the CSV (2026-09-23)
+        - detail  # why it is stale
 
   - sensor:
       name: "Climate Norms Today"
@@ -7478,3 +7344,37 @@ command_line:
         - tmin
         - tmax
         - samples
+        # 2026-09-23: BDL normals that replaced hard-coded dicts (R10)
+        - month_hdd_normal
+        - mtd_hdd_normal
+        - annual_hdd_normal
+        - annual_cdd_normal
+        - source
+
+  # 2026-09-23 (Bill: "switch to the NWS KBDL hourly observations"). Trailing
+  # 24 h HDD65/CDD65 from Bradley's own METARs, 65 - (max+min)/2 as NWS/ACIS
+  # define it. It is the primary basis of sensor.hvac_hdd65_today /
+  # hvac_cdd65_today; the proxy chain is their fallback only when this is not
+  # "ok". Scored vs ACIS BDL daily HDD: bias +0.06, sd 0.57, MAE 0.34 HDD/day
+  # [M, n=752 days, replay of the script's own compute()]. Evidence and the
+  # 5-minute-ob exclusion: header of scripts/kbdl_degree_days.py.
+  - sensor:
+      name: "KBDL Degree Days 24h"
+      unique_id: kbdl_degree_days_24h
+      command: "python3 /config/scripts/kbdl_degree_days.py"
+      command_timeout: 45
+      scan_interval: 600  # the 23:55 capture reads a value at most 10 min old
+      value_template: "{{ value_json.status }}"  # ok / insufficient / error
+      json_attributes:
+        - hdd65
+        - cdd65
+        - tmax
+        - tmin
+        - n_obs
+        - max_gap_h
+        - window_start
+        - window_end
+        - last_obs
+        - station
+        - method
+        - detail  # why it is not "ok"

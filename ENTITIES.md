@@ -75,7 +75,7 @@ sensor.gas_bills_ytd                          THE YTD definition - state $; attr
 binary_sensor.climate_adjusted_efficiency_alert
 binary_sensor.climate_cold_snap_today
 sensor.climate_norms_status
-sensor.climate_norms_today
+sensor.climate_norms_today                       State ok/error. Attributes: NCEI 1991-2020 BDL daily normals from climate_daily_norms_bdl.csv, incl. month/mtd/annual HDD normals (2026-09-23)
 sensor.efficiency_deviation_index
 sensor.expected_cdd_today
 sensor.expected_hdd_today
@@ -145,9 +145,9 @@ sensor.hvac_total_runtime_per_hdd_today
 sensor.dhw_gas_12m
 sensor.gas_dhw_usage_month
 sensor.gas_heating_usage_month
-sensor.hvac_building_load_ua_12m
+sensor.hvac_building_load_ua_12m       Rolling 12M UA on BDL HDD65 (ACIS trailing_12); unavailable unless 12 months present (2026-09-23)
 sensor.hvac_building_load_ua_estimate
-sensor.hvac_heating_efficiency_12m
+sensor.hvac_heating_efficiency_12m     CCF/1k HDD, rolling 12M, BDL HDD65 (ACIS trailing_12); unavailable unless 12 months present. _bdl twin is an alias (2026-09-23)
 sensor.hvac_heating_efficiency_mtd
 sensor.site_eui_estimate
 ```
@@ -205,8 +205,9 @@ input_boolean.ha_maintenance_mode  gate for all shell_command calls
 input_number.hdd_cumulative_month_auto  [pipeline: capture_daily_monthly_tracking]
 input_number.hdd_cumulative_year_auto   [pipeline: capture_daily_monthly_tracking]
 sensor.hdd_rolling_7_day_auto_2         [_2 FRAGILE]
-sensor.hvac_cdd65_today                 [pipeline: capture_daily_cooling_kwh_cdd]
-sensor.hvac_hdd65_today
+sensor.hvac_cdd65_today                 Trailing 24 h CDD65; KBDL obs, proxy 24 h mean fallback; attribute basis names which (2026-09-23)  [pipeline: capture_daily_cooling_kwh_cdd]
+sensor.hvac_hdd65_today                 Trailing 24 h HDD65; KBDL obs, proxy 24 h mean fallback; attribute basis names which (2026-09-23)
+sensor.kbdl_degree_days_24h             State ok/insufficient/error. Trailing 24 h HDD65/CDD65 = 65 - (max+min)/2 of KBDL METARs (api.weather.gov); primary basis of hvac_hdd65/cdd65_today (2026-09-23)
 ```
 
 ## KASA PLUGS
@@ -500,25 +501,21 @@ sensor.pirate_weather_wind_speed
 binary_sensor.ac_cost_capture_stale                  [pipeline: capture_daily_ac_cost]
 binary_sensor.ac_min_cycle_capture_stale             [pipeline: capture_daily_ac_min_per_cycle]
 binary_sensor.cdd_capture_stale                      [pipeline: capture_daily_cdd]
-binary_sensor.cdd_monthly_archive_stale              [pipeline: archive_monthly_cdd]
 binary_sensor.dehumidifier_cost_capture_stale        [pipeline: capture_daily_dehumidifier_cost]
 binary_sensor.dehumidifier_duty_kwh_capture_stale    [pipeline: capture_daily_dehumidifier_duty_kwh]
 binary_sensor.furnace_cycle_capture_stale            [pipeline: capture_daily_furnace_min_per_cycle]
 binary_sensor.gas_heat_cost_archive_stale            [pipeline: archive_monthly_gas_heat_cost]
 binary_sensor.hdd_capture_stale                      [pipeline: capture_daily_hdd]
-binary_sensor.hdd_monthly_archive_stale              [pipeline: archive_monthly_hdd]
 binary_sensor.monthly_report_stale                   [pipeline: capture_daily_monthly_tracking]
 binary_sensor.runtime_per_cdd_capture_stale          [pipeline: capture_daily_runtime_per_cdd]
 binary_sensor.runtime_per_hdd_capture_stale          [pipeline: capture_daily_runtime_per_hdd]
 input_datetime.ac_cost_capture_last_ok               [pipeline: capture_daily_ac_cost]
 input_datetime.ac_min_per_cycle_capture_last_ok      [pipeline: capture_daily_ac_min_per_cycle]
-input_datetime.cdd_archive_last_ok                   [pipeline: archive_monthly_cdd]
 input_datetime.cdd_capture_last_ok                   [pipeline: capture_daily_cdd]
 input_datetime.dehumidifier_cost_capture_last_ok     [pipeline: capture_daily_dehumidifier_cost]
 input_datetime.dehumidifier_duty_kwh_capture_last_ok [pipeline: capture_daily_dehumidifier_duty_kwh]
 input_datetime.furnace_cycle_capture_last_ok         [pipeline: capture_daily_furnace_min_per_cycle]
 input_datetime.gas_heat_cost_archive_last_ok         [pipeline: archive_monthly_gas_heat_cost]
-input_datetime.hdd_archive_last_ok                   [pipeline: archive_monthly_hdd]
 input_datetime.hdd_capture_last_ok                   [pipeline: capture_daily_hdd]
 input_datetime.monthly_tracking_capture_last_ok      [pipeline: capture_daily_monthly_tracking]
 input_datetime.runtime_per_cdd_capture_last_ok       [pipeline: capture_daily_runtime_per_cdd]

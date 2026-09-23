@@ -1177,3 +1177,133 @@
     "valid", automation.reload, rollover did not fire. this season 16.14, last
     season 1046.1 [M]. R13: the 10:01 cs_1/cs_2 change (previous entry) is
     reversed. CHANGELOG [2026.09.23], P20 closed.
+
+- asked: 2026-09-23
+  question: >-
+    Heat-season BDL audit, deploy: the config, scripts and new norms CSV are on H:
+    and check_config is run. May I run command_line.reload + template.reload (or
+    restart HA, if you prefer) so the BDL sensors go live? Then please paste
+    dashboards/views/energy-performance-analysis.yaml into the Analysis view
+    (pencil > Analysis > view menu > Edit in YAML > replace all), in that order.
+  blocks: >-
+    The BDL basis of HVAC Heating Efficiency 12M, UA 12M, Projected Annual Gas,
+    both Weather Severity sensors and the ARCHIVE ROLLUP card. Until the reload
+    they run the old templates; until the paste the card still compares proxy
+    HDD with 5,270. dashboard-not-pasted WARNs until the paste + export.
+  answered: >-
+    2026-09-23, Bill: "run command_line.reload and template.reload;  switch to
+    the NWS KBDL hourly observations; Yes". Reloads run
+    17:16:35Z. Observed after [M, /api/states]: HVAC Heating Efficiency 12M
+    102.4, Building Load UA 12M 528, Weather Severity vs Normal MTD -7.9% [M]. The
+    Analysis paste is still outstanding; it is carried by the 2026-09-23
+    "pastes + Grafana deploy" entry below.
+
+- asked: 2026-09-23
+  question: >-
+    Daily HDD basis (F4) and runtime/HDD (F5). BDL publishes daily HDD only
+    after the day ends, so the daily/MTD figures (hvac_hdd65_cumulative_month,
+    daily runtime/HDD, the severity numerator) still use HA's proxy HDD, whose
+    fallback chain reaches non-BDL sites. Keep the proxy live and true it up
+    next day from ACIS, switch to NWS KBDL hourly obs, or leave it? Separately,
+    runtime/HDD is not flat in HDD: should its SPC exclude or band low-HDD days?
+  blocks: >-
+    Any change to the daily HDD pipeline and the runtime/HDD SPC window. Data
+    put to Bill: proxy vs ACIS daily +0.08 HDD/day, sd 0.56 [M, n=48 days, 10 of
+    them heating]; runtime/HDD median by BDL HDD band 5-10: 4.4 (n=9), 10-20:
+    4.1 (n=23), 20-40: 7.3 (n=48), 40+: 8.6 (n=17) [M].
+  answered: >-
+    2026-09-23, Bill: "run command_line.reload and template.reload;  switch to
+    the NWS KBDL hourly observations; Yes". F4
+    answered: scripts/kbdl_degree_days.py -> sensor.kbdl_degree_days_24h is now
+    the primary basis of hvac_hdd65_today / hvac_cdd65_today, with the proxy
+    kept as the declared fallback (attribute basis). F5 was NOT answered and is
+    re-asked as its own entry below (R14).
+
+- asked: 2026-09-23
+  question: >-
+    Three cleanups, each a yes/no. (a) Retire the _bdl twin sensors (now
+    aliases) and the proxy hdd_archive_*/cdd_archive_* pipeline, once nothing
+    reads them? (b) May I fix the Grafana HDD panels on the host: last() in
+    place of max(), with tz('America/New_York')? (c) CLAUDE.md BASELINES says
+    "climate normal 5,270". That is the sum of the removed hard-coded dict, not
+    a BDL normal (NCEI 1991-2020 BDL: 5,873 [M]). Change the line to 5,873?
+    This is not a rebase: 90.3 / 493 / 6,270 are untouched.
+  blocks: >-
+    (a) deleting the twins and the archive automations + helpers (R10). (b) the
+    Grafana edit: Sep 1-22 the panels summed 58.7 HDD against HA 37.9 and BDL
+    33 [M, n=18 days]. (c) the CLAUDE.md BASELINES edit.
+  answered: >-
+    2026-09-23, Bill: "run command_line.reload and template.reload;  switch to
+    the NWS KBDL hourly observations; Yes". "Yes" read as yes to all three. (c) done: CLAUDE.md BASELINES reads
+    5,873. (b) built and staged in grafana/dashboards/hvac_status.json; the
+    deploy was refused by Claude Code's auto-mode classifier, so it waits on
+    Bill (entry below). (a) waits on the two dashboard pastes (entry below):
+    the live Analysis view reads the archive sums and the live Monthly gauge
+    reads the _bdl twin, and they are the last readers.
+
+- asked: 2026-09-23
+  question: >-
+    F5, re-asked: runtime/HDD is not flat in HDD. Should the runtime/HDD SPC
+    exclude low-HDD days, band them by HDD, or stay as it is?
+  blocks: >-
+    Any change to the runtime/HDD SPC window or limits. Data: runtime/HDD
+    median by BDL HDD band 5-10: 4.4 (n=9), 10-20: 4.1 (n=23), 20-40: 7.3
+    (n=48), 40+: 8.6 (n=17) [M].
+  answered: >-
+    2026-09-23, Bill: "for low hdd days-stay as it i,  run command_line.reload +
+    template.reload; dashboards are live." Stays as it is: no low-HDD
+    exclusion and no HDD banding of the runtime/HDD SPC. Nothing was changed.
+
+- asked: 2026-09-23
+  question: >-
+    F4 go-live: the KBDL script, sensor and templates are on H: and check_config
+    is valid. May I run command_line.reload + template.reload?
+  blocks: >-
+    F4 going live. Until the reload, hvac_hdd65_today / hvac_cdd65_today stay
+    the proxy 24 h mean and sensor.kbdl_degree_days_24h does not exist.
+  answered: >-
+    2026-09-23, Bill: "for low hdd days-stay as it i,  run command_line.reload +
+    template.reload; dashboards are live." check_config returned valid,
+    then command_line.reload + template.reload ran at 18:46:59Z. Observed at
+    18:47Z [M, /api/states]: sensor.kbdl_degree_days_24h ok, hdd65 9.5, n_obs
+    24, max_gap_h 1.0; hvac_hdd65_today 9.9 (proxy) -> 9.5, basis KBDL obs;
+    hvac_cdd65_today 0.0, basis KBDL obs; both pipeline_healthy sensors on.
+
+- asked: 2026-09-23
+  question: >-
+    Pastes + Grafana deploy, both Bill's to do. (1) Paste
+    dashboards/views/energy-performance-analysis.yaml into the Analysis view and
+    dashboards/views/energy-performance-monthly.yaml into the Monthly view
+    (pencil > tab > view menu > Edit in YAML > replace all). (2) Run ssh ha-host
+    "python3 /config/scripts/grafana_snapshot.py --deploy
+    /config/grafana/dashboards/hvac_status.json", or allow me to.
+  blocks: >-
+    (1) cleanup (a): the live views are the last readers of the _bdl twins and
+    the hdd_archive_/cdd_archive_ pipeline. (2) cleanup (b): Grafana still
+    serves v35, whose HDD panels summed 58.7 HDD for Sep 1-22 against BDL 33
+    [M, n=18 days].
+  answered: >-
+    2026-09-23, Bill: "for low hdd days-stay as it i,  run command_line.reload +
+    template.reload; dashboards are live." (1) Answered: both pastes live.
+    export_dashboards.py re-run: the live Analysis view equals the repo file.
+    The live Monthly view does not: Bill deleted the _bdl gauge instead of
+    pasting my repointed copy, which would have duplicated the gauge already
+    on hvac_heating_efficiency_12m (my design error, R13). The repo view file
+    was re-made from live. (2) NOT answered: Grafana still serves v35
+    (updated 2026-09-10). Re-asked as its own entry below (R14).
+
+- asked: 2026-09-23
+  question: >-
+    Grafana deploy, re-asked. The fixed hvac_status.json is on H: but Grafana
+    still serves v35. Will you run ssh ha-host "python3
+    /config/scripts/grafana_snapshot.py --deploy
+    /config/grafana/dashboards/hvac_status.json", or allow me to?
+  blocks: >-
+    Cleanup (b): Grafana's HDD and CDD panels stay on the v35 queries, which
+    summed 58.7 HDD for Sep 1-22 against BDL 33 [M, n=18 days]. The staged
+    queries scored bias +0.21, MAE 0.50 HDD/day (n=19) [M].
+  answered: >-
+    2026-09-23, Bill: "grafana dashoard live". Verified [M, Grafana
+    /api/dashboards/uid/hvac-status]: version 36, updated 2026-09-23
+    14:46:41-04:00; all 47 served query targets equal
+    grafana/dashboards/hvac_status.json (0 differ; v35 had 26).

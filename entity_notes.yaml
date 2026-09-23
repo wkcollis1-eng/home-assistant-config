@@ -387,7 +387,7 @@ sensor.climate_norms_status:
   note: ''
 sensor.climate_norms_today:
   group: CLIMATE NORMS
-  note: ''
+  note: 'State ok/error. Attributes: NCEI 1991-2020 BDL daily normals from climate_daily_norms_bdl.csv, incl. month/mtd/annual HDD normals (2026-09-23)'
 sensor.computer_outlet_today_s_consumption:
   group: KASA PLUGS
   note: ''
@@ -610,13 +610,13 @@ sensor.hvac_2f_runtime_per_hdd_today:
   note: ''
 sensor.hvac_building_load_ua_12m:
   group: ENERGY METRICS
-  note: ''
+  note: 'Rolling 12M UA on BDL HDD65 (ACIS trailing_12); unavailable unless 12 months present (2026-09-23)'
 sensor.hvac_building_load_ua_estimate:
   group: ENERGY METRICS
   note: ''
 sensor.hvac_cdd65_today:
   group: HDD/CDD
-  note: ''
+  note: 'Trailing 24 h CDD65; KBDL obs, proxy 24 h mean fallback; attribute basis names which (2026-09-23)'
 sensor.hvac_chaining_index:
   group: FURNACE CYCLE TRACKING
   note: ''
@@ -688,10 +688,10 @@ sensor.hvac_furnace_runtime_week:
   note: ''
 sensor.hvac_hdd65_today:
   group: HDD/CDD
-  note: ''
+  note: 'Trailing 24 h HDD65; KBDL obs, proxy 24 h mean fallback; attribute basis names which (2026-09-23)'
 sensor.hvac_heating_efficiency_12m:
   group: ENERGY METRICS
-  note: ''
+  note: 'CCF/1k HDD, rolling 12M, BDL HDD65 (ACIS trailing_12); unavailable unless 12 months present. _bdl twin is an alias (2026-09-23)'
 sensor.hvac_heating_efficiency_mtd:
   group: ENERGY METRICS
   note: ''
@@ -773,6 +773,9 @@ sensor.hwh_recirc_runtime_today:
 sensor.hwh_today_s_consumption:
   group: KASA PLUGS
   note: Hot Water Heater (Basement)
+sensor.kbdl_degree_days_24h:
+  group: HDD/CDD
+  note: 'State ok/insufficient/error. Trailing 24 h HDD65/CDD65 = 65 - (max+min)/2 of KBDL METARs (api.weather.gov); primary basis of hvac_hdd65/cdd65_today (2026-09-23)'
 sensor.living_room_tv_sonos_homatics_today_s_consumption:
   group: KASA PLUGS
   note: ''
