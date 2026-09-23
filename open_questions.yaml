@@ -1087,3 +1087,27 @@
     09/12; the date comes from the bill and the SDR is consistent with it.
     Read dates set to 2026-09-10 / 2026-09-11; the lookup stored 31,305.8 kWh
     and 569,474 ft3.
+
+- asked: 2026-09-23
+  question: >-
+    Basement router: what exactly did you do on 09-22 between 13:25 and 14:12
+    EDT, did anything else on the network change on 09-15 ~11:00 or 09-21
+    ~13:30, and roughly how far was the router from the bank monitor and its
+    shunt sense leads before the move, and how far is it now?
+  blocks: >-
+    Naming a mechanism (radiated RF pickup vs the router's supply or cabling)
+    for the 2026-09-22 drop in INA228 rest-current noise [M: hourly SD median
+    13.6 mA over 320 h before 14:05, 5.1 mA over 17 h after, battery_current
+    2-s recorder rows]. Nothing is being built on it; the analysis stands
+    without it.
+  answered: >-
+    2026-09-23, Bill: on 09-22 he moved the router from the shelf above the bank
+    monitor about 3 ft west and mounted it on the wall. It was about 16 in from
+    the shunt on the shelf and is about 5 ft from it now (he first wrote 3 in
+    and 5 in, then corrected both to feet). He knows of no network change on
+    09-15. On 09-21 he put a box under the router, raising it about 4 in on the
+    shelf. The distances hold if the move totalled at least 44 in [D: 60 - 16,
+    triangle inequality]: 3 ft west plus any change of height, or rounding.
+    Settles the direction: the noise fell when the router moved away from the
+    monitor and shunt. Does not separate the router's radio from its power and
+    network cabling as the coupling path.
