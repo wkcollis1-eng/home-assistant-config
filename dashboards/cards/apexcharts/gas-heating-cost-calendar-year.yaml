@@ -1,0 +1,96 @@
+# Gas Heating Cost — Calendar Year — ApexCharts Card
+# ==================================================
+# Dashboards: Heating HVAC Diagnostics (default dashboard) AND Energy
+# Performance > Weekly. The two live copies were identical on 2026-09-23;
+# paste this over BOTH (card > Edit > Show code editor, replace all).
+# Source of truth: input_number.gas_heat_{cs,ls,ls2}_1..12 (slot 1 = Jul ..
+# 12 = Jun); a calendar year spans two seasons, so each month M reads the
+# season it belongs to (Jul-Dec -> season Y, Jan-Jun -> season Y-1).
+#
+# The window (span.start: year, graph_span: 1y) was already right: Jan 1 ..
+# Dec 31 of this year. Changed 2026-09-23:
+#   - "This year" stops at the current month plus one closing point, with
+#     extend_to: false (clamped to the window end: 1y is 365.25 d, so a leap
+#     year's window closes Dec 31 06:00). It used to draw all 12 months, so
+#     future months showed whatever the store held - on 2026-09-23 that was
+#     LAST season's Oct-Dec,
+#     left behind by a seed that went into the wrong array - and the header
+#     read that full-year sum. Its header is now year-to-date, the same sum
+#     sensor.gas_heat_cal_ytd_current gives.
+#   - Tooltip is MMM with no year. "Last year" is drawn at this year's dates,
+#     so any year the tooltip printed would be wrong for that line.
+# "Last year" keeps all 12 months; its header is the full last-year total.
+# Jan-Jun of last year come from the ls2 array (two seasons back).
+#
+# RESERVED IDENTIFIERS: the body runs as AsyncFunction('entity', 'start',
+# 'end', 'hass', 'moment', body). Never declare start/end/entity/hass/moment.
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Gas Heating Cost — Calendar Year
+  show_states: true
+  colorize_states: true
+graph_span: 1y
+span:
+  start: year
+yaxis:
+  - min: 0
+    decimals: 0
+    apex_config:
+      title:
+        text: $ cumulative
+apex_config:
+  chart:
+    height: 280
+  xaxis:
+    labels:
+      format: MMM
+  tooltip:
+    x:
+      format: MMM
+series:
+  - entity: sun.sun
+    name: This year
+    type: line
+    curve: stepline
+    color: '#2980b9'
+    stroke_width: 3
+    extend_to: false
+    data_generator: |
+      const now = new Date();
+      const Y = now.getFullYear();
+      const s0 = (now.getMonth() >= 6) ? Y : Y - 1;
+      const pick = (ss) => ss === s0 ? 'cs' : ss === s0 - 1 ? 'ls' : ss === s0 - 2 ? 'ls2' : null;
+      let out = [], cum = 0;
+      for (let M = 1; M <= now.getMonth() + 1; M++) {
+        const ss = (M >= 7) ? Y : Y - 1;
+        const arr = pick(ss);
+        const slot = (M >= 7) ? M - 6 : M + 6;
+        const v = arr ? (parseFloat(hass.states['input_number.gas_heat_' + arr + '_' + slot]?.state) || 0) : 0;
+        cum += v;
+        out.push([new Date(Y, M - 1, 1).getTime(), Math.round(cum * 100) / 100]);
+      }
+      out.push([Math.min(new Date(Y, now.getMonth() + 1, 1).getTime(), new Date(end).getTime()), Math.round(cum * 100) / 100]);
+      return out;
+  - entity: sun.sun
+    name: Last year
+    type: line
+    curve: stepline
+    color: '#95a5a6'
+    stroke_width: 2
+    data_generator: |
+      const now = new Date();
+      const Y = now.getFullYear();
+      const LY = Y - 1;
+      const s0 = (now.getMonth() >= 6) ? Y : Y - 1;
+      const pick = (ss) => ss === s0 ? 'cs' : ss === s0 - 1 ? 'ls' : ss === s0 - 2 ? 'ls2' : null;
+      let out = [], cum = 0;
+      for (let M = 1; M <= 12; M++) {
+        const ss = (M >= 7) ? LY : LY - 1;
+        const arr = pick(ss);
+        const slot = (M >= 7) ? M - 6 : M + 6;
+        const v = arr ? (parseFloat(hass.states['input_number.gas_heat_' + arr + '_' + slot]?.state) || 0) : 0;
+        cum += v;
+        out.push([new Date(Y, M - 1, 1).getTime(), Math.round(cum * 100) / 100]);
+      }
+      return out;

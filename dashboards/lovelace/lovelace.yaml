@@ -4967,7 +4967,10 @@ views:
               title: Gas Heating Cost — Season (Jul–Jun)
               show_states: true
               colorize_states: true
-            graph_span: 13months
+            graph_span: 1y
+            span:
+              start: year
+              offset: -184d
             yaxis:
               - min: 0
                 decimals: 0
@@ -4982,7 +4985,7 @@ views:
                   format: MMM
               tooltip:
                 x:
-                  format: MMM yyyy
+                  format: MMM
             series:
               - entity: sun.sun
                 name: This season
@@ -4990,15 +4993,22 @@ views:
                 curve: stepline
                 color: '#c0392b'
                 stroke_width: 3
+                extend_to: false
                 data_generator: |
                   const now = new Date();
-                  const y = (now.getMonth() >= 6) ? now.getFullYear() : now.getFullYear() - 1;
+                  const s0 = (now.getMonth() >= 6) ? now.getFullYear() : now.getFullYear() - 1;
+                  const t0 = new Date(start).getTime();
+                  const ax = new Date(t0).getFullYear();
+                  const t1 = new Date(end).getTime();
+                  const at = (i) => Math.min(Math.max(new Date(ax, 6 + (i - 1), 1).getTime(), t0), t1);
+                  const done = (now.getFullYear() - s0) * 12 + now.getMonth() - 6 + 1;
                   let out = [], cum = 0;
-                  for (let i = 1; i <= 12; i++) {
+                  for (let i = 1; i <= done; i++) {
                     const v = parseFloat(hass.states['input_number.gas_heat_cs_' + i]?.state) || 0;
                     cum += v;
-                    out.push([new Date(y, 6 + (i - 1), 1).getTime(), Math.round(cum * 100) / 100]);
+                    out.push([at(i), Math.round(cum * 100) / 100]);
                   }
+                  out.push([at(done + 1), Math.round(cum * 100) / 100]);
                   return out;
               - entity: sun.sun
                 name: Last season
@@ -5007,13 +5017,15 @@ views:
                 color: '#95a5a6'
                 stroke_width: 2
                 data_generator: |
-                  const now = new Date();
-                  const y = (now.getMonth() >= 6) ? now.getFullYear() : now.getFullYear() - 1;
+                  const t0 = new Date(start).getTime();
+                  const ax = new Date(t0).getFullYear();
+                  const t1 = new Date(end).getTime();
+                  const at = (i) => Math.min(Math.max(new Date(ax, 6 + (i - 1), 1).getTime(), t0), t1);
                   let out = [], cum = 0;
                   for (let i = 1; i <= 12; i++) {
                     const v = parseFloat(hass.states['input_number.gas_heat_ls_' + i]?.state) || 0;
                     cum += v;
-                    out.push([new Date(y, 6 + (i - 1), 1).getTime(), Math.round(cum * 100) / 100]);
+                    out.push([at(i), Math.round(cum * 100) / 100]);
                   }
                   return out;
           - type: custom:apexcharts-card
@@ -5039,7 +5051,7 @@ views:
                   format: MMM
               tooltip:
                 x:
-                  format: MMM yyyy
+                  format: MMM
             series:
               - entity: sun.sun
                 name: This year
@@ -5047,13 +5059,14 @@ views:
                 curve: stepline
                 color: '#2980b9'
                 stroke_width: 3
+                extend_to: false
                 data_generator: |
                   const now = new Date();
                   const Y = now.getFullYear();
                   const s0 = (now.getMonth() >= 6) ? Y : Y - 1;
                   const pick = (ss) => ss === s0 ? 'cs' : ss === s0 - 1 ? 'ls' : ss === s0 - 2 ? 'ls2' : null;
                   let out = [], cum = 0;
-                  for (let M = 1; M <= 12; M++) {
+                  for (let M = 1; M <= now.getMonth() + 1; M++) {
                     const ss = (M >= 7) ? Y : Y - 1;
                     const arr = pick(ss);
                     const slot = (M >= 7) ? M - 6 : M + 6;
@@ -5061,6 +5074,7 @@ views:
                     cum += v;
                     out.push([new Date(Y, M - 1, 1).getTime(), Math.round(cum * 100) / 100]);
                   }
+                  out.push([Math.min(new Date(Y, now.getMonth() + 1, 1).getTime(), new Date(end).getTime()), Math.round(cum * 100) / 100]);
                   return out;
               - entity: sun.sun
                 name: Last year

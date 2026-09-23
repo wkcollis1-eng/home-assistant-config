@@ -1111,3 +1111,49 @@
     Settles the direction: the noise fell when the router moved away from the
     monitor and shunt. Does not separate the router's radio from its power and
     network cabling as the coupling path.
+
+- asked: 2026-09-23
+  question: >-
+    Gas heating season store: is $16.32 your June 2026 gas heating cost (bill
+    dated 2026-06-12, $50.74 / 17 CCF), and may repair.py write it to ls_12 and
+    move 2025-26 out of the current-season array into last season?
+  blocks: >-
+    The live data repair, C:/Users/wkcol/ha-data-repairs/2026-09-23-gas-heat-
+    season/repair.py --june 16.32 --apply (19 input_number writes; snapshot,
+    drift guard and restore.py tested). Until it runs,
+    sensor.gas_heat_season_cost_current reads 1048.73 (should be 16.14) and
+    _last reads 0. $16.32 is HA's own sensor.gas_heating_cost_month [M: InfluxDB
+    "$", 2026-07-13 01:44 to 07-15 20:42, while input_datetime.gas_bill_date
+    held 2026-06-12], the value archive_monthly_gas_heat_cost writes, so it is
+    what June would have got had the store existed before 07-12.
+  answered: >-
+    NOT Bill's answer - superseded 2026-09-23 by data. He replied with his
+    May/Jun/Jul 2025 CNG bills and "gas heating will subtract the HWH
+    consumption". Those bills equal HA's 2025 gas archive (3/3), and the method
+    bill $ x (CCF - Navien DHW CCF) / CCF, statement month = Navien month,
+    reproduces all 11 seeded 2025-26 months to the cent from HA's own archives
+    [D, n=11]. The same method gives June 2026 16.33 (DHW 11.53 rounded) / 16.32
+    (HA's sensor, unrounded). The authorization is re-asked in the next entry.
+
+- asked: 2026-09-23
+  question: >-
+    May repair.py write the gas heating season store: 2025-26 moved into last
+    season with June 2026 = $16.32, and Jul/Aug 2026 corrected to $15.72 /
+    $10.92 (21 input_number writes)?
+  blocks: >-
+    C:/Users/wkcol/ha-data-repairs/2026-09-23-gas-heat-season/repair.py
+    --june 16.32 --apply. The snapshot, the drift guard (fires on an injected
+    mismatch, silent on the live store) and restore.py are ready. Until it
+    runs, sensor.gas_heat_season_cost_current reads 1048.73 (should be 37.78)
+    and _last reads 0 (should be 1067.47) [D, dry run]. Jul/Aug 2026: the
+    archive fired on Save Gas Bill before that month's DHW was entered, so it
+    used the previous month's (5 and 0); 15.72 / 10.92 are HA's own sensor
+    once the right DHW was in [M: InfluxDB, 2026-08-01 and 2026-09-11]. Sep
+    2026 stays 11.14 (Aug DHW) until Sep's DHW exists - docs/pending.md P20.
+  answered: >-
+    2026-09-23, Bill: "r12 - yes". Applied 10:01 (repair.py --june 16.32
+    --apply): 21 writes, all 36 slots read back equal to target, ls2 untouched.
+    sensor.gas_heat_season_cost_current now 37.78 and _last 1067.47 [M:
+    /api/states 14:01 UTC]. Snapshot and put-back:
+    ha-data-repairs/2026-09-23-gas-heat-season/before-20260923-100133.json +
+    restore.py. cs_3 (Sep, 11.14) is still provisional - P20 item 4.

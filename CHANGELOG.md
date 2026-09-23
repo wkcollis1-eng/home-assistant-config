@@ -57,6 +57,85 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.23] - 2026-09-23
+
+### Gas Heating Cost charts: two chart defects, one data defect (charts NOT yet live)
+
+Bill: the Gas Heating Cost charts on Heating HVAC Diagnostics "do not seem to be
+working correctly". Both cards also exist, identical, on Energy Performance >
+Weekly.
+
+**The moment it must survive:** any day of any season, unattended. The chart must
+show only months that have happened, on the right axis, with a header that
+agrees with the `gas_heat_*` template sensors.
+
+**Chart defects** (read from the shipped `www/community/apexcharts-card/
+apexcharts-card.js`, not the docs):
+- *Season (Jul-Jun)*: `graph_span: 13months` with no `span` gives a window of the
+  last 13 months up to now, but the generator plots all 12 slots at this season's dates,
+  most of them in the future. On 09-23 only 3 of 12 points were inside the window
+  [M, harness], and the header, which is the last generated point, was always the
+  full 12-slot sum. Fixed: `graph_span: 1y`, `span: {start: year, offset: -184d}`
+  (Jul 1 to Jun 30); "This season" stops at the current month with a closing
+  point and `extend_to: false`; points are clamped into the window, because a 1y
+  span is 365.25 d, so a window across a leap day closes Jun 30 07:00.
+- *Calendar Year*: the window was already right, but "This year" drew all 12
+  months, so Oct-Dec showed whatever the store held and the header read 242.59
+  on 09-23 [M]. Fixed: stops at the current month; header = year to date, the
+  same sum as `sensor.gas_heat_cal_ytd_current`.
+- Tooltips are `MMM` with no year: the comparison lines are drawn at this year's
+  dates, so a printed year would be wrong for them.
+
+Corrections are in `dashboards/cards/apexcharts/gas-heating-cost-season.yaml` and
+`gas-heating-cost-calendar-year.yaml`. **They are not live until Bill pastes them over
+both copies on both dashboards**; after that, run `export_dashboards.py`. Tested with
+a Node harness that uses the card's own window rules and runs the exact
+`AsyncFunction` signature, over 11 dates (including Jul 1, Dec 31, Jan 1, Jun 30
+and both leap-year edges) and 3 stores. The old cards gave 63 FAILs; the new
+cards pass every check: all points in the window, header = the template sensor
+re-stated independently, monotonic, and each point in its own month [M].
+
+**Data defect** [M: InfluxDB `$` series and git]: the store was created 07-12,
+after Jul 1, and the one-shot seed (`scripts.yaml` @ 9b356be) wrote 2025-26
+into `cs`, not `ls`. The Jul/Aug/Sep 2026 bills then overwrote cs_1..3. So
+`sensor.gas_heat_season_cost_current` reads 1048.73 and `_last` reads 0.
+`automation.reset_gas_heating_season_jul_1` has never run (last_triggered None).
+Repair tooling is in `C:\Users\wkcol\ha-data-repairs\2026-09-23-gas-heat-season\`
+(`repair.py`, dry-run default; `restore.py`). The drift guard was proven to
+refuse on an injected mismatch in a dry run, and is silent on the live store.
+**Not applied**: it waits on Bill (open_questions.yaml 2026-09-23). The proposed
+June 2026 value is $16.32, HA's own `gas_heating_cost_month` while
+`gas_bill_date` held 2026-06-12 [M]. After the repair: this season 16.14, last
+season 1067.47 [D, dry run].
+
+**Left open:** docs/pending.md P20 (the rollover is skipped for a year if HA
+misses all of Jul 1; the archive's "ok" stamp runs on the not-archived branch;
+ls2 / 2024-25 was never seeded, so Calendar "Last year" reads Jan-Jun 2025 as $0).
+
+**Same day, after Bill sent his May/Jun/Jul 2025 CNG bills** ("gas heating will
+subtract the HWH consumption"). All three equal HA's 2025 gas archive. The method
+bill $ x (CCF - Navien DHW CCF) / CCF, with the statement month paired to the
+Navien calendar month, reproduces all 11 seeded 2025-26 months to the cent from
+HA's own archives [D, n=11]. So the seed is corroborated, and June 2026 = 16.32
+(HA's sensor; 16.33 with DHW rounded). The same check found a second
+defect: the Jul/Aug 2026 saves ran before that month's DHW was entered, so they
+archived 5 / 0, not 15.72 / 10.92 [M: HA's own sensor once the DHW was in].
+`repair.py` now corrects those too: 21 writes; this season 37.78, last season
+1067.47 [D, dry run]. Still not applied. Cause and fix options: P20 item 4.
+Correction to the paragraph above (R13): "After the repair: this season 16.14"
+is superseded by 37.78.
+
+**Applied 2026-09-23 10:01, on Bill's "r12 - yes".** 21 writes; all 36 slots
+read back equal to target; ls2 untouched. `sensor.gas_heat_season_cost_current`
+went 1048.73 -> 37.78 and `_last` 0 -> 1067.47 [M: /api/states, 14:01 UTC].
+Put-back: `restore.py before-20260923-100133.json` (in ha-data-repairs). Sep
+2026 (cs_3 = 11.14) is still built on Aug's DHW - P20 item 4.
+
+**Charts live on Heating HVAC Diagnostics, 2026-09-23** (Bill pasted them). After
+`export_dashboards.py`, both cards in `dashboards/lovelace/lovelace.yaml` parse
+equal to the two snippets. The Energy Performance > Weekly copies (cards 4 and 5
+in `energy_performance.yaml`) are still the old versions: not pasted yet.
+
 ## [2026.09.22] - 2026-09-22
 
 ### Cost Overview view + billing-period backing entities (Energy Performance)
