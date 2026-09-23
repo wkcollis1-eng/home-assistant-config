@@ -63,6 +63,26 @@ time - capturing temperature alongside the subgroup would be redundant.
 The autumn cool-down measures the slope over a real lever arm for free. Re-run
 the regression once the basement has dropped ~5 degF and compensate then, on
 measurement rather than extrapolation.
+
+UPDATE 2026-09-23 - re-run on a wider lever arm (4.0 degF, not yet ~5):
+  daily means 2026-08-08..09-22 (n=46), basement 67.84 .. 71.85 degF:
+    slope +5.20 +/- 0.35 W/degF, t = 14.7, r2 = 0.831
+    raw daily sd 5.26 W -> residual sd 2.18 W after T-normalisation
+  per run (n=340), inlet 67.5 .. 72.0 degF: +5.14 +/- 0.25 W/degF, t = 20.8
+  [M: steady window = minutes 10-14 of each run; inlet = basement SHT45
+   temperature at run start; run = plug power > 150 W]
+  Same method on the original 08-08..21 window: +6.55 +/- 1.04 (n=14),
+  consistent with the 7.64 +/- 0.64 above (z = 0.89 [D]). The narrow-span
+  slope was imprecise, not wrong; the wider span brings it down.
+  CAVEAT: runs start at a fixed RH, so inlet temperature and humidity move
+  together (r = 1.00 per run). This is the combined inlet effect; the two
+  cannot be separated from these data. That does not matter for
+  compensating the chart; it does for explaining the machine.
+  THE CONCLUSION STANDS: at 5.20 W/degF the 8.5 degF seasonal move above is
+  44 W [D: 5.20 x 8.5] against a 2.18 W residual sd.
+  STILL NOT EARNED: the 61.3 degF low of the n=3230 series above is 6.5 degF
+  below the fitted minimum [D: 67.84 - 61.3]. Re-fit when the basement
+  reaches ~63 degF; no compensation is built yet.
 ```
 
 ### P9 — the leak alarm watches the wrong field, and it already missed one [HIGH]
