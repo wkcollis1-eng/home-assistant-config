@@ -142,15 +142,15 @@
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT mean(\"value\") as \"value\" FROM \"°F\" WHERE \"entity_id\" = 'outdoor_temp_live' AND time > now() - 24h",
+          "query": "SELECT last(\"value\") as \"value\" FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 7d",
           "rawQuery": true,
-          "refId": "temp_24h",
+          "refId": "cdd_24h",
           "resultFormat": "table",
           "hide": true
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d))",
+          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 8d GROUP BY time(1d) LIMIT 7 OFFSET 1 tz('America/New_York'))",
           "rawQuery": true,
           "refId": "ac_7d",
           "resultFormat": "table",
@@ -158,7 +158,7 @@
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d))",
+          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d GROUP BY time(1d) LIMIT 7 OFFSET 1 tz('America/New_York'))",
           "rawQuery": true,
           "refId": "furnace_7d",
           "resultFormat": "table",
@@ -166,7 +166,7 @@
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d))",
+          "query": "SELECT sum(\"last\") as \"value\" FROM (SELECT last(\"value\") as \"last\" FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York'))",
           "rawQuery": true,
           "refId": "cdd_7d",
           "resultFormat": "table",
@@ -190,7 +190,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "temp_24h",
+          "expression": "cdd_24h",
           "reducer": "last",
           "refId": "T",
           "type": "reduce",
@@ -222,7 +222,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "($A + $B) / ($T - 65)",
+          "expression": "($A + $B) / $T",
           "refId": "24h",
           "type": "math"
         },
@@ -234,7 +234,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "(($A + $B) / ($T - 65)) / (($D + $E) / $F)",
+          "expression": "(($A + $B) / $T) / (($D + $E) / $F)",
           "refId": "% of Avg",
           "type": "math"
         }
@@ -306,15 +306,15 @@
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT mean(\"value\") as \"value\" FROM \"°F\" WHERE \"entity_id\" = 'outdoor_temp_live' AND time > now() - 24h",
+          "query": "SELECT last(\"value\") as \"value\" FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 7d",
           "rawQuery": true,
-          "refId": "temp_24h",
+          "refId": "hdd_24h",
           "resultFormat": "table",
           "hide": true
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d))",
+          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d GROUP BY time(1d) LIMIT 7 OFFSET 1 tz('America/New_York'))",
           "rawQuery": true,
           "refId": "furnace_7d",
           "resultFormat": "table",
@@ -322,7 +322,7 @@
         },
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
-          "query": "SELECT sum(\"max\") as \"value\" FROM (SELECT max(\"value\") as \"max\" FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d))",
+          "query": "SELECT sum(\"last\") as \"value\" FROM (SELECT last(\"value\") as \"last\" FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York'))",
           "rawQuery": true,
           "refId": "hdd_7d",
           "resultFormat": "table",
@@ -338,7 +338,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "temp_24h",
+          "expression": "hdd_24h",
           "reducer": "last",
           "refId": "T",
           "type": "reduce",
@@ -362,7 +362,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "$A / (65 - $T)",
+          "expression": "$A / $T",
           "refId": "24h",
           "type": "math"
         },
@@ -374,7 +374,7 @@
         },
         {
           "datasource": { "type": "__expr__", "uid": "__expr__" },
-          "expression": "($A / (65 - $T)) / ($D / $H)",
+          "expression": "($A / $T) / ($D / $H)",
           "refId": "% of Avg",
           "type": "math"
         }
@@ -429,7 +429,7 @@
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
           "alias": "AC",
-          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(0)",
+          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 8d GROUP BY time(1d) fill(0) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -437,7 +437,7 @@
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
           "alias": "Furnace",
-          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(0)",
+          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d GROUP BY time(1d) fill(0) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
@@ -445,7 +445,7 @@
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
           "alias": "CDD",
-          "query": "SELECT max(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "C",
           "resultFormat": "time_series"
@@ -525,7 +525,7 @@
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
           "alias": "kWh",
-          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 8d GROUP BY time(1d) fill(null) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -533,7 +533,7 @@
         {
           "datasource": { "type": "influxdb", "uid": "bfrwayjkhasjka" },
           "alias": "HDD",
-          "query": "SELECT max(\"value\") FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
@@ -662,14 +662,14 @@
       "targets": [
         {
           "alias": "Runtime",
-          "query": "SELECT max(\"value\") as \"Runtime\" FROM \"h\" WHERE (\"entity_id\" = 'hvac_furnace_runtime_today') AND $timeFilter GROUP BY time(1d) fill(null)",
+          "query": "SELECT max(\"value\") as \"Runtime\" FROM \"h\" WHERE (\"entity_id\" = 'hvac_furnace_runtime_today') AND $timeFilter GROUP BY time(1d) fill(null) tz('America/New_York')",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
         },
         {
           "alias": "HDD",
-          "query": "SELECT max(\"value\") as \"HDD\" FROM \"HDD\" WHERE (\"entity_id\" = 'hvac_hdd65_today') AND $timeFilter GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") as \"HDD\" FROM \"HDD\" WHERE (\"entity_id\" = 'hvac_hdd65_today') AND $timeFilter GROUP BY time(1d) fill(previous) tz('America/New_York')",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
@@ -723,28 +723,28 @@
       "targets": [
         {
           "alias": "AC",
-          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 31d AND time < now() - 1d GROUP BY time(1d) fill(0)",
+          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_ac_daily' AND time > now() - 31d GROUP BY time(1d) fill(0) LIMIT 30 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
         },
         {
           "alias": "Furnace",
-          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 31d AND time < now() - 1d GROUP BY time(1d) fill(0)",
+          "query": "SELECT max(\"value\") FROM \"kWh\" WHERE \"entity_id\" = 'sem_furnace_daily' AND time > now() - 31d GROUP BY time(1d) fill(0) LIMIT 30 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
         },
         {
           "alias": "CDD",
-          "query": "SELECT max(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 31d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 31d GROUP BY time(1d) fill(previous) LIMIT 30 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "C",
           "resultFormat": "time_series"
         },
         {
           "alias": "DP_Split",
-          "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'hvac_dp_split' AND time > now() - 31d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"°F\" WHERE \"entity_id\" = 'hvac_dp_split' AND time > now() - 31d GROUP BY time(1d) fill(null) LIMIT 30 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "D",
           "resultFormat": "time_series"
@@ -894,14 +894,14 @@
       "targets": [
         {
           "alias": "HDD",
-          "query": "SELECT max(\"value\") FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") FROM \"HDD\" WHERE \"entity_id\" = 'hvac_hdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
         },
         {
           "alias": "CDD",
-          "query": "SELECT max(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d AND time < now() - 1d GROUP BY time(1d) fill(null)",
+          "query": "SELECT last(\"value\") FROM \"CDD\" WHERE \"entity_id\" = 'hvac_cdd65_today' AND time > now() - 8d GROUP BY time(1d) fill(previous) LIMIT 7 OFFSET 1 tz('America/New_York')",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
