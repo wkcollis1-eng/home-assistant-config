@@ -28,6 +28,18 @@ Off-host gotchas, each of which has cost a session:
   registration there before concluding a script is broken.
   **SUPERSEDED 2026-09-16 (Bill):** adding or changing a `shell_command` needs
   a RESTART, as DEFINITION OF DONE says. Do not rely on the reload claim above.
+- **`/api/history/period/<start>` without `end_time` returns ONE DAY, silently.**
+  HA sets `end_time = start_time + _ONE_DAY` when the query omits it [S:
+  home-assistant/core 2026.9.3, `homeassistant/components/history/__init__.py`
+  lines 29, 107]. Nothing in the response says it was cut: a series that stops
+  changing reads as "steady", and a step series carries its last value forward
+  into every later window. Cost three wrong claims on 2026-09-24 (R13): a
+  battery-bank query from 09-21 00:00 UTC without `end_time` returned one day
+  (662 WiFi-signal rows, against 2,254 over the intended 3.6 d [M]), and "monitor
+  RSSI equal in both noise regimes", "the basement router never went off" and
+  "the UPS monitor never dropped" were all read off data that ended before the
+  events. Always pass `end_time`, and check each returned series' first and last
+  timestamp against the window you asked for.
 - **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
   services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
   long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —
