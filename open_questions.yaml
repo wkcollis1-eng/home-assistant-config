@@ -463,6 +463,15 @@
     September total is the gate. Winter extension needs a third state (furnace
     calling), because non-firing gas will then include heating.
 
+    2026-09-23 re-check, after Bill doubted the idle figure and gave the
+    Navien recirc schedule (06-08, 14-16, 18-20): the split is METHOD-
+    DEPENDENT at 2 ft3 per step. Smearing each step over its interval puts
+    325.7 of 492 ft3 in the <12 W state [M, 2026-09-09..09-23], and the <12 W
+    gas it finds clusters at 06-07 h and 14-15 h, inside recirc windows where
+    steps straddle pump runs. Neither method is validated, so the 1.0-1.5
+    CCF/month cooking figure is unvalidated too. The classifier-free check is
+    SDR September total minus the Navien app's September total.
+
 - asked: 2026-09-16
   question: >-
     Can you read the Navien app's DAILY gas figures for 2026-08-22 through
@@ -1344,3 +1353,56 @@
     therefore the 0.0 in. w.c. one: 185 CFM, 80 pt/day at 80 F / 60 % RH [S:
     Aprilaire 10015109 B2209062A, Specifications]. Recorded in
     SYSTEM_SPECIFICATIONS.md in the Residential-HVAC-Performance-Baseline- repo.
+
+- asked: 2026-09-23
+  question: >-
+    The living-room gas fireplace: how is it turned on (wall switch, remote,
+    wall thermostat), does it have a standing pilot that stays lit through the
+    heating season, and is any part of it (a blower, a receiver) on a plug or
+    circuit HA can see?
+  blocks: >-
+    The winter extension of the 2026-09-16 SDR gas split to four states
+    (furnace calling / Navien firing / both / neither). In winter the "neither"
+    state holds fireplace AND cooking gas, and without a fireplace-on signal the
+    two cannot be separated; a standing pilot would add a continuous background
+    that has to be measured and subtracted before the furnace firing rate is
+    fitted. Fireplace fuel input was 51-55 CCF in 2025 [baseline-repo/
+    BASELINE_REPORT.md, Supplemental Heating].
+  answered: >-
+    2026-09-23, Bill: "turned on with a remote or wall switch. electric
+    ignition for the pilot so no does not stay on. elec is most likely on the
+    family room circuit although have not tested that. No kasa plug since its
+    hard wired." And: "Fireplace usage is typically 6-9pm on cold nights."
+
+    Consequences: no standing pilot, so no continuous background - matching
+    the meter, 0 steps 00:00-04:59 on 14 nights and 15 of 258 steps
+    21:00-05:59 [M, sensor.gas_meter_reading, 2026-09-09..09-23]. HA has no
+    fireplace signal; the family-room circuit is UNTESTED, so nothing is built
+    on it. Fireplace hours overlap dinner cooking and the 18-20 recirc window,
+    so the furnace firing rate is fitted from 21:00-06:00 cycles only, and
+    fireplace gas stays a residual until its rate is clocked.
+
+    Corrected 2026-09-23, Bill: 21:00 is too early - hot water runs while the
+    house gets ready for bed; the clean window is 23:00-05:00. The meter agrees:
+    0 steps 23:00-04:59 on 14 nights, against 8 at 21:00, 3 at 22:00 and 4 at
+    05:00 [M, same span]. The 21:00-06:00 above is superseded.
+
+- asked: 2026-09-23
+  question: >-
+    Does the furnace's condensate drain to the same condensate pump as the
+    Navien (the one on the "Hot Water Heater" Kasa plug)?
+  blocks: >-
+    Trusting the plug's >=20 W "Navien firing" band in the heating season. If
+    the furnace drains there, pump runs rise with furnace calls and can read as
+    Navien firing, which would move furnace gas into the DHW state and bias the
+    fitted furnace rate. The band was measured with no furnace calls [M,
+    2026-08-22..09-15, the Kasa-plug entry above].
+  answered: >-
+    2026-09-23, Bill: "Furnace has its own condensate pump plugged into the
+    outlet on the furnace so part of the furnace circuit." Also volunteered:
+    the Navien recirc mode runs 6-8 AM, 2-4 PM and 6-8 PM.
+
+    Consequences: furnace condensate does not reach the Navien's Kasa plug,
+    so the furnace-calling-plus-Navien-firing state is usable. The furnace
+    condensate pump IS on the SEM furnace CT, so sensor.furnace_power_when_on
+    includes its runs during heating.
