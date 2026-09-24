@@ -85,6 +85,13 @@ input_number:
   # --- staleness thresholds -------------------------------------------------
   # Gas ticks once per ~1.3 furnace-hours in winter and once every 2-5 DAYS in
   # summer, so its threshold is on RECEPTION, not on the value changing.
+  # CORRECTED 2026-09-23 (R13): both rates above date from the old 100 ft3/count
+  # scale. At the confirmed 1.0 ft3/count (header) the counter moves in +2 ft3
+  # steps: 243 of them, all +2, over 2026-09-09 00:00..09-23 00:00 [M, InfluxDB
+  # sensor.gas_meter_reading], and about one per 75 s of furnace firing [D: 2 ft3
+  # at 1.61 ft3/min = 100,000 BTU/hr nameplate / 1,037 BTU/ft3 / 60]. The
+  # conclusion stands: the value can sit still for hours (0 steps 23:00-05:00
+  # on those 14 nights [M]), so staleness is judged on reception.
   sdr_gas_stale_minutes:
     name: Gas stale threshold
     min: 5
