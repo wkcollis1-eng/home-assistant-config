@@ -40,6 +40,8 @@ is calibrated against.
 | 2026-09-18 | **RE-REGISTRATION of the three battery-bank rows above against V1.26**, which superseded V1.25 before either was flashed. Not a new claim: the claims, bands and falsifiers are unchanged and are scored on their own rows. They carry over because: (1) the Ri lambda behaves identically, since synth and replay output from V1.26 is byte-identical to V1.25's [M]; (2) RECON reads the SW ledger, which V1.26 does not touch; (3) CYCLE CONFIRM's delta arithmetic is unchanged, and only a bridge count is appended. Where row 38 says "first clean full-charge anchor on V1.25", read V1.26. **Row 39's void condition stands as written:** a cycle in which the INA228 loses power is void even though V1.26 bridges it. A bridge carries up to ~10.3 mAh at idle [D: 10 + 8.66 mA x 120 s / 3600] plus whatever flowed while the monitor was off, and the band was not sized for that. Row 37 is scored on the first single-stage step of >= 25 A from <= 5 A. Per Bill's 09-18 R14 answer, the staged breaker start will not arm one, so the step may be a deliberate heater step rather than part of the test | yes — written after the V1.26 build, before it was flashed | n/a — re-registration; scored on the rows above |
 | 2026-09-18 | The first boot of battery-bank-monitor V1.27 (an OTA flash, so the ESP reboots and the INA228 keeps power) publishes `INA228 Reset Check` = **`INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - HW anchor not yet seeded`**. This is the first observable proof that V1.26's first boot (15:58) wrote the 0x7FFE sentinel, since no boot-time log line can reach the API stream (V1.27 entry). Falsified by `TEMP_LIMIT=0x7FFF but CHARGE kept counting` (the sentinel was never written), by any other branch, or by the entity staying Unknown after the device reconnects. Void if the monitor loses power between now and the flash. Basis: V1.26 first-boot logic on the host harness [M]; HW Net Charge was continuous across the V1.26 flash and the 16:11 Restart [M]; ESP-only reboots kept CHARGE on 09-07 and 09-18 [M] | yes — written after the V1.27 build, before it was flashed | **HIT** — same day. Bill flashed at 16:21 EDT. `sensor.basement_battery_bank_monitor_ina228_reset_check` read exactly the predicted string at 20:21:33Z [M, HA state; Bill's screenshot]. The device reports config hash 0x6b05d980, the tested 2026.9.0 build [M], and HW Net Charge was continuous across the flash (−3.73870 → −3.73884 Ah) [M]. So V1.26's first boot did write the sentinel, and neither the 16:11 Restart nor this flash reset the INA228 |
 | 2026-09-23 | The 200K auto-compact trial (from 09:18) with the R20 checkpoint lowers the priced cost per main-thread call by at least 5% against 09-16..09-23 at Opus 5.5 weights (cache read 0.05x, 1 h write 2x, output 5x of base input) [I: transcript replay predicts −9.1%, from 5,652 calls]. Falsified by priced cost per call not below the baseline, by a median first call after compaction above 75K (the replay turns a loss there), or by more than 1.9 re-reads per compaction [D: 13 / 7]. Void if the week has under 5 compactions. | yes — written before any trial data was analysed | pending |
+| 2026-09-23 | With the Ecobee fan recirc off (Bill, ~19:45), `scripts/furnace_gas_cycles.py` finds **at most 7 'other' CT runs in total over 2026-09-24..09-30**, against 449 in the 14 days before [M, 2026-09-09..09-23]. Falsified by 8 or more: then the 126-133 W, ~7.5 min runs near :24/:54 past the hour were not fan circulation | yes, stated before any post-change data | pending |
+| 2026-09-23 | The first 5+ clean heat cycles fitted by `scripts/furnace_gas_cycles.py` give a firing-rate 95 % CI that **contains 1.61 ft3/min** [D: 100,000 BTU/hr nameplate / 1,037 BTU/ft3 / 60]. Falsified if the CI excludes it | yes, before any heat call exists (0 in 150 days [M]) | pending |
 
 **Running score: 7 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
@@ -59,6 +61,89 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
+
+### SDR gas -> gas per furnace cycle, Phase I: `scripts/furnace_gas_cycles.py`
+
+Bill, 2026-09-23: "Home Kit is glitchy. Furnace CT may be a more reliable cycle
+counter when watts are over100W or so furnace is starting. lets do phase 1 script
+and utility meter yaml comment."
+
+**The unattended moment:** the first cold night's heat calls, with HomeKit missing
+some. Working means every CT run gets a label (heat / cool / other / unk), and only
+clean heat cycles enter the fit.
+
+**Added `scripts/furnace_gas_cycles.py`.** It is read-only: it reads InfluxDB and
+prints text, with no HA entity and no CSV (R10: a derived view).
+- Cycle timing comes from `sensor.sem_furnace_power` > 100 W (Bill's figure).
+  HomeKit (`binary_sensor.hvac_furnace_running`) is scored against the CT and is
+  never used for timing.
+- Gas comes from `sensor.gas_meter_volume`, read at decodes reconstructed from
+  `sensor.gas_meter_age`.
+- A cycle is clean when:
+  - it runs inside 23:00-05:00;
+  - a decode exists in the off-period on each side;
+  - the counter is flat on each side;
+  - the Navien plug stays below 12 W;
+  - the CT record has no gap.
+- Once 5 clean cycles exist, it fits ft3 against run minutes. The slope is the
+  firing rate and the intercept gives the non-burning minutes, both with 95 % CIs.
+  The residual sd is compared with the 0.82 ft3 quantisation floor [D].
+- It flags `NO-GAS`: a heat run long enough for 2 steps that burned none. That is
+  the evidence the Phase II alarm will use.
+
+**Verified:**
+- `--selftest` (R7) passes 11/11 injected cases. Disabling the Navien check or the
+  window check each drops it to `FAILED 9/11`, so the test can fail.
+- It is silent on real data. Over 2026-09-09..09-23 it found 561 CT runs: heat 0,
+  cool 35, other 449, unk 77, and fitted nothing [M].
+- ruff format and py_compile are clean. **ruff check was not, as first
+  claimed here (R13).** The local ruff 0.16.4 passed it, but the repo's pinned
+  pre-commit ruff v0.15.9 blocked the first commit on six E731 findings (a
+  lambda assigned to a name).
+  - They were rewritten as `def`s. The self-test still passes 11/11, and a real
+    14-day run printed the same 565 lines before and after [M].
+  - The pinned hooks now pass, and the file on H: is byte-identical to the
+    tested sandbox copy.
+
+**Found on the way:**
+- **The CT reads above 100 W with no heat call.** Over the 30 days to 2026-09-23
+  [M, 1-min max buckets; compressor on = `sem_ac_power` > 300 W], the minutes above
+  100 W split as:
+  - 10,217 with the compressor off. Their per-minute max has p10 128 W, p50 132 W
+    and p90 134 W.
+  - 2,246 with the compressor on.
+
+  The 449 'other' runs were ~7.5 min each, starting near :24 and :54 past the
+  hour: Ecobee fan circulation. Bill turned it off on 2026-09-23 at ~19:45
+  (ledger row above).
+- **The heating CT signature has never been measured.** HomeKit has no heat call
+  in 150 days of history, and the CT record only starts on 2026-06-27 [M].
+- **A figure is corrected (R13).** The gas step count quoted earlier this session
+  as 258 re-measures as **243 steps, all +2 ft3, over 2026-09-09 00:00..09-23
+  00:00** [M, InfluxDB `gas_meter_reading`]. The 258 came from the HA history API
+  over a span that was not recorded before the context compaction. The hourly counts
+  reproduce exactly: 21 h: 8, 22 h: 3, 23-04 h: 0, 05 h: 4. The fireplace answer in
+  open_questions.yaml ("15 of 258 steps 21:00-05:59") is left as written: the 15
+  is the same in both spans, and only the total depends on the span.
+
+**`packages/utility_meters.yaml`:** the staleness comment's rates ("once per ~1.3
+furnace-hours ... every 2-5 DAYS in summer") date from the old 100 ft3/count scale.
+- A dated correction is added beneath the original, which is kept.
+- The change is comment-only: the parsed config is identical, and reversing the
+  edit gives the original bytes.
+- PACKAGES.md was regenerated; the line count went from 1416 to 1423.
+
+**Gate:**
+- 1. SYNTAX PASS (parse-clean)
+- 2. SEMANTIC 0 FAIL, 0 WARN, 2 INFO across 18 pipelines
+- 3. DEPLOYED check_config `"valid"` -> PASS (HA-certified)
+
+No reload is needed, since the only YAML change is a comment.
+
+**Left open:**
+- Phase II (nightly SPC, frozen limits, pipelines.yaml, the no-gas alarm) waits
+  for at least 5 clean heat cycles.
+- `--merge-s 90` and `--settle-s 30` stay [I] until the first cold night.
 
 ### Heat-season audit, phase 3: F4 live, proxy HDD/CDD archive and _bdl twins retired
 
