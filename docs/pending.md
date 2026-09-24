@@ -243,6 +243,16 @@ month, then retire the four helpers and their eight save-automation steps.
 Touches the existing Billing view's YoY cards, so it needs its own session.
 ```
 
+### P21 — battery-bank SOC reads high: build V1.28 (SOC from the INA228 CHARGE register) [MEDIUM]
+```
+Opened 2026-09-24. Everything is in docs/soc-accuracy-turnover.md - read it
+before touching battery-bank-monitor.yaml or the router. SOC shows 99.96 %,
+true ~96.7 % +/-1.1 % [D, doc s2]. The SW ledger's +/-50 mA deadband drops the
+7.3-8.2 mA drain [M]. V1.28 design, gates, and the tests awaiting Bill's go
+are in the doc. The router stopgap (20/40 MHz coexistence OFF) makes the
+trace quiet AND freezes the SOC display (doc s2).
+```
+
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
