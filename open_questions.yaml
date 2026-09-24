@@ -1406,3 +1406,201 @@
     so the furnace-calling-plus-Navien-firing state is usable. The furnace
     condensate pump IS on the SEM furnace CT, so sensor.furnace_power_when_on
     includes its runs during heating.
+
+- asked: 2026-09-24
+  question: >-
+    With a DMM (mA range) in series with the battery monitor's supply lead
+    (TB1 BATT_RAW) - in series, never across - what current does it read,
+    and does the reading flicker? Breaking the lead reboots the monitor.
+  blocks: >-
+    Whether the INA228 shunt sees ALL of the monitor's own draw, which V1.28
+    (SOC from the CHARGE register) would inherit. The shunt reads 7.30 mA
+    quiet / 8.18 mA noisy [M, n=37/37 hours 2026-09-20..24, hw_net_charge
+    slope]. The firmware runs the ESP32-C3 with power_save_mode: none (radio
+    receiving continuously), which I expect to need several times that [I:
+    from memory of Espressif's figures, not checked against a datasheet
+    page]. Falsifier: a DMM reading of ~7-8 mA means the shunt sees all of it
+    and the [I] is wrong. A reading well above it means part of the monitor's
+    return current bypasses the shunt, which is an accuracy error in every
+    SOC design and a candidate noise path.
+  answered: >-
+    2026-09-24, Bill: "this is impossible" - on my claim that a high DMM
+    reading would mean part of the monitor's current bypasses the shunt.
+    Accepted as a physical fact: the monitor is powered from the busbars
+    (2026-08-26 entry above) and the INA228 sense inputs carry no return
+    current, so every milliamp the monitor draws returns through the shunt.
+    The blocker is answered by construction; the DMM reading is withdrawn.
+
+    R13, my error: the bypass branch contradicted the 2026-08-26 answer
+    already in this file, and its premise was an unchecked [I]. Checked
+    afterwards: ESP32-C3 Series Datasheet v2.4, Table 5-7 p56, gives RX 84 mA
+    as a PEAK figure at 3.3 V, 25 C; Table 5-8 p57 gives Modem-sleep 13-28 mA
+    with Wi-Fi clock gated [S; chip identity from the firmware's board: line,
+    not read off the part - R16]. Neither is an average for a connected radio
+    with power_save_mode: none, so "several times 7.3 mA" read a peak as an
+    average. The measured 7.30 mA [M, above] stands as the monitor's draw.
+
+- asked: 2026-09-24
+  question: >-
+    On the basement R6400's admin page, right now while the battery graph is
+    noisy: (1) is the 2.4 GHz channel set to Auto, and which channel is in
+    use; (2) what link rate does Attached Devices show for the battery
+    monitor, if it shows one? Then the same two readings once more after the
+    graph goes quiet.
+  blocks: >-
+    Root cause of the INA228 noise regime. [M] 2026-09-20..24 (5-min blocks
+    of the 2-s current): the noise switches abruptly between two levels (sd
+    5.44 / 18.11 mA), 24 switches of which 13 complete within one block,
+    holding 1-11 h (once 41.7 h); both long switches coincided with the
+    router going down. None of 466 house sensors/switches flips with it:
+    best was the fridge, 13 of 16 same-sign changes, binomial p 0.021
+    two-sided [D], about what 466 tests produce by chance. The noisy state
+    carries +0.88 mA through the shunt (Welch t=10.7, n=37/37 h) and the
+    monitor is the only load there (2026-08-26 entry). [I] the switching
+    state is the monitor's WiFi link (channel / data rate), which is
+    renegotiated at every router reboot and can change on its own.
+    Falsifier: the same channel and the same link rate in both states.
+  answered: >-
+    2026-09-24 ~11:00 EDT, Bill: "150Mbps" - part (2), NOISY state only
+    (monitor current sd 17.9-19.8 mA in each 10 min, 10:02-11:02 EDT [M]).
+    Part (1) and the quiet-state reading were not given; re-asked in the next
+    entry (R14).
+
+    Consequence: 150 Mbps is MCS7 with a 40 MHz channel and 400 ns guard
+    interval, 1 spatial stream [S: IEEE 802.11-2016 S19.5, HT-MCS parameter
+    tables] - the top rate the ESP32-C3 can link at (its RF modes top out at
+    1-stream MCS7 HT40, ESP32-C3 Series Datasheet v2.4 Table 5-7 p56 [S]). So
+    in the noisy state the link was NOT slow, which refutes the "slow link,
+    long transmissions" half of the [I] above. The channel-width half
+    survives: 150 Mbps needs a 40 MHz channel.
+
+- asked: 2026-09-24
+  question: >-
+    Re-ask of the unanswered parts of the entry above. On the R6400's 2.4 GHz
+    Wireless Settings: is Channel set to Auto, which channel is in use, and
+    what is the Mode set to (the "Up to ... Mbps" choice)? And once the
+    battery graph goes quiet: the monitor's link rate again.
+  blocks: >-
+    Root cause of the INA228 noise regime. The noisy-state link is 150 Mbps,
+    i.e. a 40 MHz channel (entry above). [I] the switching state is channel
+    width: on 2.4 GHz a router may run 40 MHz or fall back to 20 MHz, and that
+    choice is remade at every boot. Prediction: the quiet-state reading is
+    72 Mbps or lower (20 MHz). Falsifier: 150 Mbps in the quiet state, which
+    kills the WiFi-link candidate outright.
+  answered: >-
+    2026-09-24 ~11:10 EDT, Bill: "channel is on auto" - part (1), Auto only.
+    The channel in use and the quiet-state link rate were not given; re-asked
+    in the next entry (R14). Mode is no longer needed: the noisy-state 150
+    Mbps link needs a 40 MHz channel, so the Mode in force allows 40 MHz [D].
+    Still noisy when he answered: monitor current sd 17.9-19.8 mA in each 10
+    min, 10:00-11:10 EDT [M].
+
+    In the same exchange Bill pasted the Advanced Wireless Settings page. It
+    carries an "Enable 20/40 MHz Coexistence" option for 2.4 GHz; a text
+    paste drops check-box state, so whether it is ticked is unknown. NETGEAR
+    KB 30228 (updated 2025-07-07; its product list names R6400 and R6400v2)
+    [S]: "When 20/40 MHz coexistence is enabled, your router's 2.4 GHz radio
+    uses 40 MHz bandwidth until it detects another broadcast device using 40
+    MHz, at which point it falls back to 20 Mhz to avoid interference", and
+    "20/40 MHz coexistence is enabled by default." That is a way for the
+    width to change in service, driven by neighbouring networks that no house
+    sensor sees. The KB does not say when it returns to 40 MHz. The pasted
+    page also showed the router's WPS PIN; deliberately not recorded here.
+
+- asked: 2026-09-24
+  question: >-
+    Re-ask (R14) of what is still open. (1) On ADVANCED > Advanced Setup >
+    Wireless Settings: is the "Enable 20/40 MHz Coexistence" box ticked? A
+    copy-paste of the page loses the tick marks. (2) Which 2.4 GHz channel is
+    in use right now, if the router shows it. (3) Once the battery graph goes
+    quiet: the monitor's link rate, and the channel in use, again.
+  blocks: >-
+    Root cause of the INA228 noise regime. [I] the switching state is the
+    2.4 GHz channel width, flipped in service by 20/40 MHz coexistence as
+    neighbouring networks come and go, and re-decided at each router boot.
+    Noisy state = 40 MHz (150 Mbps, two entries above). Prediction: box
+    ticked, and the quiet-state link rate is 72 Mbps or lower (20 MHz).
+    Falsifiers: box unticked (the router then has no in-service reason to
+    change width, and a boot-only mechanism cannot make the 1-11 h flips that
+    matched no house event [M, entry two above]), or 150 Mbps in the quiet
+    state. A changed channel number with an unchanged rate points at the
+    channel, not the width.
+  answered: >-
+    2026-09-24 ~11:14 EDT, Bill: yes, "Enable 20/40 MHz Coexistence" is
+    ticked - part (1). The prediction's first half holds: the router has a
+    way to change width in service (NETGEAR KB 30228 [S], entry above). Parts
+    (2) and (3) were not given; re-asked in the next entry (R14). Still noisy
+    when he answered: sd 17.6-20.5 mA in each 10 min, 10:34-11:14 EDT [M].
+
+- asked: 2026-09-24
+  question: >-
+    Re-ask (R14) of what is still open. (1) Once the battery graph goes
+    quiet: the monitor's link rate on the R6400, and the 2.4 GHz channel in
+    use if the router shows it. (2) Now, while noisy: the channel in use, if
+    the router shows it.
+  blocks: >-
+    Root cause of the INA228 noise regime. Coexistence is ticked, so the
+    router drops from 40 to 20 MHz in service when it detects another 40 MHz
+    network (NETGEAR KB 30228 [S], two entries above). [I] that drop and its
+    return are the regime switches; noisy = 40 MHz (150 Mbps, three entries
+    above). Prediction: the quiet-state link rate is 72 Mbps or lower.
+    Falsifier: 150 Mbps in the quiet state. A changed channel number with an
+    unchanged rate points at the channel, not the width.
+  answered: >-
+    Not answered as asked. 2026-09-24 ~11:18 EDT, Bill: "turned coexistence
+    off to see the effect. also have Enable Wireless Router Radio ticked."
+    ROUTER CHANGE, dated here so later data is read right: "Enable 20/40 MHz
+    Coexistence" OFF on the basement R6400, applied at 11:14:40 EDT, which is
+    when the monitor's wifi_ssid went unavailable for 1 s [M]. Effect [M]:
+    current sd 14.2-24.1 mA in every 2-min window 10:28-11:12, then 5.09 /
+    5.26 / 4.50 mA in the windows from 11:14 (n=38/58/19 samples) - the
+    quiet level (5.44 mA, entry four above). One switch, n=1, at a radio
+    restart; restarts have flipped the regime both ways before (09-22, 09-24),
+    so this alone does not separate the setting from the restart. Also seen:
+    a 6-s WiFi drop at 10:49:33 [M] with no change in the noise. Re-asked in
+    the next entry (R14).
+
+- asked: 2026-09-24
+  question: >-
+    (1) Right now, with coexistence off and the graph quiet since 11:14:
+    the monitor's link rate on the R6400, and the 2.4 GHz channel in use if
+    the router shows it. (2) Did you Apply anything on the router at about
+    10:49? The monitor lost WiFi for 6 s at 10:49:33 and the noise did not
+    change ("not sure" is an answer).
+  blocks: >-
+    Root cause of the INA228 noise regime. [M] coexistence OFF at 11:14:40
+    was followed at once by the quiet level (entry above), n=1. [I] width
+    hypothesis: noisy = 40 MHz (150 Mbps, four entries above), quiet = 20
+    MHz. With coexistence off the router should hold 40 MHz, so the width
+    hypothesis survives only if the link now reads 72 Mbps or lower.
+    Falsifier: 150 Mbps now - then width is not the switch, and the
+    coexistence setting (or the restart) is. (2) says whether a restart
+    alone failed to flip it at 10:49.
+  answered: >-
+    2026-09-24 ~11:27 EDT, Bill: "link rate still 150mbps. router shows no
+    channel. did not apply anything to the router around 10:49."
+
+    (1) 150 Mbps in the quiet state, coexistence off: the falsifier is met.
+    R13: the channel-width hypothesis in the entries above is REFUTED - the
+    link is 40 MHz in both regimes, so width is not the switch. Quiet since
+    the change: sd 5.33 mA, n=346 samples, 11:14:41-11:27 EDT [M]. Channel in
+    use: the router does not show it; closed, not re-asked.
+
+    (2) Nothing applied at 10:49, so the 6-s WiFi drop at 10:49:33 had
+    another cause (the monitor, or the router itself, e.g. an Auto channel
+    move - unknown) and did not change the noise [M]. Router power-downs
+    (09-22, 09-24) and the coexistence change flipped the regime; that drop
+    did not. [I] the switching state is in the router's operating mode,
+    which the coexistence setting controls - n=1 for the setting so far.
+    What is still unknown is the coupling path into the INA228 reading: the
+    monitor's own radio (it draws +0.88 mA more when noisy, entry
+    2026-09-24 above) or the router's RF on the sense leads.
+
+    R13, 2026-09-24 ~11:50 EDT: the "6-s WiFi drop at 10:49:33" in this
+    entry and the one above was a REBOOT of the monitor, not a WiFi drop:
+    uptime 139,324 s at 14:48:58 UTC, unavailable at 14:49:33, 2.16 s at
+    14:49:39 UTC [M: sensor.battery_bank_monitor_uptime]. It is the second
+    unexplained ESP-only reboot, 38.7 h [D: 139,324 s / 3600] after the
+    09-22 ~20:07 EDT one; the INA228 kept power (INA228 Reset Check) [M].
+    Cause unknown. It did not flip the noise regime [M, n=1]. Detail:
+    docs/soc-accuracy-turnover.md section 9.
