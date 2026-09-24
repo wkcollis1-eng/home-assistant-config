@@ -62,6 +62,71 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
 
+### Kasa: 2 s reads on the UPS Outlet and HWH plugs, to catch power peaks
+
+Bill, 2026-09-23: "think the 2s raed on W would help catch peaks for these" (UPS
+outlet, HWH, HA N100 PC). Then: "do not include the
+sensor.ha_n100_pc_current_consumption, its at 0 for now."
+
+**The unattended moment:** the fast-poll driver stops, for example after a failed
+template reload, and nobody notices. Working means both plugs fall back to the
+5 s poll on their own. Their readings get slower but never freeze.
+
+**Added one trigger-template block to `packages/backup_sizing.yaml`.** A
+`time_pattern` fires every 2 s and calls `homeassistant.update_entity` on
+`sensor.ups_outlet_current_consumption` and `sensor.hwh_current_consumption`.
+Its sensor, `sensor.kasa_fast_poll_interval`, is a constant `2`. The N100 PC
+plug is left out, per Bill.
+- **Why it fails safe.** Every coordinator refresh re-arms that plug's own 5 s
+  timer (`update_coordinator.py` `_schedule_refresh`, HA 2026.9.3 [S]). While
+  the driver runs, the 5 s poll never fires. When the driver stops, the 5 s
+  poll resumes by itself. So "Enable polling for changes" must stay ON on both
+  plugs.
+- **Why not an automation.** An automation writes its own state on every run
+  (`automation/__init__.py:502`). At 2 s that is a recorder row and an InfluxDB
+  point per run, and InfluxDB keeps them forever with no filter. An unchanged
+  template state fires `state_reported`, not `state_changed` (`core.py:2475`),
+  and neither store records `state_reported`.
+
+**Measured on a KP125M, fw 1.4.1 Build 260721.** Read direct with python-kasa
+0.10.2 from the Computer Outlet plug:
+- the power value changes every ~1.57 s median, range 1.29-1.58 s [M, n=40
+  changes in 60 s, sampled every 263 ms];
+- voltage and current change every ~2.9-3.1 s [M, n=20];
+- a full read takes 164-172 ms median [M, n=15-20 per plug].
+
+So a 2 s poll reads about 1.57/2 of the plug's power values [D], and the old
+5 s poll about 1.57/5 [D]. **A peak is still a lucky catch and a lower bound.**
+An inrush shorter than the plug's own ~1.5 s refresh is not guaranteed at any
+poll rate. A 1 s poll would read every value; Bill chose 2 s.
+
+**Verified live.** `check_config` returned `valid`. `template.reload` ran at
+2026-09-23 22:01:56 EDT (02:01:56Z). After it:
+- UPS Outlet: 30 writes in 60 s, gaps 1.97-2.03 s [M, websocket].
+- HWH: 21 value changes in 60 s [M], against 140 in 1,910 s before [M]. It
+  idles at 8.4/8.5 W and writes only when the value changes, so REST
+  `last_reported` gaps there are repeats, not missed refreshes.
+- Computer Outlet, an untouched control: 5.00 s [M].
+- 10 of 10 peak latches kept their state and `occurred` across the reload [M].
+
+**Costs, and a method change to know about:**
+- 43,200 `call_service` recorder events a day [D: 86,400 s / 2 s], purged at 14
+  days. The recorder cannot exclude them per entity, because its event filter
+  reads only a top-level `entity_id` (`recorder/core.py`).
+- The two plugs will write more recorder rows and InfluxDB points, and so will
+  `sensor.monitoring_load` and `sensor.backup_essentials_load`, which sum them.
+  Rows over the 24 h before: UPS 15,784; HWH 6,548; monitoring_load 26,474;
+  backup_essentials_load 35,494 [M]. Re-measure after 24 h.
+- **HWH recirc SPC inputs now sample at 2 s instead of 5 s, from 2026-09-23
+  22:02 EDT.** This covers `binary_sensor.hwh_recirc_pump_running`,
+  `sensor.hwh_recirc_power_when_on`, its 24 h mean
+  `sensor.hwh_recirc_running_watts_24h`, and the left-Riemann
+  `sensor.hwh_recirc_energy_total`. A step in the HWH recirc SPC series from
+  that night is a method change, not the pump.
+- Not yet checked: whether `sensor.hwh_recirc_power_when_on` now exceeds the
+  `sampling_size: 2000` of the 24 h mean. If it does, the mean covers less than
+  24 h. Count its rows with the others after 24 h.
+
 ### Grafana: `furnace-cycles` dashboard, a raw overlay of furnace cycles
 
 Bill, 2026-09-23: "build the panel, then commit/sync with c:\repos\ push."

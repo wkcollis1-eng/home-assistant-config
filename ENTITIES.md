@@ -43,6 +43,7 @@ sensor.family_room_peak_watts            replaced Counter 2 (coffee maker) 2026-
 sensor.fridge_peak_watts                 inrush 18-21x running, caught by luck
 sensor.furnace_peak_watts                AUGUST VALUE IS COOLING BLOWER, not heat
 sensor.hwh_recirc_peak_watts             smart plug on the RECIRC PUMP, not a tank
+sensor.kasa_fast_poll_interval           Constant 2. Its trigger refreshes the UPS outlet + HWH plugs every 2 s to catch peaks; if it stops, the 5 s tplink poll resumes by itself (2026-09-23)
 sensor.monitoring_load                   HA host + UPS outlet + router; runs the WHOLE outage
 sensor.monitoring_peak_watts             flat load, peak is near running
 ```
@@ -216,10 +217,11 @@ sensor.kbdl_degree_days_24h             State ok/insufficient/error. Trailing 24
 sensor.basement_router_today_s_consumption
 sensor.computer_outlet_today_s_consumption
 sensor.dehumidifier_energy
-sensor.hwh_current_consumption
+sensor.hwh_current_consumption                            Hot Water Heater (Basement); read every 2 s by sensor.kasa_fast_poll_interval since 2026-09-23, 5 s tplink poll is the fallback
 sensor.hwh_today_s_consumption                            Hot Water Heater (Basement)
 sensor.living_room_tv_sonos_homatics_today_s_consumption
 sensor.tv_room_today_s_consumption
+sensor.ups_outlet_current_consumption                     UPS Outlet plug, part of monitoring_load; read every 2 s by sensor.kasa_fast_poll_interval since 2026-09-23, 5 s tplink poll is the fallback
 ```
 
 ## KNOWN ISSUES

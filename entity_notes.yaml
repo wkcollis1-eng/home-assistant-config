@@ -742,7 +742,7 @@ sensor.hvac_zone_overlap_week:
   note: ''
 sensor.hwh_current_consumption:
   group: KASA PLUGS
-  note: ''
+  note: 'Hot Water Heater (Basement); read every 2 s by sensor.kasa_fast_poll_interval since 2026-09-23, 5 s tplink poll is the fallback'
 sensor.hwh_recirc_peak_watts:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
   note: smart plug on the RECIRC PUMP, not a tank
@@ -776,6 +776,9 @@ sensor.hwh_today_s_consumption:
 sensor.kbdl_degree_days_24h:
   group: HDD/CDD
   note: 'State ok/insufficient/error. Trailing 24 h HDD65/CDD65 = 65 - (max+min)/2 of KBDL METARs (api.weather.gov); primary basis of hvac_hdd65/cdd65_today (2026-09-23)'
+sensor.kasa_fast_poll_interval:
+  group: BACKUP SIZING (packages/backup_sizing.yaml)
+  note: 'Constant 2. Its trigger refreshes the UPS outlet + HWH plugs every 2 s to catch peaks; if it stops, the 5 s tplink poll resumes by itself (2026-09-23)'
 sensor.living_room_tv_sonos_homatics_today_s_consumption:
   group: KASA PLUGS
   note: ''
@@ -899,6 +902,9 @@ sensor.site_eui_estimate:
 sensor.tv_room_today_s_consumption:
   group: KASA PLUGS
   note: ''
+sensor.ups_outlet_current_consumption:
+  group: KASA PLUGS
+  note: 'UPS Outlet plug, part of monitoring_load; read every 2 s by sensor.kasa_fast_poll_interval since 2026-09-23, 5 s tplink poll is the fallback'
 sensor.upstairs_current_temperature:
   group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
   note: 2F current temp (watchdog monitored)

@@ -105,6 +105,54 @@ template:
                  | float(0)))
              | round(1) }}
 
+  # ----- 2 s read of two Kasa plugs, feeding the peak latches below -------
+  # Bill 2026-09-23: read the UPS outlet and HWH plugs every 2 s to catch peaks.
+  # The HA N100 PC plug is left out on purpose - it reads 0 W for now.
+  # HA's tplink integration polls every 5 s (tplink/__init__.py:234, HA
+  # 2026.9.3); this asks those two plugs' coordinators for a refresh every 2 s.
+  # MEASURED 2026-09-24 on the Computer Outlet KP125M, fw 1.4.1 Build 260721:
+  # the plug's own power value changes every ~1.57 s [M, n=40 changes in 60 s,
+  # sampled every 263 ms]; a full read takes ~170 ms [M, n=20]. So a 2 s poll
+  # reads about 1.57/2 of the plug's values [D], a 5 s poll about 1.57/5 [D].
+  # Still a LUCKY CATCH and a LOWER BOUND - see this file's header.
+  #
+  # FAILS SAFE. Every coordinator refresh re-arms that coordinator's own 5 s
+  # timer (update_coordinator.py _schedule_refresh, called at the end of every
+  # refresh), so while this runs the 5 s poll never fires, and if this stops
+  # the 5 s poll resumes by itself: readings slow down, they never freeze. Do
+  # NOT turn off "Enable polling for changes" on these two plugs - that removes
+  # the fallback and makes a stopped driver a silent freeze.
+  #
+  # WHY A TEMPLATE ENTITY AND NOT AN AUTOMATION. An automation writes its own
+  # state at every run (automation/__init__.py:502), which at 2 s is a recorder
+  # row and an InfluxDB point per run - and InfluxDB keeps them forever with no
+  # include/exclude filter (docs/influx-grafana.md). This entity's state never
+  # changes, and HA fires state_reported, not state_changed, for an unchanged
+  # state (core.py:2475), which neither the recorder nor InfluxDB stores. What
+  # remains is one call_service event per run in the recorder, 43,200/day
+  # [D: 86,400 s / 2 s], purged at 14 days; the recorder cannot filter it per
+  # entity (recorder/core.py:291-301 reads only a top-level entity_id).
+  - trigger:
+      - platform: time_pattern
+        seconds: "/2"
+    action:
+      - service: homeassistant.update_entity
+        target:
+          entity_id:
+            - sensor.ups_outlet_current_consumption
+            - sensor.hwh_current_consumption
+    sensor:
+      - name: "Kasa Fast Poll Interval"
+        unique_id: backup_kasa_fast_poll_interval
+        unit_of_measurement: "s"
+        icon: mdi:timer-refresh
+        # Constant on purpose (see WHY above). Goes unavailable only when
+        # both target plugs are unavailable, so its rows are transitions only.
+        availability: >
+          {{ has_value('sensor.ups_outlet_current_consumption')
+             or has_value('sensor.hwh_current_consumption') }}
+        state: "2"
+
   # ----- peak hold, one block per load -----------------------------------
   # Each latches its own previous state. `trigger.entity_id` distinguishes a new
   # sample from a reset press. is_number() guards the latch against an

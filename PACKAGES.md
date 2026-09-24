@@ -10,7 +10,7 @@ step with it.
 ```
 configuration.yaml                     7402 lines   command_line:3, counter:2, frontend:1, input_boolean:6, input_button:4 +11 more
 packages/audit.yaml                     820 lines   automation:1, input_datetime:1, input_number:3, script:8 +2 more
-packages/backup_sizing.yaml             529 lines   input_button:1, sensor:3, template:12
+packages/backup_sizing.yaml             577 lines   input_button:1, sensor:3, template:13
 packages/billing_overview.yaml          646 lines   automation:1, input_datetime:2, input_number:50, input_text:2 +1 more
 packages/energy_export_package.yaml      32 lines   automation:1, shell_command:1
 packages/grafana.yaml                   105 lines   automation:1, shell_command:1
