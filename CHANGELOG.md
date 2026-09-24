@@ -62,6 +62,50 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.23] - 2026-09-23
 
+### Grafana: `furnace-cycles` dashboard, a raw overlay of furnace cycles
+
+Bill, 2026-09-23: "build the panel, then commit/sync with c:\repos\ push."
+
+**The unattended moment:** Bill opens it the morning after the first cold night,
+and nobody has looked at it since it was built. Working means:
+- all five series draw from the start of the window;
+- they come from the same InfluxDB series `scripts/furnace_gas_cycles.py` reads;
+- deploying it overwrote nothing.
+
+**Added `grafana/dashboards/furnace_cycles.json`,** uid `furnace-cycles`. It is a
+new dashboard, so none of the five drifted ones was touched. It has one
+timeseries panel:
+- furnace CT watts, in red;
+- Navien plug watts, in purple;
+- the gas meter reading in ft3, in green on the right axis, drawn as steps;
+- the HomeKit heat call (orange) and the AC compressor (blue), as shaded bands on
+  a hidden 0-1 axis.
+
+It computes nothing (R10). It draws no threshold line, because that would be a
+second copy of the script's `--on-w`.
+
+**Sparse series carry their value in.** Over the 7 days to 2026-09-23, the gas
+meter went up to 9.0 h without a write and both binaries up to 45.7 h [M]. Under
+`$timeFilter` those three would draw nothing on a quiet night. So they are
+queried raw, reaching back from `${__from}ms`: 3 d for the gas meter, 30 d for the
+calls.
+
+**Verified:**
+- An R2 harness emulated Grafana's interpolation and queried InfluxDB directly.
+  - The clean file passes on the last 12 h and on the quiet night of 2026-09-22
+    23:30 to 09-23 04:30.
+  - Three injected faults each FAIL, so 3 of 3 were caught: a misspelt CT entity,
+    the gas lookback removed, and the call lookback removed.
+  - With a lookback removed, that series has 0 points on the quiet night.
+- It was deployed with `grafana_snapshot.py --deploy` as version 1. All 6
+  datasource placeholders were pinned to `bfrwayjkhasjka`, and no served version
+  was replaced.
+- The served targets were run through Grafana's `/api/ds/query` on the host. All
+  5 returned HTTP 200 with data, and the frame names match the colour overrides.
+- NOT verified: how it renders. Nobody has looked at it yet.
+
+docs/influx-grafana.md now lists the dashboard and describes the carry-in idiom.
+
 ### SDR gas -> gas per furnace cycle, Phase I: `scripts/furnace_gas_cycles.py`
 
 Bill, 2026-09-23: "Home Kit is glitchy. Furnace CT may be a more reliable cycle

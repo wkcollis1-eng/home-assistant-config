@@ -282,6 +282,10 @@ flag and served date for every dashboard - run it before believing a file is liv
 - **battery_bank.json**: Voltage/SOC/Power/Runtime stats, electrical trends, temperature
 - **ups.json**: Voltage/Power/Temp stats, electrical trends, temperature
 - **spc_appliances.json**: SPC charts with daily values, rolling mean, UCL/LCL
+- **furnace_cycles.json** (uid `furnace-cycles`, deployed 2026-09-23 as version 1): a
+  raw overlay for reading furnace cycles by eye. It shows the CT watts, the gas meter
+  reading, the Navien plug watts, and the HomeKit heat call and AC compressor as
+  shaded bands. It computes nothing: `scripts/furnace_gas_cycles.py` does the labelling.
 
 ### Grafana Provisioning
 ```
@@ -293,5 +297,13 @@ Points to `/config/grafana/dashboards` for auto-loading.
 - Datasource UID: `bfrwayjkhasjka`
 - Queries MUST include `GROUP BY "entity_id"` for proper series display
 - Use `rawQuery: true` with `alias` field for series naming
+- **Sparse, state-change-only series lose their last value under `$timeFilter`.**
+  This applies to the gas meter and the binary sensors: the line starts late or not
+  at all. Over the 7 days to 2026-09-23 the gas meter went up to 9.0 h without a
+  write, and both HVAC binaries up to 45.7 h [M]. Query them raw with
+  `time >= ${__from}ms - <lookback> AND time <= ${__to}ms` to carry the value in;
+  `furnace_cycles.json` uses 3 d and 30 d. Its single-entity targets take their
+  names from `alias` without `GROUP BY "entity_id"` [M, frame names served
+  2026-09-23].
 
 ---
