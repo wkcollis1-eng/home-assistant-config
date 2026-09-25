@@ -1,5 +1,5 @@
 # ============================================================================
-# Battery Bank Monitor V1.27 — PRODUCTION Configuration
+# Battery Bank Monitor V1.27-diag2 — TEST BUILD (not production)
 #   CORE (backup readiness — must be correct): V/I/T acquisition, stale-bus FAULT
 #     watchdog, 3-tier low-voltage alarms + overvoltage guard, bank_state machine,
 #     runtime-remaining, and SOC (Coulomb counter anchored at full charge).
@@ -14,6 +14,42 @@
 #   Source-level reviewed against ESPHome 2026.5.x. Flash-ready after credentials
 #     are set in secrets.yaml. Apparent Ri (V1.8) remains PROVISIONAL.
 # ============================================================================
+# ----------------------------------------------------------------------------
+# V1.27-diag1 — TEST BUILD, 2026-09-25. NOT FOR PRODUCTION. Flash it for the
+#   SOC-noise tests in docs/soc-noise-deep-dive.md §5, then flash V1.27 (or
+#   V1.28) back. Base = V1.27, unchanged. Every addition is tagged "DIAG" and
+#   is ADDITIVE: CORE (acquisition, watchdog, alarms, bank_state, SOC, runtime)
+#   and the OBSERVABILITY ledgers are untouched; only the version strings
+#   changed. No restore_value globals added (NVS unchanged).
+#   Added, all driven from HA buttons, all settings restored when a test ends:
+#   - On-device statistics of the 2-s current over a test window: n, mean, sd,
+#     skew, excess kurtosis, % positive, min/max, lowest/highest 1-min sd,
+#     bus-voltage sd, and mean current + ENERGY rate from raw INA228 CHARGE /
+#     ENERGY register deltas (they count even with Wi-Fi off). Results go to
+#     "Diag Result" (text, labelled) and the "Diag Window ..." sensors.
+#   - TB-1 Wi-Fi off (30 min): 10 min on / 10 min radio OFF / 10 min on. The
+#     OFF result is computed on the device and reaches HA on reconnect.
+#   - TB-2 TX-power ladder (~85 min): 20.5 / 17 / 14 / 11 / 8.5 dBm.
+#   - TB-3 ADC averaging ladder (~27 min): AVG 1 / 4 / 16 / 64 / 128.
+#   - TB-4 OLED/load round (~47 min): base / lit page / base / BLACK frame /
+#     base / WHITE frame / base / 1 ms loop (extra CPU load) / base.
+#   - TB-5 ADC timing preview (~46 min): base / 0xFDC5 / restored.
+#   - "Diag Stop + Restore" button. Failsafes: Wi-Fi re-enabled after 15 min
+#     off and the loop interval restored after 10 min, whatever the scripts do.
+#   - Passive: 5-min current mean/sd, Wi-Fi AP channel/width, reset reason.
+#   Run one test at a time (buttons refuse while one runs). During TB-4 do not
+#   press the OLED button (its 5-min sleep timer would cut the lit variants).
+# V1.27-diag2, 2026-09-25: review fixes, DIAG scripts only (CORE unchanged,
+#   NVS unchanged: the one new global is restore_value no).
+#   - TB-3 / TB-5 skip every window if ADC_CONFIG cannot be read. In diag1 a
+#     failed read only left one lambda, and the windows still ran at the
+#     unchanged config under the test's labels.
+#   - Every ADC_CONFIG write in TB-3 / TB-5 is verified by reading it back.
+#     A window whose setting did not take is labelled CFGFAIL_<label>.
+#   - TB-5 ends with diag_restore, so a failed inline restore is retried.
+#   - TB-1's last window is labelled TB1_ON_AFTER_NOAPI if the API has not
+#     reconnected within the 5-min wait.
+# ----------------------------------------------------------------------------
 # Purpose : Full instrumentation for 12V/500Ah LiFePO4 battery bank with
 #           Giandel 1500W inverter and LiTime 80A charger. Reports V/I/P,
 #           accumulated Ah/Wh, SOC estimate, temperature, charge/discharge
@@ -369,15 +405,17 @@ esphome:
   name: ${device_name}
   friendly_name: ${friendly_name}
   comment: ${device_description}
+  includes:
+    - "<esp_wifi.h>"   # DIAG: esp_wifi_get/set_max_tx_power, esp_wifi_sta_get_ap_info
   project:
     name: "wkcollis1.battery-bank-monitor"
-    version: "1.27"
+    version: "1.27-diag2"
   on_boot:
     - priority: -200
       then:
         - logger.log:
             level: INFO
-            format: "Battery Bank Monitor V1.27 boot -- INA228 @ 0x40, DS18B20 on GPIO10"
+            format: "Battery Bank Monitor V1.27-diag2 (TEST BUILD) boot -- INA228 @ 0x40, DS18B20 on GPIO10"
         # Start panel dark — wakes on button press only. turn_off() not setup() (issue #1393).
         - lambda: 'id(panel).turn_off();'
         # alert_reason shows "none" from boot (V1.21) — not "unknown" until first alert
@@ -523,6 +561,10 @@ esp32:
   board: seeed_xiao_esp32c3
   framework:
     type: esp-idf
+
+# DIAG: debug component, for the Reset Reason text sensor (turnover §9).
+debug:
+  update_interval: 60s
 
 logger:
   level: INFO
@@ -727,6 +769,16 @@ display:
             it.print(6, 26, id(font_body), "Mark Full button");
             it.print(6, 39, id(font_body), "if anchor missed");
           }
+      # DIAG: TB-4 test page. diag_oled_mode 1 = all-black frame (panel on,
+      # ~no pixel current), 2 = all-white frame (maximum pixel current).
+      # The button's page cycle also reaches it (mode 0: a short label).
+      - id: page_diag
+        lambda: |-
+          const int m = id(diag_oled_mode);
+          if (m == 2) { it.fill(COLOR_ON); return; }
+          it.fill(COLOR_OFF);
+          if (m == 1) return;
+          it.print(6, 26, id(font_body), "DIAG test page");
   # on_boot: start dark (the panel only lights on a button press)
   # (handled in esphome: on_boot below)
 
@@ -769,6 +821,392 @@ script:
     then:
       - delay: ${display_timeout}
       - lambda: 'id(panel).turn_off();'
+
+  # ── DIAG scripts (V1.27-diag1) ─────────────────────────────────────────────
+  # Open a statistics window: zero the accumulators, snapshot raw CHARGE (0x0A)
+  # and ENERGY (0x09) and the time. The ina228_current / bus_voltage on_value
+  # hooks feed it while diag_win_active is true.
+  - id: diag_win_start
+    mode: queued
+    parameters:
+      label: string
+    then:
+      - lambda: |-
+          auto rd5 = [](uint8_t reg, uint8_t *b) -> bool {
+            return id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                   id(bus_a).read(0x40, b, 5) == i2c::ERROR_OK;
+          };
+          uint8_t q[5], e[5];
+          const bool ok = rd5(0x0A, q) && rd5(0x09, e);
+          int64_t qr = ((int64_t) q[0] << 32) | ((int64_t) q[1] << 24) | ((int64_t) q[2] << 16) |
+                       ((int64_t) q[3] << 8) | (int64_t) q[4];
+          if (qr & (1LL << 39)) qr -= (1LL << 40);
+          const uint64_t er = ((uint64_t) e[0] << 32) | ((uint64_t) e[1] << 24) | ((uint64_t) e[2] << 16) |
+                              ((uint64_t) e[3] << 8) | (uint64_t) e[4];
+          id(diag_q0) = qr; id(diag_e0) = er; id(diag_qe_ok) = ok;
+          id(diag_t0_ms) = millis();
+          id(diag_label) = label;
+          id(diag_n) = 0; id(diag_s1) = 0.0; id(diag_s2) = 0.0; id(diag_s3) = 0.0; id(diag_s4) = 0.0;
+          id(diag_min) = 1e9; id(diag_max) = -1e9; id(diag_npos) = 0;
+          id(diag_sub_n) = 0; id(diag_sub_s1) = 0.0; id(diag_sub_s2) = 0.0;
+          id(diag_sub_sdmin) = 1e9; id(diag_sub_sdmax) = 0.0;
+          id(diag_v_n) = 0; id(diag_v_s1) = 0.0; id(diag_v_s2) = 0.0; id(diag_v_ref) = NAN;
+          id(diag_win_active) = true;
+          ESP_LOGI("diag", "window START %s (CHARGE/ENERGY snapshot %s)", label.c_str(), ok ? "ok" : "FAILED");
+
+  # Close the window: compute the statistics and publish them. Runs fine with
+  # Wi-Fi off - HA receives the latest states when the API reconnects.
+  - id: diag_win_finish
+    mode: queued
+    then:
+      - lambda: |-
+          if (!id(diag_win_active)) return;
+          id(diag_win_active) = false;
+          const uint32_t t1 = millis();
+          const double dt = (double) (t1 - id(diag_t0_ms)) / 1000.0;   // s
+          auto rd5 = [](uint8_t reg, uint8_t *b) -> bool {
+            return id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                   id(bus_a).read(0x40, b, 5) == i2c::ERROR_OK;
+          };
+          uint8_t q[5], e[5];
+          const bool ok = id(diag_qe_ok) && rd5(0x0A, q) && rd5(0x09, e) && dt > 1.0;
+          double q_ma = NAN, e_w = NAN;
+          if (ok) {
+            int64_t qr = ((int64_t) q[0] << 32) | ((int64_t) q[1] << 24) | ((int64_t) q[2] << 16) |
+                         ((int64_t) q[3] << 8) | (int64_t) q[4];
+            if (qr & (1LL << 39)) qr -= (1LL << 40);
+            const uint64_t er = ((uint64_t) e[0] << 32) | ((uint64_t) e[1] << 24) | ((uint64_t) e[2] << 16) |
+                                ((uint64_t) e[3] << 8) | (uint64_t) e[4];
+            // Same scaling as the hw_charge_ah / hw_energy_wh lambdas:
+            // Charge[C] = CURRENT_LSB x CHARGE; Energy[J] = 51.2 x CURRENT_LSB x ENERGY.
+            q_ma = (double) (qr - id(diag_q0)) * 3.814697265625e-4 / dt * 1000.0;
+            e_w = (double) (er - id(diag_e0)) * 51.2 * 3.814697265625e-4 / dt;
+          }
+          const int n = id(diag_n);
+          double mean = NAN, sd = NAN, skew = NAN, exk = NAN, pos = NAN;
+          if (n >= 3) {
+            const double s1 = id(diag_s1) / n, s2 = id(diag_s2) / n;
+            const double s3 = id(diag_s3) / n, s4 = id(diag_s4) / n;
+            mean = s1;
+            const double m2 = s2 - mean * mean;
+            const double m3 = s3 - 3.0 * mean * s2 + 2.0 * mean * mean * mean;
+            const double m4 = s4 - 4.0 * mean * s3 + 6.0 * mean * mean * s2 - 3.0 * mean * mean * mean * mean;
+            sd = m2 > 0.0 ? std::sqrt(m2 * n / (n - 1)) : 0.0;
+            if (m2 > 0.0) { skew = m3 / std::pow(m2, 1.5); exk = m4 / (m2 * m2) - 3.0; }
+            pos = 100.0 * id(diag_npos) / n;
+          }
+          double vsd = NAN;
+          if (id(diag_v_n) >= 3) {
+            const double vm = id(diag_v_s1) / id(diag_v_n);
+            const double vv = (id(diag_v_s2) - id(diag_v_n) * vm * vm) / (id(diag_v_n) - 1);
+            vsd = vv > 0.0 ? std::sqrt(vv) : 0.0;
+          }
+          const double sdmin = id(diag_sub_sdmin) < 1e8 ? id(diag_sub_sdmin) : NAN;
+          char r[256];
+          snprintf(r, sizeof(r),
+            "%s %.0fs n=%d mean=%.2f sd=%.2f sk=%.2f ek=%.2f pos=%.1f%% min=%.1f max=%.1f sd1m=%.2f/%.2f Q=%.2fmA E=%.4fW Vsd=%.3fmV",
+            id(diag_label).c_str(), dt, n, mean, sd, skew, exk, pos, id(diag_min), id(diag_max),
+            sdmin, id(diag_sub_sdmax), q_ma, e_w, vsd);
+          ESP_LOGI("diag", "RESULT %s", r);
+          id(diag_result).publish_state(r);
+          id(diag_w_mean).publish_state(mean);
+          id(diag_w_sd).publish_state(sd);
+          id(diag_w_pos).publish_state(pos);
+          id(diag_w_sd1m_min).publish_state(sdmin);
+          id(diag_w_q_ma).publish_state(q_ma);
+          id(diag_w_e_w).publish_state(e_w);
+
+  # Put every setting a test can change back to normal. Safe to run any time.
+  - id: diag_restore
+    mode: queued
+    then:
+      - lambda: |-
+          id(diag_win_active) = false;
+          if (id(diag_adc_saved_ok)) {
+            const uint16_t v = id(diag_adc_saved);
+            uint8_t buf[3] = { 0x01, (uint8_t) (v >> 8), (uint8_t) (v & 0xFF) };
+            if (id(bus_a).write(0x40, buf, 3) != i2c::ERROR_OK)
+              ESP_LOGW("diag", "restore: ADC_CONFIG write FAILED");
+            id(diag_adc_saved_ok) = false;
+          }
+          if (id(diag_txp_saved) != 0) {
+            esp_wifi_set_max_tx_power(id(diag_txp_saved));
+            id(diag_txp_saved) = 0;
+          }
+          if (id(diag_loop_mod_ms) != 0) {
+            App.set_loop_interval(id(diag_loop_saved));
+            id(diag_loop_mod_ms) = 0;
+          }
+          id(diag_oled_mode) = 0;
+          id(panel).turn_off();
+          id(diag_busy) = false;
+          ESP_LOGI("diag", "all test settings restored");
+      - wifi.enable:
+      - lambda: 'id(diag_wifi_off_ms) = 0;'
+
+  # TB-1: 10 min Wi-Fi on / 10 min radio OFF / 10 min Wi-Fi on.
+  - id: diag_tb1
+    mode: single
+    then:
+      - lambda: |-
+          id(diag_busy) = true;
+          id(diag_status).publish_state("TB-1 1/3: Wi-Fi ON control, 10 min");
+      - script.execute:
+          id: diag_win_start
+          label: "TB1_WIFI_ON_BEFORE"
+      - delay: 10min
+      - script.execute: diag_win_finish
+      - lambda: 'id(diag_status).publish_state("TB-1 2/3: Wi-Fi OFF 10 min - HA shows unavailable; results arrive after reconnect");'
+      - delay: 3s
+      - lambda: 'id(diag_wifi_off_ms) = millis();'
+      - wifi.disable:
+      - delay: 5s
+      - script.execute:
+          id: diag_win_start
+          label: "TB1_WIFI_OFF"
+      - delay: 10min
+      - script.execute: diag_win_finish
+      - wifi.enable:
+      - lambda: 'id(diag_wifi_off_ms) = 0;'
+      - wait_until:
+          condition:
+            api.connected:
+          timeout: 5min
+      - delay: 15s
+      - lambda: |-
+          id(diag_result).publish_state(id(diag_result).state);   // make sure HA has the OFF result
+          id(diag_status).publish_state("TB-1 3/3: Wi-Fi ON control, 10 min");
+      - script.execute:
+          id: diag_win_start
+          label: !lambda |-
+            // DIAG2: flag the window if the 5-min wait above timed out without the API
+            return std::string(api::global_api_server != nullptr && api::global_api_server->is_connected()
+                                   ? "TB1_WIFI_ON_AFTER" : "TB1_ON_AFTER_NOAPI");
+      - delay: 10min
+      - script.execute: diag_win_finish
+      - lambda: |-
+          id(diag_busy) = false;
+          id(diag_status).publish_state("TB-1 done");
+
+  # TB-2: TX-power ladder, 60 s settle + 15 min window per step, then restore.
+  - id: diag_tb2
+    mode: single
+    then:
+      - lambda: |-
+          id(diag_busy) = true;
+          int8_t p = 0;
+          id(diag_txp_saved) = (esp_wifi_get_max_tx_power(&p) == ESP_OK && p > 0) ? p : (int8_t) 80;
+          ESP_LOGI("diag", "TB-2: saved max TX power %d (x0.25 dBm)", id(diag_txp_saved));
+      - repeat:
+          count: 5
+          then:
+            - lambda: |-
+                static const float P[5] = {20.5f, 17.0f, 14.0f, 11.0f, 8.5f};
+                const esp_err_t r = esp_wifi_set_max_tx_power((int8_t) (P[iteration] * 4.0f));
+                int8_t got = 0;
+                esp_wifi_get_max_tx_power(&got);
+                id(diag_txp_actual) = got / 4.0f;
+                char s[96];
+                snprintf(s, sizeof(s), "TB-2 %u/5: TX max %.2f dBm (asked %.1f)%s",
+                         (unsigned) iteration + 1, id(diag_txp_actual), P[iteration],
+                         r == ESP_OK ? "" : " - SET FAILED");
+                id(diag_status).publish_state(s);
+            - delay: 60s
+            - script.execute:
+                id: diag_win_start
+                label: !lambda |-
+                  char s[32];
+                  snprintf(s, sizeof(s), "TB2_TX_%.2fdBm", id(diag_txp_actual));
+                  return std::string(s);
+            - delay: 15min
+            - script.execute: diag_win_finish
+      - lambda: |-
+          esp_wifi_set_max_tx_power(id(diag_txp_saved));
+          id(diag_txp_saved) = 0;
+          id(diag_busy) = false;
+          id(diag_status).publish_state("TB-2 done - TX power restored");
+
+  # TB-3: ADC averaging ladder (AVG 1/4/16/64/128), 10 s settle + 5 min each.
+  # CHARGE/ENERGY are per conversion, so they are unaffected in the mean.
+  - id: diag_tb3
+    mode: single
+    then:
+      - lambda: |-
+          id(diag_busy) = true;
+          uint8_t reg = 0x01, b[2] = {0, 0};
+          id(diag_adc_saved_ok) = id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                                  id(bus_a).read(0x40, b, 2) == i2c::ERROR_OK;
+          id(diag_adc_saved) = ((uint16_t) b[0] << 8) | b[1];
+          ESP_LOGI("diag", "TB-3: ADC_CONFIG saved 0x%04X (%s)", id(diag_adc_saved),
+                   id(diag_adc_saved_ok) ? "ok" : "READ FAILED - ladder skipped");
+      # DIAG2: a failed read now really skips the ladder. In diag1 the `return`
+      # below only left its lambda, and all five windows ran at the unchanged
+      # config under TB3_AVG_n labels.
+      - if:
+          condition:
+            lambda: 'return id(diag_adc_saved_ok);'
+          then:
+            - repeat:
+                count: 5
+                then:
+                  - lambda: |-
+                      static const uint8_t CODE[5] = {0, 1, 2, 3, 4};   // AVG field: 1, 4, 16, 64, 128
+                      static const int N[5] = {1, 4, 16, 64, 128};
+                      id(diag_avg_set) = N[iteration];
+                      id(diag_cfg_ok) = false;
+                      if (!id(diag_adc_saved_ok)) return;
+                      const uint16_t v = (id(diag_adc_saved) & 0xFFF8) | CODE[iteration];
+                      uint8_t buf[3] = { 0x01, (uint8_t) (v >> 8), (uint8_t) (v & 0xFF) };
+                      // DIAG2: verify by readback (every ADC_CONFIG field is R/W, SLYS021A Table 7-6)
+                      uint8_t reg = 0x01, b[2] = {0, 0};
+                      const bool w = id(bus_a).write(0x40, buf, 3) == i2c::ERROR_OK &&
+                                     id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                                     id(bus_a).read(0x40, b, 2) == i2c::ERROR_OK &&
+                                     (uint16_t) (((uint16_t) b[0] << 8) | b[1]) == v;
+                      id(diag_cfg_ok) = w;
+                      char s[80];
+                      snprintf(s, sizeof(s), "TB-3 %u/5: AVG %d (ADC_CONFIG 0x%04X)%s",
+                               (unsigned) iteration + 1, N[iteration], v, w ? "" : " - NOT APPLIED");
+                      id(diag_status).publish_state(s);
+                  - delay: 10s
+                  - script.execute:
+                      id: diag_win_start
+                      label: !lambda |-
+                        char s[24];
+                        snprintf(s, sizeof(s), "%sTB3_AVG_%d", id(diag_cfg_ok) ? "" : "CFGFAIL_", id(diag_avg_set));
+                        return std::string(s);
+                  - delay: 5min
+                  - script.execute: diag_win_finish
+            - script.execute: diag_restore
+            - lambda: 'id(diag_status).publish_state("TB-3 done - ADC_CONFIG restored");'
+          else:
+            - script.execute: diag_restore
+            - lambda: 'id(diag_status).publish_state("TB-3 SKIPPED - ADC_CONFIG read failed; nothing changed, no windows run");'
+
+  # TB-4: OLED / load round, 9 steps: 20 s settle + 5 min window each.
+  - id: diag_tb4
+    mode: single
+    then:
+      - lambda: |-
+          id(diag_busy) = true;
+          id(diag_loop_saved) = App.get_loop_interval();
+      - repeat:
+          count: 9
+          then:
+            - lambda: |-
+                static const char *const D[9] = {
+                  "base (panel off)", "lit page_main", "base (panel off)", "BLACK frame, panel on",
+                  "base (panel off)", "WHITE frame, panel on", "base (panel off)",
+                  "1 ms loop interval (extra CPU load), panel off", "base (panel off)"};
+                const int s = (int) iteration;
+                // back to the base state first
+                if (id(diag_loop_mod_ms) != 0) {
+                  App.set_loop_interval(id(diag_loop_saved));
+                  id(diag_loop_mod_ms) = 0;
+                }
+                id(diag_oled_mode) = 0;
+                if (s == 1) {
+                  id(panel).show_page(id(page_main)); id(panel).turn_on();
+                } else if (s == 3 || s == 5) {
+                  id(diag_oled_mode) = (s == 3) ? 1 : 2;
+                  id(panel).show_page(id(page_diag)); id(panel).turn_on();
+                } else {
+                  id(panel).turn_off();
+                  if (s == 7) { App.set_loop_interval(1); id(diag_loop_mod_ms) = millis(); }
+                }
+                char m[96];
+                snprintf(m, sizeof(m), "TB-4 %d/9: %s", s + 1, D[s]);
+                id(diag_status).publish_state(m);
+            - delay: 20s
+            - script.execute:
+                id: diag_win_start
+                label: !lambda |-
+                  static const char *const L[9] = {
+                    "TB4_BASE_1", "TB4_A_LIT_PAGE", "TB4_BASE_2", "TB4_B_BLACK", "TB4_BASE_3",
+                    "TB4_C_WHITE", "TB4_BASE_4", "TB4_D_LOOP_1MS", "TB4_BASE_5"};
+                  return std::string(L[iteration]);
+            - delay: 5min
+            - script.execute: diag_win_finish
+      - script.execute: diag_restore
+      - lambda: 'id(diag_status).publish_state("TB-4 done - panel off, loop interval restored");'
+
+  # TB-5: ADC timing preview. 15 min each: base / 0xFDC5 / restored.
+  # 0xFDC5 = MODE F, VBUSCT 2074 us, VSHCT 4120 us, VTCT 50 us, AVG 256:
+  # cycle 256 x 6.244 ms = 1.598 s (now 1.582 s); shunt time per reading x2.
+  - id: diag_tb5
+    mode: single
+    then:
+      - lambda: |-
+          id(diag_busy) = true;
+          uint8_t reg = 0x01, b[2] = {0, 0};
+          id(diag_adc_saved_ok) = id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                                  id(bus_a).read(0x40, b, 2) == i2c::ERROR_OK;
+          id(diag_adc_saved) = ((uint16_t) b[0] << 8) | b[1];
+      # DIAG2: a failed read now skips the whole test. In diag1 the `return` in
+      # the 0xFDC5 lambda only left that lambda, and TB5_FDC5 ran at the base
+      # config.
+      - if:
+          condition:
+            lambda: 'return id(diag_adc_saved_ok);'
+          then:
+            - lambda: 'id(diag_status).publish_state("TB-5 1/3: base ADC config, 15 min");'
+            - script.execute:
+                id: diag_win_start
+                label: "TB5_BASE"
+            - delay: 15min
+            - script.execute: diag_win_finish
+            - lambda: |-
+                id(diag_cfg_ok) = false;
+                if (!id(diag_adc_saved_ok)) {
+                  id(diag_status).publish_state("TB-5: ADC_CONFIG read FAILED - preview skipped");
+                  return;
+                }
+                uint8_t buf[3] = { 0x01, 0xFD, 0xC5 };
+                // DIAG2: verify by readback (every ADC_CONFIG field is R/W, SLYS021A Table 7-6)
+                uint8_t reg = 0x01, b[2] = {0, 0};
+                const bool w = id(bus_a).write(0x40, buf, 3) == i2c::ERROR_OK &&
+                               id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                               id(bus_a).read(0x40, b, 2) == i2c::ERROR_OK &&
+                               b[0] == 0xFD && b[1] == 0xC5;
+                id(diag_cfg_ok) = w;
+                id(diag_status).publish_state(w ? "TB-5 2/3: ADC_CONFIG 0xFDC5, 15 min"
+                                                : "TB-5 2/3: ADC_CONFIG 0xFDC5 NOT APPLIED");
+            - delay: 10s
+            - script.execute:
+                id: diag_win_start
+                label: !lambda 'return std::string(id(diag_cfg_ok) ? "TB5_FDC5" : "CFGFAIL_TB5_FDC5");'
+            - delay: 15min
+            - script.execute: diag_win_finish
+            - lambda: |-
+                // restore ADC_CONFIG inline (diag_restore would clear diag_busy mid-test)
+                id(diag_cfg_ok) = false;
+                if (id(diag_adc_saved_ok)) {
+                  const uint16_t v = id(diag_adc_saved);
+                  uint8_t buf[3] = { 0x01, (uint8_t) (v >> 8), (uint8_t) (v & 0xFF) };
+                  // DIAG2: verify by readback, as above
+                  uint8_t reg = 0x01, b[2] = {0, 0};
+                  const bool w = id(bus_a).write(0x40, buf, 3) == i2c::ERROR_OK &&
+                                 id(bus_a).write(0x40, &reg, 1, false) == i2c::ERROR_OK &&
+                                 id(bus_a).read(0x40, b, 2) == i2c::ERROR_OK &&
+                                 (uint16_t) (((uint16_t) b[0] << 8) | b[1]) == v;
+                  id(diag_cfg_ok) = w;
+                  id(diag_adc_saved_ok) = !w;   // keep it for Stop + Restore if the write failed
+                }
+                id(diag_status).publish_state(id(diag_cfg_ok) ? "TB-5 3/3: restored ADC config, 15 min"
+                                                              : "TB-5 3/3: ADC_CONFIG restore NOT APPLIED - retried at the end");
+            - delay: 10s
+            - script.execute:
+                id: diag_win_start
+                label: !lambda 'return std::string(id(diag_cfg_ok) ? "TB5_RESTORED" : "CFGFAIL_TB5_RESTORED");'
+            - delay: 15min
+            - script.execute: diag_win_finish
+            # DIAG2: diag_restore retries a failed inline restore, and clears diag_busy
+            - script.execute: diag_restore
+            - lambda: 'id(diag_status).publish_state("TB-5 done");'
+          else:
+            - lambda: |-
+                id(diag_busy) = false;
+                id(diag_status).publish_state("TB-5 SKIPPED - ADC_CONFIG read failed; nothing changed, no windows run");
 
 globals:
 
@@ -1030,8 +1468,96 @@ globals:
     initial_value: '0'      # resets bridged since the last full-charge anchor —
     restore_value: yes      # printed in CYCLE CONFIRM, cleared at every anchor
 
+  # ── DIAG globals (V1.27-diag1). All transient: restore_value no. ───────────
+  - {id: diag_busy,        type: bool,        initial_value: 'false', restore_value: no}
+  - {id: diag_win_active,  type: bool,        initial_value: 'false', restore_value: no}
+  - {id: diag_label,       type: std::string, initial_value: '""',    restore_value: no}
+  - {id: diag_t0_ms,       type: uint32_t,    initial_value: '0',     restore_value: no}
+  - {id: diag_q0,          type: int64_t,     initial_value: '0',     restore_value: no}
+  - {id: diag_e0,          type: uint64_t,    initial_value: '0',     restore_value: no}
+  - {id: diag_qe_ok,       type: bool,        initial_value: 'false', restore_value: no}
+  - {id: diag_n,           type: int,         initial_value: '0',     restore_value: no}
+  - {id: diag_s1,          type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_s2,          type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_s3,          type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_s4,          type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_min,         type: double,      initial_value: '1e9',   restore_value: no}
+  - {id: diag_max,         type: double,      initial_value: '-1e9',  restore_value: no}
+  - {id: diag_npos,        type: int,         initial_value: '0',     restore_value: no}
+  - {id: diag_sub_n,       type: int,         initial_value: '0',     restore_value: no}
+  - {id: diag_sub_s1,      type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_sub_s2,      type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_sub_sdmin,   type: double,      initial_value: '1e9',   restore_value: no}
+  - {id: diag_sub_sdmax,   type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_v_n,         type: int,         initial_value: '0',     restore_value: no}
+  - {id: diag_v_s1,        type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_v_s2,        type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_v_ref,       type: double,      initial_value: 'NAN',   restore_value: no}
+  - {id: diag_p_n,         type: int,         initial_value: '0',     restore_value: no}
+  - {id: diag_p_s1,        type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_p_s2,        type: double,      initial_value: '0.0',   restore_value: no}
+  - {id: diag_adc_saved,   type: uint16_t,    initial_value: '0',     restore_value: no}
+  - {id: diag_adc_saved_ok, type: bool,       initial_value: 'false', restore_value: no}
+  - {id: diag_cfg_ok,      type: bool,        initial_value: 'true',  restore_value: no}   # DIAG2: last ADC_CONFIG write verified by readback
+  - {id: diag_avg_set,     type: int,         initial_value: '128',   restore_value: no}
+  - {id: diag_txp_saved,   type: int8_t,      initial_value: '0',     restore_value: no}
+  - {id: diag_txp_actual,  type: float,       initial_value: 'NAN',   restore_value: no}
+  - {id: diag_loop_saved,  type: uint32_t,    initial_value: '16',    restore_value: no}
+  - {id: diag_loop_mod_ms, type: uint32_t,    initial_value: '0',     restore_value: no}
+  - {id: diag_wifi_off_ms, type: uint32_t,    initial_value: '0',     restore_value: no}
+  - {id: diag_oled_mode,   type: int,         initial_value: '0',     restore_value: no}
+
 
 interval:
+
+  # DIAG: failsafes, independent of the test scripts.
+  - interval: 30s
+    then:
+      - lambda: |-
+          if (id(diag_wifi_off_ms) != 0 && (millis() - id(diag_wifi_off_ms)) > 15u * 60u * 1000u) {
+            ESP_LOGW("diag", "FAILSAFE: Wi-Fi off > 15 min - re-enabling");
+            wifi::global_wifi_component->enable();
+            id(diag_wifi_off_ms) = 0;
+          }
+          if (id(diag_loop_mod_ms) != 0 && (millis() - id(diag_loop_mod_ms)) > 10u * 60u * 1000u) {
+            ESP_LOGW("diag", "FAILSAFE: loop interval changed > 10 min - restoring %u ms",
+                     (unsigned) id(diag_loop_saved));
+            App.set_loop_interval(id(diag_loop_saved));
+            id(diag_loop_mod_ms) = 0;
+          }
+
+  # DIAG: passive 5-min mean / sd of the 2-s current (always on).
+  - interval: 300s
+    then:
+      - lambda: |-
+          const int n = id(diag_p_n);
+          if (n >= 10) {
+            const double m = id(diag_p_s1) / n;
+            const double v = (id(diag_p_s2) - n * m * m) / (n - 1);
+            id(diag_5m_mean).publish_state(m);
+            id(diag_5m_sd).publish_state(v > 0.0 ? std::sqrt(v) : 0.0);
+          }
+          id(diag_p_n) = 0; id(diag_p_s1) = 0.0; id(diag_p_s2) = 0.0;
+
+  # DIAG: which channel / width the station sees (tests review §8.1's
+  # 20 MHz-fallback reading directly). Published only when it changes.
+  - interval: 60s
+    then:
+      - lambda: |-
+          wifi_ap_record_t ap;
+          if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return;
+          // numeric codes (1 = 20 MHz, 2 = 40 MHz) - stable across ESP-IDF versions
+          wifi_bandwidth_t bw = (wifi_bandwidth_t) 1;
+          esp_wifi_get_bandwidth(WIFI_IF_STA, &bw);
+          int8_t p = 0;
+          esp_wifi_get_max_tx_power(&p);
+          const char *sec = ap.second == WIFI_SECOND_CHAN_ABOVE ? "above"
+                          : ap.second == WIFI_SECOND_CHAN_BELOW ? "below" : "none";
+          char s[96];
+          snprintf(s, sizeof(s), "ch %u, 2nd %s, sta bw %s, 11%s%s%s, tx max %.2f dBm",
+                   (unsigned) ap.primary, sec, (int) bw == 2 ? "HT40" : "HT20",
+                   ap.phy_11b ? "b" : "", ap.phy_11g ? "g" : "", ap.phy_11n ? "n" : "", p / 4.0f);
+          if (id(diag_ap_info).state != s) id(diag_ap_info).publish_state(s);
 
   # Voltage slope — 60s sampling, EMA α=0.35. Drives knee/cliff sensors.
   - interval: 60s
@@ -1281,6 +1807,28 @@ sensor:
       device_class: current
       state_class: measurement
       # Positive = charging, negative = discharging (Option B)
+      on_value:
+        - lambda: |-
+            // DIAG: feed the passive 5-min and the test-window accumulators (mA).
+            if (std::isnan(x)) return;
+            const double ma = (double) x * 1000.0;
+            id(diag_p_n) += 1; id(diag_p_s1) += ma; id(diag_p_s2) += ma * ma;
+            if (!id(diag_win_active)) return;
+            id(diag_n) += 1;
+            id(diag_s1) += ma; id(diag_s2) += ma * ma;
+            id(diag_s3) += ma * ma * ma; id(diag_s4) += ma * ma * ma * ma;
+            if (ma < id(diag_min)) id(diag_min) = ma;
+            if (ma > id(diag_max)) id(diag_max) = ma;
+            if (ma > 0.0) id(diag_npos) += 1;
+            id(diag_sub_n) += 1; id(diag_sub_s1) += ma; id(diag_sub_s2) += ma * ma;
+            if (id(diag_sub_n) >= 30) {   // 1-min sub-window = 30 samples
+              const double m = id(diag_sub_s1) / 30.0;
+              const double v = (id(diag_sub_s2) - 30.0 * m * m) / 29.0;
+              const double sd = v > 0.0 ? std::sqrt(v) : 0.0;
+              if (sd < id(diag_sub_sdmin)) id(diag_sub_sdmin) = sd;
+              if (sd > id(diag_sub_sdmax)) id(diag_sub_sdmax) = sd;
+              id(diag_sub_n) = 0; id(diag_sub_s1) = 0.0; id(diag_sub_s2) = 0.0;
+            }
     bus_voltage:
       name: "Battery Voltage"
       id: ina228_voltage
@@ -1296,6 +1844,14 @@ sensor:
       # on_value feeds watchdog timestamp every ~2s (well within 10s FAULT threshold).
       on_value:
         - lambda: 'id(last_ina228_update) = millis();'
+        - lambda: |-
+            // DIAG: bus-voltage accumulators for the test window (mV, shifted
+            // by the first sample so the variance does not lose precision).
+            if (!id(diag_win_active) || std::isnan(x)) return;
+            const double mv = (double) x * 1000.0;
+            if (std::isnan(id(diag_v_ref))) id(diag_v_ref) = mv;
+            const double d = mv - id(diag_v_ref);
+            id(diag_v_n) += 1; id(diag_v_s1) += d; id(diag_v_s2) += d * d;
     power:
       name: "INA228 Power Register"
       id: ina228_power
@@ -1967,8 +2523,38 @@ sensor:
     name: "ESP32 Internal Temperature"
     update_interval: 60s
 
+  # ── DIAG sensors (V1.27-diag1), published by the diag scripts/intervals ──
+  - {platform: template, name: "Diag Window Mean",           id: diag_w_mean,     unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag Window SD",             id: diag_w_sd,       unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag Window Positive",       id: diag_w_pos,      unit_of_measurement: "%",  accuracy_decimals: 2, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag Window 1-min SD Min",   id: diag_w_sd1m_min, unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag Window CHARGE Mean",    id: diag_w_q_ma,     unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag Window ENERGY Rate",    id: diag_w_e_w,      unit_of_measurement: "W",  accuracy_decimals: 4, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag 5-min Current Mean",    id: diag_5m_mean,    unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+  - {platform: template, name: "Diag 5-min Current SD",      id: diag_5m_sd,      unit_of_measurement: "mA", accuracy_decimals: 3, state_class: measurement, entity_category: diagnostic, update_interval: never}
+
 
 text_sensor:
+
+  # ── DIAG text sensors (V1.27-diag1) ──
+  - platform: template
+    name: "Diag Status"
+    id: diag_status
+    entity_category: diagnostic
+    icon: "mdi:test-tube"
+  - platform: template
+    name: "Diag Result"
+    id: diag_result
+    entity_category: diagnostic
+    icon: "mdi:clipboard-text-outline"
+  - platform: template
+    name: "Diag Wi-Fi AP Info"
+    id: diag_ap_info
+    entity_category: diagnostic
+    icon: "mdi:wifi-cog"
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
 
   # Published by ina228_alert on_press: decoded DIAG_ALRT tokens (UNDER-V OVER-V
   # OVER-I OVER-P MATH-OF MEM-ERR). Not persisted; use HA logbook for history.
@@ -2703,3 +3289,77 @@ button:
       - logger.log:
           level: WARN
           format: "Lifetime counters reset — use ONLY after physical battery swap"
+
+  # ── DIAG buttons (V1.27-diag1) ──
+  - platform: template
+    name: "Diag TB-1 Wi-Fi Off Test (30 min)"
+    entity_category: config
+    icon: "mdi:wifi-off"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(diag_busy);'
+          then:
+            - lambda: 'id(diag_status).publish_state("BUSY - a test is running. Press Diag Stop + Restore first.");'
+          else:
+            - script.execute: diag_tb1
+  - platform: template
+    name: "Diag TB-2 TX Power Ladder (85 min)"
+    entity_category: config
+    icon: "mdi:wifi-arrow-down"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(diag_busy);'
+          then:
+            - lambda: 'id(diag_status).publish_state("BUSY - a test is running. Press Diag Stop + Restore first.");'
+          else:
+            - script.execute: diag_tb2
+  - platform: template
+    name: "Diag TB-3 Averaging Ladder (27 min)"
+    entity_category: config
+    icon: "mdi:chart-bell-curve"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(diag_busy);'
+          then:
+            - lambda: 'id(diag_status).publish_state("BUSY - a test is running. Press Diag Stop + Restore first.");'
+          else:
+            - script.execute: diag_tb3
+  - platform: template
+    name: "Diag TB-4 OLED-Load Round (47 min)"
+    entity_category: config
+    icon: "mdi:monitor-shimmer"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(diag_busy);'
+          then:
+            - lambda: 'id(diag_status).publish_state("BUSY - a test is running. Press Diag Stop + Restore first.");'
+          else:
+            - script.execute: diag_tb4
+  - platform: template
+    name: "Diag TB-5 ADC Timing Preview (46 min)"
+    entity_category: config
+    icon: "mdi:tune-vertical"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(diag_busy);'
+          then:
+            - lambda: 'id(diag_status).publish_state("BUSY - a test is running. Press Diag Stop + Restore first.");'
+          else:
+            - script.execute: diag_tb5
+  - platform: template
+    name: "Diag Stop + Restore"
+    entity_category: config
+    icon: "mdi:stop-circle-outline"
+    on_press:
+      - script.stop: diag_tb1
+      - script.stop: diag_tb2
+      - script.stop: diag_tb3
+      - script.stop: diag_tb4
+      - script.stop: diag_tb5
+      - script.execute: diag_restore
+      - lambda: 'id(diag_status).publish_state("Stopped - all test settings restored");'
