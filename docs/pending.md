@@ -253,19 +253,6 @@ are in the doc. The router stopgap (20/40 MHz coexistence OFF) makes the
 trace quiet AND freezes the SOC display (doc s2).
 ```
 
-### P22 — battery-bank diag2 test run, Claude-driven (tests DONE 2026-09-25; waits on Bill: delete the H: diag copy) [MEDIUM]
-```
-2026-09-25: all tests run and V1.27 is reinstalled; see CHANGELOG [2026.09.25].
-Left: Bill's word on deleting esphome/battery-bank-monitor-diag.yaml (Device
-Builder commits the deletion on sight). TB-5's result feeds P21 (V1.28).
-
-Opened 2026-09-25. Read C:/repos/Lifepo4-Battery-Banks/INA228 Monitor/
-diag-test-turnover.md first: authority, the questions to ask Bill before the
-first press, and the watcher (diag_watch.py) that reports each result live.
-The procedure and every label's reading are in diag-test-runsheet.md there.
-Nothing starts until `diag_watch.py check` prints READY (diag2 flashed).
-```
-
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
@@ -286,4 +273,6 @@ P15   backup essentials: coffee maker -> SEM Family Room,
 P20   gas heating season store: rollover catch-up, archive
       stamp, Jan-Jun 2025 fill, previous-month DHW pairing
       (Bill, 2026-09-23); CHANGELOG [2026.09.23]                DEPLOYED
+P22   battery-bank diag2 test run: 7 tests run, V1.27
+      reinstalled, H: diag copy deleted; CHANGELOG [2026.09.25] RESOLVED
 ```

@@ -85,8 +85,11 @@ question" —** the answer was one line away and settled it in one sentence.
   - `esphome/battery-bank-monitor.yaml` matches the repo's after LF normalisation [M].
   - Device Builder's 10:09 and 16:29 commits to it net to zero against origin [M: git diff].
   - The Diag entities are now unavailable. The run sheet leaves deleting them in HA to Bill.
-- **Still here: `esphome/battery-bank-monitor-diag.yaml`.** The entry below says to delete it once
-  V1.27 is back. That waits on Bill's word, because Device Builder commits the deletion on sight.
+- **Deleted at 16:40 on Bill's word: `esphome/battery-bank-monitor-diag.yaml`.** The entry below
+  required this once V1.27 was back (R10). It was byte-identical to the Lifepo4 repo's
+  `INA228 Monitor/battery-bank-monitor-diag.yaml` after LF normalisation [M], so the source
+  survives there (45aa2cd). `esphome/.device-builder.json` still caches its MAC address; that is
+  Device Builder's own untracked state and was left alone. P22 is closed.
 
 ### battery-bank-monitor V1.27-diag2 test build placed in `esphome/` — NOT FLASHED
 
