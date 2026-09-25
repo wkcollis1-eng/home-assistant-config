@@ -1604,3 +1604,66 @@
     09-22 ~20:07 EDT one; the INA228 kept power (INA228 Reset Check) [M].
     Cause unknown. It did not flip the noise regime [M, n=1]. Detail:
     docs/soc-accuracy-turnover.md section 9.
+
+- asked: 2026-09-25
+  question: >-
+    Battery-bank diag2 run: during each 47-min TB-4 run, will nobody be at the
+    monitor and nobody press its OLED button?
+  blocks: >-
+    Pressing Diag TB-4 (runs 1-3) of the diag2 test run, P22. A person or the
+    OLED button's 5-min sleep timer would cut the lit steps (diag-test-runsheet.md).
+  answered: >-
+    2026-09-25, Bill: nobody will be near the monitor during the test.
+
+- asked: 2026-09-25
+  question: >-
+    Battery-bank diag2 run: will the router be left alone (no reboot, no power
+    cycle, no settings change) for the whole run, ~5.5 h of test time plus gaps?
+  blocks: >-
+    The first press of any diag2 test, P22. A router reset turns 20/40 MHz
+    coexistence back on mid-test and voids that test's step comparisons.
+    Test time 329 min [D: 30+85+27+3x47+46, from the button labels].
+  answered: >-
+    2026-09-25, Bill: will leave the router as is the whole time.
+
+- asked: 2026-09-25
+  question: >-
+    Battery-bank diag2 run: TB-1 takes the monitor off Wi-Fi for 10 min, when
+    Stop + Restore and battery alarms cannot reach HA. Is that acceptable today?
+  blocks: >-
+    Pressing Diag TB-1, P22 (runsheet order: second, after the first TB-4).
+  answered: >-
+    2026-09-25, Bill: ok.
+
+- asked: 2026-09-25
+  question: >-
+    Battery-bank diag2 run: how far apart should the three TB-4 runs be?
+  blocks: >-
+    Pressing TB-4 runs 2 and 3, P22.
+  answered: >-
+    2026-09-25, Bill: 1 minute between tests, unless Claude recommends
+    otherwise. Claude recommended moving TB-4 run 3 to after TB-2, so the
+    runs start at 0 / 79 / 213 min instead of 0 / 79 / 127 min [D: button
+    lengths + 1-min gaps], for the runsheet's "spread over the day". Same
+    total time. Bill, 2026-09-25: accepted - order TB-4, TB-1, TB-4, TB-2,
+    TB-4, TB-3, TB-5, 1 min apart; Claude presses the buttons.
+
+- asked: 2026-09-25
+  question: >-
+    Battery-bank diag2 run: TB-3's AVG 1 step makes the bank current swing
+    about +/-100 mA, which briefly flips Bank State to DISCHARGING, and the
+    turnover rule then stops the test. Re-press TB-3 and, during TB-3 only,
+    not stop for a BANK change unless the current passes +/-1 A? Or skip
+    TB-3 and go to TB-5?
+  blocks: >-
+    Re-pressing Diag TB-3 and pressing TB-5, P22. TB-3 was pressed 14:31:19
+    EDT and stopped 14:31:32 on a BANK event: DISCHARGING 18:31:23-18:31:33
+    UTC [M: HA history]. The six AVG 1 current samples were -103.0, +6.5,
+    +120.5, -52.3, +10.7, +19.8 mA [M, 2-s HA samples], against the
+    firmware's -0.05 A discharge threshold [S: battery-bank-monitor-diag.yaml
+    discharge_threshold_a].
+  answered: >-
+    2026-09-25, Bill: continue with tb-3 and tb-5. Taken as the first
+    option: re-press TB-3; during TB-3 only, a BANK change does not stop
+    it, but a bank current past +/-1 A does (a guard presses Stop +
+    Restore). TB-5 runs under the normal BANK rule.

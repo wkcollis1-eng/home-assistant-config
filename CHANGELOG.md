@@ -60,6 +60,70 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.25] - 2026-09-25
+
+### battery-bank-monitor V1.27-diag2 tests run (P22); V1.27 reinstalled
+
+- **Bill flashed diag2. Claude pressed every test, 10:11-16:21, in Bill's order:** TB-4, TB-1,
+  TB-4, TB-2, TB-4, TB-3, TB-5.
+  - The results, and the run sheet's reading of each, are in Lifepo4-Battery-Banks
+    `INA228 Monitor/diag-test-results.md`. The HA exports are in `diag2-export-2026-09-25/`
+    beside it (45aa2cd, pushed along with diag2 6d69f66 and run sheet 900042c).
+  - The figures live there and are not copied here (R10).
+- **Outcome that feeds P21 (V1.28):** TB-5 met the run sheet's expectation.
+  - FDC5/BASE sd was 0.735, CI95 0.662-0.817, against the 0.71 expected [D: n=450 each]. Vsd was
+    within +/-20 %.
+  - The run sheet reads that as: the 6.2 ADC timing can go into V1.28.
+- **TB-3's first press was stopped under the BANK rule.** AVG 1 noise crossed the -0.05 A discharge
+  threshold.
+  - Re-pressed on Bill's answer in `open_questions.yaml`: for TB-3 only, a bank-state change was
+    ignored. A +/-1 A current guard would press Stop + Restore instead.
+  - The guard never tripped (peak 253.3 mA [M]).
+  - Bank state changed 66 times during TB-3 [M]. No automation, script or package here reads bank
+    state, discharge flags or outage counters [M: grep].
+- **V1.27 was reinstalled by Bill at 16:29.** The monitor reports config hash 0x6b05d980 [M].
+  - `esphome/battery-bank-monitor.yaml` matches the repo's after LF normalisation [M].
+  - Device Builder's 10:09 and 16:29 commits to it net to zero against origin [M: git diff].
+  - The Diag entities are now unavailable. The run sheet leaves deleting them in HA to Bill.
+- **Still here: `esphome/battery-bank-monitor-diag.yaml`.** The entry below says to delete it once
+  V1.27 is back. That waits on Bill's word, because Device Builder commits the deletion on sight.
+
+### battery-bank-monitor V1.27-diag2 test build placed in `esphome/` — NOT FLASHED
+
+`esphome/battery-bank-monitor-diag.yaml` is a copy of
+`INA228 Monitor/battery-bank-monitor-diag.yaml` from the Lifepo4-Battery-Banks
+repo at commit 6d69f66 (local, not pushed). It is here only so Device Builder
+lists it. The repo file is the source. Delete this copy when V1.27 goes back on
+after the tests (R10).
+
+- **What diag2 fixes in diag1 (PR #2):**
+  - If the ADC_CONFIG read fails, TB-3 and TB-5 now skip every window. Before,
+    they ran every window at the unchanged config and labelled them as normal.
+  - Every ADC_CONFIG write is read back. A window whose setting did not take is
+    labelled `CFGFAIL_<label>`.
+  - TB-5 retries a failed restore when it finishes.
+  - TB-1's last window is labelled `TB1_ON_AFTER_NOAPI` if the API had not
+    reconnected in time.
+- **Verified:**
+  - Real `esphome compile` on 2026.9.0, run from PowerShell: `main.cpp.obj`
+    built with 0 errors. The one warning is the existing V1.27 watchdog
+    `-Wformat` [M].
+  - Host test of the extracted lambdas against a simulated INA228 with read
+    NACK, write NACK and no-latch faults. diag2 passed 24 of 24 checks. diag1
+    failed 6 of 11, so the test can fail [M].
+  - The diff against production V1.27 changes only the 3 version lines, and
+    the NVS count is unchanged (30 → 30).
+- **Not verified:** it has not run on the device.
+- **Device Builder committed this file itself, at 09:18:29, seconds after it was
+  copied in (6b60914).** That was before any Install, and with no hooks. (R13:
+  the first draft of this entry said a commit would come "on Install". It came
+  on detection.)
+  - The committed blob matches the compiled file after LF normalisation [M].
+  - `pre-commit run --files` on it, run by hand afterwards, passed, gitleaks
+    included [M].
+  - It holds no credentials, only 5 `!secret` references.
+  - It is not pushed.
+
 ## [2026.09.23] - 2026-09-23
 
 ### Kasa: 2 s reads on the UPS Outlet and HWH plugs, to catch power peaks
