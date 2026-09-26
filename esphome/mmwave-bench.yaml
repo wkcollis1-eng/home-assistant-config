@@ -153,8 +153,13 @@
 #        (protocol V1.07 §2.2.12), not just a way to test persistence. BT is ON
 #        from the factory, and its config password is the default "HiLink".
 #   0.5  `Engineering mode` is already on. Confirm 18 gate series appear.
-#   0.6  (ADDED 2026-09-25, VEML7700 fitted) The boot log's i2c scan finds 0x10
-#        and there is no `Sensor configuration failed`. Cover the sensor
+#   0.6  (ADDED 2026-09-25, VEML7700 fitted) In the config dump `esphome logs`
+#        prints on connect, the i2c scan lists `Found device at address 0x10`
+#        and the veml7700 block has no `Communication failed`. CORRECTED
+#        2026-09-25, before flashing: this first said "no `Sensor configuration
+#        failed`", but setup() logs that before any API log client connects,
+#        so its absence proved nothing (veml7700.cpp:83; the dump line is
+#        :113-114). Cover the sensor
 #        completely: `Ambient light` ~0 lx, and auto_mode walks `Lux gain` to 2x
 #        and `Lux integration time` to 800 ms (ESPHome 2026.9.0 veml7700.cpp,
 #        are_adjustments_required_: <=100 counts steps gain up, then time).
@@ -166,7 +171,8 @@
 #        or light getting in). FAULT TEST: unplug at the keyed JST-SH end, never
 #        at PH1. Mid-run: warnings, then readings resume on replug with no
 #        reboot. Boot unplugged: setup() calls mark_failed() and never retries,
-#        so `Lux age` climbs from boot until the node is restarted.
+#        so `Lux age` climbs from boot until the node is restarted, and the
+#        config dump shows `Communication failed`.
 #   0.7  Wave a hand at 0.5 m — `Moving target` toggles.
 #   0.8  Confirm `Presence (hardware OUT)` agrees with `Presence (UART)`.
 #        Watch `Presence path skew` — that is the two paths cross-checking
