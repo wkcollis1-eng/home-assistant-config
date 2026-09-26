@@ -51,7 +51,24 @@ sensor.monitoring_peak_watts             flat load, peak is near running
 ## BATTERY BANK MONITOR (esphome/battery-bank-monitor.yaml)
 
 ```
-sensor.basement_battery_bank_monitor_ina228_reset_check  V1.27 - this boot's INA228 reset verdict; intact / first boot / BRIDGED / INVALIDATED
+sensor.basement_battery_bank_monitor_ah_in_since_anchor             V1.28 - Ah in since the current SOC anchor, INA228 CHARGE register (no deadband); reset at every anchor; NAN until loaded
+sensor.basement_battery_bank_monitor_ah_out_since_anchor            V1.28 - Ah out since the current SOC anchor, INA228 CHARGE register (no deadband); reset at every anchor; NAN until loaded
+sensor.basement_battery_bank_monitor_hours_since_anchor             V1.28 - hours since the current SOC anchor; saved across reboots in 0.1 h steps; NAN until anchored
+sensor.basement_battery_bank_monitor_ina228_config_readback         V1.28 - SHUNT_CAL and ADC_CONFIG as read back from the INA228 at boot; the reference the reset check compares against
+sensor.basement_battery_bank_monitor_ina228_noise_gauge             V1.28 - idle INA228 ENERGY-register rate, ~5 min EMA; tracks per-conversion error; published only while |I| < 0.5 A
+sensor.basement_battery_bank_monitor_ina228_noise_state             V1.28 - noise gauge verdict; quiet (<= 0.25 W) / elevated / noisy (>= 0.40 W) / n/a while the bank is not idle
+sensor.basement_battery_bank_monitor_ina228_reset_check             V1.27 - this boot's INA228 reset verdict; intact / first boot / BRIDGED / INVALIDATED
+sensor.basement_battery_bank_monitor_last_anchor_closure            V1.28 - CHARGE SOC error found at the last anchor, Ah; > 0 means SOC read high; after a provisional start, that start's error
+sensor.basement_battery_bank_monitor_last_charge_session_ah_charge  V1.28 - Ah into the bank this charge session per the INA228 CHARGE register; set at the charger-stop full-charge event
+sensor.basement_battery_bank_monitor_last_charge_session_wh_charge  V1.28 - Wh into the bank this charge session, from the CHARGE-register Wh bracket; set at the charger-stop full-charge event
+sensor.basement_battery_bank_monitor_mean_net_current_since_anchor  V1.28 - (Ah in - Ah out) / hours since anchor, mA; over an idle bracket, the standing drain the shunt sees
+sensor.basement_battery_bank_monitor_soc_source                     V1.28 - which SOC-ladder rung is live; anchored full / manual / provisional x3 / SW-ledger fallback x2
+sensor.basement_battery_bank_monitor_soc_sw_ledger                  V1.28 - the V1.27 software-ledger SOC (50 mA deadband), kept for comparison and as the fallback when CHARGE is invalid
+sensor.basement_battery_bank_monitor_suggested_offset_current       V1.28 - RECON drain that closes a clean full-to-full CHARGE bracket, mA; candidate for soc_offset_ma
+sensor.basement_battery_bank_monitor_wh_in_since_anchor             V1.28 - Wh in since the current SOC anchor, CHARGE-register dQ x bus V per poll (not the ENERGY register); reset at every anchor; NAN until loaded
+sensor.basement_battery_bank_monitor_wh_out_since_anchor            V1.28 - Wh out since the current SOC anchor, CHARGE-register dQ x bus V per poll (not the ENERGY register); reset at every anchor; NAN until loaded
+sensor.basement_battery_bank_monitor_wifi_power_save_driver         V1.28 - WiFi power-save mode as the driver reports it (B1 check; NONE expected)
+sensor.basement_battery_bank_monitor_wifi_tx_power_driver           V1.28 - WiFi TX power as the driver reports it, dBm; re-read every 300 s
 ```
 
 ## BILLING OVERVIEW (packages/billing_overview.yaml)
