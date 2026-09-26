@@ -42,8 +42,13 @@ is calibrated against.
 | 2026-09-23 | The 200K auto-compact trial (from 09:18) with the R20 checkpoint lowers the priced cost per main-thread call by at least 5% against 09-16..09-23 at Opus 5.5 weights (cache read 0.05x, 1 h write 2x, output 5x of base input) [I: transcript replay predicts −9.1%, from 5,652 calls]. Falsified by priced cost per call not below the baseline, by a median first call after compaction above 75K (the replay turns a loss there), or by more than 1.9 re-reads per compaction [D: 13 / 7]. Void if the week has under 5 compactions. | yes — written before any trial data was analysed | pending |
 | 2026-09-23 | With the Ecobee fan recirc off (Bill, ~19:45), `scripts/furnace_gas_cycles.py` finds **at most 7 'other' CT runs in total over 2026-09-24..09-30**, against 449 in the 14 days before [M, 2026-09-09..09-23]. Falsified by 8 or more: then the 126-133 W, ~7.5 min runs near :24/:54 past the hour were not fan circulation | yes, stated before any post-change data | pending |
 | 2026-09-23 | The first 5+ clean heat cycles fitted by `scripts/furnace_gas_cycles.py` give a firing-rate 95 % CI that **contains 1.61 ft3/min** [D: 100,000 BTU/hr nameplate / 1,037 BTU/ft3 / 60]. Falsified if the CI excludes it | yes, before any heat call exists (0 in 150 days [M]) | pending |
+| 2026-09-25 | The first boot of battery-bank-monitor V1.28 (an OTA flash, so the INA228 keeps power) publishes `INA228 Reset Check` = **`INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - SOC anchor not yet seeded`** and `INA228 Config Readback` = `SHUNT_CAL=3750 (design 3750) ADC_CONFIG=0xFDC5 (design 0xFDC5)`. 3749 also passes, because the driver truncates. `SOC Source` begins `INA228 CHARGE - provisional anchor from the SW ledger`, and `State of Charge` is within 0.05 % of `SOC (SW Ledger)` at that moment. HW Net Charge and HW Energy continue across the 200 → 400 A LSB rescale with no step beyond the idle drift over the gap. Falsified by any other Reset Check branch, any other readback, any other SOC Source rung, a SOC step over 0.05 %, or a HW Net Charge or HW Energy step. Void if the monitor loses power before the flash. Basis: host replay S1 of the 09-25 13:30Z state: no SOC step, HW Net Charge continuous to 1e-4 Ah [M: harness 60/60 on ESPHome 2026.9.0 codegen] | yes — written after the V1.28 build (real compile, blob b5e6f3e), before it was flashed | **HIT** — same day. Bill flashed at 19:38 EDT (offline 23:38:29-23:38:34Z). The device reports config hash 0xb8426c87, the hash of the validated local build of blob b5e6f3e [M]. Reset Check, Config Readback (3750, 0xFDC5) and SOC Source read exactly as predicted [M, HA states 23:38:34Z]. `State of Charge` 99.9603653 % = `SOC (SW Ledger)` 99.9603653 % at the first publish [M]. No step: across the 55.8 s gap HW Net Charge fell at 7.13 mA [D: 0.1106 mAh / 55.8 s] against 7.34 mA over the 120 s before it, and HW Energy rose at 0.4525 W [D] against 0.4504 W before it [M, HA history 23:35:38-23:38:34Z]. A 2× rescale error would have moved HW Net Charge (−5.116 Ah) by ≥ 2.5 Ah |
+| 2026-09-25 | After the V1.28 flash, `WiFi Power Save (Driver)` reads **NONE**. This replaces the release notes' pre-review MIN_MODEM, corrected from the source before any V1.28 data existed. `power_save_mode: none` makes ESPHome call `esp_wifi_set_ps(WIFI_PS_NONE)` at STA_START [S: ESPHome 2026.9.0 `wifi_component_esp_idf.cpp` 318-332, 809]. Nothing forces modem sleep back on, because the build has no Bluetooth stack [M: `sdkconfig` has no `CONFIG_BT_ENABLED`]. `WiFi TX Power (Driver)` reads **11.00 dBm**: ESPHome sets 44 quarter-dBm [S: same file, 313-315], but the C3 driver's rounding of that value was not read [I]. Falsified by MIN_MODEM or MAX_MODEM (something overrode ESPHome's call), or by any other TX power. **A HIT reopens B1** by the release notes' own logic: the driver is not in modem sleep, so what diag2 TB-1 saw needs another explanation | yes — written after the V1.28 build, before it was flashed | **HIT** — same day. `WiFi Power Save (Driver)` = NONE and `WiFi TX Power (Driver)` = 11.0 dBm from the first publish, 23:38:34Z [M, HA states]. B1 is therefore reopened by this row's logic; nothing was changed for it (B1 is Bill's call) |
+| 2026-09-25 | Over the first 3 idle days after the V1.28 flash (window set here, before the data), `INA228 Noise State` reads quiet and `INA228 Noise Gauge` reads 0.22-0.24 W. `Mean Net Current Since Anchor` reads **−10.3 to −10.8 mA**, and `State of Charge` falls **0.062-0.065 %/day** [D] (10.3-10.8 mA × 24 h / 397 Ah). Falsified by any of the three outside its band. A Mean Net Current of −8 to −9 mA means the noisy state is back. Void on any charge or discharge in the window. Basis: diag2 TB-2 and the TB-4 lit windows [M: Lifepo4 repo `INA228 Monitor/diag-test-results.md`], as carried into the V1.28 release notes §3 | yes — written after the V1.28 build, before it was flashed | pending |
+| 2026-09-25 | At the first full recharge on V1.28, the log shows a CV tail ≤ 10 A (LiTime stops at 6.48 A [M]). `SOC Source` becomes "anchored at a full charge", SOC reads 100 %, and **`Last Anchor Closure` = +(13.1 + 0.2 × d₁) Ah ± 4.4 Ah**, where d₁ is days from 09-24 to the flash. That closure is the SW ledger's error, carried in through the provisional anchor. 13.1 Ah is what the ledger had missed by 09-24 [D, turnover §2, ±4.4 Ah from the INA228 offset bound]. The 0.2 Ah/day is the drain since, which the ledger books as 0 [M: 8-9 mA]. `Last Charge Session Ah (CHARGE)` ≈ (13.1 + 0.2 × d₁ + 0.25 × d₂) / 0.99 Ah, where d₂ is days from the flash to the recharge. The RECON (CHARGE) log says "not measured", because the bracket began provisionally. Falsified by a closure outside the band. **Well above it (> ~+18 Ah), the bank lost charge the shunt did not see, and B1 reopens.** Void if an INA228 reset that cannot be bridged invalidates both anchors first | yes — written after the V1.28 build, before it was flashed | pending |
+| 2026-09-25 | **RE-REGISTRATION against V1.28 of the three V1.25 battery-bank rows above** (Apparent Ri, RECON, CYCLE CONFIRM; already re-registered against V1.26). V1.28 will be running when their events arrive. V1.27 → V1.28 changes no line of the `bank.ri` lambda and no line of CYCLE CONFIRM's arithmetic [M: `git diff 6cf2535 9737b61`; one header comment reflowed], so the Ri and CYCLE CONFIRM rows carry over unchanged. **New in V1.28: every full-charge anchor also needs the CV tail ≤ 10 A (O2).** It gates the whole anchor block, so a recharge or top-up stopped earlier gives no anchor, no RECON line and no CYCLE CONFIRM line [M: the O2 condition precedes that `then:`]. The RECON row splits. **Its log half carries over:** read V1.28's `RECON (SW ledger, log only)` line. Its `ledger-equivalent rate` is the same `rate` variable V1.27 logged as `suggest self_discharge_pct_per_month` [M: same diff], so it is scored against the same 0.9-2.8 %/mo band [D] (derived in the RECON row) and quality OK. **Its entity half ("both recon entities leave Unknown") is VOID under V1.28.** The ledger no longer writes those entities; they come only from the CHARGE RECON, which publishes nothing on a bracket that began at a provisional anchor | yes — written after the V1.28 build, before it was flashed | n/a — re-registration; scored on the rows above |
 
-**Running score: 7 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
+**Running score: 9 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
@@ -61,6 +66,58 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.25] - 2026-09-25
+
+### battery-bank-monitor V1.28 flashed; both at-flash ledger rows HIT (P21)
+
+- **Bill flashed V1.28 at 19:38 EDT** through Device Builder > Install. The device was offline
+  23:38:29-23:38:34Z [M, HA history].
+  - `ESPHome Version` reports config hash **0xb8426c87**. That equals `ESPHOME_CONFIG_HASH` in the
+    local real-compile of blob b5e6f3e [M: `build_info_data.cpp`], so the device runs the validated
+    config.
+  - The build time differs (19:31:00 against the local 19:21:40), because the Device Builder
+    compiled it separately.
+- **Both at-flash ledger rows scored HIT** (evidence in their outcome cells). Running score 7 → 9.
+- **Battery Current noise, first 31 min of V1.28 against V1.27** (bank IDLE, display button untouched
+  in both) [M: HA history, 2-s series rebuilt by sample-and-hold, lag-1 r ≈ 0].
+  - V1.27, 17:30-19:38 EDT: n = 3,854, mean −8.20 mA, sd 5.04 mA. Its 5-min block sd held at
+    5.04 ± 0.18 mA through the last 30 min before the flash, so the drop is a step at the flash, not drift.
+  - V1.28, 19:39-20:10 EDT: n = 932, mean −10.59 mA, sd 1.34 mA.
+  - Tests: Welch t on log 5-min block sd t = −44.6 (df 12.7, k = 25 and 6); on block means t = −27.3
+    (df 25.8), a shift of −2.39 mA.
+  - This is the first measurement with both fixes in. The release notes' [I] "1.84 × 0.735 at best;
+    not tested together" gives 1.35 mA [D]; 1.34 mA was measured.
+  - The Noise Gauge read 0.2095-0.2150 W on all 30 readings to 20:10 EDT (EMA, so they are not
+    independent), below the 3-day row's 0.22-0.24 W band. That row is scored on 3 days, band unchanged.
+- **The 3-day idle row and the first-full-recharge row stay pending.**
+
+### battery-bank-monitor V1.28 placed in `esphome/` — NOT FLASHED (P21)
+
+- **`esphome/battery-bank-monitor.yaml` is now V1.28,** from Lifepo4-Battery-Banks `main` at
+  9737b61 (PR #3). It is blob b5e6f3e [M: `git hash-object`], LF only.
+  - It replaced V1.27, blob 2b16dfe. That blob is the repo's own V1.27 (0221375), so no edit that
+    existed only on H: was lost [M].
+  - Device Builder auto-committed it here as c4bf7d6 within the minute. That commit is local and
+    not pushed. The file had passed gitleaks first.
+- **Where the detail lives:** `INA228 Monitor/V1.28-release-notes.md` in that repo holds what V1.28
+  does, its gates and its predictions (R10: not copied here). The flash predictions are
+  pre-registered in the ledger above.
+- **Reviewed on 2026-09-25, before the copy.** The version stays 1.28, because 1.28 was never flashed.
+  - Three fixes: the O2 straddle, a B2a reboot rate limit, and Hours Since Anchor carried across
+    a reboot.
+  - The WiFi Power Save prediction was corrected from MIN_MODEM to NONE.
+- **Gates:**
+  - Real compile on Windows, ESPHome 2026.9.0 (the add-on's version): "Successfully compiled
+    program.", exit 0, flash 55.8 % [M].
+  - Host replay: "60 passed, 0 failed" [M].
+  - Each fix's own test fails when the fix is reverted [M].
+- **Flashing is Bill's**, through Device Builder > Install. Until he flashes, the device runs V1.27
+  (0x6b05d980).
+- **My error (R13).** The first local codegen ran without overriding the user environment's
+  `ESPHOME_BUILD_PATH=C:\esphome_build`, and ESPHome cleaned `C:\esphome_build\battery-bank-monitor`.
+  - That folder was a regenerable local build cache, of unknown version.
+  - Nothing on H: and nothing in either repo was touched.
+  - The V1.27 fallback build in `C:\sandbox\fallback-v127\build` is intact.
+- **After the flash:** V1.28 adds entities (release notes §1 item 9), so run `gen_reference.py`.
 
 ### battery-bank-monitor V1.27-diag2 tests run (P22); V1.27 reinstalled
 

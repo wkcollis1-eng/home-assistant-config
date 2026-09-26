@@ -251,6 +251,15 @@ true ~96.7 % +/-1.1 % [D, doc s2]. The SW ledger's +/-50 mA deadband drops the
 7.3-8.2 mA drain [M]. V1.28 design, gates, and the tests awaiting Bill's go
 are in the doc. The router stopgap (20/40 MHz coexistence OFF) makes the
 trace quiet AND freezes the SOC display (doc s2).
+2026-09-25: V1.28 BUILT, reviewed (3 fixes), real-compiled, merged (Lifepo4
+main 9737b61) and copied to esphome/ (blob b5e6f3e). NOT FLASHED: Bill flashes
+via Device Builder > Install. Close P21 when the at-flash ledger rows
+(CHANGELOG, 2026-09-25) are scored.
+2026-09-25 19:38 EDT: FLASHED (config hash 0xb8426c87 = the validated build);
+both at-flash ledger rows HIT. STAYS OPEN - the close condition above was
+premature (mine, R13): SOC still reads high on the provisional anchor until
+the first full recharge. Close when the 3-day idle row (window ends 09-28)
+and the first-full-recharge row are scored.
 ```
 
 ---
