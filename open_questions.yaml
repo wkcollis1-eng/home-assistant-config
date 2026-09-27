@@ -1686,3 +1686,33 @@
     bound on what the LED adds, not a dark reading. Bill also dropped the
     basement comparison (the basement VEML7700 is unenclosed, in a different
     light environment) and the fault tests (enclosure screwed down).
+
+- asked: 2026-09-26
+  question: >-
+    Office mmWave, P24: on 2026-09-26 the office lamp came on at 18:53:28 EDT
+    (6:53 pm) and Bill tapped "sitting at desk" at 18:59:56 (6:59 pm). Was he in the
+    bathroom next door for most of those 6.5 minutes, or did he walk into the
+    office soon after 6:53 pm? (His first reply, "around 9:10 was in the
+    bathroom", matches neither time; re-asked.)
+  blocks: >-
+    P24's fix. From 18:53:29 to 19:02 EDT the radar held a moving target at a
+    per-minute median of 39-53 in, peak energy 100 [M: HA history]; only the
+    first reading was far, 116.9 in. At 0.75 m a gate that is gate 1 [D]. If
+    it was the bathroom, the bench's gates 3-4 do not hold at the mount, and
+    cutting max gates cannot fix P24. Either way, 18:53:27-18:59:56 EDT is not
+    clean empty-room data for calibration.
+  answered: >-
+    2026-09-26, Bill: "6:53 event was me forgetting to hit the button." He
+    was in the office, not the bathroom; the label read "no one present"
+    from 18:40:00 until he tapped "sitting at desk" at 18:59:56 EDT [M: HA
+    history].
+
+    Consequence: the 39-53 in target was Bill at gate 1, so this event says
+    nothing against P24's gates 3-4. The bathroom was measured separately at
+    21:10 EDT the same day, 104.7-121.7 in, gates 3-4 (recorded in P24).
+    18:53:27-18:59:56 EDT is Bill in the office under an empty label: exclude
+    it from the empty class in every calibration run.
+
+    R13: the "re-asked" note in the question is my error. His "around 9:10
+    was in the bathroom" was about the 21:10 event, which I had merged with
+    this one; it was not a non-answer.

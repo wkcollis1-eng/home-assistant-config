@@ -287,6 +287,34 @@ goes off after the idle timeout. Needs Bill at the mount: measure, set the
 gates in esphome/, real-compile, flash via Device Builder. Close when a
 bathroom occupancy with the office empty produces no presence edge.
 CHANGELOG [2026.09.26].
+
+First at-mount measurement, 2026-09-26 (Bill: "around 9:10 was in the
+bathroom"; office empty, label "no one present"). The lamp came on at
+21:10:06 EDT. From 21:09:50 the still target read 104.7-121.7 in [M: HA
+history, sensor.office_mmwave_still_distance, n=10 changes] = gates 3-4
+[D: 29.5 in per gate], inside the bench's 7.4-10.3 ft: the bench result
+holds at the mount (n=1). Risk for the fix: his walk-in was first seen as a
+moving target at 116.5 in at 21:10:47, also gate 3, so the doorway may share
+gates 3-4 with the bathroom and a max-gates cut could see entries late [I:
+falsified if the doorway reads under 88.6 in at the mount]. Where the door
+sits is part of the mount measurement this item waits for.
+```
+
+### P25 — office mmWave G0 move 70 is a live write only: score the overnight run [MEDIUM]
+```
+Opened 2026-09-26. Bill set number.office_mmwave_g0_move_threshold 50 -> 70
+against the gate-0 fan ghosts. The loaded-PC A/B test was borderline (the
+p-values are in CHANGELOG [2026.09.26]). Bill left the office empty and the
+PC on, not loaded, overnight 09-26/27 to validate.
+Score it: presence triggers per hour of "no one present", classified by
+target distance (gate 0 is the fan class; gates 3-4 are P24's bathroom
+class, which 70 does not touch); PC plug watts across the night; and check
+the G0 history never left 70. script.push_commissioned_state resets it to
+50 at every node boot, silently.
+Durable fix: g0_move: "70" in esphome/mmwave-office-node.yaml. Bill
+(2026-09-26): batch it into the firmware update that sets the calibrated
+thresholds, with P24. Close when that firmware is flashed and G0 reads 70
+after a node reboot.
 ```
 
 ---

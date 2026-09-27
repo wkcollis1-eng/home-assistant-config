@@ -69,6 +69,63 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.26] - 2026-09-26
 
+### mmwave office node: G0 move threshold 50 -> 70 (Bill, live write only, NOT yet in the YAML)
+
+- **What:** Bill set `number.office_mmwave_g0_move_threshold` from 50 to 71 at 19:05:30Z, then to 70
+  at 19:05:58Z, from the dashboard [M, HA history].
+- **Why:** false presence triggers with the office empty. There were 15 in 3.42 h, 10:27-14:57 EDT
+  [M, REST history, presence off->on inside "no one present" after it had gone off].
+  - Each one was gate-0 moving energy of 51-62 at 30 cm, against the factory threshold of 50.
+  - Each held presence for the 30 s timeout and lit the lamp.
+  - All 19 gate-0 ghost events seen so far peaked at 62 or less [M]. So 70 clears the observed
+    maximum by 8 [D: 70 - 62]. The tail beyond those 19 events is unmeasured.
+  - Suspected source: the PC CPU fan, about 0.61 m from the node [I; falsifier: the ghosts continue
+    with the PC off].
+- **Side effects checked [M]:** engineering mode stayed on through both writes (its last_changed,
+  14:27:11Z, did not move). Gate-0 energy kept reporting: 42 samples in the 3.5 min after the writes.
+  - That matches the driver. `set_gate_threshold()` sends a config command and reads it back, with
+    no module restart [S: esphome/components/ld2410/ld2410.cpp:730-756 at 2026.9.0].
+  - So calibration data collection was not interrupted.
+- **NOT DURABLE: it reverts to 50 at the node's next boot.** `script.push_commissioned_state` (common
+  file, about line 940) writes `${g0_move}` into the radar once per boot. The office file does not
+  override the common default of 50.
+  - A power blip or an OTA would bring the ghosts back, and nothing would announce it.
+  - The durable fix is `g0_move: "70"` in the office file's COMMISSIONED GATE THRESHOLDS block, plus
+    a reflash.
+  - Not done yet. That file carries Bill's uncommitted edits in the repo, and that block is where
+    the calibration script's output goes.
+- **Proof still owed:** the old rate was 4.39/h [D: 15 / 3.42 h]. Zero ghost triggers in 41 min of
+  empty room would be a significant drop at P < 0.05 [D: exp(-4.39 x 0.683 h) = 0.05, Poisson;
+  assumes the events are independent].
+- **R13, 2026-09-26 (Claude): that P < 0.05 was wrong.** It treated 4.39/h as an exact rate. The
+  rate is itself an estimate from 15 events, so the right test compares the two counts
+  (conditional binomial, one-sided). The results below replace it.
+- **Tests 1 and 2 [M]:** PC held near 110 W by a CPU-load script, office empty (label "no one
+  present"), engineering mode on. Bill approved both.
+
+  | test | G0 | window (UTC) | empty | PC median (n) | ghosts |
+  |---|---|---|---|---|---|
+  | 1 | 70 | 20:44:25-21:27:00 | 0.710 h | 114 W (489) | 0 |
+  | 2 | 50 | 21:27:04-22:12:09 | 0.751 h | 110 W (525) | 4 |
+
+  - Test 2's ghosts came at 21:35:32, 21:52:56, 21:54:42 and 21:56:24Z. Each had the moving and
+    still target at 11.8 in (gate 0), moving energy 52-58 and PC 100-121 W. So the load
+    reproduces the source.
+  - Test 1 vs test 2: p = 0.070 [D: (0.751 / 1.461)^4].
+  - Test 1 vs every G0 = 50 hour under load (the morning's 15 in 3.42 h plus test 2, so 19 in
+    4.17 h): p = 0.051 [D: (4.17 / 4.88)^19]. Pooling holds: morning vs test 2 rate, p = 0.46
+    [D, binomial].
+  - So the result is borderline, not yet below 0.05. Gate-0 ghost peaks seen so far: 23 events,
+    all 62 or less [M].
+  - The script put G0 back to 70 and read it back at 22:12:10Z. All load workers exited, and the
+    plug returned to 72 W, idle.
+- **Next:** Bill chose an overnight run at 70 over a third loaded test. On the two previous nights
+  the PC plug read 0.0 W from about 22:30-23:00 EDT until at least 07:00 [M], and no automation
+  switches that outlet. If the PC is off tonight, the run tests 70 against other sources (the
+  blower, say) but not against the load-linked ghosts.
+  - Bill: the PC stays on tonight, not loaded. The YAML change waits for the firmware update that
+    sets the calibrated thresholds. Tracked as P25 in docs/pending.md.
+
 ### mmwave office node: Rev 0.3 install confirmed; buttons-only Label tab on the Office mmWave dashboard
 
 - **Install confirmed** [M, the node's ESPHome diagnostics, read 14:24Z]: `compilation_time` is
