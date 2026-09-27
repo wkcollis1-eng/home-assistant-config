@@ -262,6 +262,20 @@ the first full recharge. Close when the 3-day idle row (window ends 09-28)
 and the first-full-recharge row are scored.
 ```
 
+### P23 — `ha_audit.py` entity-ref rule is blind to bare list items and flow lists [MEDIUM]
+```
+Opened 2026-09-26. rule entity-ref-unresolved reads only states('x')-style
+calls and single-id `entity(_id):` lines. An id in a bare list (a trigger's
+entity_id list, a history-graph entities list) or in [a, b] is never checked.
+Proven by R2: a family id injected into the office package's trigger list
+passed the audit at 0 FAIL, 0 WARN. Stopgap gate used for the mmwave deploy:
+C:/Users/wkcol/ha-data-repairs/refs_check.py (live states + services + the
+package's own declarations). Fix: widen the rule, add both shapes to
+test_ha_audit.py (fires on the injected id, silent on the clean tree), then
+retire refs_check.py rather than keep two checkers (R10). CHANGELOG
+[2026.09.26].
+```
+
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
