@@ -1667,3 +1667,22 @@
     option: re-press TB-3; during TB-3 only, a BANK change does not stop
     it, but a bank current past +/-1 A does (a guard presses Stop +
     Restore). TB-5 runs under the normal BANK rule.
+
+- asked: 2026-09-25
+  question: >-
+    mmWave office node, step 0.6: what covered the VEML7700 at 21:40 EDT
+    (finger, hand, tape, a cap), was the lid on, and is the VEML7700
+    board's green power LED lit?
+  blocks: >-
+    The step 0.6 dark-reading verdict, and whether the next step is an
+    opaque re-cover or the LED jumper. Covered, it read 0.446-0.450 lx at
+    gain 2 / 800 ms, 01:40:19-01:41:09Z [M: HA history], about 124 counts
+    [D: 0.446 / 0.0036 lx per count], where the design's pass is ~0 lx
+    (mmwave-presence-node-design.md 5.0 row 0.6).
+  answered: >-
+    2026-09-25, Bill: lid on, the VEML7700's green LED is lit, and nothing
+    covered it - he turned off the office lamp. So 0.446-0.450 lx at gain 2 /
+    800 ms is the room with the lamp off, through the lid, LED lit: an upper
+    bound on what the LED adds, not a dark reading. Bill also dropped the
+    basement comparison (the basement VEML7700 is unenclosed, in a different
+    light environment) and the fault tests (enclosure screwed down).

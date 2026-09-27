@@ -47,6 +47,8 @@ is calibrated against.
 | 2026-09-25 | Over the first 3 idle days after the V1.28 flash (window set here, before the data), `INA228 Noise State` reads quiet and `INA228 Noise Gauge` reads 0.22-0.24 W. `Mean Net Current Since Anchor` reads **−10.3 to −10.8 mA**, and `State of Charge` falls **0.062-0.065 %/day** [D] (10.3-10.8 mA × 24 h / 397 Ah). Falsified by any of the three outside its band. A Mean Net Current of −8 to −9 mA means the noisy state is back. Void on any charge or discharge in the window. Basis: diag2 TB-2 and the TB-4 lit windows [M: Lifepo4 repo `INA228 Monitor/diag-test-results.md`], as carried into the V1.28 release notes §3 | yes — written after the V1.28 build, before it was flashed | pending |
 | 2026-09-25 | At the first full recharge on V1.28, the log shows a CV tail ≤ 10 A (LiTime stops at 6.48 A [M]). `SOC Source` becomes "anchored at a full charge", SOC reads 100 %, and **`Last Anchor Closure` = +(13.1 + 0.2 × d₁) Ah ± 4.4 Ah**, where d₁ is days from 09-24 to the flash. That closure is the SW ledger's error, carried in through the provisional anchor. 13.1 Ah is what the ledger had missed by 09-24 [D, turnover §2, ±4.4 Ah from the INA228 offset bound]. The 0.2 Ah/day is the drain since, which the ledger books as 0 [M: 8-9 mA]. `Last Charge Session Ah (CHARGE)` ≈ (13.1 + 0.2 × d₁ + 0.25 × d₂) / 0.99 Ah, where d₂ is days from the flash to the recharge. The RECON (CHARGE) log says "not measured", because the bracket began provisionally. Falsified by a closure outside the band. **Well above it (> ~+18 Ah), the bank lost charge the shunt did not see, and B1 reopens.** Void if an INA228 reset that cannot be bridged invalidates both anchors first | yes — written after the V1.28 build, before it was flashed | pending |
 | 2026-09-25 | **RE-REGISTRATION against V1.28 of the three V1.25 battery-bank rows above** (Apparent Ri, RECON, CYCLE CONFIRM; already re-registered against V1.26). V1.28 will be running when their events arrive. V1.27 → V1.28 changes no line of the `bank.ri` lambda and no line of CYCLE CONFIRM's arithmetic [M: `git diff 6cf2535 9737b61`; one header comment reflowed], so the Ri and CYCLE CONFIRM rows carry over unchanged. **New in V1.28: every full-charge anchor also needs the CV tail ≤ 10 A (O2).** It gates the whole anchor block, so a recharge or top-up stopped earlier gives no anchor, no RECON line and no CYCLE CONFIRM line [M: the O2 condition precedes that `then:`]. The RECON row splits. **Its log half carries over:** read V1.28's `RECON (SW ledger, log only)` line. Its `ledger-equivalent rate` is the same `rate` variable V1.27 logged as `suggest self_discharge_pct_per_month` [M: same diff], so it is scored against the same 0.9-2.8 %/mo band [D] (derived in the RECON row) and quality OK. **Its entity half ("both recon entities leave Unknown") is VOID under V1.28.** The ledger no longer writes those entities; they come only from the CHARGE RECON, which publishes nothing on a bracket that began at a provisional anchor | yes — written after the V1.28 build, before it was flashed | n/a — re-registration; scored on the rows above |
+| 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, MID-RUN** (office carrier, `Ambient light` publishing, `esphome logs` connected): with the VEML7700 unplugged at the JST-SH end, the log shows a `veml7700` `Shutdown failed` warning every 10 s cycle and `Ambient light` stops publishing. On replug, readings resume **with no reboot**: `Uptime` is unbroken across the test, and a `Lux age` publish within 2 min of the replug reads **≤ 20 s** [D: `Lux age` publishes every 60 s, so two land in any 2 min and the later is ≥ 60 s after the replug; by then lux publishes at 10 s spacing, and a dark-room cycle takes ~7.2 s = 4 × 0.4 + 0.8 + 1.6 + 3.2 s walking from the configured 1/8x, 100 ms start to 2x, 800 ms, M: main.cpp 2270-2271]. Falsified by no `Shutdown failed` while unplugged, by every `Lux age` publish in those 2 min reading > 20 s, or by any `Uptime` reset. A reboot at the moment of plug-in scores MISS, not void: it would mean hot-plug is not survivable on this carrier. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 119-219, 260-278, 305-310]: a failed write or read returns the state machine to IDLE with a status warning, the next update starts over, and every auto cycle begins by rewriting ALS_CONF_0, so a chip that lost power is reconfigured | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
+| 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 
 **Running score: 9 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
@@ -66,6 +68,197 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.25] - 2026-09-25
+
+### mmwave-bench step 0.6 torch test: PASS; the published integration-time steps corrected
+
+- **Torch test, lid on, office lamp off and then back on.** Bill shone the torch three times [M:
+  HA history, change-only records, 01:56:00-02:00:23Z].
+  - Dark between torches: 0.432-0.464 lx at gain 2 and 800 ms, over 4 readings.
+  - Torch on: gain 0.125 at all 15 readings, 2,139-49,919 lx. Integration time was:
+    - 100 ms at 2,139-2,605 lx (5 readings);
+    - 50 ms at 11,393-12,913 lx (2);
+    - 25 ms at 38,305-49,919 lx (8).
+  - Torch off: all 3 times, the next reading was back at room level. That was 0.457 lx and
+    0.432 lx in the dark, then 11.76 lx with the lamp back on.
+  - Against the dashboard's row 0.6 (dark settles at gain 2 / 800 ms, the torch drops gain to
+    0.125): **PASS**.
+- **What it does not establish:**
+  - the lid's attenuation. There is no reference meter in the box, so `glass_attenuation_factor`
+    stays 1.0;
+  - anything about the ~18 lx lamp threshold.
+- **One transition reading:** at 01:59:54, 11.76 lx at gain 2 and 200 ms. From the next reading it
+  was back at gain 1 and 100 ms.
+  - [I] The lamp came on mid auto-range: ranging climbed in the dark and stopped when the light
+    arrived. Falsified if gain 2 at 200 ms recurs with the lamp steady.
+- **R13, my defect in the entry below.** Both it and the dashboard note said integration time falls
+  below 100 ms "only above about 4,600 lx" [D: 10,000 × 0.4608].
+  - That figure is raw lux. At gain 1/8 or 1/4 the driver applies its high-lux compensation before
+    publishing [S: `veml7700.cpp` 2026.9.0, lines 380-388].
+  - So the published steps are at about 5,700 lx (to 50 ms) and 13,100 lx (to 25 ms) [D: that
+    polynomial at 4,608 and 9,216 lx raw].
+  - The torch data agree: 2,605 lx held 100 ms, 11,393 and 12,913 lx read 50 ms, and 38,305 lx
+    read 25 ms.
+  - The 46 lx gain figure stands: the polynomial moves it to 46.4 lx [D].
+  - The dashboard note is corrected, the error is recorded in the view's Step 0.6 comment, and
+    the claim below is marked.
+- **Gates:**
+  - R3, view: 2 hunks. 674 of the 676 lines are untouched, and the comments are kept in order.
+  - `validate_ha.py --strict`: PASS (parse-clean). `check_provenance.py`: 0 WARN on the view.
+  - On H:, over the websocket, `lovelace/config` serves "~5,700 lx" and no "4,600" [M].
+
+### mmwave-bench step 0.6: the dark run was the lamp off; basement comparison and fault tests dropped
+
+- **Bill answered the step 0.6 question in `open_questions.yaml`:** lid on, the VEML7700's green
+  LED lit, and nothing covered the sensor. The 21:40 EDT dark run was the office lamp turned off.
+  - So 0.446-0.450 lx at gain 2 and 800 ms, 01:40:19-01:41:09Z [M: HA history, change-only
+    records], is the room with the lamp off, through the lid, with the LED lit. It is an upper
+    bound on what the LED adds, not a failed dark test. That closes the question the entry below
+    left open (an opaque re-cover or the LED jumper).
+  - The LED jumper stays uncut. Cutting it means opening the enclosure, and that is Bill's call.
+- **Bill dropped the basement comparison.** The basement VEML7700 is unenclosed and sits in a
+  different light environment, so a side-by-side says nothing about this box.
+  - Consequence, stated once: nothing now measures what the lid takes off, so
+    `glass_attenuation_factor` stays 1.0, and the ~18 lx lamp threshold (design §5.6), taken from
+    the unenclosed basement node, is to be set from this node's own in-box readings.
+- **Bill dropped the fault tests: the enclosure is screwed down.** The ledger rows "mmwave-bench
+  0.1.1, §5.0 step 0.6 fault test, MID-RUN" and "… BOOT UNPLUGGED" now read **WITHDRAWN before
+  test**, the ledger's convention. Their claims stand untested.
+- **R13, my defect in the entry below.** It listed "history graphs of lux against the basement
+  node". `sensor.basement_th_node_basement_lux_min_1m` and `_max_1m` are recorder-excluded
+  (`configuration.yaml:158-159`, deliberate churn control), so that graph could never have drawn
+  them [M: /api/history returned 0 rows for both]. The exclusion stays. The error is recorded in
+  the view file's Step 0.6 comment and marked at the claim below.
+- **Dashboard, `dashboards/views/view-mmwave-bench.yaml`.** It is live on load, and
+  `dashboards/mmwave-bench.yaml` was touched.
+  - The basement rows left the entities card. The photodiode stays below the divider.
+  - The comparison graph is now "Lux — this node", with ambient light only.
+  - The auto-ranging graph is retitled "dark settles at 2 and 800 ms, torch at 0.125".
+  - The note now covers dark (lamp off, lid on) and the torch. The unplug advice went with the
+    fault tests.
+  - Checklist row 0.6 now reads "dark (lamp off, lid on), then a torch". It passes when dark
+    settles at gain 2 / 800 ms and the torch drops gain to 0.125.
+  - The torch figures:
+    - At 1/8x and 100 ms one count is 0.4608 lx [D: 0.0036 × 16 × 8].
+    - The driver steps gain up at 100 counts or fewer and down at 10,000 or more [S:
+      `veml7700.cpp` 2026.9.0, lines 315-347].
+    - So gain holds at 0.125 above about 46 lx [D: 100 × 0.4608], and integration time falls
+      below 100 ms only above about 4,600 lx [D: 10,000 × 0.4608].
+      - CORRECTED at 22:00 EDT (R13): 4,600 lx is raw lux; the published step is about 5,700 lx. See the entry above.
+- **Gates:**
+  - R2, run in `C:\sandbox\ha` after refreshing it from H: (its `open_questions.yaml` predated
+    the question).
+    - Fires: on the unanswered file, 0 FAIL, 1 WARN (`open-question`), 2 INFO.
+    - Silent: on the answered file, 0 FAIL, 0 WARN, 2 INFO.
+    - The dashboard change removes references and adds no check.
+  - R3, view: 11 hunks. 650 of the 674 original lines are untouched, and all 84 original comment
+    lines survive in order. The parsed config holds no basement id.
+  - R3, `open_questions.yaml`: only the final `answered:` line changed. The prefix is
+    byte-identical and the CRLF endings are kept.
+  - `validate_ha.py --strict`, both files: PASS (parse-clean).
+  - On H:: the audit reads 0 FAIL, 0 WARN, 2 INFO. Over the websocket, `lovelace/config` for
+    `mmwave-bench` serves no basement id, and the two graphs as above [M].
+- **Not done:**
+  - The step 0.6 text in `esphome/mmwave-bench.yaml` and design §5.0 row 0.6 / §5.6 still describe
+    the comparison and the fault tests. They are left for Bill to decide.
+  - The torch test result goes in the next entry.
+
+### mmwave-bench 0.1.1 flashed; lux cards on the bench dashboard, and its checklist table fixed
+
+- **Bill flashed 0.1.1 at about 21:23 EDT** through Device Builder > Install [M: `Uptime` 124.9 s
+  at 01:25Z, reset reason "Reboot request from esphome.ota"].
+  - The device's config hash was NOT compared against a local compile, as it was for V1.28. The
+    local build trees were deleted because their generated `main.cpp` held resolved credentials.
+  - The Device Builder committed the 0.6 comment correction as 0586793 at 21:20:30, as the entry
+    below expected. H: is 2 commits ahead of origin, not pushed. The two commits differ only in
+    those comment lines, and HEAD's blob is byte-identical to the repo copy that passed pre-commit
+    gitleaks [M: cmp].
+- **The four new ids were read live after the flash, not predicted (R5):**
+  `sensor.office_bench_mmwave_ambient_light`, `…_lux_gain`, `…_lux_integration_time` and
+  `…_lux_age`. They carry the `office_` prefix, like every entity created since the device rename.
+  - First reading 9.56 lx at gain 1 and 100 ms [M: /api/states 01:25Z]. One count at gain 2 and
+    800 ms is 0.0036 lx [S: `veml7700.cpp` 2026.9.0], so one count here is 0.0576 lx
+    [D: 0.0036 × 2 × 8] and the reading is about 166 counts [D: 9.56 / 0.0576]. That is above the driver's step-up limit of 100 counts, so auto-ranging
+    from 1/8x should stop at 1x and 100 ms, which is where it read [S: same file].
+- **Dashboard: `dashboards/views/view-mmwave-bench.yaml`.** It is YAML-mode and live on load, so
+  `dashboards/mmwave-bench.yaml` was touched to drop HA's cache. There is no paste or export step.
+  - New section **Step 0.6 — VEML7700**, above the checklist:
+    - an entities card with the four sensors, the basement node's 1-min min and max, and the module
+      photodiode;
+    - a note on what covered, the side-by-side comparison and `Lux age` should look like;
+    - history graphs of lux against the basement node, and of gain and integration time.
+      - CORRECTED the same evening (R13): the basement series could never draw here, being recorder-excluded. See the entry above.
+  - The procedure stays in the firmware file's step 0.6; the card points there (R10).
+  - The photodiode is not graphed. It has no unit and no `state_class` [M: /api/states], so a
+    history graph would draw it as a state timeline.
+  - Header card: "LD2410C on jumpers. No light sensor, no enclosure, no lighting logic." no longer
+    held, so it was replaced. The old text is kept in the file's header comment.
+- **Pre-existing defect fixed: the §5.0 checklist had never rendered as a table.** It sat in a folded
+  (`>`) scalar at the same indent as the prose, so YAML folded every row into one line [M: PyYAML
+  parse of the live file, 1 line starting `|`]. The rows now sit two spaces deeper, and
+  more-indented lines keep their newlines [M: 12 lines starting `|`, 0.0-0.9 with the new 0.6 row].
+  The fix is recorded at the site.
+  - "Steps 0.6 and 0.10–0.12 need the VEML7700, the lid and the enclosure. Not this session." now
+    reads "Steps 0.10–0.12 are in §5.0 and not yet on this card."
+- **`entity_notes.yaml`:** the four new ids are annotated under MMWAVE BENCH, and `gen_reference.py`
+  regenerated `ENTITIES.md` (+9 lines). The file's one out-of-order pair (`kbdl` before `kasa`, line
+  827) predates this change and was left alone.
+- **Gates:**
+  - R2, run in `C:\sandbox\ha` against the post-flash registry.
+    - Fires: with placeholder `sensor.pending_veml_*` ids, the audit WARNed `entity-ref-unresolved`
+      for all four, at the counts the view references them (2, 2, 2, 1).
+    - Silent: with the real ids and `gen_reference.py` re-run, 0 FAIL, 0 WARN, 2 INFO.
+  - R3: five edit spans (2 inserts, 3 replaces). Reversing them reproduces the original byte for
+    byte. 572 of the 586 original lines are untouched, and the 7 other sections and the badges parse
+    identical.
+  - `validate_ha.py --strict`: PASS (parse-clean).
+  - On H:: the audit reads 0 FAIL, 0 WARN, 2 INFO. HA's own loader serves the edit: `lovelace/config`
+    for `mmwave-bench` over the websocket returns the Step 0.6 section with all seven ids, the new
+    header and a 12-line table [M].
+- **Not verified:** how the page renders, since nothing here drives the frontend. The comparison
+  graph only means something once the basement node sits beside the office node. The two step 0.6
+  ledger rows stay pending until Bill runs the fault tests.
+
+### mmwave-bench 0.1.1: VEML7700 added for §5.0 step 0.6 — NOT FLASHED
+
+- **Bill, 2026-09-25: this is the office node, carrying the radar module from the jumper rig**, so
+  steps 0.0 and 0.2-0.4 are already done for it. The VEML7700 on PH1 (SDA GPIO6, SCL GPIO7,
+  address 0x10) is now in the bench firmware, so the assembled carrier can run step 0.6.
+- **`esphome/mmwave-bench.yaml` 0.1 → 0.1.1.** Four blocks were pasted verbatim, by script, from
+  `mmwave-node-common.yaml` lines 229-247, 295-302 and 502-571: the `i2c:` bus, the `g_last_lux_ms`
+  global, the `veml7700` sensor and `Lux age`.
+  - Each block carries a `PASTED VERBATIM` marker. The header says they are a **temporary second
+    copy (R10)**, to be deleted when this node moves to production firmware.
+  - Measurement only. The on-node lamp logic still gates on the module photodiode and never reads
+    `lux`.
+  - The common file is CRLF and the bench LF, so the pasted text takes the bench's LF.
+  - Step 0.6 is written out in the BENCH SEQUENCE, and the header records the amendment.
+- **Corrected before flashing (R13, recorded at the site).** Step 0.6 first passed on "no `Sensor
+  configuration failed`". `setup()` logs that before any API log client connects, so its absence
+  proved nothing. The step now reads the config dump's `Communication failed` instead
+  [S: ESPHome 2026.9.0 `veml7700.cpp` 83 against 113-114].
+- **Gates** [M; ESPHome 2026.9.0 venv, the add-on's version, since local pip is 2026.8.2]:
+  - The unmodified bench compiled first as a baseline: EXIT=0.
+  - Edited: `esphome config` exit 0; compile EXIT=0 with 0 errors; `main.cpp.obj` newer than the YAML.
+  - Flash 968,294 → 990,564 B of 1,835,008. RAM 110,168 → 111,358 B of 321,296.
+  - The one `-Wformat` warning (`%u` against `uint32_t` in the "presence paths disagree"
+    ESP_LOGW) was already there: baseline build log line 1370, edited 1499. Left alone.
+  - R3: reversing the splice reproduces the original byte for byte. 1605 of 1606 original lines are
+    untouched, and all three common spans are present verbatim. The 0.6 correction touched comment
+    lines only; all 892 non-comment lines are identical.
+  - pre-commit, gitleaks included, exited 0 on both versions.
+- **On H:** `esphome/mmwave-bench.yaml` is byte-identical to the repo copy [M: cmp].
+  - The Device Builder auto-committed the first version as c974c79 at 21:11. That is the
+    gitleaks-passed file [M: sha256 73f3d88…]. The commit is local and not pushed.
+  - The 0.6 comment correction is uncommitted on H:, and the Device Builder will commit it the
+    same way.
+  - The `mmwave-presence-node` repo copy is uncommitted.
+- **Flashing is Bill's**, through Device Builder > Install (OTA). Nothing above is live until then.
+  - The two fault-test predictions are pre-registered in the ledger above.
+  - The covered-dark reading is not pre-registered. It depends on whether the 4162's power-LED
+    jumper was cut, and step 0.6 sees that directly.
+- **After the flash:** run `gen_reference.py`. The bench gains `Ambient light`, `Lux gain`,
+  `Lux integration time` and `Lux age`, and the audit FAILs on a stale `ENTITIES.md`. Annotate them
+  in `entity_notes.yaml` once the real ids exist.
 
 ### battery-bank-monitor V1.28 flashed; both at-flash ledger rows HIT (P21)
 
