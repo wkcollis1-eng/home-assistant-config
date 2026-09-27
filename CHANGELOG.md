@@ -67,7 +67,378 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.09.26] - 2026-09-26
+
+### mmwave office node: Rev 0.3 install confirmed; buttons-only Label tab on the Office mmWave dashboard
+
+- **Install confirmed** [M, the node's ESPHome diagnostics, read 14:24Z]: `compilation_time` is
+  `2026-09-26 10:19:51 -0400`, where it had been `2026-09-25 22:21:01 -0400`; uptime 240 s.
+  - The Calibration hold and engineering mode came up off. That is by design (`restore_mode:
+    ALWAYS_OFF`, common file lines 360-374), so the 18 gates read `unknown`. That state does not tell
+    the old build from the new one.
+  - Bill turned the Calibration hold on at 10:27 EDT. First look at the falsifier in the entry below
+    [M, 602 s eng-on, 177 s seated, 10:27-10:37 EDT]: 0 holds over 30 s below 100 on still g2/g3/g5.
+  - NOT yet significant. At the old seated rate (g3 6, g5 5 holds in 1893 s seated [M]), zero in 177 s
+    has P = 0.57 for g3 and 0.63 for g5 [D: Poisson].
+  - About 16 min seated with no hold would reject the old g3 rate at P < 0.05 [D: 3.0 / (6/1893 s) =
+    946 s].
+- **Ghost triggers while "no one present"** [M, 09:16-09:30 EDT]: n=4 single-frame gate-0 moves.
+  - Their energies were 51/54/53/57 at 30 cm, against the factory g0 move threshold of 50. Each held
+    presence for exactly the 30 s timeout.
+  - Bill: an open-frame PC's CPU fan runs continuously about 24" from the sensor. That is inside gate
+    0, 0-0.75 m [D: 24 in = 0.61 m].
+  - The fan as the cause is [I]. Falsifier: gate-0 blips with the PC off.
+  - No threshold changed: n=4 does not measure the tail. Next is empty-room data at 1 s, to size the
+    g0 peaks.
+- **Label tab** (Bill: "Q1 - yes"). It tests the phone lag he reported on the label buttons.
+  - The server was measured first [M, 14:01Z, 60 s]: websocket ping median 0.5 ms (n=20), REST
+    median 2.5 ms (n=10). The phone app is on the LAN.
+  - Suspect [I]: the main tab redrawing its three history graphs. Falsifier: taps lag as much on the
+    Label tab.
+  - The label grid moved out of `dashboards/views/view-mmwave-office.yaml` into
+    `grid-mmwave-office-label.yaml` beside it. The main view and the new
+    `view-mmwave-office-label.yaml` both `!include` it, so there is one copy.
+  - The wrapper `dashboards/mmwave-office.yaml` gained one include. An `!include` resolves against
+    the including file [S: annotatedyaml v1.0.2 `loader.py:251`, pinned by HA 2026.9.3].
+  - The repo source matches (working tree, uncommitted).
+- **Gates.**
+  - R3: the main view resolves to the same structure before and after, in the repo and on H:.
+    - The fragment, re-indented, is byte-identical to the 67 lines it replaced.
+    - 242 of 309 H: main-view lines are byte-identical [M], and 63 of 63 wrapper lines [M].
+    - The proof reported "RESULT: 4 FAIL" on a one-character fault and "RESULT: ALL PASS" clean.
+  - Sandbox:
+    - `validate_ha --strict` gave "VERDICT: PASS (parse-clean)" on all 4 files.
+    - The audit gave "0 FAIL, 0 WARN, 2 INFO across 18 pipelines", unchanged.
+    - Its yaml-mode INFO now names all three view files, so it followed the nested include.
+  - Deployed: websocket `lovelace/config` (`force: true`) now returns 2 views where it returned 1.
+    - `views[0]` is JSON-identical to the capture taken before the change.
+    - `views[1]`'s only section equals `views[0]`'s first.
+
+### mmwave office node: gate sampling fix (firmware Rev 0.3) staged in `esphome/`, not yet flashed
+
+Bill: "lets calibrate it". On the first labelled hour every still gate came out OVERLAP, for two
+reasons. This entry covers the firmware one.
+
+- **The defect.** ESPHome's LD2410 driver publishes a gate only when its raw value changes [S:
+  esphome 2026.9.0 `ld24xx.h:25,73`, `SAFE_PUBLISH_SENSOR` -> `publish_state_if_not_dup`].
+  - The common file's per-gate throttle then dropped any publish within one period of the last.
+    A gate that jumped and then held lost the jump, and HA kept the old value until the gate next
+    changed. A seated person pinning a still gate at 100 is exactly that case.
+  - Footprint [M, office node, 2953 s with engineering mode on, 2026-09-26]: still g2/g3/g5 spent
+    15.9% / 18.0% / 12.3% of that time in holds over 30 s below 100 [M]; every move gate 0.0% [M].
+  - Example: g2_still read 10 for 174 s while Bill sat at 94-155 cm [M: websocket distance log].
+  - Whether any single hold was stale is [I].
+- **The change.** `esphome/mmwave-node-common.yaml` Rev 0.3:
+  - `heartbeat: 1s` sits ahead of the existing throttle lambda on all 18 gate sensors.
+  - The lambda treats a tick up to 500 ms early as due, so a 5 s period stays 5 heartbeats.
+  - An R13 correction is written at the sentence it disproves ("Throttle samples uniformly in time").
+  - The office node is the only file on H: that includes it [M: grep]. `mmwave-bench.yaml` has its
+    own pasted copy with the same defect and is NOT changed.
+- **Expected side effect [I until observed]:** with engineering mode off, the gates read `unknown`
+  instead of holding their last value.
+- **Falsifier, after the Install:** with a person seated, holds over 30 s below 100 on still
+  g2/g3/g5 should fall far below the 12-18% above [M].
+- **Gates.**
+  - Compiled on ESPHome 2026.9.0, the add-on's version.
+    - Baseline: EXIT=0.
+    - Edited: EXIT=0, fresh `main.cpp.obj`, `firmware.ota.bin` 968,608 B, config_hash 0xa336f5e0
+      [M: build dir, compile log].
+    - The generated `main.cpp` has 18 `HeartbeatFilter(1000)` [M].
+  - R3: 1,114 of 1,115 original lines are byte-identical [M], and CRLF is preserved. The only line
+    removed is the throttle comparison.
+  - A host-side model of the chain (a model, not the firmware) passed in both directions.
+    - The old chain froze at the pre-jump value; the new one tracked it.
+    - A strict `<` stretched 1 of 1580 intervals to 6 s; the tolerant one stretched 0 [M: 20 seeds].
+  - `cmp`: the H: copy, the repo copy and the compiled copy are byte-identical.
+  - This session's build tree, its storage files and the sandbox `secrets.yaml` copies are deleted.
+    A search of what remains found none of the 8 secret values from this build.
+  - Found, not touched: an earlier session's `C:\esphome_build_2609\battery-bank-monitor` build and
+    its storage file still hold 2-3 of them each.
+- **Not live until Bill installs it** from the Device Builder.
+  - Expect no update badge on this node: Samba edits have not raised one before (2026-09-18, cause
+    not established). The builder did see the file - it auto-committed it as `0f2d9d8` at 09:55:48.
+    The badge Bill saw on Basement TH Node is version-only: that node runs ESPHome 2026.8.2 against
+    the 2026.9.0 add-on [M, device registry].
+  - R13, 2026-09-26: this entry calls the firmware "Rev 0.3", but `fw_version` in
+    `mmwave-office-node.yaml` is still `0.2-draft`, so HA keeps showing "0.2-draft (ESPHome
+    2026.9.0)" after the install. Proof of install is the `compilation_time` in the node's ESPHome
+    diagnostics moving past `2026-09-25 22:21:01 -0400` [M, read 2026-09-26].
+- **Companion change, repo only, not on H:.** `scripts/mmwave_calibrate.py` Rev 0.3:
+  - It drops the first 15 s after every label change.
+  - A gate whose L(T) exceeds its budget is now flagged and exits 1. Before, it read OK.
+
+### mmwave office node: presence lamp control live (office subset of `packages/mmwave_presence.yaml`); lux threshold and idle timeout on the dashboard
+
+Bill: "lets control the light. give me a input for the lux thershold to set from the dashboard", then
+"also need a time to turn light off when empty input on the dashboard". Both inputs already existed in
+the repo package: `input_number.mmw_office_lux_on` ("Turn on below") and
+`input_number.mmw_office_idle_timeout` ("Idle timeout (total)"). The repo view already carried
+them. So this deploys the package itself rather than writing a second copy of any of it (R10).
+
+- **The package is the office subset of the repo file at `mmwave-presence-node` a73a104.**
+  - Every family-room block is held back [M: `make_office_pkg.py` output]: 826 lines in 29 ranges.
+    The family node does not exist, and its automations would drive the real `switch.family_room*`
+    lamps from a sensor that is not there.
+  - The result is `H:/packages/mmwave_presence.yaml`, 927 lines [M]. It carries a 13-line header naming its source.
+  - It is derived by `C:/Users/wkcol/ha-data-repairs/make_office_pkg.py`. Every range's first and last line
+    is asserted, so the script refuses a moved repo file. Re-derive it; never merge by hand.
+  - R3 proof:
+    - The diff against the repo file has 0 change hunks and 1 add hunk (the header).
+    - The deleted lines equal the removed text as a multiset.
+- **The view** `dashboards/views/view-mmwave-office.yaml` is now the repo file whole, plus a 9-line
+  note. It replaces this morning's trimmed copy, which had held back the package's cards.
+- **It went live by reloads, not a restart.** No restart was asked for. The order was input_boolean,
+  input_select, input_datetime, script, template, history_stats, automation, then input_number LAST.
+  - Why the order matters [S: core 2026.9.3 `input_number/__init__.py` 267-275, 304]:
+    - A new input_number with no `initial` and no restore state starts at its minimum, 0.
+    - A reload only clamps existing values.
+  - So the seed automation's template trigger saw the helpers appear at 0. That exercised the
+    package's own "reads 0 while running" path rather than the start-up one.
+- **Observed** [M, 12:36:29Z]:
+  - The logbook shows three "mmW commissioning — read 0 (uncommissioned); seeded to 18 / 120 / 10" entries.
+  - 26 `mmw_` entities are live, all 9 automations are on, and `sensor.mmw_office_state` reads `OCCUPIED`.
+  - `switch.office_lamp` was untouched: `on` before, `on` after.
+  - The system log is empty and there are no notifications.
+- **Behaviour now:**
+  - The lamp comes on only if presence starts while ambient light is below `Turn on below`.
+  - It goes off after `Idle timeout (total)` of empty room. The off automation's `for:` is 90 s at the
+    seed [D: 120 s total − 30 s `number.office_mmwave_radar_timeout`, M live].
+  - Only a lamp the automation lit (latched) is switched off. Bill's hand-lit lamp this morning is not.
+  - Setting either helper to 0 re-seeds it. `Automatic lighting` is the off switch.
+  - Ambient light read 27.1 lx before and 24.5 lx after, with the lamp on [M, n=2 single reads, 12:36Z].
+    Both are above the 18 lx seed, so daylight plus the lamp will not trigger an auto-on at the moment.
+- **RISK, deployed ahead of item 11.** The entry below ordered it "item 11, then the package deploy";
+  Bill's request reversed that.
+  - The office max gates are still the 4 / 4 placeholder.
+  - On the bench, a person in the bathroom next door was detected through the wall at 7.4–10.3 ft in
+    gates 3–4, and that fired the lamp three times [M: design doc §3.6 retraction and line 1214, 2026-09-07].
+  - Expected failure: the lamp comes on in an empty, dark office while someone is in the bathroom.
+    Because it is latched, it then goes off after the idle timeout. Tracked as P24.
+- **Audit gap (R8/R13): `ha_audit.py` cannot catch a bad entity id in a package trigger list.**
+  - `entity-ref-unresolved` reads only `states('x')`-style calls and single-id `entity(_id):` lines.
+  - R2: an injected `binary_sensor.family_mmwave_presence` in a bare trigger list passed the audit
+    with 0 FAIL, 0 WARN; the same id in the view was caught.
+  - The gate used instead is `C:/Users/wkcol/ha-data-repairs/refs_check.py`. It resolves every
+    `domain.object_id` token against live states, live services and the package's own declarations.
+  - That gate fired on the injected id and on a typo of `number.office_mmwave_radar_timeout`, and was
+    silent on the clean files (55 ids, 0 unresolved). Tracked as P23.
+- **Gates:**
+  - `validate_ha.py --strict`: `VERDICT: PASS (parse-clean)` for the package, and again for the view
+    and wrapper (sandbox, byte-identical to H:).
+  - `check_config`: `valid`.
+  - `refs_check` on H:: 0 unresolved.
+  - Audit: 0 FAIL, 0 WARN, 2 INFO across 18 pipelines.
+  - `gen_reference.py`: AUTOMATIONS.md has 121 automations (was 112) and PACKAGES.md gains 1 row.
+    All three generated docs are byte-identical to the sandbox's.
+- **Not done:**
+  - The package's recorder exclusion (5 office summary sensors) takes effect only at the next restart.
+  - No `entity_notes.yaml` annotations for the 17 new ids (SHOULD, not enforced).
+  - The family-room subset, until that node exists.
+  - No commits.
+
+### mmwave office node: 70 entities renamed to `office_mmwave_*`; bench dashboard retired, office dashboard live; HA restarted
+
+Bill's call: rename the device's 70 live entities to `office_mmwave_*`, retire the old dashboard,
+deploy the office one, edit the config and restart. This closes the reconciliation, dashboard
+and `entity_notes.yaml` items on the entry below.
+
+- **Rename, 11:55:10Z.** The rule is new object_id = slugify("Office mmWave " + original_name). That is
+  what HA builds with `(DEVICE, ENTITY)`, with the area dropped. It is derived, not hand-mapped.
+  - Applied with websocket `config/entity_registry/update` `new_entity_id`, to all 70 rows.
+  - Prechecks: no target id was in the registry, the state machine, 60 days of recorder history
+    or statistics. The rule reproduces all 30 ids the package and the view predict [M].
+  - History moved with the ids. All 70 new ids carry pre-rename history; g2_still goes back to
+    2026-09-12 12:08Z. Statistics sit under 6 new ids and no old one [M]. The recorder migrates
+    `states_meta` and statistics on a registry rename [S: `components/recorder/entity_registry.py`
+    23-35, 58-75 at 2026.9.3].
+  - Not renamed:
+    - the disabled `update.bench_mmwave_firmware` (Bill said the 70 live ones);
+    - the config entry title, still "Bench mmWave".
+  - Rollback map: `C:\Users\wkcol\ha-data-repairs\rename_map_2026-09-26_mmwave_office.json` (old,
+    new and unique_id per row).
+- **Dashboard.**
+  - **Config.** `configuration.yaml` `lovelace: dashboards:` changed from `mmwave-bench` to
+    `mmwave-office`: title Office mmWave, icon `mdi:radar`, filename `dashboards/mmwave-office.yaml`.
+    Every comment was kept and 8 dated lines were added. Reversing the edit reproduces the original
+    byte for byte [M].
+  - **Wrapper.** The new `dashboards/mmwave-office.yaml` carries the bench wrapper's comments
+    (path resolution, touch the wrapper after a view edit) with the file names updated. The
+    2026-09-07 error is quoted as it was.
+  - **View.** The new `dashboards/views/view-mmwave-office.yaml` is the repo view at a73a104 with
+    every block that reads a `packages/mmwave_presence.yaml` entity held back:
+    - the State and Label check badges;
+    - the label-button section;
+    - the Light explainer and helper card;
+    - Collection coverage;
+    - the Label row.
+
+    The header and the Light text now say the lamp is manual. The view was derived by exact-once
+    span edits, and CRLF was converted to LF to match the rest of `dashboards/`. When the package
+    deploys, copy the repo file over this one; do not merge by hand. The Calibration hold switch
+    was in the held-back label card, so for now it is on the device page only.
+  - **Retired, and MOVED rather than deleted:** `dashboards/mmwave-bench.yaml` and
+    `dashboards/views/view-mmwave-bench.yaml`.
+    - The view held 125 uncommitted lines from 2026-09-25, in no git history: the Step 0.6 section
+      and two R13 records.
+    - Both files are in `C:\Users\wkcol\ha-data-repairs\retired_2026-09-26_mmwave_bench\`, checked
+      with `cmp` before removal.
+    - The `mmwave-presence-node` repo's own `view-mmwave-bench.yaml` is 585 lines, 97 behind that
+      copy.
+  - **URLs.** `/mmwave-bench` now returns `config_not_found`; the node is at `/mmwave-office`.
+- **`entity_notes.yaml`.** The 4 lux keys changed from `office_bench_mmwave_*` to `office_mmwave_*`.
+  Their group is now "MMWAVE OFFICE NODE (esphome/mmwave-office-node.yaml)", and the ambient note
+  says the package reads it. `ENTITIES.md` and `PACKAGES.md` were regenerated.
+- **Gates.**
+  - **Sandbox** (`C:\sandbox\ha`, fresh from H:): `validate_ha.py --strict` gave PASS (parse-clean)
+    on each of `configuration.yaml`, both dashboard files and `entity_notes.yaml`.
+  - **R2.** A pre-rename id put back into the new view fired `entity-ref-unresolved`; the clean
+    tree is silent.
+  - **Bare-list ids.** The audit does not read these, so all 25 ids in the view were checked
+    against `/api/states`, and all exist [M].
+  - **H: against the sandbox.** H: then matched the sandbox on all 2,579 shared files [M: byte
+    compare].
+  - **Deployed.** `check_config` returned `valid`.
+  - **Restart.** Requested 12:09:57Z; RUNNING at 12:10:49Z [M: 5 s poll].
+- **Observed after the restart** [M, 12:11:20Z]:
+  - the `mmwave-office` panel is registered, and `lovelace/config` serves 1 view with 3 sections;
+  - `mmwave-bench` returns `config_not_found`;
+  - all 70 new ids are present, none unavailable, and no old id remains;
+  - node uptime read 1,801 s, so the node did not reboot;
+  - there are no notifications or repairs.
+- **`sensor.office_mmwave_presence_path_skew` reads `unknown`, which is expected.** It publishes only
+  on a presence edge (`esphome/mmwave-node-common.yaml` lines 437 and 475). It has read `unknown`
+  after every boot until the first edge [M: HA history, 3 days, 29 rows].
+- **Audit: 0 FAIL, 0 WARN, 2 INFO across 18 pipelines**, from 22 WARN.
+- **Not done:**
+  - item 11, then the package deploy (the held-back blocks return with it);
+  - bringing the repo's `view-mmwave-bench.yaml` up to date;
+  - the config entry title;
+  - commits in either repo (not asked for).
+
+### mmwave office node: production firmware Rev 0.2 flashed; HA re-keyed itself; 22 audit WARNs from the bench dashboard
+
+- **Bill flashed `mmwave-office-node` at about 07:41 EDT** through the Device Builder. The bench
+  entities went unavailable at 11:41:13Z. `Uptime` read 61.7 s at 11:42:31Z, so the node booted
+  at about 11:41:29Z [D], with reset reason "software via esp_restart" [M, HA states].
+  - The device registry reads `sw_version` "0.2-draft (ESPHome 2026.9.0)", name "Office mmWave",
+    model `mmwave-presence-node` [M: websocket `config/device_registry/list`].
+  - What was flashed is the gated build, by input rather than by hash. Just before the flash,
+    `esphome/mmwave-office-node.yaml` and `mmwave-node-common.yaml` on H: were byte-identical to
+    the repo copies that passed yesterday's real compile [M: `cmp`]. `git status` showed no change
+    under `esphome/`. The add-on was still 2026.9.0 [M: `update.esphome_device_builder_update`].
+    The config hash was NOT compared as it was for V1.28: this firmware has no `ESPHome Version`
+    text sensor, and the local build tree was deleted because it held credentials.
+- **The reauth needed no one, so yesterday's [I] stands: not falsified.**
+  - The config entry was rewritten at 11:41:47.8Z, about 18 s after boot. `device_name` is now
+    `mmwave-office-node`. The stored key equals `api_key_mmwave_office_node` [M: `.storage/core.config_entries`, read only,
+    compared without printing].
+  - No esphome config flow was open at 11:42:09Z or at any 10 s poll up to 11:42:31Z, when the
+    entities were back [M: websocket `config_entries/flow/progress`].
+  - Not established: whether a flow opened and closed before 11:42:09Z with a click from Bill.
+    18 s leaves little room for one.
+  - The entry is still titled "Bench mmWave". A reauth does not retitle an entry.
+- **The radar came up as the staging entry said it would** [M, HA states 11:42Z]:
+  - max move / still gate 4 / 4;
+  - the factory-default gate thresholds (g0 50/0, g1 50/0, g2 40/40, g3 30/40, g4 20/30,
+    g5 15/30, g6-g8 15/20);
+  - Bluetooth off.
+  The bench's move 2 / still 4 is gone from the module.
+- **The lamp is manual now.** `switch.office_lamp` was on, last changed 11:32:07Z, before the
+  flash. Nothing drives it until the package is deployed.
+- **Entity ids: HA 2026.9.3 builds a new id from area + device + entity**, so "Presence" on
+  "Office mmWave" in area Office became `binary_sensor.office_office_mmwave_presence` [S:
+  `helpers/entity_registry.py` 1366-1368 at 2026.9.3, `(AREA, DEVICE, ENTITY)` when
+  `entity_id_parts` is unset]. The same rule named yesterday's lux entities
+  `office_bench_mmwave_*`.
+  - The registry holds 71 rows for this device: 70 live and 1 disabled (`update.bench_mmwave_firmware`) [M].
+    - Entities whose unique_id carried over from the bench keep `bench_mmwave_*`, for example
+      the gate sensors and thresholds.
+    - New ones are `office_office_mmwave_*`.
+    - HA removed the bench-only entities outright, among them `sensor.bench_mmwave_uptime` and
+      `switch.office_bench_mmwave_lamp_control_enabled`.
+  - The package and the production view reference 30 ids. All 30 exist on the device by suffix,
+    and none exists under its predicted `office_mmwave_*` id [M: the registry rows against
+    `mmwave-presence-node` a73a104]. This is the reconciliation the package header asks for, and
+    it is Bill's call.
+- **Audit: 0 FAIL, 22 WARN, 2 INFO across 18 pipelines.** All 22 WARNs are `entity-ref-unresolved`
+  in `dashboards/views/view-mmwave-bench.yaml`, which references ids HA removed. No package,
+  automation or script references a bench id [M: grep].
+- **Not done:**
+  - entity-id reconciliation;
+  - retiring or repointing the bench dashboard (the 22 WARNs);
+  - item 11 (max gates at the mount);
+  - the package deploy;
+  - `ENTITIES.md` / `entity_notes.yaml`;
+  - the repo commit.
+  All wait on the reconciliation decision.
+
 ## [2026.09.25] - 2026-09-25
+
+### mmwave office node: production firmware (Rev 0.2) staged in `esphome/`, not yet flashed
+
+- **What is on H: now.** This is design open item 10, steps (a) and (b), for the office node
+  only. The family node is not staged, because its hardware is not built.
+  - `esphome/mmwave-office-node.yaml` and `esphome/mmwave-node-common.yaml` are copied from
+    `C:\repos\mmwave-presence-node`.
+  - `api_key_mmwave_office_node` is appended to `esphome/secrets.yaml`, which is gitignored
+    (`esphome/.gitignore:5`). It is a fresh random key. The file's existing bytes are
+    unchanged.
+  - The node file gained `wifi: use_address: 10.0.0.57`. The Device Builder container cannot
+    resolve `.local`, and the common file carries no address. 10.0.0.57 is where HA's config
+    entry for this MAC connects [M: `core.config_entries`, read 2026-09-25].
+- **Gates:**
+  - Compiled on ESPHome 2026.9.0, the add-on's installed version [M:
+    `update.esphome_device_builder_update`]. The venv is new, at
+    `C:\Users\wkcol\.venvs\esphome-2026.9.0`, because the one in Temp had been gutted by a
+    cleanup and no longer had `python.exe`.
+    - Unmodified baseline: EXIT=0, and `main.cpp.obj` was written after the compile started.
+      `firmware.ota.bin` is 967,840 B [M: build dir].
+    - Edited file: EXIT=0, `main.cpp.obj` fresh, 967,872 B [M]. RAM was 109,174 of 321,296 B
+      for both [M: compile log].
+    - 0 errors. The 2 warnings were already there: an unused `get_gain_str` in ESPHome's own
+      `veml7700.cpp`, and `%u` against `long unsigned int` at `mmwave-node-common.yaml:1082`.
+  - gitleaks, through the repo's pre-commit hook v8.30.1, passed on both files before the
+    copy. All the repo's hooks passed and none rewrote the file.
+  - `cmp`: for both files, the H: copy, the repo copy and the compiled copy are
+    byte-identical.
+  - The build tree and the sandbox copies of `secrets.yaml` are deleted. A search for all 10
+    secret values in what remains found none.
+- **My error, caught in the sandbox (R13).** My first draft of the new comment said
+  `use_address` is "not compiled into the firmware". The compile showed
+  `set_use_address("10.0.0.57")` in `main.cpp`.
+  - My first check for the address had also missed it: PowerShell `-SimpleMatch` with an
+    escaped pattern returned 0 hits.
+  - The comment now says the address is compiled in, but only as the "Address:" line of the
+    API and OTA config dumps [S: generated `api_server.cpp:276`, `ota_esphome.cpp:121`,
+    2026.9.0]. That comment is what went to the repo and to H:.
+- **Carried over from the bench, checked by diff.** The VEML7700 block (17 code lines), the
+  I2C bus, all five GPIOs, the radar baud rate (256000), the board and the esp-idf framework
+  are identical in `mmwave-bench.yaml` and the common file. So the step 0.6 torch PASS applies
+  to production's light sensor.
+- **What flashing will change.** Bill flashes, from the Device Builder.
+  - **The lamp.** The production firmware has no on-device lamp logic. `switch.office_lamp`
+    stops following presence until `packages/mmwave_presence.yaml` is deployed (item 10 (d)).
+    That cannot come first: the package's entity ids are predictions until the node exists.
+  - **HA.** The MAC stays the same, but the name and the key change. HA 2026.9.3 then starts a
+    reauth. The reauth tries the stored key, learns the new name from the failed handshake,
+    and asks the Device Builder for that name's key [S: `config_flow.py` lines 209-230, 854-860
+    and 966-985 at 2026.9.3; `.storage/esphome.dashboard` links the add-on].
+    - [I] It completes with no one touching it. Falsified if a reauthentication card stays
+      open in Settings.
+  - **The radar.** Every boot pushes max gates 4 / 4, the factory-default thresholds and
+    Bluetooth off into the module's NVM. That replaces the bench's move 2 / still 4. With no
+    lamp logic this has no consequence yet, but item 11 (measure the max gates at the mount)
+    has to come before the package goes live.
+  - **The Device Builder.** It lists `mmwave-node-common.yaml` as a device, because it lists
+    every top-level YAML except `secrets.yaml` and dot-files [S: `esphome/util.py` lines
+    427-436, 2026.9.0]. It is a package and must never be installed.
+- **Not done:**
+  - the flash;
+  - entity-id reconciliation, which needs a live registry read after the flash (R5);
+  - the package deploy, which needs a restart;
+  - retiring the bench dashboard;
+  - the repo commit;
+  - a dated note on design item 10.
 
 ### mmwave-bench step 0.6 torch test: PASS; the published integration-time steps corrected
 

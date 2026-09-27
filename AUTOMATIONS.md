@@ -65,6 +65,15 @@ hvac_2f_setback_lowered                state:climate.upstairs                   
 hvac_2f_setback_start                  state:climate.upstairs                                              single     automations.yaml
 hvac_2f_setback_stuck_clear            state:input_boolean.hvac_2f_setback_active                          single     automations.yaml
 hvac_setback_midnight_audit            01:00:00                                                            single     automations.yaml
+mmw_label_contradicted_alert           state:binary_sensor.mmw_office_label_contradicted                   single     mmwave_presence.yaml
+mmw_lux_stale_alert                    state:binary_sensor.office_mmwave_lux_stale                         single     mmwave_presence.yaml
+mmw_office_cal_label_autoclear         state:binary_sensor.office_mmwave_presence                          single     mmwave_presence.yaml
+mmw_office_cal_label_changed           state:input_select.mmw_office_label                                 single     mmwave_presence.yaml
+mmw_office_override_detect             state:switch.office_lamp                                            single     mmwave_presence.yaml
+mmw_office_presence_off                state:binary_sensor.office_mmwave_presence                          single     mmwave_presence.yaml
+mmw_office_presence_on                 state:binary_sensor.office_mmwave_presence                          single     mmwave_presence.yaml
+mmw_path_disagreement_alert            state:binary_sensor.office_mmwave_presence_path_disagreement        single     mmwave_presence.yaml
+mmw_seed_uncommissioned_helpers        homeassistant, template                                             queued     mmwave_presence.yaml
 nightly_buffer_backup                  00:20:00                                                            single     spc.yaml
 nightly_ha_audit                       00:30:00                                                            single     audit.yaml
 nightly_spc_verify                     00:25:00                                                            single     spc.yaml
@@ -121,4 +130,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more             parallel   watchdog.yaml
 ```
 
-112 automations.
+121 automations.

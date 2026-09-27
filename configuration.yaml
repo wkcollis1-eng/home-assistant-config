@@ -183,15 +183,23 @@ scene: !include scenes.yaml
 # TRADE: a yaml-mode dashboard cannot be edited in the UI. For a bench rig
 # whose discipline is "the YAML is the record" (R9) that is the right way
 # round. Do not convert the others.
+#
+# CHANGED 2026-09-26: mmwave-bench -> mmwave-office. The bench rig is now the
+# office node (production firmware Rev 0.2) and its entities were renamed
+# office_mmwave_*; the bench dashboard and its view were retired. git holds
+# their 2026-09-07 versions; the view's uncommitted 2026-09-25 edits were moved
+# to C:/Users/wkcol/ha-data-repairs/retired_2026-09-26_mmwave_bench/ on the
+# Windows box. The URL changes with it: /mmwave-bench no longer exists, the node
+# is at /mmwave-office. Adding or removing an entry here needs a RESTART.
 lovelace:
   mode: storage
   dashboards:
-    mmwave-bench:
+    mmwave-office:
       mode: yaml
-      title: mmWave Bench
-      icon: mdi:test-tube
+      title: Office mmWave
+      icon: mdi:radar
       show_in_sidebar: true
-      filename: dashboards/mmwave-bench.yaml
+      filename: dashboards/mmwave-office.yaml
 
 # ===============================================================
 # LIVE WEATHER (Updates every 10 minutes)

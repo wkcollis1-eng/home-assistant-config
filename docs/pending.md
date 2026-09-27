@@ -276,6 +276,19 @@ retire refs_check.py rather than keep two checkers (R10). CHANGELOG
 [2026.09.26].
 ```
 
+### P24 — office mmWave max gates still 4/4 while the lamp is live [HIGH]
+```
+Opened 2026-09-26. Presence lamp control went live ahead of repo item 11
+(design doc, "office max gates: measure at the mount"). On the bench, a
+person in the bathroom next door read 7.4-10.3 ft, gates 3-4, and fired the
+lamp three times [M, design doc line 1214]. Expected symptom until fixed:
+the lamp comes on in an empty dark office while the bathroom is in use, and
+goes off after the idle timeout. Needs Bill at the mount: measure, set the
+gates in esphome/, real-compile, flash via Device Builder. Close when a
+bathroom occupancy with the office empty produces no presence edge.
+CHANGELOG [2026.09.26].
+```
+
 ---
 
 ### Closed — full detail is in CHANGELOG.md, not here
