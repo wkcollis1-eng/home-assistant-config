@@ -161,6 +161,22 @@ worked. change the seeds to 30/10".
     unchanged.
   - The repo's `packages/mmwave_presence.yaml` is an older Rev 0.1 draft, not a mirror of H:, so it
     was not edited.
+    - **CORRECTED the same day (R13): the line above is wrong.** The repo file is the SOURCE of the
+      H: package: `make_office_pkg.py` derives H:'s file from it by holding back the family-room
+      blocks. H:'s own NOTE says so, and both [2026.09.27] entries below re-derived it.
+    - The seed edit went into H: alone, so the source still seeded 18 / 120. The next derivation
+      would have put those values back with every gate passing (R10). Found while splitting the
+      commits for the push.
+    - Fixed the same day:
+      - The same three edits were made in the source: 1844 -> 1849 lines. Reversing them restores
+        it byte for byte.
+      - The maker's four ranges past the insert moved +5, and its length assert moved to 1849. It
+        now refuses the old 1844-line file [M].
+      - The unedited source derives to the 09-27 H: package byte for byte. The edited source
+        derives to the deployed H: package byte for byte [M].
+      - The source was committed as mmwave-presence-node b074238, and H: was re-derived from that
+        commit. The only line that changed is the NOTE's revision, from "5d2f7f9 PLUS UNCOMMITTED
+        EDITS" to "b074238".
 - **A10, power cycle with someone sitting still: first observation, n = 1 [M: HA history].**
   - 12:52:48.5Z: presence on, still target, 3 s after boot.
   - 12:52:50.3Z: presence off. The radar's OUT pin followed at 50.4, so the module itself dropped

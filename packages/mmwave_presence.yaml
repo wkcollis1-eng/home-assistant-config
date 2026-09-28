@@ -2,7 +2,7 @@
 # mmWave Presence Lighting — HOME ASSISTANT PACKAGE
 # -----------------------------------------------------------------------------
 # DEPLOYED COPY, H:/packages/. Source: mmwave-presence-node
-# packages/mmwave_presence.yaml at 5d2f7f9 PLUS UNCOMMITTED EDITS, OFFICE ONLY. Every family-room block
+# packages/mmwave_presence.yaml at b074238, OFFICE ONLY. Every family-room block
 # is HELD BACK (29 ranges, 826 lines): the family node does not exist, and its
 # automations would drive the real switch.family_room lamps on a sensor that is
 # not there. Nothing else is changed; the text below is the repo's, including
