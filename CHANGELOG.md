@@ -50,9 +50,9 @@ is calibrated against.
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, MID-RUN** (office carrier, `Ambient light` publishing, `esphome logs` connected): with the VEML7700 unplugged at the JST-SH end, the log shows a `veml7700` `Shutdown failed` warning every 10 s cycle and `Ambient light` stops publishing. On replug, readings resume **with no reboot**: `Uptime` is unbroken across the test, and a `Lux age` publish within 2 min of the replug reads **≤ 20 s** [D: `Lux age` publishes every 60 s, so two land in any 2 min and the later is ≥ 60 s after the replug; by then lux publishes at 10 s spacing, and a dark-room cycle takes ~7.2 s = 4 × 0.4 + 0.8 + 1.6 + 3.2 s walking from the configured 1/8x, 100 ms start to 2x, 800 ms, M: main.cpp 2270-2271]. Falsified by no `Shutdown failed` while unplugged, by every `Lux age` publish in those 2 min reading > 20 s, or by any `Uptime` reset. A reboot at the moment of plug-in scores MISS, not void: it would mean hot-plug is not survivable on this carrier. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 119-219, 260-278, 305-310]: a failed write or read returns the state machine to IDLE with a status warning, the next update starts over, and every auto cycle begins by rewriting ALS_CONF_0, so a chip that lost power is reconfigured | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-27 | **Office mmWave P24 filter, live since 14:31Z (`binary_sensor.mmw_office_occupied`).** Bill's next bathroom run with the office empty ("no one present"): radar presence still goes on, `sensor.mmw_office_state` reads `DETECTED_FAR`, and `mmw_office_occupied` makes **no** on-edge, so the lamp stays off. His next straight walk-in to the desk: `occupied` goes on within 5 s of the radar presence on-edge. Basis: replay of the deployed template over HA history [M: bathroom 0 occupied edges from 13 raw edges in 2 runs; walk-ins 1.7-4.3 s, n=11]. Falsified by any `occupied` on-edge during the bathroom run, or a straight walk-in that is slower than 5 s or never reaches `occupied`. Stopping in the doorway is failure mode 1 in P24, and does not count as a miss | yes — written after the deploy, before any live bathroom run | **HIT** — same day, both halves. With the office labelled "no one present" (14:42:46-14:46:48Z), Bill's bathroom trips gave 4 radar presence on-edges (14:43:32, 14:44:23, 14:45:11, 14:46:02Z). `mmw_office_state` read `DETECTED_FAR` at each one, and `mmw_office_occupied` had 0 on-edges [M, HA history]. The nearest bathroom target was 89.0 in (still; n=14 readings with the target flag on). That is 19.0 in outside the limit [D: 89.0 − 70]. On the walk-in, presence went on at 14:46:52.80Z and `occupied` at 14:46:55.20Z, 2.4 s later [D], crossing the limit at 65.7 in [M]. The lamp stayed off, but the room was already lit (EMPTY_LIT, daylight), so the lamp did not discriminate; `occupied` did. n=1 run |
-| 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | pending |
+| 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | **HIT** — same day. Bill installed at 12:52Z; the node was back at 12:52:48Z with uptime 3.04 s [M]. `number.office_mmwave_g0_move_threshold` read 70.0 after the boot and at 12:54:30Z, and sw_version reads `0.4 (ESPHome 2026.9.0)`, compiled 08:45:46 -0400 [M: device registry, ESPHome diagnostics]. Weaker than it reads: the radar kept power through the OTA and already held 70, so this discriminates only if the boot push ran, which HA cannot show when the value is unchanged. The first boot after a live G0 change is the direct test, and the "any later node boot" clause stays live |
 
-**Running score: 10 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
+**Running score: 11 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
@@ -70,6 +70,134 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.28] - 2026-09-28
+
+### mmwave office node: firmware 0.4 installed (P25 closed); office seeds now 30 lx / 10 s; first A10 boot observation
+
+Bill, 2026-09-28: "flashed. sat still at boot and lamp went off. once i moved lamp cam on, so that
+worked. change the seeds to 30/10".
+
+- **Install confirmed [M].**
+  - The node dropped off at 12:52:39.9Z and was back at 12:52:48.5Z with uptime 3.04 s. Its reset
+    reason names an esphome OTA reboot request [M: HA history].
+  - ESPHome diagnostics read project_version 0.4, ESPHome 2026.9.0, compiled 2026-09-28 08:45:46
+    -0400. The device registry reads sw_version `0.4 (ESPHome 2026.9.0)`.
+  - `number.office_mmwave_g0_move_threshold` read 70.0 after the boot and still did at 12:54:30Z.
+    Radar timeout 30 and max gates 4 / 4 match the YAML as well.
+  - Limit on that result (R11):
+    - An OTA reboots only the ESP. The radar keeps power, and it already held 70 from the 09-26 live
+      write, so 70.0 tells 0.4 from 0.3 only if the boot push ran.
+    - The push writes values the module already holds, so HA records no change, and its log line is
+      gone.
+    - What supports it having run: its trigger code is unchanged from the push that restored 21 of 21
+      scrambled values on the bench (design doc §8, 2026-09-07 [M]).
+    - The first boot after a live G0 change will show it directly.
+  - Ledger row 2026-09-28 is scored HIT on that basis. P25 is closed, and its final text is below,
+    moved verbatim.
+- **Seeds, `mmw_seed_uncommissioned_helpers`.**
+  - lux_on 18 -> 30 and idle_timeout 120 -> 10, the values Bill commissioned (P24, GO-LIVE DECISIONS).
+  - Nothing live changes. Both helpers already read 30 / 10, and the seed writes only a helper that
+    reads 0. After the reload it did not fire and logged nothing [M].
+  - What changes is the unattended case: a helper that comes back as 0 returns to what the room runs
+    at, not to the provisional 18 / 120.
+  - The "WHERE THE NUMBERS COME FROM" comment gets a dated line marking the 18 / 120 reasoning as the
+    record of the provisional values. Nothing was removed.
+  - `esphome/mmwave-office-node.yaml`, on H: and in the repo: the comment "the package seed is 120 s"
+    gets a one-line follow-up. The file parses to the same config as before [M], so the build is
+    unchanged.
+  - The repo's `packages/mmwave_presence.yaml` is an older Rev 0.1 draft, not a mirror of H:, so it
+    was not edited.
+- **A10, power cycle with someone sitting still: first observation, n = 1 [M: HA history].**
+  - 12:52:48.5Z: presence on, still target, 3 s after boot.
+  - 12:52:50.3Z: presence off. The radar's OUT pin followed at 50.4, so the module itself dropped
+    the target; this was not a UART artefact.
+  - 12:52:50.7Z: lamp off. At idle 10 the off automation waits max(10 - 30, 0) = 0 s past
+    presence-off [D].
+  - 12:53:17.0Z: Bill moved and presence came back; lamp on at 17.5. Off for 26.8 s [D].
+  - The cause is not established [I].
+    - It was not the boot push. Its earliest time is ~12:52:53.4Z, 3 s after the drop [D: first
+      radar frame + 5 s, on a 5 s interval].
+    - A node log would decide it, but it has to be attached before the boot.
+  - Recovery here needed movement. So A10's "recovers unaided" is not shown for someone who stays
+    still: not passed, not failed.
+  - What it costs at idle 10: one lamp-off per node boot while someone sits still.
+    - At the earlier 120 s, the automation would have waited 90 s past presence-off and bridged this
+      gap.
+    - That trade came with Bill's idle-10 decision, which stands.
+    - Boots are rare: the node ran from 09-26 14:20:22Z to this Install without one [M: uptime
+      167,520 s].
+- **Gates.**
+  - Sandbox `C:\sandbox\mmwave_seed`, anchored edits with every anchor count 1.
+    - Reversing the edits restores both files byte for byte.
+    - The package stays LF (1031 -> 1036 lines); the node file stays CRLF (95 -> 97). No non-ASCII was
+      added.
+  - `gate.py packages/mmwave_presence.yaml`:
+    - The first run gave `generated-doc-stale` on PACKAGES.md, which records the package's line
+      count. `gen_reference.py` regenerated it.
+    - The re-run gave 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 0 WARN, 2 INFO across 18
+      pipelines.
+  - `check_config`: `{"result":"valid"}` -> PASS (HA-certified).
+  - `automation.reload` at 13:04:44Z, authorised by Bill's message.
+    - No automation was mid-run beforehand.
+    - All 121 automations kept their on/off state.
+    - `automation/config` reads the loaded defaults as 30 / 10 / 10; they were 18 / 120 / 10 before
+      the reload [M].
+
+P25's final text, moved verbatim from `docs/pending.md`:
+
+````text
+### P25 — office mmWave G0 move 70: firmware 0.4 staged 2026-09-28, awaiting Bill's Install [MEDIUM]
+```
+Opened 2026-09-26. Bill set number.office_mmwave_g0_move_threshold 50 -> 70
+against the gate-0 fan ghosts. The loaded-PC A/B test was borderline (the
+p-values are in CHANGELOG [2026.09.26]). Bill left the office empty and the
+PC on, not loaded, overnight 09-26/27 to validate.
+Score it: presence triggers per hour of "no one present", classified by
+target distance (gate 0 is the fan class; gates 3-4 are P24's bathroom
+class, which 70 does not touch); PC plug watts across the night; and check
+the G0 history never left 70. script.push_commissioned_state resets it to
+50 at every node boot, silently.
+Durable fix: g0_move: "70" in esphome/mmwave-office-node.yaml. Bill
+(2026-09-26): batch it into the firmware update that sets the calibrated
+thresholds, with P24. Close when that firmware is flashed and G0 reads 70
+after a node reboot.
+SCORED, 2026-09-28 - the setting holds; only its durability is open.
+Window: G0 = 70 from 09-26 22:12:10Z to 09-28 12:20Z [M: HA history]. It
+never left 70. The 16:35:46Z "unavailable" on 09-27 was an HA restart, not
+a node boot: node uptime runs unbroken from 09-26 14:20:22Z. So the value
+has not yet been through a boot.
+Labelled "no one present" for 25.1 h in that window. The PC was never off
+(never under 5 W). It drew more than 90 W for 4.41 h of it, median 109 W,
+the band the ghosts came from (100-121 W) [M: 10 s samples of
+sensor.computer_outlet_current_consumption].
+There were 28 radar presence on-edges while empty, and 0 opened at gate 0:
+the nearest first reading was 74.8 in [M: full-rate distance series].
+Every edge is a labelled bathroom run, a doorway pause before a walk-in, or
+the unexplained 09-28 00:25:40Z walk-in shape (open_questions.yaml,
+2026-09-28).
+At the G0 = 50 loaded rate, 19 in 4.17 h [M, CHANGELOG 2026.09.26], 4.41 h
+should have given 20.1 gate-0 events [D: 19 / 4.17 x 4.41]. It gave 0.
+Poisson P(0 | 20.1) = 1.9e-9 [D]. The 09-26 borderline p = 0.051 is
+superseded.
+Limits: one PC, one load mix; the tail above peak 62 is still unmeasured.
+WHY THE DURABLE FIX NOW MATTERS MORE: the ghosts read 11.8 in (gate 0),
+which is inside P24's 70 in approach limit. So the bathroom filter does not
+stop them. After the next node boot, G0 goes back to 50, and a loaded PC
+can light the lamp in an empty dark room again. Recommend un-batching it
+from the calibrated thresholds, which wait on a heating-season collection B
+that has 0 h of data [M: every mmw_office_cal_class sample since deploy is
+blower_off]. Bill's call.
+UN-BATCHED, 2026-09-28 (Bill: "lets update firmware with G0=70"). Title
+changed from "is a live write only: score the overnight run". Firmware 0.4
+is written and compiled, NOT flashed: esphome/mmwave-office-node.yaml adds
+g0_move: "70" and fw_version "0.4". It compiled on ESPHome 2026.9.0 with
+EXIT=0 and 0 errors, and the generated push changes from 50.0f to 70.0f
+[M]. The gate detail is in CHANGELOG [2026.09.28].
+CLOSE WHEN Bill has installed it from the Device Builder AND, after that
+boot, number.office_mmwave_g0_move_threshold reads 70.0 and the device's
+sw_version reads 0.4. The Install is itself the reboot this fix must
+survive. Pre-registered in the CHANGELOG ledger (2026-09-28).
+```
+````
 
 ### mmwave office node: go-live decisions recorded; G0 move 70 made durable in firmware 0.4 (staged in `esphome/`, not yet flashed)
 

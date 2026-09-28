@@ -413,60 +413,22 @@ GO-LIVE DECISIONS, Bill, 2026-09-28 - authoritative, do not re-open:
   therefore unmeasured [M: every mmw_office_cal_class sample since deploy
   is blower_off]; the first heating-season week is a first observation, not
   a gate.
+INSTALLED + SEEDS, 2026-09-28 (Bill: "flashed ... change the seeds to
+30/10"). Firmware 0.4 is on the node and P25 is closed (CHANGELOG
+[2026.09.28]). The seed automation now writes 30 lx / 10 s into a helper
+that reads 0, not 18 / 120 [M: loaded config read back after the reload].
+A10 (power cycle, sitting still), n = 1, at the 0.4 Install [M: HA
+history]: presence on at 12:52:48.5Z, 3 s after boot; off at 50.3 with
+the radar's OUT pin following at 50.4, so the module itself dropped the
+target. Lamp off at 50.7 (idle 10 waits 0 s past presence-off [D]), back
+on at 12:53:17.5 when Bill moved: off for 26.8 s [D]. Not the boot push,
+whose earliest time is ~12:52:53.4 [D: first frame + 5 s on a 5 s
+interval]. The cause is not established [I]; a node log attached across a
+boot would decide it. A10's "recovers unaided" is not shown for someone
+who stays still: not passed, not failed. Cost at idle 10: one lamp-off per
+node boot while someone sits still. The node ran from 09-26 14:20:22Z to
+this Install with no boot [M].
 Still open here: the tuning Bill named, then the recorder re-exclusion.
-```
-
-### P25 — office mmWave G0 move 70: firmware 0.4 staged 2026-09-28, awaiting Bill's Install [MEDIUM]
-```
-Opened 2026-09-26. Bill set number.office_mmwave_g0_move_threshold 50 -> 70
-against the gate-0 fan ghosts. The loaded-PC A/B test was borderline (the
-p-values are in CHANGELOG [2026.09.26]). Bill left the office empty and the
-PC on, not loaded, overnight 09-26/27 to validate.
-Score it: presence triggers per hour of "no one present", classified by
-target distance (gate 0 is the fan class; gates 3-4 are P24's bathroom
-class, which 70 does not touch); PC plug watts across the night; and check
-the G0 history never left 70. script.push_commissioned_state resets it to
-50 at every node boot, silently.
-Durable fix: g0_move: "70" in esphome/mmwave-office-node.yaml. Bill
-(2026-09-26): batch it into the firmware update that sets the calibrated
-thresholds, with P24. Close when that firmware is flashed and G0 reads 70
-after a node reboot.
-SCORED, 2026-09-28 - the setting holds; only its durability is open.
-Window: G0 = 70 from 09-26 22:12:10Z to 09-28 12:20Z [M: HA history]. It
-never left 70. The 16:35:46Z "unavailable" on 09-27 was an HA restart, not
-a node boot: node uptime runs unbroken from 09-26 14:20:22Z. So the value
-has not yet been through a boot.
-Labelled "no one present" for 25.1 h in that window. The PC was never off
-(never under 5 W). It drew more than 90 W for 4.41 h of it, median 109 W,
-the band the ghosts came from (100-121 W) [M: 10 s samples of
-sensor.computer_outlet_current_consumption].
-There were 28 radar presence on-edges while empty, and 0 opened at gate 0:
-the nearest first reading was 74.8 in [M: full-rate distance series].
-Every edge is a labelled bathroom run, a doorway pause before a walk-in, or
-the unexplained 09-28 00:25:40Z walk-in shape (open_questions.yaml,
-2026-09-28).
-At the G0 = 50 loaded rate, 19 in 4.17 h [M, CHANGELOG 2026.09.26], 4.41 h
-should have given 20.1 gate-0 events [D: 19 / 4.17 x 4.41]. It gave 0.
-Poisson P(0 | 20.1) = 1.9e-9 [D]. The 09-26 borderline p = 0.051 is
-superseded.
-Limits: one PC, one load mix; the tail above peak 62 is still unmeasured.
-WHY THE DURABLE FIX NOW MATTERS MORE: the ghosts read 11.8 in (gate 0),
-which is inside P24's 70 in approach limit. So the bathroom filter does not
-stop them. After the next node boot, G0 goes back to 50, and a loaded PC
-can light the lamp in an empty dark room again. Recommend un-batching it
-from the calibrated thresholds, which wait on a heating-season collection B
-that has 0 h of data [M: every mmw_office_cal_class sample since deploy is
-blower_off]. Bill's call.
-UN-BATCHED, 2026-09-28 (Bill: "lets update firmware with G0=70"). Title
-changed from "is a live write only: score the overnight run". Firmware 0.4
-is written and compiled, NOT flashed: esphome/mmwave-office-node.yaml adds
-g0_move: "70" and fw_version "0.4". It compiled on ESPHome 2026.9.0 with
-EXIT=0 and 0 errors, and the generated push changes from 50.0f to 70.0f
-[M]. The gate detail is in CHANGELOG [2026.09.28].
-CLOSE WHEN Bill has installed it from the Device Builder AND, after that
-boot, number.office_mmwave_g0_move_threshold reads 70.0 and the device's
-sw_version reads 0.4. The Install is itself the reboot this fix must
-survive. Pre-registered in the CHANGELOG ledger (2026-09-28).
 ```
 
 ---
@@ -491,4 +453,6 @@ P20   gas heating season store: rollover catch-up, archive
       (Bill, 2026-09-23); CHANGELOG [2026.09.23]                DEPLOYED
 P22   battery-bank diag2 test run: 7 tests run, V1.27
       reinstalled, H: diag copy deleted; CHANGELOG [2026.09.25] RESOLVED
+P25   office mmWave G0 move 70 made durable: firmware 0.4
+      installed, sw 0.4, G0 70.0 at boot; CHANGELOG [2026.09.28] DEPLOYED
 ```
