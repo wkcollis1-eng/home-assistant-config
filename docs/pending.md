@@ -276,7 +276,7 @@ retire refs_check.py rather than keep two checkers (R10). CHANGELOG
 [2026.09.26].
 ```
 
-### P24 — office mmWave max gates still 4/4 while the lamp is live [HIGH]
+### P24 — office mmWave bathroom filter live 2026-09-27: scored HIT, open for tuning [LOW]
 ```
 Opened 2026-09-26. Presence lamp control went live ahead of repo item 11
 (design doc, "office max gates: measure at the mount"). On the bench, a
@@ -298,6 +298,104 @@ moving target at 116.5 in at 21:10:47, also gate 3, so the doorway may share
 gates 3-4 with the bathroom and a max-gates cut could see entries late [I:
 falsified if the doorway reads under 88.6 in at the mount]. Where the door
 sits is part of the mount measurement this item waits for.
+
+At-mount bathroom run, 2026-09-27 (Bill: office empty, label "no one present"
+13:13:47-13:26:34Z, repeated trips in and out of the bathroom): 8 presence
+edges in 12.8 min, lamp lit once at 13:24:00Z [M: HA history]. Every edge
+opened on a moving target at 89.4-118.1 in (gate 3), energy 21-46; the still
+target reached 132 in (gate 4), energy up to 99. Nearest reading of the whole
+run 89.4 in [M, full-rate target series]. Per-gate peaks, ~1 frame per 5 s
+[M]: g2 move 11 / still 17 against 40 / 40, g3 still 47 against 40, g4 still
+100. The [I] above is CONFIRMED: 10 of 10 labelled walk-ins 09-26/27 first
+read 115-117 in at energy 26-49 [M], so the doorway is gate 3 and no
+first-frame or energy rule separates entry from bathroom. Approach does:
+every walk-in reached <= 88.6 in with energy > 40 within 1.4-5.0 s [M, n=10];
+the bathroom never did.
+Candidate fix (DROPPED 2026-09-27, see below): max_move_gate 2 AND max_still_gate 2. Replay of the sampled
+per-gate energies, 09-26 14:31Z - 09-27 13:32Z (it matches actual presence
+in 81,824 of 82,860 s [M]): 0 dropouts in 15,372 s labelled occupied at every
+cap down to move 1 / still 2; empty-room edges 31 actual -> 3 at cap 2, and
+all 3 are real walk-ins labelled late (18:51:49Z, 22:53:33Z, 01:10:49Z).
+Still must be capped too: still 3 kept one bathroom edge. Cost: lamp-on
++1.4-5.0 s [M, n=10], and nothing detected past 88.6 in (7.4 ft).
+Limits: the replay sees ~1 frame in 5 and found 11 of the 31 actual empty
+edges at today's 4/4, so its bathroom silence is weak evidence; that the
+module reports the NEAREST over-threshold gate is [I]. Falsifier for both: a
+live 2/2 write, then the same bathroom run - any presence edge kills it.
+A max-gate write RESTARTS the radar [S: esphome 2026.9.0 ld2410.cpp:697-726];
+the reconciler re-opens engineering mode under the calibration hold (common
+file 1032-1034). The YAML change blocks on open_questions.yaml 2026-09-27
+(anywhere still past 7.4 ft?).
+
+Second run, 2026-09-27, and the cap dropped. Bill set both max gates to 2 at
+~13:42Z and repeated the run (label "no one present" 13:43:17Z, office empty
+from the presence-off at 13:43:47Z to 13:47:51Z): 5 presence edges in 4.1 min,
+every one gate 3, 92-118 in, energy <= 43 [M: HA history]. It was NOT a cap
+test. The writes were Developer Tools > States "set state": the logbook
+entries carry a user id but no context_service, the states read "2" where a
+real set_value reads as a float ("70.0", G0 on 09-26), and no engineering-mode
+restart followed [M]. That
+path changes HA's record only; the radar stayed 4/4, and HA still showed 2/2
+afterwards. R13: my instruction said "Set ... from 4 to 2" without naming the
+path (dashboard, or Actions > number.set_value), so the ambiguity was mine.
+Bill's answer to the open question (2026-09-27): "the door way" - he stays put
+there, 115-117 in, gate 3 [M: first reading of 11 of 11 walk-ins]. A 2/2 cap
+would read him empty in the doorway, so the cap is dropped.
+Proposed instead, NOT built: presence may only START when a target is inside
+70 in; once started, any detection holds it. Across both runs the bathroom
+never came nearer than 89.4 in [M: 112 target readings, 13 edges, both target
+kinds, full-rate distance series], a 19.4 in margin [D: 89.4 - 70]. Every
+walk-in reached <= 70 in within 1.7-4.5 s, median 2.9 [M, n=11]; that is the
+lamp-on delay the rule would add. Other thresholds tried: <= 88.6 in, 11/11
+walk-ins, median 2.1 s, but only 0.8 in of margin [D]; <= 60 in, 10/11 [M].
+Failure modes: (1) someone who only ever stands in the doorway never starts
+presence; (2) a bathroom trip straight after leaving the office holds
+presence and the lamp on, because holding cannot tell doorway from bathroom.
+Limits: 2 runs, one morning, one person; other bathroom activity (a shower,
+a longer stay) is unmeasured. Falsifier: any bathroom target reported
+<= 70 in. Layer (HA package
+vs firmware) awaits Bill.
+
+BUILT, 2026-09-27 (Bill: "yes to both" - build it as an HA change, and set
+the max gates back to 4 with a real write). Title changed from "max gates
+still 4/4 while the lamp is live": 4/4 is now deliberate.
+Max gates: a real number.set_value 4 restarted the radar but HA kept the
+States-tab '2'; homeassistant.update_entity fixed both, '4.0' from 14:03:04Z
+[M]. The ESPHome integration drops a device report equal to its cache [S:
+HA 2026.9.3 esphome/entry_data.py:459-470].
+Filter: binary_sensor.mmw_office_occupied in packages/mmwave_presence.yaml,
+live 14:31Z. The lamp-on trigger and its post-wait re-check follow it;
+sensor.mmw_office_state reads DETECTED_FAR for presence with no approach.
+Replay of the deployed template text [M]: bathroom 0 occupied edges from 13
+raw edges; walk-ins 11/11, 1.7-4.3 s, median 2.4. This supersedes the
+1.7-4.5 s / median 2.9 above, which was read from whole-second times. From
+09-26 11:41Z to 09-27 13:31Z: raw on-edges 48 -> occupied 17, "no one
+present" 36 -> 3 (all late-labelled walk-ins), 1 s lost while seated/moving.
+The gate and the details are in CHANGELOG [2026.09.27].
+CLOSE WHEN: a live bathroom run with the office empty and labelled shows
+DETECTED_FAR and no occupied on-edge, AND a straight walk-in reaches occupied
+within 5 s of the presence edge. Both are pre-registered in the CHANGELOG
+ledger (2026-09-27). Score from the history of binary_sensor.office_mmwave_
+presence, binary_sensor.mmw_office_occupied, sensor.mmw_office_state and
+input_select.mmw_office_label, all recorded.
+RECORDER CAVEAT: the package excludes the moving/still distance series
+(added 2026-09-22). That is not yet in force and starts at the next HA
+restart. The filter reads live state, so it keeps working, but the falsifier
+above ("any bathroom target <= 70 in") can then no longer be checked from
+history. Keeping the two series costs 33,144 rows/day [M: 24 h to 14:40Z,
+two test runs included]. That is Bill's decision.
+SCORED, 2026-09-27 - HIT, both halves, first run (n=1). With the office
+labelled "no one present" (14:42:46-14:46:48Z): 4 presence on-edges, each
+DETECTED_FAR, 0 occupied on-edges [M]. Nearest bathroom target 89.0 in
+(still, n=14 flag-on readings), margin 19.0 in [D: 89.0 - 70]. Walk-in:
+presence -> occupied in 2.4 s, crossing at 65.7 in [M]. The lamp stayed off,
+but the room was lit (EMPTY_LIT), so the lamp half did not discriminate.
+CLOSE WHEN is met. Kept open for the tuning Bill named ("we need the 2
+distance readings for tuning"), at LOW, since the lamp fault is fixed.
+RECORDER CAVEAT RESOLVED, same day: Bill kept the two distance series. They
+are out of the exclude list (source + derived package, CHANGELOG
+[2026.09.27]), so history continues across the next restart. Re-exclude
+them when the tuning is done.
 ```
 
 ### P25 — office mmWave G0 move 70 is a live write only: score the overnight run [MEDIUM]

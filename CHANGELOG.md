@@ -49,8 +49,9 @@ is calibrated against.
 | 2026-09-25 | **RE-REGISTRATION against V1.28 of the three V1.25 battery-bank rows above** (Apparent Ri, RECON, CYCLE CONFIRM; already re-registered against V1.26). V1.28 will be running when their events arrive. V1.27 → V1.28 changes no line of the `bank.ri` lambda and no line of CYCLE CONFIRM's arithmetic [M: `git diff 6cf2535 9737b61`; one header comment reflowed], so the Ri and CYCLE CONFIRM rows carry over unchanged. **New in V1.28: every full-charge anchor also needs the CV tail ≤ 10 A (O2).** It gates the whole anchor block, so a recharge or top-up stopped earlier gives no anchor, no RECON line and no CYCLE CONFIRM line [M: the O2 condition precedes that `then:`]. The RECON row splits. **Its log half carries over:** read V1.28's `RECON (SW ledger, log only)` line. Its `ledger-equivalent rate` is the same `rate` variable V1.27 logged as `suggest self_discharge_pct_per_month` [M: same diff], so it is scored against the same 0.9-2.8 %/mo band [D] (derived in the RECON row) and quality OK. **Its entity half ("both recon entities leave Unknown") is VOID under V1.28.** The ledger no longer writes those entities; they come only from the CHARGE RECON, which publishes nothing on a bracket that began at a provisional anchor | yes — written after the V1.28 build, before it was flashed | n/a — re-registration; scored on the rows above |
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, MID-RUN** (office carrier, `Ambient light` publishing, `esphome logs` connected): with the VEML7700 unplugged at the JST-SH end, the log shows a `veml7700` `Shutdown failed` warning every 10 s cycle and `Ambient light` stops publishing. On replug, readings resume **with no reboot**: `Uptime` is unbroken across the test, and a `Lux age` publish within 2 min of the replug reads **≤ 20 s** [D: `Lux age` publishes every 60 s, so two land in any 2 min and the later is ≥ 60 s after the replug; by then lux publishes at 10 s spacing, and a dark-room cycle takes ~7.2 s = 4 × 0.4 + 0.8 + 1.6 + 3.2 s walking from the configured 1/8x, 100 ms start to 2x, 800 ms, M: main.cpp 2270-2271]. Falsified by no `Shutdown failed` while unplugged, by every `Lux age` publish in those 2 min reading > 20 s, or by any `Uptime` reset. A reboot at the moment of plug-in scores MISS, not void: it would mean hot-plug is not survivable on this carrier. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 119-219, 260-278, 305-310]: a failed write or read returns the state machine to IDLE with a status warning, the next update starts over, and every auto cycle begins by rewriting ALS_CONF_0, so a chip that lost power is reconfigured | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
+| 2026-09-27 | **Office mmWave P24 filter, live since 14:31Z (`binary_sensor.mmw_office_occupied`).** Bill's next bathroom run with the office empty ("no one present"): radar presence still goes on, `sensor.mmw_office_state` reads `DETECTED_FAR`, and `mmw_office_occupied` makes **no** on-edge, so the lamp stays off. His next straight walk-in to the desk: `occupied` goes on within 5 s of the radar presence on-edge. Basis: replay of the deployed template over HA history [M: bathroom 0 occupied edges from 13 raw edges in 2 runs; walk-ins 1.7-4.3 s, n=11]. Falsified by any `occupied` on-edge during the bathroom run, or a straight walk-in that is slower than 5 s or never reaches `occupied`. Stopping in the doorway is failure mode 1 in P24, and does not count as a miss | yes — written after the deploy, before any live bathroom run | **HIT** — same day, both halves. With the office labelled "no one present" (14:42:46-14:46:48Z), Bill's bathroom trips gave 4 radar presence on-edges (14:43:32, 14:44:23, 14:45:11, 14:46:02Z). `mmw_office_state` read `DETECTED_FAR` at each one, and `mmw_office_occupied` had 0 on-edges [M, HA history]. The nearest bathroom target was 89.0 in (still; n=14 readings with the target flag on). That is 19.0 in outside the limit [D: 89.0 − 70]. On the walk-in, presence went on at 14:46:52.80Z and `occupied` at 14:46:55.20Z, 2.4 s later [D], crossing the limit at 65.7 in [M]. The lamp stayed off, but the room was already lit (EMPTY_LIT, daylight), so the lamp did not discriminate; `occupied` did. n=1 run |
 
-**Running score: 9 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
+**Running score: 10 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
@@ -66,6 +67,107 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.09.27] - 2026-09-27
+
+### mmwave office node: the two office distance series stay recorded (P24 tuning)
+
+- **What:** `sensor.office_mmwave_moving_distance` and `sensor.office_mmwave_still_distance`
+  are no longer in the package's `recorder: exclude:` list.
+  - Still excluded: the office detection distance and both office energies. The source's
+    family-room exclusions are unchanged; the derived H: file does not carry the family node.
+- **Why:** Bill, 2026-09-27: "we need the 2 distance readings for tuning so lets not exclude
+  them right now".
+  - The filter's 70 in limit is read from these two series, and so is its falsifier: a
+    bathroom target at 70 in or nearer.
+  - The source comment "Nothing reads their history" no longer holds for these two. It now
+    carries a dated exception that says to re-exclude them when the tuning is done.
+- **Effect:** there is no gap in history.
+  - Recorder config is read only at startup, so the 2026-09-22 exclusion was never in force.
+    The series were still recording [M: 33,144 rows in the 24 h to 14:40Z].
+  - Removing the exclusion before any restart means they simply carry on.
+  - No reload is needed: recorder is not reloadable, and nothing else changed.
+- **Cost:** 33,144 rows/day [M: 16,514 + 16,630, 24 h to 14:40Z, which includes two test runs].
+- **Derivation:** the change was made in the source, then re-derived. It was never hand-merged (R10).
+  - The source `mmwave-presence-node` `packages/mmwave_presence.yaml` went from 1838 to 1844
+    lines (uncommitted). 1836 of its 1838 lines are unchanged.
+  - `make_office_pkg.py` was re-pinned through difflib: 29 ranges (1 moved) and 6 identity
+    asserts, with the length assert now 1844.
+  - The derived H: file went from 1025 to 1031 lines and differs from the deployed file only in
+    the recorder span (1023 of 1025 lines verbatim). The removed family-room text is
+    byte-identical [M].
+- **Verified:**
+  - Sandbox and H: `validate_ha --strict`: PASS (parse-clean).
+  - `ha_audit`: 0 FAIL, 0 WARN, 2 INFO across 18 pipelines.
+  - `check_config`: valid, i.e. PASS (HA-certified).
+  - The parsed exclude list holds exactly the 3 remaining office ids.
+- **Not yet observable:** the proof is both series continuing across the next HA restart.
+
+### mmwave office node: bathroom filter (P24) - the lamp follows `binary_sensor.mmw_office_occupied`, not raw radar presence
+
+- **What:** a new trigger-based template, `binary_sensor.mmw_office_occupied`, in
+  `packages/mmwave_presence.yaml`.
+  - It starts only on a target reported inside 70 in while radar presence is on. It holds while
+    radar presence holds, the doorway included, and it goes off with radar presence.
+  - It fails open to raw presence if no distance is numeric or the unit is not recognised.
+  - `automation.mmw_office_presence_lamp_on` now triggers on it, and re-checks it after the lux wait.
+  - `sensor.mmw_office_state` gains `DETECTED_FAR`: radar presence with no approach.
+  - These still read raw presence, by design: lamp-off, the latency sensor, label autoclear, label
+    contradicted, and NODE_OFFLINE.
+- **Why:** a person in the bathroom next door lit the lamp through the wall.
+  - 13 presence edges in two runs with the office empty, every one at gate 3, 89.4-118.1 in [M].
+  - The doorway is gate 3 too: 11 of 11 walk-ins first read 115-117 in [M].
+  - Bill stays put in the doorway (Bill 2026-09-27), so the 2/2 max-gate cap was dropped.
+  - The evidence is in P24, `docs/pending.md`.
+- **Verified:**
+  - **Replay** of the deployed template text over HA history, in both directions:
+    - bathroom: 0 occupied edges;
+    - walk-ins: 11 of 11 qualify, 1.7-4.3 s after the raw edge, median 2.4 [M];
+    - 09-26 11:41Z to 09-27 13:31Z: raw on-edges 48 -> occupied 17. Under "no one present" it is
+      36 -> 3, and all 3 are walk-ins labelled late. 1 s was lost while labelled seated or moving [M].
+  - **Harness self-test:** it fails both mutants (approach 120 in; hold removed). It first PASSED
+    the no-hold mutant, so edge-count and loss asserts were added (R7).
+  - **HA's own template engine:** 70 in true, 70.1 false, 89.4 false. A start render with presence
+    off and a restored 'on' gave false [M, /api/template].
+  - **Gate:**
+    - sandbox and H: `validate_ha --strict` PASS (parse-clean);
+    - `ha_audit` 0 FAIL, 0 WARN, 2 INFO across 18 pipelines;
+    - `check_config` valid, i.e. PASS (HA-certified);
+    - template.reload and automation.reload at 14:31Z.
+  - **Live:** `occupied` went on at 14:31:01.568Z, 1 ms after the first distance update after the
+    reload (moving 51.2 in) [M].
+- **Cost:** lamp-on now waits for the walk in from the doorway, median 2.4 s [M, n=11 replay].
+  The latency sensor still starts at the raw edge, so its trend steps up by about that much.
+- **Accepted failure modes:**
+  - someone who only stands in the doorway never starts it;
+  - a bathroom trip straight after leaving the office holds it, and the lamp, on.
+- **Reload safety [S: HA 2026.9.3]:** a template.reload writes the restored 'on' as the entity's first
+  state (template/trigger_entity.py:76-83, template/entity.py:254-289, restore_state.py:270-290).
+  - A missing old state cannot match the lamp trigger's `from: [off, unavailable, unknown]`
+    (triggers/state.py:143-144,165; helpers/event.py:1880-1881).
+  - So only first creation goes unknown -> on. That happened before the automation reload, and
+    nothing fired: last_triggered is still 14:18:04Z [M].
+- **Derivation:** source repo `mmwave-presence-node`, `packages/mmwave_presence.yaml` went from 1740
+  to 1838 lines (uncommitted).
+  - `make_office_pkg.py`: 29 ranges and 6 identity asserts were remapped through difflib, and the NOTE
+    revision is now read from git instead of the typed `a73a104`.
+  - The derived H: file went from 927 to 1025 lines. The removed family-room text is byte-identical
+    before and after. A fresh derivation matches the deployed file on all 1025 lines [M].
+- **Also, max gates back to 4/4.** The 2/2 of the second test run was a Developer Tools > States
+  write, so HA showed 2 while the radar stayed at 4.
+  - A real `number.set_value` 4 on the move gate restarted the radar, with engineering mode back
+    within 3 s, but HA kept showing '2'.
+  - `homeassistant.update_entity` corrected both gates to '4.0' at 14:03:04Z [M].
+  - The ESPHome integration drops a device report equal to its cached value [S: HA 2026.9.3
+    esphome/entry_data.py:459-470].
+- **Open:**
+  - The package's recorder exclusion of the two distance series (added 2026-09-22) takes effect
+    at the next HA restart. The filter reads live state and is unaffected.
+  - After that restart P24's 19.4 in margin can no longer be re-measured from history. Keeping the
+    two series costs 33,144 rows/day [M: 16,514 + 16,630, 24 h to 14:40Z, which includes two test
+    runs]. Bill's call.
+    **Resolved the same day:** Bill kept the two series. See the entry above.
+  - The live score is the ledger row above. It scored **HIT** on the first bathroom run.
 
 ## [2026.09.26] - 2026-09-26
 

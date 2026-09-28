@@ -247,10 +247,16 @@ sensor.ups_outlet_current_consumption                     UPS Outlet plug, part 
 sensor.furnace_running_watts_daily  was unavailable — fixed 2026-07-20 (threshold + capture stamp)
 ```
 
+## MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
+
+```
+binary_sensor.mmw_office_occupied  P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 70 in while radar presence is on, holds while it is on; fails open to raw presence
+```
+
 ## MMWAVE OFFICE NODE (esphome/mmwave-office-node.yaml)
 
 ```
-sensor.office_mmwave_ambient_light         VEML7700 on PH1 (office node Rev 0.2; torch PASS 2026-09-25 on bench 0.1.1, same block); packages/mmwave_presence.yaml reads it for the lamp decision (package not yet deployed)
+sensor.office_mmwave_ambient_light         VEML7700 on PH1 (office node Rev 0.2; torch PASS 2026-09-25 on bench 0.1.1, same block); packages/mmwave_presence.yaml reads it for the lamp decision (package deployed 2026-09-26)
 sensor.office_mmwave_lux_age               s since the last lux reading; readings every 10 s, this sampled every 60 s
 sensor.office_mmwave_lux_gain              auto-ranged 0.125/0.25/1/2; covered settles at 2
 sensor.office_mmwave_lux_integration_time  auto-ranged 25-800 ms; covered settles at 800

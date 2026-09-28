@@ -1716,3 +1716,31 @@
     R13: the "re-asked" note in the question is my error. His "around 9:10
     was in the bathroom" was about the 21:10 event, which I had merged with
     this one; it was not a non-answer.
+
+- asked: 2026-09-27
+  question: >-
+    Office mmWave, P24: is there anywhere in the office where you stay put -
+    sit, or stand still - for more than about 30 seconds, MORE than 7.4 ft
+    (2.25 m) from the sensor? A second chair, a shelf, a closet, a printer,
+    anything you stand at. The bathroom fix stops the radar looking past
+    7.4 ft; the doorway reads about 9.7 ft [M: first reading of 10 of 10
+    walk-ins, 115-117 in].
+  blocks: >-
+    Writing max_move_gate 2 / max_still_gate 2 into
+    esphome/mmwave-office-node.yaml (P24), batched with P25's g0_move 70.
+    The labelled data cannot answer it: 15,372 s of "sitting at desk" and
+    "moving in office" never needed a gate past 2 [M, replay], but that covers
+    only where Bill has been while labelling. A still person past 7.4 ft would
+    read empty, and the lamp would go off after the idle timeout. Does NOT
+    block a live 2/2 test of the bathroom (it reverts at node boot).
+  answered: >-
+    2026-09-27, Bill: "the door way." The doorway is where he stays put more
+    than 30 s beyond 7.4 ft. It reads 115-117 in, gate 3 [M: first reading
+    of 11 of 11 walk-ins, 2026-09-27].
+
+    Consequence: the 2/2 cap is dropped - it would read him empty in the
+    doorway and the lamp would go off after the idle timeout. Proposed
+    instead (P24): presence may only START when a target comes inside
+    70 in, and once started any detection holds it. Bathroom nearest was
+    89.4 in [M: 112 target readings, 13 edges, 2 runs, 2026-09-27]. Not
+    built; awaits Bill.

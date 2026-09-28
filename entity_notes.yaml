@@ -111,6 +111,9 @@ binary_sensor.hwh_recirc_spc_capture_stale:
 binary_sensor.hwh_recirc_watts_out_of_control:
   group: SPC — HWH RECIRC (packages/spc.yaml)
   note: ''
+binary_sensor.mmw_office_occupied:
+  group: MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
+  note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 70 in while radar presence is on, holds while it is on; fails open to raw presence
 binary_sensor.spc_capture_stale_any:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: roll-up; attr stale_populations
@@ -844,7 +847,7 @@ sensor.monitoring_peak_watts:
   note: flat load, peak is near running
 sensor.office_mmwave_ambient_light:
   group: MMWAVE OFFICE NODE (esphome/mmwave-office-node.yaml)
-  note: VEML7700 on PH1 (office node Rev 0.2; torch PASS 2026-09-25 on bench 0.1.1, same block); packages/mmwave_presence.yaml reads it for the lamp decision (package not yet deployed)
+  note: VEML7700 on PH1 (office node Rev 0.2; torch PASS 2026-09-25 on bench 0.1.1, same block); packages/mmwave_presence.yaml reads it for the lamp decision (package deployed 2026-09-26)
 sensor.office_mmwave_lux_age:
   group: MMWAVE OFFICE NODE (esphome/mmwave-office-node.yaml)
   note: s since the last lux reading; readings every 10 s, this sampled every 60 s
