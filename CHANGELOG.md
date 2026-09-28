@@ -50,6 +50,7 @@ is calibrated against.
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, MID-RUN** (office carrier, `Ambient light` publishing, `esphome logs` connected): with the VEML7700 unplugged at the JST-SH end, the log shows a `veml7700` `Shutdown failed` warning every 10 s cycle and `Ambient light` stops publishing. On replug, readings resume **with no reboot**: `Uptime` is unbroken across the test, and a `Lux age` publish within 2 min of the replug reads **≤ 20 s** [D: `Lux age` publishes every 60 s, so two land in any 2 min and the later is ≥ 60 s after the replug; by then lux publishes at 10 s spacing, and a dark-room cycle takes ~7.2 s = 4 × 0.4 + 0.8 + 1.6 + 3.2 s walking from the configured 1/8x, 100 ms start to 2x, 800 ms, M: main.cpp 2270-2271]. Falsified by no `Shutdown failed` while unplugged, by every `Lux age` publish in those 2 min reading > 20 s, or by any `Uptime` reset. A reboot at the moment of plug-in scores MISS, not void: it would mean hot-plug is not survivable on this carrier. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 119-219, 260-278, 305-310]: a failed write or read returns the state machine to IDLE with a status warning, the next update starts over, and every auto cycle begins by rewriting ALS_CONF_0, so a chip that lost power is reconfigured | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-27 | **Office mmWave P24 filter, live since 14:31Z (`binary_sensor.mmw_office_occupied`).** Bill's next bathroom run with the office empty ("no one present"): radar presence still goes on, `sensor.mmw_office_state` reads `DETECTED_FAR`, and `mmw_office_occupied` makes **no** on-edge, so the lamp stays off. His next straight walk-in to the desk: `occupied` goes on within 5 s of the radar presence on-edge. Basis: replay of the deployed template over HA history [M: bathroom 0 occupied edges from 13 raw edges in 2 runs; walk-ins 1.7-4.3 s, n=11]. Falsified by any `occupied` on-edge during the bathroom run, or a straight walk-in that is slower than 5 s or never reaches `occupied`. Stopping in the doorway is failure mode 1 in P24, and does not count as a miss | yes — written after the deploy, before any live bathroom run | **HIT** — same day, both halves. With the office labelled "no one present" (14:42:46-14:46:48Z), Bill's bathroom trips gave 4 radar presence on-edges (14:43:32, 14:44:23, 14:45:11, 14:46:02Z). `mmw_office_state` read `DETECTED_FAR` at each one, and `mmw_office_occupied` had 0 on-edges [M, HA history]. The nearest bathroom target was 89.0 in (still; n=14 readings with the target flag on). That is 19.0 in outside the limit [D: 89.0 − 70]. On the walk-in, presence went on at 14:46:52.80Z and `occupied` at 14:46:55.20Z, 2.4 s later [D], crossing the limit at 65.7 in [M]. The lamp stayed off, but the room was already lit (EMPTY_LIT, daylight), so the lamp did not discriminate; `occupied` did. n=1 run |
+| 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | pending |
 
 **Running score: 10 hits, 5 misses, 1 falsified, 2 withdrawn.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) Six of the first seven were
@@ -67,6 +68,59 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.09.28] - 2026-09-28
+
+### mmwave office node: go-live decisions recorded; G0 move 70 made durable in firmware 0.4 (staged in `esphome/`, not yet flashed)
+
+Bill asked whether the office node is ready for real-world use. The answer was not yet, for two
+reasons: G0 = 70 was a live write that a node reboot would undo, and there was no heat-on data. He
+settled both on 2026-09-28 and answered the one open question.
+
+- **Open question answered** (`open_questions.yaml`, 2026-09-28). The 00:25:40Z "no one present"
+  occupied on-edge was Bill: "yes i entered and forgot to hit the button". So the P24 approach filter
+  has 0 false starts in 12.91 h labelled empty since it went live [M: HA history, 09-27 14:31Z to
+  09-28 12:20Z].
+- **Decisions, all Bill's**, recorded in `docs/pending.md` P24:
+  - The idle timeout stays at 10 s. The off automation waits max(10 - 30, 0) = 0 s past the radar's
+    own 30 s hold [D], so the lamp goes off about 30 s after the last detection.
+  - Lux-on stays at 30 and remains a dashboard helper.
+  - The heat-on test (collection B, design doc A6) is waived: "no curtains in the room, no plants that
+    could move with the breeze".
+- **Firmware 0.4, `esphome/mmwave-office-node.yaml` only.** The common file is unchanged.
+  - It adds `g0_move: "70"`. `push_commissioned_state` rewrites every gate threshold at each boot, so
+    the live 70 (set 09-26 22:12Z) would revert to 50 at the next reboot. The ghosts it stops read
+    11.8 in, which is inside P24's 70 in approach limit, so that filter does not stop them.
+  - Basis, P25's score: 0 of 28 empty-room radar edges opened at gate 0, against 20.1 expected at
+    G0 = 50 [D: 19 / 4.17 x 4.41]. Poisson P(0 | 20.1) = 1.9e-9 [D]. Limits: one PC, one load mix.
+  - It bumps `fw_version` from 0.2-draft to 0.4, so HA's device page itself shows the install. Before,
+    proving an install meant reading `compilation_time` (the R13 note under Rev 0.3, below).
+  - A comment under `radar_timeout_s` records the 10 s decision and corrects the stale "default 90 s"
+    above it, which stays in place.
+- **Gates.**
+  - Sandboxed in `C:\sandbox\mmwave_g0`. The compile ran on ESPHome 2026.9.0, the add-on's
+    `installed_version` read on 09-28, from PowerShell with MSYSTEM unset.
+  - Baseline: EXIT=0, fresh `main.cpp.obj`, `firmware.ota.bin` 968,608 B, config_hash 0xa336f5e0 [M].
+    These are the size and hash recorded for the Rev 0.3 build now on the node, so H: matched the
+    installed firmware before this edit.
+  - Edited: EXIT=0, fresh `main.cpp.obj`, 968,592 B, config_hash 0x7c779154. Neither log has an
+    `error:` line [M].
+  - Generated `main.cpp`, base against edited: the only code change is the pushed value, `return
+    50.0f` -> `return 70.0f`. Every other difference is a comment or a `#line` path naming the
+    sandbox folder [M: diff].
+  - R3: reversing the three anchored edits restores the original byte for byte. The file went from 77
+    to 95 lines, all CRLF, with no non-ASCII added.
+  - `cmp`: the sandbox, H: and repo copies are identical.
+- **Cleanup.**
+  - Deleted: the build tree, the sandbox `secrets.yaml` copies and the `.esphome` storage.
+  - A scan of what remains found none of this build's credentials. `wifi_ssid` does appear in
+    `open_questions.yaml` and in an HA states dump, but it is the network name, not a credential.
+  - Still there, and not this session's: `C:\esphome_build_2609\battery-bank-monitor` and its
+    storage file, which hold 4-5 of the secret values each [M: this scan]. First reported under Rev 0.3.
+- **Not live until Bill installs it** from the Device Builder. Expect no update badge (see the Rev
+  0.3 entry). The builder may auto-commit the file on sight.
+- **Close P25 when**, after that Install's boot, `number.office_mmwave_g0_move_threshold` reads 70.0
+  and the device's sw_version reads 0.4. The Install is itself the reboot the fix has to survive.
 
 ## [2026.09.27] - 2026-09-27
 

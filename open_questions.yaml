@@ -1744,3 +1744,26 @@
     70 in, and once started any detection holds it. Bathroom nearest was
     89.4 in [M: 112 target readings, 13 edges, 2 runs, 2026-09-27]. Not
     built; awaits Bill.
+
+- asked: 2026-09-28
+  question: >-
+    Office mmWave, P24: at about 8:25 PM EDT on Sunday 09-27 (00:25:40Z on
+    09-28), did anyone step into the office for about 10 seconds and then
+    leave? The office was labelled "no one present". The lamp came on at
+    00:25:43Z and went off at 00:26:24Z.
+  blocks: >-
+    Calling the P24 approach filter clean in production, and with it the
+    2026-09-28 "ready for real-world use" answer. It is the only
+    binary_sensor.mmw_office_occupied on-edge in 12.91 h labelled "no one
+    present" since the filter went live [M: HA history, 09-27 14:31Z to
+    09-28 12:20Z]. Its target came in from 115.4 in to 51.6 in and went back
+    out to 116.5 in, all within 9.6 s [M: full-rate distance series]. That is
+    the shape of a walk-in. The bathroom has never read nearer than 89.0 in
+    [M]. The data cannot tell a person from a new false-start source. Bill
+    can. If it was a person, the filter's production record is 0 false
+    starts. If not, a source reaches inside 70 in in an empty room, and the
+    filter does not stop it.
+  answered: >-
+    2026-09-28, Bill: "yes i entered and forgot to hit the button." It was a
+    person, so the P24 approach filter has 0 false starts in 12.91 h labelled
+    since it went live [M: HA history, 09-27 14:31Z to 09-28 12:20Z].
