@@ -71,6 +71,61 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.09.28] - 2026-09-28
 
+### mmwave office dashboard: updated for go-live (Bill: "all six")
+
+- **Where it lives.**
+  - The source is `dashboards/view-mmwave-office.yaml` in the mmwave-presence-node repo. It was
+    copied to `H:/dashboards/views/` the way that copy's note says: CRLF to LF, note kept, plus one
+    dated line.
+  - The office dashboard runs in YAML mode (`configuration.yaml`, `lovelace: dashboards:
+    mmwave-office`), so it went live when `dashboards/mmwave-office.yaml` was touched. Nothing
+    was pasted.
+- **The six changes.**
+  1. The "Presence and light" history adds `binary_sensor.mmw_office_occupied`, which is what the
+     lamp follows, and `switch.office_lamp`. A lamp-off like the A10 boot above now reads end to
+     end in one strip.
+  2. A new "Target distance (P24 tuning)" history covers 2 h of moving and still distance. It is
+     for the tuning Bill named, and it needs no engineering mode. **Remove it when the two series
+     are excluded from the recorder again**; P24 now says so as well.
+  3. The light gauge loses its severity bands (green 0 / yellow 18 / red 30) and its needle.
+     - The bands were a second copy of lux_on, and 18 was the provisional seed.
+     - A gauge cannot read a helper, so any band goes stale the next time the setting is changed
+       (R10). The "Turn on below" row beside the gauge is the one copy.
+  4. Two firmware numbers are now shown:
+     - `number.office_mmwave_radar_timeout` sits under the idle timeout as "Radar hold (minimum
+       total)". The lamp's hold is the larger of the two.
+     - `number.office_mmwave_g0_move_threshold` is added to Node health.
+     - Both are `simple-entity` rows, which are read-only. The firmware pushes both at every boot,
+       so a live change would be undone, as the 09-26 G0 write would have been (P25).
+     - `simple-entity` was checked in the shipped frontend 20260826.7, the version pinned by core
+       2026.9.4: create-row-element registers it, and it renders the state with no control.
+  5. The "No independent witness in this room" note and the `climate.upstairs` blower-covariate
+     card are removed. Both served collection B, which was waived at go-live. Node health keeps
+     its own section, now normal width. The removed text is in the repo at 4c97a32.
+  6. "Collection coverage" becomes "Labelled hours". The target wording goes; the four hour
+     counters stay, because the labels still score the P24 tuning.
+  - Each change carries a dated comment, and one more is in the header. No comment was removed.
+  - Unchanged:
+    - the Label tab;
+    - the "Tap what you are doing" header;
+    - the gate-energy graphs. They read `unknown` with engineering mode off [M], and their card
+      already says so; it now adds that the distances do not need engineering mode.
+- **Gates.**
+  - Sandbox `C:\sandbox\mmwave_dash`: 9 anchored edits, each with anchor count 1.
+    - Reversing them restores the repo source byte for byte: 236 -> 250 lines, all CRLF, no
+      non-ASCII added.
+    - Before it was applied, the H: rebuild (repo LF + note) reproduced the current H: copy exactly.
+      The H: copy went from 247 to 262 lines, LF.
+  - `validate_ha.py --strict`: PASS (parse-clean).
+  - R19 `_bare_boolean_words`: 0 hits on the new file. It fires on an injected `state: on`.
+  - `gate.py`: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 0 WARN, 2 INFO across 18
+    pipelines.
+  - `check_config`: `{"result":"valid"}`. It does not read YAML dashboards, so the observe step is
+    the proof. `lovelace/config` (force) for `mmwave-office` returns:
+    - both views and 5 sections;
+    - each added entity once;
+    - no `climate.upstairs`, `severity` or `needle`.
+
 ### mmwave office node: firmware 0.4 installed (P25 closed); office seeds now 30 lx / 10 s; first A10 boot observation
 
 Bill, 2026-09-28: "flashed. sat still at boot and lamp went off. once i moved lamp cam on, so that

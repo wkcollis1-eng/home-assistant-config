@@ -429,6 +429,9 @@ who stays still: not passed, not failed. Cost at idle 10: one lamp-off per
 node boot while someone sits still. The node ran from 09-26 14:20:22Z to
 this Install with no boot [M].
 Still open here: the tuning Bill named, then the recorder re-exclusion.
+With the re-exclusion, also remove the "Target distance (P24 tuning)"
+card from the office view (repo source first, then the H: copy per its
+note); after the re-exclusion it draws nothing. Added 2026-09-28.
 ```
 
 ---
