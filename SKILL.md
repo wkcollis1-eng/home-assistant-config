@@ -274,6 +274,9 @@ V-BATT-3: Voltage spread — flag if inter-cell spread >50 mV at rest
 V-BATT-4: Efficiency — flag if <88% (normal seasonal variation 88–92%)
 NOTE: Eco Mode switch (Dec 23) created −9 mV baseline shift — instrumentation
       artifact, not battery change. Account for this in voltage comparisons.
+NOTE: From 2026-09-28 20:33 EDT the monitor's own draw is metered (TB1 GND
+      moved onto the shunt): expect ~25 mA idle [M] and a V-BATT-2 flag.
+      The 13.3±4.5 mA band predates the move; re-baselining it is Bill's call.
 ```
 
 ### README Update Triggers
