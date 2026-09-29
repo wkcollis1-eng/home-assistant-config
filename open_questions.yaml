@@ -1767,3 +1767,238 @@
     2026-09-28, Bill: "yes i entered and forgot to hit the button." It was a
     person, so the P24 approach filter has 0 false starts in 12.91 h labelled
     since it went live [M: HA history, 09-27 14:31Z to 09-28 12:20Z].
+
+- asked: 2026-09-28
+  question: >-
+    Battery-bank noise study, 2026-09-28: how was each short made? At the
+    shunt (15:55-16:02 EDT), were the two sense leads taken off the shunt and
+    joined to each other, or both put on one shunt sense screw? At the
+    breakout (16:05-16:09), were the leads left in the terminal block with a
+    jumper added across VIN+/VIN-, or taken out first?
+  blocks: >-
+    Reading the DC levels of P-2a/P-2b. P-2b read +15.26 mA (5.7 uV) and
+    drifted -1.21 mA/min [M: 180 2-s samples, 15:55:33-16:01:33 EDT]; the
+    INA228 offset is +/-1 uV max [S: SLYS021A 6.5]. A pair joined off the
+    shunt floats in common mode, which would make that level meaningless; a
+    pair on one screw keeps it referenced. Same for P-2a's residual 0.82 mA
+    2-s scatter [M: 90 samples]: a jumper with the leads still in leaves a
+    divided lead-loop voltage at the input. The noise-path verdict (lead
+    loop) does not depend on this answer.
+  answered: >-
+    2026-09-28, Bill: "at the shunt held a wire across both screws with my hand.
+    leads still attached to the shunt. at the breakout board hand held a wire on
+    the TB screws to Vin+/Vin-."
+
+    R13, my error: "blocks:" above says the noise-path verdict does not depend on
+    this answer. It does. The wire at the shunt sat IN PARALLEL with the 375 uOhm
+    shunt, which a hand-held wire cannot short: even 10 AWG copper with zero-ohm
+    contacts must be under 11.4 cm just to EQUAL it, which only halves the signal
+    [D: 1.724e-8 Ohm.m x 0.114 m / 5.261 mm2 = 373 uOhm]. So P-2b was a null test
+    and path 3 (through the shunt) is NOT excluded. What stands: the noise enters
+    upstream of the breakout TB (path 1 or 3), and P-2a's residual is only an
+    upper bound on path 2, because on Rev 1.1 (no input filter) a wire across the
+    TB with the leads in divides the lead-loop voltage rather than zeroing it.
+    P-2b's step of +27.04 mA [D: +15.17 - (-11.87), CHARGE means] = +10.1 uV
+    [D: x 375 uOhm] cannot be diverted current, which pulls the reading toward
+    zero and not past it; the wire added an EMF [I: thermocouple at hand-warmed
+    contacts; falsified if a clamped, hands-off wire shows the same step after
+    5 min]. Redo P-2b with one sense lead moved onto the other lead's screw.
+
+- asked: 2026-09-28
+  question: >-
+    Battery-bank noise study, twist test (P-4), 2026-09-28: at the breakout
+    terminal block right now, is any bare copper (a stripped end or a stray
+    strand) touching across the VIN+ and VIN- screws? And what happened at
+    about 17:15 EDT, when the monitor lost power for about 7 minutes: was it
+    unplugged, or did a power wire come loose while you worked?
+  blocks: >-
+    Reading the twist result, and calling the monitor healthy. Since the
+    reboot the shunt channel sits at the quantization floor: 2-s diff-sd
+    0.23 mA [M: 150 samples, 17:23:33-17:28:33 EDT] against a floor of
+    0.22 mA [D: 0.763 mA LSB / sqrt(12)] and a baseline of 1.81 mA [M: 810
+    samples, 16:21:33-16:48:33], F=0.02 p=4e-100 (df 148,808). That is
+    quieter than the hand-held breakout short, 0.82 mA [M: 90 samples,
+    P-2a]. It reads -2.37 mA [M], where the monitor's own draw, which
+    returns through the shunt, is 7.4 +/- 2.4 mA [M: repo docs/faq.md, 41
+    days]. The bus-voltage channel is unchanged (diff-sd 0.082 vs 0.074 mV
+    [M]), so the chip as a whole has not gone quiet. A twist that removed
+    all pickup and a strand shorting the input look the same in this data.
+    If it is a short, the monitor would also read zero for a real discharge,
+    so the SOC could not see an outage. Before the power loss (17:14:01-
+    17:15:33) the channel read -5.82 mA with 1.29 mA diff-sd [M: 46
+    samples], and the bus voltage swung over 186.52 mV [M] against 1.37 mV
+    at baseline, so something in the supply or VBUS wiring was moving.
+  answered: >-
+    2026-09-28, Bill: "Power unit off to do the wiring work". So the
+    17:15-17:22 EDT outage was deliberate, and the twist was made during it.
+    The bare-copper half was answered by a load test, not by looking. Bill
+    switched on the inverter (17:31:10, -0.297 A [M]) and then an LED light
+    (17:32:24, -1.052 A [M]). The input is live and reads at full scale: the
+    LED step dropped the bus 1.56 mV for 0.753 A, which is 2.07 mOhm [D]. The
+    commissioning apparent-Ri samples were 2.185 and 1.818 mOhm [M: n=2,
+    commissioning report F5]. A strand dividing the signal by 3 would read
+    about 6 mOhm.
+
+    So the post-twist 2-s scatter of 0.23 mA is real. Twisting the leads at
+    the breakout (P-4) took the shunt channel down to its quantization floor.
+    Just before the twist it was 1.29 mA [M: 46 samples, 17:14:01-17:15:33,
+    shunt leads back on, untwisted], F=0.032 p=1.2e-55 (df 148,44), and at
+    baseline it was 1.81 mA. Path 1 (lead-loop pickup) dominated, and on
+    Rev 1.1 routing alone removes it. The one confound is the power cycle,
+    which re-ran the same firmware setup [I: falsified if untwisting brings
+    the scatter back with nothing else changed].
+
+    R13, my error: in chat I attributed 0.7-1.1 mA of the P-2b redo's 2-s
+    scatter to the shunt path [D: quadrature, one-screw vs baseline]. The
+    twisted input now carries the monitor's own current through the shunt
+    and shows none of it. So that scatter was most likely lead-loop pickup,
+    changed by the one-screw landing, and not current through the shunt.
+
+    ENERGY register: over 4 clean load minutes (17:32:34-17:36:34) it summed
+    14.143-14.179 W, against 14.176-14.238 W from the 2-s V x |I| [M], and
+    CHARGE matched the 2-s current within 0.6 mA [M]. ENERGY accumulates |P|
+    during a real discharge, which refutes the clamp model directly. It reads
+    0.28% low [D: paired t=5.55, df 3, p=0.012]; the cause is not established.
+
+- asked: 2026-09-28
+  question: >-
+    Battery-bank twist test (P-4), 2026-09-28: how much of the VIN+/VIN- sense
+    lead run is twisted now? Only the last few cm into the breakout terminal
+    block, or the whole run from the shunt? And was the pair also moved away
+    from the buck (U3) and its capacitor C4, or only twisted in place?
+  blocks: >-
+    The write-up's statement of WHERE the pickup entered. The Rev 2 note
+    (s2, path 1) names the untwisted fan-out beside U3; its s0 lists pickup
+    on the external shunt leads as "not fixed" by Rev 2. Twisting took the
+    2-s scatter from 1.29 mA [M: 46 samples, 17:14:01-17:15:33 EDT] to the
+    0.23 mA quantization floor [M: 150 samples, 17:23:33-17:28:33]. If only
+    the breakout end was twisted, the fan-out was the pickup site and Rev 2's
+    relocation addresses it; if the whole run was twisted, the external run
+    cannot be excluded.
+  answered: >-
+    2026-09-28, Bill: "wire is twisted pair. I twisted the last couple inches
+    inside the enclosure. Moved away from the pololu as much as possible about
+    .25 inch off of the buck."
+
+    So the external run was already a twisted pair. P-4 changed only the last
+    couple of inches inside the enclosure: the untwisted fan-out became twisted
+    and moved to about 6.4 mm off the buck [D: 0.25 in x 25.4]. The pickup
+    therefore entered in that fan-out beside U3 (Rev 2 note s2, path 1), which
+    Rev 2's relocation and routed pair address. The test changed twist and
+    distance together, so it does not separate their shares.
+- asked: 2026-09-28
+  question: >-
+    Battery-bank monitor, as built: where does the 18 AWG wire from the
+    monitor's TB1 GND land? On the negative busbar (load side of the shunt,
+    as wiring summary v1.10 L66/L168 designs it) or on the shunt's battery-side
+    bolt / battery negative? And does anything else conductive join the monitor
+    to battery negative: the DS18B20 probe body touching a pack case or
+    terminal, an antenna coax shield, the enclosure or a mounting screw?
+  blocks: >-
+    Any statement of what the post-twist idle reading contains, and any
+    correction to docs/faq.md's 7.4 mA "monitor draw". By spec the monitor
+    alone draws 21.2-27.7 mA from the bank [D: 75.6-93.1 mA at 3.3 V from the
+    Seeed XIAO ESP32C3 test p1 (74 mA), ESP32-C3 DS v2.1 Table 5-7 (RX 84/87
+    mA), INA228 SLYS021A s6.5 (0.64-0.75 mA) and the LEDs (~0.7 mA), times
+    3.3 V, over eta 0.82-0.87 (Pololu 5592 efficiency graph), over 13.50 V],
+    and the Wi-Fi driver reports power save NONE at 11.0 dBm [M: HA readback
+    sensors, since 17:22:36 EDT]. The INA228 reads -2.54 mA [M: CHARGE,
+    17:43:36-18:41:36 EDT]; with the +/-2.67 mA offset limit [S: SLYS021A p1,
+    1 uV over 375 uOhm] the true value is at most 5.2 mA [D]. At least 16 mA
+    of the spec draw is not seen. A return that skips the shunt would explain
+    it; so would a XIAO drawing far below its spec. The answer decides which.
+  answered: >-
+    2026-09-28, Bill: "TB1 GND goes to the negative busbar. nothing else.
+    ds18b20 goes to terminals on the pcb out of the enclosure and is placed
+    on top of the battery (#3 in the middle)." Consequence: as built matches
+    the design as stated (wiring summary v1.10 L66/L168: GND on the negative
+    busbar), and there is no second conductive path. The contradiction
+    stands: after the twist, the OLED lit-to-dark steps were -0.09 mA at
+    17:28:46 EDT (30-s blocks 9 vs 4, Welch p=0.18) and -0.09 mA at 17:42:10
+    (2-s samples 18 vs 150, Welch p=0.074) [M: HA history of the battery
+    current, 2026-09-28], against +2.5 to +6 mA expected if the OLED's
+    current passed through the shunt [D]. Which side of the shunt that
+    busbar is on is asked in the next entry but one. P-1 decides.
+    Correction, same day (R13): "as built matches the design" held only for
+    where the wire lands. The busbar is on the battery side of the shunt
+    (shunt-location answer, two entries on), so the design's premise that
+    a GND on that busbar is metered does not hold, and P-1 no longer
+    decides anything.
+- asked: 2026-09-28
+  question: >-
+    Battery-bank monitor, for P-1 (a meter in series with the monitor's
+    supply): which multimeter, make and model as printed on it? Does its mA
+    input have its own fuse?
+  blocks: >-
+    Quoting P-1's accuracy (R16: identity before spec). A typical handheld mA
+    range is 0.5-1 % plus a few counts [I], about +/-0.2-0.5 mA at 25 mA [D],
+    but that is not this meter's spec until the model is known.
+  answered: >-
+    2026-09-28, Bill: "cheap amazon multimeter. not fused." No model, so no
+    spec is quoted for it (R16). Two consequences for P-1. The meter must
+    not replace F1 (the F1-holder method): with F1 pulled, nothing on the
+    board limits a fault current through its unfused mA input. And after
+    the shunt-location answer (next entry) P-1 no longer decides anything;
+    it only sizes the monitor's unmetered draw, where telling 5 mA from
+    25 mA is enough and a cheap meter will do.
+- asked: 2026-09-28
+  question: >-
+    Battery-bank monitor, follow-up to the TB1 GND answer: which side of the
+    shunt is that negative busbar on? Do the five battery negatives land on
+    the shunt's battery-side bolt (so the busbar is the load side, as
+    designed), or on the negative busbar itself? And is anything plugged
+    into the XIAO's USB-C port?
+  blocks: >-
+    Any explanation of why the shunt does not follow the monitor's own load.
+    Four changes to that load moved the reading far too little or the wrong
+    way: Wi-Fi radio off +2.32 mA against about +16 to +21 mA expected [D: a
+    56-74 mA drop at 3.3 V, RX 84/87 mA in ESP32-C3 datasheet v2.1 Table 5-7
+    to 13-28 mA in Table 5-8, times 3.3 V, over eta 0.85, over 13.5 V]; a
+    1 ms loop +1.70 mA, wrong sign; OLED white frame -1.58 vs black frame
+    -1.30 mA [M: docs/soc-noise-deep-dive.md s10.2]; OLED lit to dark -0.09
+    mA twice [M: 2026-09-28, see the Q4 answer above]. If the battery
+    negatives land on the busbar, the monitor's return skips the shunt and
+    none of the four would register, which is what was seen [I: falsified if
+    the negatives land only on the shunt's battery-side bolt and nothing is
+    in the USB port].
+  answered: >-
+    2026-09-28, Bill: "shunt is on the cable from the bus bar to the
+    inverter. nothing in the usb-c on the xiao." Read as: the five battery
+    negatives land on the negative busbar, and the shunt sits only in the
+    inverter's negative cable. Consequence: the monitor's return (TB1 GND
+    on that busbar) never passes the shunt. That explains all four load
+    tests above and the 16 mA or more of spec draw not seen. It contradicts
+    wiring summary v1.10 L166-170 ("Monitor self-draw is captured ... No
+    SOC blind spot"), docs/faq.md ("its return through the shunt"; the
+    7.4 mA figure "is the monitor"), esphome/battery-bank-monitor.yaml
+    L934-935 and L1847-1854. The shunt measures the inverter cable only;
+    what else it misses is the next entry.
+- asked: 2026-09-28
+  question: >-
+    Battery-bank, follow-up to the shunt-location answer: (a) with the
+    inverter switched off, is its DC side still connected to the bank (no
+    DC breaker or disconnect open)? (b) What charges the bank, and where
+    does the charger's negative land: through the shunt (for example an
+    inverter/charger on the same cable) or straight onto the negative
+    busbar? (c) Is anything else on the negative busbar besides the five
+    batteries, the shunt cable and the monitor's TB1 GND?
+  blocks: >-
+    (1) What the idle shunt reading is. The monitor is not in it, so the
+    post-twist -2.54 mA [M: CHARGE, 17:43:36-18:41:36 EDT] is inverter
+    standby draw plus INA228 DC error; (a) splits them. (2) Whether the
+    Coulomb counter sees charging at all, and so whether the monitor's own
+    unmetered draw, 21.2-27.7 mA at the bank [D: spec budget] or 0.51-0.66
+    Ah per day [D: times 24 h], is supplied by a charger or taken from the
+    bank unseen. (3) The fix: move TB1 GND onto the shunt's inverter-side
+    bolt, or move the shunt into the bank's common negative. Nothing is
+    built until this is answered.
+  answered: >-
+    2026-09-28, Bill: "Q7-a, yes b, shunt c, only batteries." Read as: (a)
+    switched off, the inverter's DC side stays connected, so the idle
+    reading includes its off-state draw; (b) the charger's negative goes
+    through the shunt, so charging is metered (which charger was not
+    stated and is not needed); (c) only the five batteries are on the
+    negative busbar. Before answering, Bill moved TB1 GND onto the shunt's
+    inverter-side bolt (monitor back online 20:33:29 EDT), so from then the
+    monitor is metered too, and nothing on the bank goes unmetered but the
+    cells' own self-discharge.
