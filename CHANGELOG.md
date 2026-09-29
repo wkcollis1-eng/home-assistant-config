@@ -112,7 +112,7 @@ question" —** the answer was one line away and settled it in one sentence.
     `//` comments, and the line count there is kept. No comment was removed; each superseded
     claim carries an R13 note.
   - The repo's V1.29, which replaces V1.28 at the next Install, got the same edits
-    (Lifepo4-Battery-Banks PR #8).
+    (Lifepo4-Battery-Banks PR #9; #8 was merged before the move).
   - **Next compile:** ESPHome writes `#line` directives that point at YAML lines, so the added
     comment lines change the line numbers in ESP_LOG output. Nothing else changes.
   - **Not flashed.** The running image is unchanged. A sandbox build on ESPHome 2026.9.0
