@@ -34,14 +34,8 @@
 #   GPIO6  (D4) — I2C SDA  → INA260 socket SDA
 #   GPIO7  (D5) — I2C SCL  → INA260 socket SCL
 #   GPIO10 (D10)— 1-Wire   → DS18B20 DQ (TB2, 3-pin JST-XH: 3V3 / DQ / GND)
-#   GPIO5  (D3) — ALERT in → INA260 socket pin 5 (ALERT), via on-board R2 (10K)
+#   GPIO3  (D1) — ALERT in → INA260 socket pin 5 (ALERT), via on-board R2 (10K)
 #                             pull-up to 3V3. CHANGED FROM GPIO20 on the breadboard.
-#                             V1.21 CORRECTION (2026-10-01): V1.9.2-V1.20 read GPIO3
-#                             (D1) here. The PCB's custom XIAO footprint NAMES this pad
-#                             "GPIO3" but places it at the D3 position (opposite D10);
-#                             Bill confirmed ALERT reaches D3 = GPIO5 (open_questions.yaml,
-#                             2026-10-01). GPIO3 was never connected. The V1.10/V1.11
-#                             history below names the pin the firmware READ (GPIO3).
 #                             GPIO3 is an RTC-domain pin (GPIO0-GPIO5), so it CAN wake
 #                             the C3 from deep sleep. V1.10 used it for event-driven
 #                             wake; V1.11 BACKED THAT OUT (see changelog). GPIO3 is now
@@ -49,7 +43,6 @@
 #                             NOT shared with deep_sleep. Recovery is timer-wake (§-150)
 #                             and the run_duration watchdog, neither of which uses GPIO3.
 #   GPIO20 (D7) — now SPARE (was the breadboard ALERT pin; left unconnected on PCB)
-#   GPIO3  (D1) — SPARE, unconnected on the PCB (read as ALERT V1.9.2-V1.20 in error)
 #
 # Power: TB1 (BATTERY +/-) → F1 (5x20 mm 1A slow-blow) → C4 47uF / C5 0.1uF →
 #        D24V7F3 VIN; VOUT (3.3 V) → 3V3 rail (XIAO 3V3, INA VCC) with C1 10uF +
@@ -371,15 +364,6 @@
 #               block noise is sampling -- [I], no behaviour depends on it).
 #           (g) Log line on survival recovery that no recharge-step Ri is captured
 #               for that outage -- correct behaviour, previously silent.
-#
-#   V1.21 - ALERT input GPIO3 -> GPIO5 (2026-10-01). The UPS-Monitor-THT PCB
-#           routes INA260 ALERT (socket pin 5, R2) to XIAO D3 = GPIO5; the custom
-#           footprint names that pad "GPIO3", and V1.9.2-V1.20 read GPIO3 (D1),
-#           which is unconnected. Found from UPS-Monitor-THT.kicad_pcb pad
-#           positions; confirmed by Bill (D3). Consequence: "INA260 Alert" could
-#           not fire through V1.20, and the V1.10 ALERT-wake, if it ever ran on
-#           this PCB, could not have woken it (the V1.11 back-out reasons stand
-#           on their own). No other change; entity id unchanged.
 
 substitutions:
   device_name: ups-monitor
@@ -554,7 +538,7 @@ esphome:
   comment: ${device_description}
   project:
     name: "wkcollis1.ups-monitor"
-    version: "1.21"
+    version: "1.20"
   on_boot:
     # ── Priority 600: wake-cause log — V1.13+: NO INA config writes here ───
     # V1.14 comment correction: the "Step 1 — restore 0x6127 / Step 2 — 10 ms
@@ -925,7 +909,7 @@ esphome:
       then:
         - logger.log:
             level: INFO
-            format: "UPS Monitor V1.21 boot complete -- INA260 @ 0x40 (platform-configured, AVG=4, paired 5 s V/I blocks), DS18B20 on GPIO10, timer-wake + run_duration watchdog + stale-data watchdog + onset/recharge Ri capture (one-shot) + settled-step Apparent Ri (windowed gate)"
+            format: "UPS Monitor V1.20 boot complete -- INA260 @ 0x40 (platform-configured, AVG=4, paired 5 s V/I blocks), DS18B20 on GPIO10, timer-wake + run_duration watchdog + stale-data watchdog + onset/recharge Ri capture (one-shot) + settled-step Apparent Ri (windowed gate)"
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -2780,18 +2764,13 @@ binary_sensor:
       - delayed_off: 30s
 
   # --------------------------------------------------------------------------
-  # INA260 ALERT pin — GPIO5 (XIAO D3) on the UPS-Monitor-THT Rev 1 PCB.
-  # V1.21 (2026-10-01): was GPIO3 (D1) through V1.20, a pin the PCB never connects
-  # (the footprint names the D3 pad "GPIO3"; Bill confirmed D3). Through V1.20 this
-  # sensor read INPUT_PULLUP on an open pin, so it COULD NOT FIRE: its "off" history
-  # is not evidence that ALERT never asserted. Fault test after install: hold the
-  # ALERT test point to the GND test point >200 ms -> ON + WARN log; release -> OFF.
+  # INA260 ALERT pin — GPIO3 (XIAO D1) on the UPS-Monitor-THT Rev 1 PCB.
   # Open-drain active-low. The PCB has an on-board 10K pull-up to 3V3 (R2), so the
   # line is held high in hardware; the internal INPUT_PULLUP below is redundant
   # (kept as belt-and-suspenders, harmless). Adafruit #4226 has no pull-up of its
   # own — R2 supplies it.
   #
-  # V1.11 — GPIO3 (GPIO5 from V1.21) is now a SINGLE-OWNER passive input. Event-wake is backed out, so
+  # V1.11 — GPIO3 is now a SINGLE-OWNER passive input. Event-wake is backed out, so
   # this pin is no longer the deep_sleep wakeup_pin and allow_other_uses is REMOVED
   # (no shared-pin registry coupling). No INA260 alert (BOL/BUL) is ever configured
   # by the firmware, so in normal operation and during survival sleep this line
@@ -2805,7 +2784,7 @@ binary_sensor:
     name: "INA260 Alert"
     id: ina260_alert
     pin:
-      number: GPIO5
+      number: GPIO3
       mode: INPUT_PULLUP
       inverted: true
     device_class: problem
@@ -2815,7 +2794,7 @@ binary_sensor:
       then:
         - logger.log:
             level: WARN
-            format: "INA260 ALERT held LOW >200ms on GPIO5 -- unexpected (no alert configured); possible INA260/I2C fault"
+            format: "INA260 ALERT held LOW >200ms on GPIO3 -- unexpected (no alert configured); possible INA260/I2C fault"
 
   # --------------------------------------------------------------------------
   # Subsystem health — monitor the monitor
