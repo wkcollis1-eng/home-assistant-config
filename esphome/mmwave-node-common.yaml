@@ -584,10 +584,24 @@ sensor:
     # throttle; it is not established for this stream until re-tested.
     # Energies and detection_distance keep the throttle: no logic reads them
     # (recorder-excluded, packages/mmwave_presence.yaml).
+    # CORRECTED 2026-10-02, same day (R13): the comment above was wrong as
+    # first flashed. Leaving `filters:` out does NOT remove the throttle:
+    # ESPHome 2026.9.1 ld2410/sensor.py:37-45 gives these sensors DEFAULT
+    # filters, timeout 1000 ms (last) + throttle_with_priority 1000 ms, and
+    # an absent `filters:` gets them. The old explicit `throttle: 1s` had
+    # been REPLACING that default. Measured after the 12:52:57Z flash: the
+    # smallest gap between moving-distance readings 0.915 s, median 1.10 s
+    # [M, n=213 gaps, 12:52:57-13:02:35Z] - still once a second. My compile
+    # check counted only `ThrottleFilter` in main.cpp and so missed
+    # ThrottleWithPriorityNanFilter. An explicit empty list replaces the
+    # default. Check main.cpp for TimeoutFilterLast and ThrottleWithPriority
+    # too, never ThrottleFilter alone.
     moving_distance:
       name: "Moving distance"
+      filters: []
     still_distance:
       name: "Still distance"
+      filters: []
     moving_energy:
       name: "Moving energy"
       id: move_energy
