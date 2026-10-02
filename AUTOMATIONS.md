@@ -70,7 +70,7 @@ mmw_family_alarm_rearm                 state:binary_sensor.mmw_family_quiet_hour
 mmw_family_cal_label_autoclear         state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_family_cal_label_changed           state:input_select.mmw_family_label                                   single     mmwave_presence.yaml
 mmw_family_override_detect             state:switch.family_room,switch.family_room_2 +1 more                 single     mmwave_presence.yaml
-mmw_family_presence_off                state:binary_sensor.family_mmwave_presence +1 more                    single     mmwave_presence.yaml
+mmw_family_presence_off                state:binary_sensor.family_mmwave_presence +2 more                    single     mmwave_presence.yaml
 mmw_family_presence_on                 state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_family_quiet_alarm                 state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_label_contradicted_alert           state:binary_sensor.mmw_family_label_contradicted                     single     mmwave_presence.yaml

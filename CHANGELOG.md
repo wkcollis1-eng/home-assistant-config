@@ -77,6 +77,83 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: Ecobee outage policy - after 5 min the radar decides alone - and the blip fix
+
+- **Bill's decision.** On what the lamps should do when HomeKit loses the Ecobee, Bill chose:
+  "after 5 min, let the radar decide alone". He asked: "so radar and ecobee have to agree room is
+  empty to turn lights off, correct?" Yes.
+  - Lamps-off needs the radar quiet for its off-wait AND the Ecobee `off`.
+  - The one exception is an Ecobee outage (`unavailable` or `unknown`) lasting 5 min or more. After
+    that, the radar decides alone.
+  - Lamps-on is radar-only and unchanged.
+- **What changed in `mmw_family_presence_off`** (`packages/mmwave_presence.yaml`).
+  - The repo source was edited, and the H: copy was derived from it with `make_full_pkg.py`, not
+    merged by hand.
+  - The Ecobee-quiet trigger is now `id: ecobee_quiet`. A DEFECT note at that trigger records my
+    defect (see below).
+  - New trigger `ecobee_lost`: `main_floor_motion` goes to `unavailable`/`unknown` and stays there for
+    `&mmw_family_ecobee_grace "00:05:00"`. It releases a lamp that the outage was holding.
+  - Ecobee condition:
+    - was: `off` alone;
+    - now: `off`, OR `unavailable`/`unknown` for `*mmw_family_ecobee_grace`.
+    - The grace period has one definition, used by both the trigger and the condition (R10).
+  - New template condition, the blip filter. When `ecobee_quiet` fires on a return from
+    `unavailable`, the run continues only if the outage lasted more than 5 s. Every other trigger
+    passes.
+- **The blip defect, fixed (mine, R13).** The entry below records it: `from: unavailable` fired on
+  every 51-172 ms HomeKit blip and cleared `mmw_family_manual_override`.
+  - The fix differs from the `from: ["on", "unknown"]` that entry named. Dropping `unavailable` from
+    `from:` would also stop the Ecobee's return to `off` after a real short outage from releasing the
+    lamp.
+  - So `unavailable` stays, and the template filter drops returns from outages of 5 s or less.
+  - The longest blip in 10 days was 0.172 s [M: HA history, 2026-09-22 to 10-02, n=183 blips].
+- **The cost, stated plainly.** The radar cannot see the kitchen working area: it starts at 7.56 m
+  and the radar's last gate ends at 6.75 m [D: drawing A101, entry below].
+  - In a HomeKit outage longer than 5 min, the lamps can be turned off on someone working in the
+    kitchen while the radar sees nothing.
+  - In 10 days HomeKit never stayed unavailable longer than 0.172 s [M]. That window cannot say how
+    often a longer outage happens (R11).
+- **Gates.**
+  - The repo edit was made by script, inside this automation's span only: 99957 -> 102563 B,
+    +45 lines [M]. Undoing the three edits in memory gives back the snapshot byte for byte (R3).
+  - Sandbox `C:\sandbox\ha_1002`: validate "PASS (parse-clean)"; audit "0 FAIL, 1 WARN, 2 INFO
+    across 18 pipelines".
+  - Template, 8 cases in a jinja2 sandboxed environment: ALL PASS. The cases:
+    - blips of 70 ms and 172 ms: blocked;
+    - an outage of exactly 5 s: blocked;
+    - a real 60 s outage: passes;
+    - on -> off and unknown -> off: pass;
+    - `ecobee_lost` and the radar trigger: pass.
+  - HA's own `/api/template` renders `timedelta.total_seconds()` (0.07) [M], so HA's template
+    sandbox allows the call.
+  - R2 faults. Each one was injected and each one fired:
+    - a misspelt entity in the new nested condition: "WARN entity-ref-unresolved ...
+      main_floor_motoin", "0 FAIL, 2 WARN, 2 INFO";
+    - a broken alias: "FAIL [yaml-parse] found undefined alias 'mmw_family_ecobee_graceX' (line
+      1576)";
+    - a trigger-id typo: "TEMPLATE CASES: 3 FAIL".
+  - The restored tree was silent.
+  - H: deployed at 101329 B, identical to the derived file [M: cmp].
+  - `gate.py`: "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines", "NOT READY".
+    - Its 1 NEW finding is the standing open-question WARN, not this change.
+    - The audit baseline was not re-baselined. That is Bill's call.
+  - `check_config`: {'result': 'valid', 'errors': None, 'warnings': None}.
+  - `automation.reload` at 13:25:13: 131 automations, 0 unavailable [M].
+  - The loaded config, read back over the websocket [M]:
+    - 3 triggers: the radar trigger (no id), `ecobee_quiet`, and `ecobee_lost` with `for: 00:05:00`;
+    - 6 conditions.
+- **Limits.**
+  - Only the session's scratchpad test (`outage_check.py`, not kept in any repo) catches a
+    trigger-id typo. That means `ecobee_quiet` misspelt in the trigger or in the template.
+    - `validate_ha.py` and `ha_audit.py` both pass it: it parses and every reference resolves.
+    - The filter then lets every blip through, and the defect is back.
+  - Not yet proven live:
+    - a blip trace that stops at the template condition (expected within hours: 5-25 blips a day
+      [M]);
+    - `ecobee_lost` firing, which needs a real 5-min outage;
+    - a lamps-off run with the latch on.
+
 ### mmwave family: the kitchen is beyond the radar's reach (drawing A101), and the Ecobee trigger's blip defect fired live
 
 - **Node position.** Bill: "Yes the family node is on the mantel, facing west down the room". This
