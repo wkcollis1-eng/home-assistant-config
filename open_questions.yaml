@@ -2053,3 +2053,33 @@
     ups-monitor.yaml's "INA260 Alert" on GPIO3 has watched an unconnected
     pin (INPUT_PULLUP, always high) and could not fire. Any INA228 port onto
     the Rev 2 board keeps ALERT on GPIO5, as the bank does.
+
+- asked: 2026-10-02
+  question: >-
+    Office mmWave: stand still for about 30 s on the spot ~6 ft from the
+    unit where you want the lamp to come on, and tell me the clock time (or
+    what the "Target distance (P24 tuning)" card reads there). Is that spot
+    on your path in from the doorway, or off to one side?
+  blocks: >-
+    Bill asked 10-02 for the lamp to light at ~6 ft, not ~3 ft. Nothing
+    changes until the radar's reading at that spot is known. (1) Raising
+    approach_in above 70 in: the nearest bathroom reading is 89.0 in [M,
+    09-27 runs], so 84 in leaves 5 in of margin and 89 in or more re-opens
+    P24. (2) Cutting the 1 s throttle on the distance sensors
+    (esphome/mmwave-node-common.yaml:575-582), which costs recorder rows.
+    The lamp follows "occupied" by 0.28-0.40 s [M, n=17]; the delay is in
+    reaching 70 in, median 2.51 s from presence on a walk-in [M, n=41,
+    09-28..10-02], plus up to 1 s of throttle.
+  answered: >-
+    2026-10-02, Bill: "~8:24, moving 117/still 123", and the spot is on his
+    path in from the doorway. HA history agrees: standing there 12:23:46-
+    12:25:34Z the radar read moving 112.6-118.1 in (median 116.5, n=7) and
+    still 119.3-132.3 in (median 122.0, n=48) [M]. That is the doorway's own
+    reading (first reading of walk-ins 115-117 in, P24) and farther than the
+    bathroom's nearest, 89.0 in [M]. So no approach_in can light the lamp at
+    that spot without letting the bathroom start presence again: on this
+    radar, distance cannot separate them there. Also seen, n=1: standing
+    still there, the radar lost him for 47 s (no reading 12:23:49.4-
+    12:24:36.6Z; presence off 12:24:19.58Z, back as DETECTED_FAR) [M].
+    Nothing built. The smaller gains left (approach_in 84, a throttle cut)
+    are Bill's call; see P24.

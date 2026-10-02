@@ -51,6 +51,7 @@ is calibrated against.
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-27 | **Office mmWave P24 filter, live since 14:31Z (`binary_sensor.mmw_office_occupied`).** Bill's next bathroom run with the office empty ("no one present"): radar presence still goes on, `sensor.mmw_office_state` reads `DETECTED_FAR`, and `mmw_office_occupied` makes **no** on-edge, so the lamp stays off. His next straight walk-in to the desk: `occupied` goes on within 5 s of the radar presence on-edge. Basis: replay of the deployed template over HA history [M: bathroom 0 occupied edges from 13 raw edges in 2 runs; walk-ins 1.7-4.3 s, n=11]. Falsified by any `occupied` on-edge during the bathroom run, or a straight walk-in that is slower than 5 s or never reaches `occupied`. Stopping in the doorway is failure mode 1 in P24, and does not count as a miss | yes — written after the deploy, before any live bathroom run | **HIT** — same day, both halves. With the office labelled "no one present" (14:42:46-14:46:48Z), Bill's bathroom trips gave 4 radar presence on-edges (14:43:32, 14:44:23, 14:45:11, 14:46:02Z). `mmw_office_state` read `DETECTED_FAR` at each one, and `mmw_office_occupied` had 0 on-edges [M, HA history]. The nearest bathroom target was 89.0 in (still; n=14 readings with the target flag on). That is 19.0 in outside the limit [D: 89.0 − 70]. On the walk-in, presence went on at 14:46:52.80Z and `occupied` at 14:46:55.20Z, 2.4 s later [D], crossing the limit at 65.7 in [M]. The lamp stayed off, but the room was already lit (EMPTY_LIT, daylight), so the lamp did not discriminate; `occupied` did. n=1 run |
 | 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | **HIT** — same day. Bill installed at 12:52Z; the node was back at 12:52:48Z with uptime 3.04 s [M]. `number.office_mmwave_g0_move_threshold` read 70.0 after the boot and at 12:54:30Z, and sw_version reads `0.4 (ESPHome 2026.9.0)`, compiled 08:45:46 -0400 [M: device registry, ESPHome diagnostics]. Weaker than it reads: the radar kept power through the OTA and already held 70, so this discriminates only if the boot push ran, which HA cannot show when the value is unchanged. The first boot after a live G0 change is the direct test, and the "any later node boot" clause stays live |
+| 2026-10-02 | **Office mmWave distance throttle removed** (`esphome/mmwave-node-common.yaml`, `moving_distance` + `still_distance`; compiled on 2026.9.1, Bill flashes). Predicts: (a) with the office labelled empty, bathroom trips give no bathroom target at 70 in or nearer and 0 occupied on-edges, the margin so far being 89.0 in [M] measured THROUGH the 1 s throttle, so a bound, not a fact, for the full stream; (b) walk-ins cross 70 in sooner than the 2.51 s median [M, n=41], by up to 1 s [D: the throttle window]; (c) distance rows/day rise from 54,039 [M: 24 h to 12:41Z, presence 10.76 h] toward, and not above, 2 x 10/s x presence-seconds [D]. Falsifier for (a): any bathroom target <= 70 in or an occupied on-edge during the trips. If (a) fails, put the throttle back. | yes - written before the flash and the bathroom test | (a) HELD on the second flash (13:14:27Z; reading gaps median 0.18 s [M, n=179]): 4 bathroom trips 13:16:00-13:20:44Z, 0 occupied on-edges, 0 of 207 readings at 70 in or nearer, nearest 83.5 in [M] - nearer than the throttled 89.0 bound. (b) SUPPORTED on 3 normal-pace entries 13:29-13:31Z: presence to occupied 1.92, 1.92, 1.52 s [M, n=3] against the throttled median 2.51 s [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; confirm on ordinary walk-ins 10-03. (c) pending, due 10-03. First flash VOID (R13: still throttled at 1 s, see [2026.10.02] "distance throttle removed"). |
 
 **Running score: 11 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) (Until 2026-09-30 this read
@@ -71,6 +72,55 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.02] - 2026-10-02
+
+### Office mmWave: distance throttle removed (firmware, two flashes)
+- **What.** `esphome/mmwave-node-common.yaml`: moving and still distance publish every changed
+  radar frame (the driver drops repeats) instead of at most one reading a second. Bill asked
+  for it (P24 option 2). Energies and detection distance keep `throttle: 1s`; nothing reads them.
+- **The first flash, 12:52:57Z, changed nothing (R13, my error).** I removed the explicit
+  `throttle: 1s`, but ESPHome 2026.9.1 gives the ld2410 distances DEFAULT filters, timeout
+  1000 ms (last) + throttle_with_priority 1000 ms (`ld2410/sensor.py:37-45`), and an absent
+  `filters:` gets them. After the flash the smallest gap between moving-distance readings was
+  0.915 s, median 1.10 s [M, n=213 gaps, 12:52:57-13:02:35Z]: still once a second. My
+  post-compile check counted only `ThrottleFilter` in main.cpp. Fixed with `filters: []`;
+  recorded at the site.
+- **Bathroom run on that still-throttled firmware**, office labelled "no one present",
+  12:54:55-13:00:28Z: 4 presence on-edges, each DETECTED_FAR, 0 occupied on-edges; nearest
+  bathroom target 92.9 in moving / 96.9 in still [M, n=47 / 31 readings]. A repeat of the
+  throttled result, not a test of the full stream. Doorway stand 13:00:30-13:00:47Z: moving
+  113.8-118.1 in [M, n=9]; presence held throughout [M, n=1 stand].
+- **Second build (`filters: []`)**, ESPHome 2026.9.1 from PowerShell: "INFO Successfully compiled
+  program.", 0 error lines, main.cpp.obj rebuilt 09:05:33. Generated main.cpp: TimeoutFilterLast
+  2 -> 0, ThrottleWithPriority 2 -> 0, ThrottleFilter 3 -> 3; `set_filters` on the two distance
+  sensors is present in the first build and absent in the second (the check fires on the old
+  build and is silent on the new). On H:; needs Bill's second flash and a second bathroom run.
+- **Second flash, 13:14:27Z: the throttle is gone.** Moving-distance readings a median 0.181 s
+  apart, 173 of 179 gaps under 0.95 s; still distance median 0.183 s, 151 of 159 under 0.95 s
+  [M, 13:14:36-13:15:18Z].
+- **Bathroom run on it, office labelled "no one present", 13:16:00-13:20:44Z: prediction (a)
+  held.** 4 presence on-edges, each DETECTED_FAR; 0 occupied on-edges; 0 of 42 moving + 165
+  still readings at 70 in or nearer [M]. Nearest per trip 93.7, 89.4, 85.0, 83.5 in [M, n=4
+  trips]: the full stream reads nearer than the 89.0 in seen through the throttle, as R18 warned,
+  leaving 13.5 in [D: 83.5 - 70]. Four trips cannot say whether nearer-each-trip is a trend.
+- **Entry at 13:20:44Z: occupied 1.198 s after the first reading inside 70 in [M].** The P24 gate
+  skipped 7 moving readings at 70 in or nearer because "Moving target" was off
+  13:21:00.245-13:21:01.448Z, and the gate counts a reading only while its own flag is on. The
+  same skip happened before the throttle cut on 8 of 47 occupied on-edges, 09-28 15:38Z to
+  10-02 12:52Z, costing 0.117-1.103 s in 7 and 12.502 s once (09-28 18:16Z) [M]. Cause NOT
+  established: the radar dropping its move bit, or ESPHome 2026.9.1's default `settle: 1000ms`
+  on the ld2410 flags (`ld2410/binary_sensor.py:31-40`), which can hold a published flag up to
+  1 s behind its frame (`binary_sensor/filter.cpp:107-119`) [I]. HA records only the filtered
+  flag, so its history cannot tell the two apart (R18). It is not a 1 s floor: 29 of 93
+  moving-flag off periods since the second flash were under 1 s, min 0.116 s [M]. Nothing
+  changed on an [I] (R15).
+- **Three normal-pace entries, 13:29-13:31Z: prediction (b) supported.** Presence to occupied
+  1.917, 1.915, 1.523 s [M, n=3], each latching on the first reading inside 70 in with no flag
+  skip; straight walk-ins through the throttle had a median 2.51 s [M, n=41]. Exact one-sided
+  rank-sum test, new faster than old: p = 0.0093 (123 of 13,244 rank splits) [D]. Limits: one
+  person, three entries in two minutes, daylight, a pace chosen for the test; 5 of the 41
+  throttled walk-ins were already 1.917 s or faster [M]. Confirm on ordinary walk-ins.
 
 ## [2026.09.28] - 2026-09-28
 
