@@ -77,6 +77,88 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family lamps-off now also waits for the Ecobee to go quiet: the radar does not reach the kitchen working area
+
+Bill, after the first labelled test: "sounds like we need to use both the radar and ecobee for lights
+off."
+
+- **Relocation.** The node moved to the family room. It was offline 10:52:16-10:53:32 [M: HA state
+  history] and came back with a power-on reset, RSSI -41 dBm and 71.1 lx [M].
+- **First labelled test, 10:54-11:21** [M: HA history; every label press was by Bill's user id]:
+  - "Working in kitchen" covered 3 spans, 564 s in all. Bill says he stood at the island, the
+    counters, the sink and the range. The island is in front of the other three, and together they
+    are the working area.
+  - The radar dropped presence 17-27 s into each span. Every gate read at the empty-room level:
+    - kitchen work: moving energy mean 3.0-6.1, max 7-12;
+    - "no one present": mean 2.5-5.9, max 5-9.
+  - The only readings of 10 or more came at 11:06:08-13, when Bill walked to the table.
+  - Lowering a threshold cannot fix this, because kitchen work and an empty room read the same.
+  - Design §3.6 [S: docs/design.md l.460-488] places the node on the mantel facing west, with the
+    island within about 6 m. The island was DECIDED in scope on 09-07. This is a coverage miss
+    against the design.
+  - The next step is the §5.2a coverage sweep, not threshold tuning. The sweep waits on Bill
+    confirming where the node sits (open question).
+  - Kitchen table: gate g8 still energy averaged 26.7 against a threshold of 20 [M], and presence
+    held.
+- **The Ecobee does see the kitchen.**
+  - `binary_sensor.main_floor_motion` (homekit_controller, local) was on 10:55:06-11:05:39 and
+    11:06:11-11:25:58 [M]. That covers all the kitchen work except its last 37 s.
+  - Bill pressed "no one present" at 11:21:03 and went straight off the main floor. Motion went
+    off at 11:25:58, so it held for 4 min 55 s [D: 11:25:58 - 11:21:03, n=1].
+  - `main_floor_occupancy` was on throughout, from 10:55:05. It is too sticky to drive a lamp.
+- **Why it mattered now.** Bill set `mmw_family_idle_timeout` to 30 s, which equals the radar's own
+  hold. The lamps-off wait was therefore 0 s [D: max(30 - 30, 0)], and the lamps went off as soon
+  as the radar lost him. Kitchen work after dark would have gone dark.
+- **The change** (`mmw_family_presence_off`, `automation.mmw_family_empty_lights_off`):
+  - A new trigger fires when `main_floor_motion` goes from on, unavailable or unknown to off.
+  - Two new conditions:
+    - radar presence has been off for the trigger's own wait;
+    - `main_floor_motion` is off.
+  - The wait is written once. A YAML anchor (`&mmw_family_off_wait`) on the trigger's `for:` is
+    reused by an alias in the condition (R10). This is the first anchor in the H: config. HA
+    2026.9.4 accepts a template in a state condition's `for:` [S: helpers/config_validation.py
+    l.1552-1561].
+  - Effect: the lamps go off only when the radar AND the Ecobee are both quiet. After the room and
+    kitchen empty, the lamps stay on about as long as the Ecobee holds motion. The one measurement
+    of that hold is 4 min 55 s [M, n=1].
+  - An unavailable Ecobee fails the new condition, so the lamps HOLD. This is the safe failure
+    Bill set on 2026-09-22 for a node outage. When the Ecobee returns to `off`, the new trigger
+    fires again.
+  - Lamps-on is unchanged and still uses the radar only.
+- **Source.**
+  - Edited in the repo package (`mmwave-presence-node`, uncommitted, +29 lines, CRLF).
+  - Derived to H: by `make_full_pkg.py`.
+  - Reversing the edit gives a file byte-identical to the pre-edit snapshot [M].
+  - Before the edit, the repo-derived package was cmp-identical to H: [M].
+- **Gate:**
+  - Sandbox (a fresh mirror of H:): `validate_ha --strict` gave "PASS (parse-clean)". After
+    `gen_reference`, the audit gave "0 FAIL, 1 WARN, 2 INFO across 18 pipelines"; the WARN is the
+    open question.
+  - R2, fault direction: a misspelt `main_floor_motion` in the new condition raised
+    `WARN entity-ref-unresolved`, and a broken alias failed the parse (`found undefined alias`).
+  - R2, clean direction: with the file restored byte-identical, the validator and the audit went
+    silent.
+  - The parsed automation carries the same 330-character wait in the trigger and in the condition
+    [M].
+  - H: `gate.py` gave "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across
+    18 pipelines" and "NOT READY". The only NEW finding against `.audit_baseline.json` is the
+    open-question WARN, as at the 10:42 deploy. Not re-baselined.
+  - `check_config` gave `valid`. `automation.reload` ran at 11:45:00.
+- **Observed** [M]:
+  - `automation/config` over the websocket shows both triggers and all five conditions loaded,
+    with the radar wait identical in trigger and condition.
+  - All 131 automations are available, and the log has no entry from the reload.
+  - NOT YET OBSERVED: a trace through the new path. The main floor was empty at the reload.
+  - In daylight the lamps stay off (lux is above `lux_on` 35), and the action stops at its "is a
+    lamp on?" check. The proof will therefore be a trace, not a lamp.
+- **Open:**
+  - An Ecobee stuck ON would keep the lamps on with no auto-off. There is no stuck-on watchdog.
+  - `sensor.mmw_family_state` and the corroborated-empty sensor still read the radar alone, so they
+    do not show the Ecobee hold.
+  - Design §3.6 is not updated.
+  - The §5.2a coverage sweep waits on Bill confirming the node's position.
+  - The repo change is uncommitted.
+
 ### mmwave family package deployed WHOLE for calibration: the radar now drives the family room lamps; §5.0 step 0.8 PASS, 0.6 basement comparison skipped
 
 Bill: "let's deploy for family room calibration." Asked whether the lamps should stay held back,

@@ -2083,3 +2083,20 @@
     12:24:36.6Z; presence off 12:24:19.58Z, back as DETECTED_FAR) [M].
     Nothing built. The smaller gains left (approach_in 84, a throttle cut)
     are Bill's call; see P24.
+- asked: 2026-10-02
+  question: >-
+    Family mmWave: is the node on the mantel, facing west down the room, as
+    design §3.6 places it? If not, where is it and which way does it face?
+  blocks: >-
+    The §5.2a coverage sweep, and any diagnosis of the kitchen miss. In the
+    first labelled test (10-02, 10:54-11:21) the radar read the empty-room
+    level at every gate for all 564 s of kitchen work at the island,
+    counters, sink and range [M: HA history], although design §3.6 [S:
+    docs/design.md l.460-488] puts the island within about 6 m of a mantel
+    mount facing west. Aim, mounting and range cannot be told apart until
+    the position is known. Meanwhile the lamps-off also waits for the
+    Ecobee (CHANGELOG 2026-10-02), so the kitchen does not go dark.
+  answered: >-
+    2026-10-02, Bill: "Yes the family node is on the mantel, facing west down
+    the room". The mount matches design section 3.6, so the kitchen miss is
+    not a mounting error. Unblocks the section 5.2a coverage sweep.
