@@ -1,0 +1,183 @@
+# =============================================================================
+# DASHBOARD VIEW — Family Room mmWave node
+# Rev 0.1 DRAFT (2026-09-05).
+# -----------------------------------------------------------------------------
+# Same labelling panel as the office view, plus the overnight alarm controls.
+#
+# THE DISARM BUTTON IS DELIBERATELY LARGE AND ON THIS VIEW, not buried in a
+# settings page. Someone standing in a dark family room at 02:00 being flashed
+# at by their own house has about twenty seconds and no patience for navigation.
+# =============================================================================
+# -----------------------------------------------------------------------------
+# DEPLOYED COPY, H:/dashboards/views/, 2026-10-02 - TRIMMED. Source:
+# mmwave-presence-node dashboards/view-mmwave-family.yaml (the Rev 0.1 draft
+# above), with every card that reads the family PACKAGE cut: that package
+# subset is held back until the node is commissioned, and none of the 28
+# package entities the repo view reads exist yet [M: /api/states, 2026-10-02].
+# Same precedent as the office view on the morning of 2026-09-26.
+#
+# Cut: badges State, Quiet hours, Alarm armed, Label check; the six label
+# buttons and the label/class rows; the whole overnight alarm section (so the
+# header above describes cards this copy does not have); Light control;
+# Collection coverage; the Label line of the first history graph; Empty
+# corroborated and Dropout candidate. Their comments live in the repo file.
+# Changed: the header text (it asked for labels nobody can record yet) and the
+# title of the card that kept Calibration hold.
+#
+# When the package goes live: copy the repo file over this one WHOLE and
+# rewrite this note (R10 - do not merge by hand). Then touch
+# dashboards/mmwave-family.yaml, or HA keeps serving the cached view.
+# -----------------------------------------------------------------------------
+type: sections
+max_columns: 3
+icon: mdi:radar
+path: mmwave-family
+title: Family Room mmWave
+header:
+  card:
+    type: markdown
+    text_only: true
+    content: |
+      # Family room presence node
+      Node data only until the package is deployed - no labelling yet.
+      The gate graphs fill only while **Calibration hold** is on, or in the
+      nightly 03:40 engineering window.
+
+badges:
+  - type: entity
+    entity: sensor.family_mmwave_ambient_light
+    name: Lux
+  - type: entity
+    entity: binary_sensor.family_mmwave_presence
+    name: Presence
+
+sections:
+  # ---------------------------------------------------------------------------
+  - type: grid
+    column_span: 2
+    cards:
+      - type: entities
+        title: Calibration
+        entities:
+          - entity: switch.family_mmwave_calibration_hold
+            name: Calibration hold (keeps eng mode on)
+
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: gauge
+        entity: sensor.family_mmwave_ambient_light
+        name: Ambient light
+        unit: lx
+        min: 0
+        max: 60
+        needle: true
+        severity:
+          green: 0
+          yellow: 18
+          red: 30
+
+      - type: entities
+        title: The controlled loads
+        entities:
+          - entity: switch.family_room
+            name: Family Room plug
+          - entity: switch.family_room_2
+            name: Lamp 1
+          - entity: switch.family_room_3
+            name: Lamp 2
+          - type: divider
+          - entity: sensor.family_room_signal_strength
+            name: Family Room plug Wi-Fi
+          - entity: sensor.family_room_signal_strength_2
+            name: Lamp 1 Wi-Fi
+          - entity: sensor.family_room_signal_strength_3
+            name: Lamp 2 Wi-Fi
+        # The three switch.family_room_led_* entities are deliberately absent.
+        # They are the plugs' own status indicators — one of them appearing on a
+        # lighting view is how somebody eventually toggles it and reports the
+        # lamp as broken.
+
+  # ---------------------------------------------------------------------------
+  - type: grid
+    column_span: 3
+    cards:
+      - type: history-graph
+        hours_to_show: 12
+        title: Presence, label and light
+        entities:
+          - entity: binary_sensor.family_mmwave_presence
+            name: Presence (UART)
+          - entity: binary_sensor.family_mmwave_presence_hardware_out
+            name: Presence (OUT wire)
+          - entity: binary_sensor.family_mmwave_moving_target
+            name: Moving
+          - entity: binary_sensor.family_mmwave_still_target
+            name: Still
+          - entity: sensor.family_mmwave_ambient_light
+            name: Lux
+
+      - type: history-graph
+        hours_to_show: 2
+        title: Still energy by gate (the R1 signal)
+        entities:
+          - sensor.family_mmwave_g0_still
+          - sensor.family_mmwave_g1_still
+          - sensor.family_mmwave_g2_still
+          - sensor.family_mmwave_g3_still
+          - sensor.family_mmwave_g4_still
+          - sensor.family_mmwave_g5_still
+          - sensor.family_mmwave_g6_still
+          - sensor.family_mmwave_g7_still
+          - sensor.family_mmwave_g8_still
+
+      - type: history-graph
+        hours_to_show: 2
+        title: Move energy by gate (the false-trigger driver)
+        entities:
+          - sensor.family_mmwave_g0_move
+          - sensor.family_mmwave_g1_move
+          - sensor.family_mmwave_g2_move
+          - sensor.family_mmwave_g3_move
+          - sensor.family_mmwave_g4_move
+          - sensor.family_mmwave_g5_move
+          - sensor.family_mmwave_g6_move
+          - sensor.family_mmwave_g7_move
+          - sensor.family_mmwave_g8_move
+
+  # ---------------------------------------------------------------------------
+  - type: grid
+    column_span: 3
+    cards:
+      - type: entities
+        title: Independent witness — main floor thermostat
+        entities:
+          - entity: binary_sensor.main_floor_motion
+            name: Thermostat motion (PIR, fast, blind to stillness)
+          - entity: binary_sensor.main_floor_occupancy
+            name: Thermostat occupancy (held)
+          - entity: climate.main_floor
+            name: Zone (blower covariate)
+        # This block is NOT in the control path and must not be. PIR cannot see
+        # a motionless person, which is the whole reason the radar exists. It is
+        # here as a second opinion on the DATA, not as an input to the lights.
+
+      - type: entities
+        title: Node health (§6.2, §6.3)
+        entities:
+          - entity: binary_sensor.family_mmwave_presence_path_disagreement
+            name: UART vs OUT disagreement
+          - entity: sensor.family_mmwave_presence_path_skew
+            name: Path skew
+          - entity: binary_sensor.family_mmwave_lux_stale
+            name: Lux stale
+          - entity: sensor.family_mmwave_node_rssi
+            name: RSSI
+          - entity: sensor.family_mmwave_node_temperature
+            name: Node temperature
+          - entity: sensor.family_mmwave_node_uptime
+            name: Uptime
+          - entity: sensor.family_mmwave_node_reset_reason
+            name: Last reset reason
+          - entity: sensor.family_mmwave_radar_firmware
+            name: Radar firmware

@@ -53,6 +53,7 @@ is calibrated against.
 | 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | **HIT** — same day. Bill installed at 12:52Z; the node was back at 12:52:48Z with uptime 3.04 s [M]. `number.office_mmwave_g0_move_threshold` read 70.0 after the boot and at 12:54:30Z, and sw_version reads `0.4 (ESPHome 2026.9.0)`, compiled 08:45:46 -0400 [M: device registry, ESPHome diagnostics]. Weaker than it reads: the radar kept power through the OTA and already held 70, so this discriminates only if the boot push ran, which HA cannot show when the value is unchanged. The first boot after a live G0 change is the direct test, and the "any later node boot" clause stays live |
 | 2026-10-02 | **Office mmWave daylight on/off, live since the 12:18:10Z automation reload** (`mmw_office_lux_dim_on`, `mmw_office_lux_bright_off`; setpoint `input_number.mmw_office_lux_on` = 30). (a) The next dusk with Bill seated, the lamp off, auto on and no override: `mmw_office_lux_dim_on` runs once, about 1 min after `sensor.office_mmwave_ambient_light` crosses below 30, and `mmw_office_lux_bright_off` does not run in the 10 min after it. (b) The first bright morning that finds the lamp lit by the package (latch on): `mmw_office_lux_bright_off` runs once lux has held above 53 [D: 30 + 18 + 5] for 5 min. Falsified by a daylight-off and a dim-on (either order) within 10 min of each other with no change in the light outside, read off the lux history across the pair; or by (a)'s crossing passing with every condition met and no dim-on. Basis: replay of 09-28 13:00Z..10-02 12:05Z, real occupancy and lux, the lamp's lift simulated [D]: 3 dim-ons, 1 daylight-off, 0 off->on within 30 min at any lift 8.4-17.7 lx; a simulated 30 lx lift cycles 11 times. Lift measured +10.6..+17.7 lx on-edges [M, n=22, after dark only] | yes — written after the reload, before any dusk or morning on the new rules | pending |
 | 2026-10-02 | **Office mmWave distance throttle removed** (`esphome/mmwave-node-common.yaml`, `moving_distance` + `still_distance`; compiled on 2026.9.1, Bill flashes). Predicts: (a) with the office labelled empty, bathroom trips give no bathroom target at 70 in or nearer and 0 occupied on-edges, the margin so far being 89.0 in [M] measured THROUGH the 1 s throttle, so a bound, not a fact, for the full stream; (b) walk-ins cross 70 in sooner than the 2.51 s median [M, n=41], by up to 1 s [D: the throttle window]; (c) distance rows/day rise from 54,039 [M: 24 h to 12:41Z, presence 10.76 h] toward, and not above, 2 x 10/s x presence-seconds [D]. Falsifier for (a): any bathroom target <= 70 in or an occupied on-edge during the trips. If (a) fails, put the throttle back. | yes - written before the flash and the bathroom test | (a) HELD on the second flash (13:14:27Z; reading gaps median 0.18 s [M, n=179]): 4 bathroom trips 13:16:00-13:20:44Z, 0 occupied on-edges, 0 of 207 readings at 70 in or nearer, nearest 83.5 in [M] - nearer than the throttled 89.0 bound. (b) SUPPORTED on 3 normal-pace entries 13:29-13:31Z: presence to occupied 1.92, 1.92, 1.52 s [M, n=3] against the throttled median 2.51 s [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; confirm on ordinary walk-ins 10-03. (c) pending, due 10-03. First flash VOID (R13: still throttled at 1 s, see [2026.10.02] "distance throttle removed"). |
+| 2026-10-02 | **Family mmWave VEML7700 floor with the power LED kept** (Bill: "will not cut it"). Once the node is in place, the darkest overnight reading of `sensor.family_mmwave_ambient_light` stays at or above 0.5 lx: the LED lifts the floor. Basis: covered on the desk, with the LED lit, it read 3.11 and 3.17 lx [M: HA history, 2 settled samples, 14:08:27-37Z]. Falsified by any overnight sample below 0.5 lx with the node in place: the LED's in-situ offset would then be under 0.5 lx, and most of the desk reading was leak through the cover or reflection off it. | yes - written 10:21 EDT, before the node was placed | pending |
 
 **Running score: 11 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) (Until 2026-09-30 this read
@@ -75,6 +76,54 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
+
+### mmwave family node: added to HA, reached by IP, own dashboard; §5.0 steps 0.1 and 0.4 pass, 0.6 not met as written (LED kept)
+
+Bill, 10:00: "add to HA. node will be in its position shortly, so we should keep data flowing until
+calibration is complete. reserve the IP." Then: "need a dashboard as well." Then, for the deploy and
+restart: "write to HA and restart."
+
+- **Added to HA** at 14:03:26Z through the ESPHome config flow over REST (host 10.0.0.97, port 6053).
+  - Entry "Family mmWave", `01M3YETNC3CFK6H0S7KJ401S9W`, loaded. The flow asked for no key, and the
+    stored key matches `api_key_mmwave_family_node` [M].
+  - 70 `family_mmwave_*` entities, none suffixed. 23 read unknown: the 18 gate series (engineering
+    mode is off), 3 buttons, `presence_path_skew` and `radar_mac` [M].
+  - Every entity is left ENABLED, per Bill. Distances stream unthrottled (the 10-02 `filters: []` in
+    the common file) to the recorder and InfluxDB. That lasts until the family package, which holds
+    the recorder excludes, goes live.
+- **`wifi: use_address: 10.0.0.97`** in `esphome/mmwave-family-node.yaml` (repo and H:, same bytes).
+  - The Device Builder add-on has no mDNS.
+  - It compiles only into the "Address:" line of the API/OTA config dumps [S: office node file], so
+    no reflash is needed.
+  - 10.0.0.97 is a dynamic lease [M: PC ARP table]. The DHCP reservation is Bill's to make in the
+    router. Until he makes it, this address goes stale when the lease moves.
+- **Dashboard "Family mmWave"** (sidebar), yaml-mode like the office one:
+  - `configuration.yaml` `lovelace: dashboards: mmwave-family`, plus the wrapper
+    `dashboards/mmwave-family.yaml` and the view `dashboards/views/view-mmwave-family.yaml`.
+  - The view is a TRIMMED copy of the repo's Rev 0.1 family view. 28 package entities it reads do not
+    exist yet [M: /api/states], so their cards are cut: labelling, overnight alarm, light control,
+    collection coverage. 159 lines are byte-identical, 202 cut and 24 added, 20 of them comment. The
+    deployed file's header lists every cut.
+  - Labelling for calibration still needs the family package.
+  - Sandbox two-direction test (R2): a held-back helper injected into the view raised
+    `WARN entity-ref-unresolved`; with it removed the audit was silent.
+  - `check_config` "valid", then a RESTART (a new dashboard entry needs one). HA was RUNNING again 149 s after the
+    10:18:56 restart call [M]. The `mmwave-family` panel is registered in yaml mode, and HA's own
+    `lovelace/config` returns the view (4 sections); all 41 entities it names exist and none is
+    unavailable [M: websocket + /api/states, 10:21]. The office dashboard still loads both views.
+- **§5.0 steps 0.1 and 0.4 PASS** (Bill: "both pass"). 0.1: VBUS at the module VCC is within
+  4.75-5.25 V. 0.4: the HLK app no longer finds the module.
+- **§5.0 step 0.6: not met as written, and Bill keeps the LED.**
+  - Flashlight: 14,536, 12,103, 11,817 and 11,429 lx, from about 137 lx ambient [M: HA history, 10 s
+    samples, 14:04:46-14:05:36Z].
+  - Covered: 8.52, then 3.11, then 3.17 lx [M: n=3, 14:08:17-37Z]. That is not ~0.
+  - Bill: "led on the veml is on. will not cut it." The ~3.1 lx covered floor is therefore an upper
+    bound on the green power LED's contribution plus any leak through the cover [I]. The falsifying
+    reading is pre-registered in the ledger.
+  - Design §3.9's risk was that this offset gets baked unseen into THRESHOLD_ON (~18 lx). It is
+    recorded here so that it is not.
+  - The second half of 0.6, comparing against the basement node under similar light, is not done.
+- **Open:** step 0.8, the empty-room test (Bill, next).
 
 ### mmwave family node: flashed over USB; first boot clean; §5.0 steps 0.0, 0.2, 0.3 and 0.5 pass
 

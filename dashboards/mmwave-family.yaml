@@ -1,0 +1,17 @@
+# =============================================================================
+# DASHBOARD (YAML MODE) — Family Room mmWave node
+# -----------------------------------------------------------------------------
+# Added 2026-10-02 at the family node's bring-up. Same pattern as
+# dashboards/mmwave-office.yaml, whose header explains it - read that before
+# editing this; it is not repeated here (R10). The two facts that bite:
+#
+#   - The !include path below is relative to THIS FILE'S DIRECTORY, so the
+#     view is views/..., not dashboards/views/...
+#   - HA caches this dashboard against THIS file's mtime, not the view's. After
+#     editing the view, touch this file, then reload the page.
+#
+# Registered in configuration.yaml under `lovelace: dashboards: mmwave-family`.
+# Adding that entry needed a RESTART; editing this file or the view does not.
+# =============================================================================
+views:
+  - !include views/view-mmwave-family.yaml
