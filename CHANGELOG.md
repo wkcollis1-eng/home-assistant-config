@@ -76,6 +76,59 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family node: flashed over USB; first boot clean; §5.0 steps 0.0, 0.2, 0.3 and 0.5 pass
+
+Bill: "checked before assembly, esp is plugged into the pc." That answers §5.0 step 0.0 (§9 item 1) for
+this module, and is the go to flash. The key his message asked for already existed (the entry below),
+so no second key was made.
+
+- **Flash.** The gated sandbox build was flashed from the PC with `esphome upload --device COM4`, run
+  on the 2026.9.1 venv.
+  - COM4 is Espressif USB-JTAG (VID 303A, PID 1001), the only COM port on the PC.
+  - The three source files on H: were confirmed hash-identical to the compiled copies just before the flash.
+  - esptool wrote 1,034,000 B at 0x0, which is the factory image's size, and the hash verified [M].
+  - Chip: ESP32-C3 rev v0.4, MAC `ac:27:6e:82:0c:04`.
+- **First boot** [M: serial log 09:49:45-09:50:45 EDT]:
+  - ESPHome 2026.9.1, project 0.4, built 09:44:33, the gated build.
+  - First radar frame at 1,047 ms after boot, then the R9 push. That passes step 0.2: the radar link
+    is up at the right baud rate.
+  - Wi-Fi joined at +8.2 s. Safe mode reported "boot seems successful" at +60 s.
+  - Two warnings came during the push: a 2,401 ms blocking interval and one `ld2410 Invalid header`.
+    Neither recurred: there were 0 WARN-or-higher lines in a 30 s API log subscription afterwards [M].
+- **A second reset was mine.** Killing the serial `esphome logs` process at about 09:52:16 reset the
+  node (reset reason "USB peripheral"). `Node uptime` read 61 s at the 09:53 API read [M]. This
+  explanation is [I]. Falsifier: an uptime that shows a reset after 09:52:16 with no serial session open.
+- **IP 10.0.0.97.** It came from DHCP, and the PC's ARP table shows it as dynamic [M]. Windows
+  cannot resolve `.local`. It is not yet in `use_address`, pending Bill on a DHCP reservation.
+- **Read-only API snapshot** [M: aioesphomeapi with the node's own key, 30 s]:
+  - 70 entities, the same count as the office node. All read the commissioned defaults: gates 8 / 8,
+    timeout 30 s, gate-0 move threshold 50.
+  - Step 0.3: `Radar firmware` reads `2.44.25070917`, the same as the office module [M: HA state].
+    Both nodes are on one radar firmware (§5.11).
+  - `Radar MAC` reads `unknown`, as the office's does. `Radar Bluetooth` reads off. Its true pass test
+    is the app (§5.0 step 0.4), which has not been done.
+  - Ambient light was 104.3 lx on the desk. RSSI was -58 dBm at the PC; the installed spot is not
+    yet measured.
+  - There is no `Self-test passed` entity in production firmware. Only `mmwave-bench.yaml` has it.
+    Step 0.7's production evidence is `moving_target` toggling: 7 updates in 30 s [M].
+- **Step 0.5 passes.**
+  - Switching `Radar engineering mode` on directly does not stick. The 5 s reconciler
+    (`mmwave-node-common.yaml` 1042-1082) drives it back to the intended state: the window, or the hold.
+  - So the test went through `Calibration hold`. Engineering mode came on, and all 18 gate series
+    reported 4 values each in 20 s, matching `gate_log_period` 5 s [M].
+  - After the hold was released, engineering mode read off within 8 s [M]. That is the prior state,
+    restored.
+- **Not done:**
+  - Not added to HA.
+  - With today's `filters: []`, the node streams moving and still distance unthrottled. The recorder
+    excludes for family distances and energies are in the held-back package subset (repo lines
+    1974-1978), and InfluxDB has no entity filter.
+    So adoption before the package needs Bill's call.
+  - Steps 0.1 (VBUS at the module), 0.4 (app check), 0.6 (cover the VEML7700, read about 0 lx) and
+    0.8 (an empty-room check that `radar_out` follows) are physical and still open.
+  - `use_address` is not set.
+  - No commits.
+
 ### mmwave family node: firmware staged in `esphome/`, compiled; not yet flashed
 
 Bill: "have the family room mmWave presence sensor assembled and ready to bring up."
