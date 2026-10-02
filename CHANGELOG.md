@@ -77,6 +77,46 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: "Target distance" graph on the family dashboard; both distances recorded from the next restart
+
+Bill: "the office mmWave has a helpful graph - Target distance (P24 tuning) that shows moving and
+stll distances in inches. would be helpful to add that to the family room mmWave dashboard."
+
+- **Card.** `dashboards/views/view-mmwave-family.yaml` now carries the office card for this node.
+  - It is a 2 h `history-graph` of `sensor.family_mmwave_moving_distance` and
+    `sensor.family_mmwave_still_distance`.
+  - It sits after "Presence, label and light" and ahead of the gate graphs.
+  - Both ids are live, unit "in", device_class distance [M: `/api/states`, 21:17Z].
+  - The repo source (`dashboards/view-mmwave-family.yaml`) was edited first. The H: copy was then
+    re-derived from it, keeping its deployment note, as that note says to.
+  - HA serves the card [M: websocket `lovelace/config`, `mmwave-family`, after touching
+    `dashboards/mmwave-family.yaml`].
+- **Recorder.** Both series were in the package's `recorder.exclude` (2026-09-27: "The family
+  distances stay excluded: no filter there").
+  - HA history held 1 row for each over the 2 h to 21:17Z [M], so the card alone would have drawn a
+    flat line.
+  - They are out of the exclude list now. The "NOT excluded" comment says why.
+  - The repo package was edited first, then the H: package re-derived from it (repo LF + the H:
+    note). 4 R3 reversals == snapshots.
+  - Asked about the restart, Bill chose "Record + graph, you restart". **Recording starts at his
+    next HA restart.** The recorder config does not reload, so until then the card shows the
+    current value only.
+- **Cost, not measured.** The office pair ran 33,144 rows/day [M: 24 h to 2026-09-27 14:40Z, two
+  test runs included].
+  - With `purge_keep_days: 14`, the family pair would hold about 464,016 rows [D: 33,144 x 14]
+    *if* it runs at the office rate. That rate is [I].
+  - Falsifier: the family pair's row count over the first 24 h after the restart.
+- **Gates.**
+  - Sandbox `validate_ha.py --strict` (package + view): "PASS (parse-clean)".
+  - Sandbox audit: "0 FAIL, 1 WARN, 2 INFO across 18 pipelines". The WARN is the 09-30 clamp
+    question.
+  - PACKAGES.md regenerated. AUTOMATIONS.md and ENTITIES.md are unchanged.
+  - H: `gate.py`: "PASS (parse-clean) + audit delta clean." It also read "0 NEW, 0 FIXED, 1
+    UNCHANGED". That is a same-day run, so it is not the 10-03 proof of the baseline fix.
+  - `check_config`: {"result":"valid","errors":null,"warnings":null}.
+- **Not yet proven.** The graph filling with history. That needs the restart, then someone in the
+  room.
+
 ### audit: the baseline key drops the open-question day count - deployed, and re-baselined
 
 Bill: "Copy the ha_audit.py fix to H:. update documents/commit/push." This deploys the fix that
