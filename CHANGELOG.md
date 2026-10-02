@@ -51,6 +51,7 @@ is calibrated against.
 | 2026-09-25 | **mmwave-bench 0.1.1, §5.0 step 0.6 fault test, BOOT UNPLUGGED**: after a boot with the VEML7700 unplugged, the config dump shows `Communication failed` under `veml7700`. `Ambient light`, `Lux gain` and `Lux integration time` never publish, **even after the cable goes back in**, and `Lux age` tracks `Uptime`, differing by no more than their 60 s publish intervals [M: main.cpp 2181; `g_last_lux_ms` stays 0]. After a `Restart` with the sensor connected, `Ambient light` publishes and the dump has no `Communication failed`. Falsified by any `Ambient light` publish before a reboot. Basis [S: ESPHome 2026.9.0 `veml7700.cpp` 80-85, 113-114]: a `configure_()` error in `setup()` calls `mark_failed()`, which nothing retries. `Sensor configuration failed` is deliberately not part of the claim: `setup()` logs it before any API log client connects | yes — written after the 0.1.1 build, before it was flashed | **WITHDRAWN before test** — Bill, 2026-09-25: the enclosure is screwed down, so the fault test is not run |
 | 2026-09-27 | **Office mmWave P24 filter, live since 14:31Z (`binary_sensor.mmw_office_occupied`).** Bill's next bathroom run with the office empty ("no one present"): radar presence still goes on, `sensor.mmw_office_state` reads `DETECTED_FAR`, and `mmw_office_occupied` makes **no** on-edge, so the lamp stays off. His next straight walk-in to the desk: `occupied` goes on within 5 s of the radar presence on-edge. Basis: replay of the deployed template over HA history [M: bathroom 0 occupied edges from 13 raw edges in 2 runs; walk-ins 1.7-4.3 s, n=11]. Falsified by any `occupied` on-edge during the bathroom run, or a straight walk-in that is slower than 5 s or never reaches `occupied`. Stopping in the doorway is failure mode 1 in P24, and does not count as a miss | yes — written after the deploy, before any live bathroom run | **HIT** — same day, both halves. With the office labelled "no one present" (14:42:46-14:46:48Z), Bill's bathroom trips gave 4 radar presence on-edges (14:43:32, 14:44:23, 14:45:11, 14:46:02Z). `mmw_office_state` read `DETECTED_FAR` at each one, and `mmw_office_occupied` had 0 on-edges [M, HA history]. The nearest bathroom target was 89.0 in (still; n=14 readings with the target flag on). That is 19.0 in outside the limit [D: 89.0 − 70]. On the walk-in, presence went on at 14:46:52.80Z and `occupied` at 14:46:55.20Z, 2.4 s later [D], crossing the limit at 65.7 in [M]. The lamp stayed off, but the room was already lit (EMPTY_LIT, daylight), so the lamp did not discriminate; `occupied` did. n=1 run |
 | 2026-09-28 | **Office mmWave firmware 0.4 makes G0 = 70 survive a boot.** After Bill installs 0.4 from the Device Builder, the node boots, `number.office_mmwave_g0_move_threshold` reads 70.0 (not 50.0), and the device sw_version reads 0.4. Basis: the generated `main.cpp` pushes `70.0f` where the installed build pushes `50.0f` [M: diff of the two builds]. Falsified by 50.0 after that boot, or by G0 leaving 70 at any later node boot | yes, written before the Install | **HIT** — same day. Bill installed at 12:52Z; the node was back at 12:52:48Z with uptime 3.04 s [M]. `number.office_mmwave_g0_move_threshold` read 70.0 after the boot and at 12:54:30Z, and sw_version reads `0.4 (ESPHome 2026.9.0)`, compiled 08:45:46 -0400 [M: device registry, ESPHome diagnostics]. Weaker than it reads: the radar kept power through the OTA and already held 70, so this discriminates only if the boot push ran, which HA cannot show when the value is unchanged. The first boot after a live G0 change is the direct test, and the "any later node boot" clause stays live |
+| 2026-10-02 | **Office mmWave daylight on/off, live since the 12:18:10Z automation reload** (`mmw_office_lux_dim_on`, `mmw_office_lux_bright_off`; setpoint `input_number.mmw_office_lux_on` = 30). (a) The next dusk with Bill seated, the lamp off, auto on and no override: `mmw_office_lux_dim_on` runs once, about 1 min after `sensor.office_mmwave_ambient_light` crosses below 30, and `mmw_office_lux_bright_off` does not run in the 10 min after it. (b) The first bright morning that finds the lamp lit by the package (latch on): `mmw_office_lux_bright_off` runs once lux has held above 53 [D: 30 + 18 + 5] for 5 min. Falsified by a daylight-off and a dim-on (either order) within 10 min of each other with no change in the light outside, read off the lux history across the pair; or by (a)'s crossing passing with every condition met and no dim-on. Basis: replay of 09-28 13:00Z..10-02 12:05Z, real occupancy and lux, the lamp's lift simulated [D]: 3 dim-ons, 1 daylight-off, 0 off->on within 30 min at any lift 8.4-17.7 lx; a simulated 30 lx lift cycles 11 times. Lift measured +10.6..+17.7 lx on-edges [M, n=22, after dark only] | yes — written after the reload, before any dusk or morning on the new rules | pending |
 | 2026-10-02 | **Office mmWave distance throttle removed** (`esphome/mmwave-node-common.yaml`, `moving_distance` + `still_distance`; compiled on 2026.9.1, Bill flashes). Predicts: (a) with the office labelled empty, bathroom trips give no bathroom target at 70 in or nearer and 0 occupied on-edges, the margin so far being 89.0 in [M] measured THROUGH the 1 s throttle, so a bound, not a fact, for the full stream; (b) walk-ins cross 70 in sooner than the 2.51 s median [M, n=41], by up to 1 s [D: the throttle window]; (c) distance rows/day rise from 54,039 [M: 24 h to 12:41Z, presence 10.76 h] toward, and not above, 2 x 10/s x presence-seconds [D]. Falsifier for (a): any bathroom target <= 70 in or an occupied on-edge during the trips. If (a) fails, put the throttle back. | yes - written before the flash and the bathroom test | (a) HELD on the second flash (13:14:27Z; reading gaps median 0.18 s [M, n=179]): 4 bathroom trips 13:16:00-13:20:44Z, 0 occupied on-edges, 0 of 207 readings at 70 in or nearer, nearest 83.5 in [M] - nearer than the throttled 89.0 bound. (b) SUPPORTED on 3 normal-pace entries 13:29-13:31Z: presence to occupied 1.92, 1.92, 1.52 s [M, n=3] against the throttled median 2.51 s [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; confirm on ordinary walk-ins 10-03. (c) pending, due 10-03. First flash VOID (R13: still throttled at 1 s, see [2026.10.02] "distance throttle removed"). |
 
 **Running score: 11 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (Withdrawn read 1 until
@@ -96,6 +97,49 @@ question" —** the answer was one line away and settled it in one sentence.
 - **Left behind.** `automation.mmw_label_contradicted_by_presence` is an orphaned registry entry
   now (`unavailable`, `restored: true`). Not removed: that is a live registry write, offered to
   Bill.
+
+### mmwave office node: daylight on/off while the room is occupied (Bill)
+
+- **Asked.** Bill: "when the unit senses presence and light (lux) dims below the setpoint turn
+  light on and when senses presense and light increases above setpoint turn light off". Until now
+  the lamp read lux only at the dark -> occupied edge.
+- **Two automations, one setpoint** (`input_number.mmw_office_lux_on`, 30), both through
+  `script.mmw_office_lamp_set`, so R4a does not read them as a hand at the switch.
+  - `mmw_office_lux_dim_on`: lux below the setpoint for 1 min while
+    `binary_sensor.mmw_office_occupied` is on (the P24 filter), auto on, no override, lux not
+    stale -> lamp on, latch on.
+  - `mmw_office_lux_bright_off`: lamp on AND latched, lux > setpoint + 18 + 5 (53 at 30) for
+    5 min -> lamp off, latch off. The latch keeps it to a lamp the package lit; a lamp lit by
+    hand carries the override and is left alone.
+- **Why 18 + 5.** The lamp lights its own sensor: on-edges +10.6 to +17.7 lx, off-edges -8.4 to
+  -11.2 lx [M: n=22 edges, 09-28..10-02, all after dark]. Against a raw 30 the lamp would turn
+  itself off once daylight passed ~18 lx, then back on. 18 is the largest measured lift rounded
+  up and 5 is a chosen deadband, so no loop while the real lift stays under 23 lx [D]. Cost: with
+  the typical 11.5 lx lift the lamp goes off once daylight passes ~41.5 lx [D: 53 - 11.5]. Both
+  numbers live once, in the automation's `trigger_variables` (R10).
+- **Replay [D]**, 09-28 13:00Z..10-02 12:05Z: 3 dim-ons, 1 daylight-off, 0 off->on within
+  30 min, at any lift 8.4-17.7 lx and at dwells 30 s/2 min to 2 min/10 min. A simulated 30 lx
+  lift cycles 11 times. Limits: 4 days, early October, one person, lift measured after dark
+  only. The 1 min / 5 min dwells are chosen, not measured.
+- **Observed after the reload (12:18:10Z).** Both automations loaded and on. Lux 214 lx, lamp
+  off, room occupied: neither can fire in daylight with the lamp off, so neither has fired yet.
+  The ledger row above scores the first dusk and the first bright morning.
+- **Not changed: the turn-on distance.** Bill: the lamp lights at ~3 ft and he wants ~6 ft.
+  Blocked on open_questions.yaml 2026-10-02 (what the radar reads at his 6-ft spot); the
+  analysis is in P24.
+- **Gates (cover both entries).**
+  - `gate.py packages/mmwave_presence.yaml`, sandbox: "1. SYNTAX PASS (parse-clean)" and "2.
+    SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines". gate.py printed "NOT READY", because
+    its baseline diff marks the 09-30 open-question WARN as NEW: `.audit_baseline.json` dates from
+    08-26 and holds no findings. That is the session-start WARN, and the count did not rise.
+    Not re-baselined.
+  - `check_config`: "valid".
+  - `ha_audit.py` on H: after the deploy: "0 FAIL, 1 WARN, 2 INFO across 18 pipelines". The
+    open_questions.yaml entry for the distance adds one open-question WARN by design (R14).
+  - `check_provenance.py --all` on the package: 0 WARN.
+  - The derived package against the previous H: copy: +130 / -23 lines, everything else
+    byte-identical. The source edit reversed is byte-identical to the original (R3).
+  - AUTOMATIONS.md and PACKAGES.md regenerated (121 -> 122 automations); ENTITIES.md unchanged.
 
 ### Office mmWave: distance throttle removed (firmware, two flashes)
 - **What.** `esphome/mmwave-node-common.yaml`: moving and still distance publish every changed

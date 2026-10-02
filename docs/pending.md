@@ -432,6 +432,84 @@ Still open here: the tuning Bill named, then the recorder re-exclusion.
 With the re-exclusion, also remove the "Target distance (P24 tuning)"
 card from the office view (repo source first, then the H: copy per its
 note); after the re-exclusion it draws nothing. Added 2026-09-28.
+2026-10-02, three asks from Bill (CHANGELOG [2026.10.02]):
+- NOTIFICATION REMOVED. "mmWave calibration: contradicted label" went on
+  every time he sat down for a minute: the office label has read "no one
+  present" since 15:38Z 09-28 (the autoclear downgrades to it and nothing
+  moves it back), 86 state changes of binary_sensor.mmw_office_label_
+  contradicted 09-28 13:00Z..10-02 12:05Z [M]. The office line is out of
+  mmw_label_contradicted_alert (source repo); the alert is family-only now
+  and held back from the office package. The binary_sensor stays, recorded:
+  it lists the intervals any §5.9 analysis must discard.
+- DAYLIGHT ON/OFF BUILT. mmw_office_lux_dim_on: lux below lux_on for 1 min
+  while occupied -> lamp on. mmw_office_lux_bright_off: lamp on and latched,
+  lux > lux_on + 18 + 5 (= 53 at lux_on 30) for 5 min -> lamp off. The 18 is
+  the lamp's own largest measured lift (+10.6..+17.7 lx, n=22 night edges
+  [M]); without it the lamp turns itself off and back on. Replay 09-28..
+  10-02: 3 dim-ons, 1 daylight-off, 0 off->on within 30 min [D].
+  Pre-registered in the CHANGELOG ledger.
+- DISTANCE NOT BUILT (R14). Lamp on at ~3 ft, he wants ~6 ft. The lamp
+  follows occupied by 0.28-0.40 s [M, n=17]; the delay is in reaching 70 in,
+  median 2.51 s from presence on a walk-in [M, n=41], plus up to 1 s of
+  distance-sensor throttle. approach_in 84 would give median 1.92 s [M,
+  same n] but leave 5 in to the bathroom's 89.0 in [M]. Blocks on
+  open_questions.yaml 2026-10-02 (the radar's reading at his 6-ft spot).
+- NODE OFFLINE OVERNIGHT, 3 nights ~23:00-07:00 EDT (7.77/8.02/8.01 h [M]),
+  lamp held at its last state. Bill: the node shares the computer's outlet,
+  which he cuts overnight; he is moving it to an always-on outlet. Check:
+  the first night after the move shows no 23:00-07:00 gap in
+  sensor.office_mmwave_ambient_light.
+- DISTANCE ANSWERED, same day (open_questions.yaml 2026-10-02). His 6-ft
+  spot is on the path in from the doorway and reads moving 116.5 / still
+  122.0 in, medians [M, n=7 / 48, 12:23:46-12:25:34Z]: the doorway's own
+  reading, and beyond the bathroom's nearest 89.0 in. No distance rule on
+  this radar can light the lamp there without readmitting the bathroom; the
+  lamp waits until he is seen inside 70 in, which on that path is the ~3 ft
+  he reported. Left for Bill to choose, none built: (1) approach_in 84,
+  median 1.92 s from presence against 2.51 s [M, n=41 walk-ins], 5 in from
+  the bathroom's nearest on 2 runs; (2) cut the 1 s distance-sensor
+  throttle (firmware), up to 1 s sooner, costs recorder rows; (3) a radar
+  that reports direction might separate the bathroom by angle [I: untested;
+  falsified if bathroom and doorway targets share a bearing]. Also, n=1:
+  standing still at the spot the radar lost him for 47 s (no reading
+  12:23:49.4-12:24:36.6Z) [M] - failure mode 1 above, now measured.
+- THROTTLE CUT, same day (Bill: "no downside to removing the 1s trottle";
+  option (2) above). `throttle: 1s` removed from moving/still distance only
+  (energies and detection_distance keep it: recorder-excluded, no logic
+  reads them); compiled on ESPHome 2026.9.1, PASS, main.cpp.obj built;
+  Bill flashes, then re-runs the bathroom test with the office labelled
+  empty. The 89.0 in bathroom nearest was measured through the throttle
+  (about one reading a second of a ~10 Hz stream), so it is a bound, not
+  a fact, for the full stream (R18). Cost: InfluxDB has no entity filter
+  and keeps everything (docs/influx-grafana.md), so a recorder exclude
+  will not stop the rows; putting the throttle back will. Ledger row
+  2026-10-02 in CHANGELOG.md holds the falsifier.
+  CORRECTED same day (R13, mine): that first flash (12:52:57Z) still
+  throttled at 1 s - ESPHome 2026.9.1 gives ld2410 distances default
+  filters (timeout + throttle_with_priority, 1000 ms) when `filters:` is
+  absent. Reading gaps after it: min 0.915 s, median 1.10 s [M, n=213].
+  Bathroom run on it (12:54:55-13:00:28Z): 4 DETECTED_FAR on-edges, 0
+  occupied, nearest 92.9 in [M] - the throttled stream again, not the
+  test. Fixed with `filters: []` (main.cpp: no filter on either distance);
+  needs a second flash and a second bathroom run.
+  SECOND FLASH 13:14:27Z: throttle gone (gaps median 0.18 s [M, n=179]).
+  Bathroom run 13:16:00-13:20:44Z, prediction (a) HELD: 4 DETECTED_FAR
+  on-edges, 0 occupied, 0 of 207 readings <= 70 in, nearest 83.5 in [M]
+  (per trip 93.7/89.4/85.0/83.5 [M]) - nearer than the throttled 89.0, so
+  the margin is 13.5 in [D: 83.5 - 70]. Entry: occupied 1.198 s after
+  the first reading inside 70 in [M]; the gate skipped 7 readings while
+  "Moving target" was off. Same skip on 8 of 47 throttled-era on-edges,
+  0.117-1.103 s, once 12.502 s [M]. Cause (radar move bit vs ESPHome's
+  default `settle: 1000ms` on the flags) not separable in HA history [I];
+  measure on ordinary walk-ins before any change. The comment above the
+  P24 filter ("at a distance update the flag is that frame's own")
+  ignores that settle filter (binary_sensor/filter.cpp:107-119): correct
+  it at the source with the next package edit.
+  NORMAL-PACE ENTRIES 13:29-13:31Z, prediction (b) SUPPORTED: presence
+  to occupied 1.92 / 1.92 / 1.52 s [M, n=3] vs throttled median 2.51 s
+  [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; no flag skip.
+  Confirm on ordinary walk-ins 10-03.
+```
 
 ### P26 — ups-monitor "INA260 Alert" reads an unconnected pin: V1.21 fix written, withdrawn until Bill can test [LOW]
 ```
