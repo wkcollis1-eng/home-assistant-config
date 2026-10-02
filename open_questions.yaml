@@ -2137,3 +2137,30 @@
     boundary" was wrong: the island is 8'-10" past it [D]. Corrected in design
     section 3.6 the same day. A101 is a permit drawing; falsifier: a tape
     reading under 6.75 m (22'-2") from the mantel to the island's east edge.
+
+- asked: 2026-10-02
+  question: >-
+    Family walk test today: from 1:39:13 to 1:39:54 pm the radar saw no one at
+    all. Where were you then - in the kitchen (at or past the island), or
+    already at the kitchen table?
+  blocks: >-
+    Saying whether someone at the kitchen table is seen from the moment they
+    arrive. Once seen, the table read 6.08-6.23 m in gate 8, with still energy
+    median 66 and min 33 against a threshold of 20 [M, n=25, 13:39:55-13:42:00].
+    During the 41.4 s gap, gates 7 and 8 read 3-7 [M]. If you were in the
+    kitchen, the gap is expected: the island's east edge is 7.56 m out, and the
+    last gate ends at 6.75 m [D, A101]. If you were at the table, someone there
+    went unseen for up to 41 s. Nothing is built on either answer yet
+    (CHANGELOG 2026-10-02, walk-test entry).
+  answered: null
+
+- asked: 2026-10-02
+  question: >-
+    When were the Ecobee thermostats installed? CLAUDE.md says June 2026, and
+    you said the thermostat has needed reseating 2 times "over 8 months".
+  blocks: >-
+    The thermostat-outage rate quoted in the family outage-policy record (2
+    reseats in about 4 months, or in 8), and the install date in CLAUDE.md's
+    Home section, which changes only on your answer. Nothing deployed rests on
+    it: after 5 min the radar decides alone either way.
+  answered: null

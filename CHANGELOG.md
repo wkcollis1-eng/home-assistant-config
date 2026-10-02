@@ -77,6 +77,71 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: walk test - the kitchen table reads about 6.1-6.2 m, inside the radar's last gate with margin; the lamps-off hold and the blip fix both proven live
+
+Bill: "At the middle of kitchen table distance when occupied can on. Time about 1:40. At couch time
+1:42. Between couch and kitchen table. Time 1:44. Walking back towards kitchen. Time 1:45"
+
+No config change. A measurement, recorded beside the A101 entry below.
+
+- **Source.** The family distances are excluded from the recorder, so HA history holds none of the
+  walk. They come from InfluxDB, measurement `in`: 2,088 points, 13:39:06-13:45:33 EDT [M].
+  - Inches are converted to metres (x 0.0254).
+  - In the table, each figure is the range of the 15 s bin medians.
+- **What the radar read** [M: one walk, n=1]:
+  - Bill's times are to the minute. The step changes place each position to within one 15 s bin.
+  - The moving distance writes only when it changes. At the table it wrote 1-3 points per bin.
+
+  | position (Bill) | window, EDT | moving | still | detection |
+  |---|---|---|---|---|
+  | kitchen table, "about 1:40" | 13:39:57-13:41:59 | 5.91-6.00 m | 6.08-6.23 m | 5.92-6.03 m |
+  | couch, 1:42 | 13:42:15-13:43:59 | 4.08-4.23 m | 4.07-4.44 m | 3.97-4.29 m |
+  | between couch and table, 1:44 | 13:44:00-13:44:59 | 4.86-5.15 m | 4.89-5.07 m | 4.54-4.96 m |
+
+- **"When occupied came on".** Presence went on at 13:39:54.873. The first reading, detection
+  5.67 m, came 2 ms later. The still target settled from 6.35 m to 6.09 m by 13:39:59.987 [M].
+- **The table has margin.**
+  - 6.08-6.23 m lies in gate 8, which covers 6.00-6.75 m at 0.75 m resolution [D].
+  - Gate 8 still energy, 13:39:55-13:42:00: median 66, min 33, max 100, against a threshold of 20
+    [M: n=25 changes at the 5 s gate log period].
+  - Gate 8 move energy over the same span: median 7.5, max 15, against a threshold of 15. That
+    looks like someone sitting.
+- **Where the radar loses someone heading for the kitchen.**
+  - Walking back, the still target rose from 4.66 m (13:45:24) to 6.19 m (13:45:33.265). The last
+    point was 5.95 m at 13:45:33.381.
+  - Presence went off at 13:46:03.464. That is 30.08 s later [D], the 30 s radar timeout.
+  - The walk at 13:39 ended the same way: last point 5.84 m at 13:39:13.471.
+  - No reading in the window exceeded 6.36 m [M].
+  - That agrees with the A101 entry below: the last gate ends at 6.75 m, and the island's east edge
+    is at 7.56 m [D]. It is not a test of A101, because the radar's distance has not been checked
+    against a tape.
+- **A 41.4 s blind spell before "occupied came on".**
+  - From 13:39:13.471 to 13:39:54.875 [D] there was no reading at all. Presence went off at 13:39:42
+    and back on at 13:39:54.
+  - Gate 7 and 8 still energies read 3-7 throughout, against a threshold of 20 [M].
+  - If Bill was in the kitchen then, the gap is expected. If he was already at the table, a person
+    there went unseen for up to 41 s.
+  - This is asked of Bill in `open_questions.yaml`, not inferred.
+- **Proven live since the 13:25:13 reload** [M: websocket `trace/get`, HA history]:
+  - **The lamps-off hold.** `mmw_family_presence_off` ran 3 times on the radar going empty: at
+    13:35:38, 13:39:42 and 13:46:03. Each run stopped at condition/4 with `main_floor_motion` "on",
+    so no lamp was commanded. The A101 entry listed this as not yet proven.
+  - **The blip fix.** The one Ecobee blip since the reload, 13:40:59.532 -> 13:40:59.606 (74 ms,
+    unavailable -> on), started no run. Before the fix, every blip did. This is n=1.
+  - **The Ecobee going quiet.** It went off at 13:51:22.509, 5 min 19 s after the radar's last
+    presence-off [D]. The run passed all six conditions, including condition/5. action/0 cleared
+    `mmw_family_manual_override`, and the run stopped at the latch check (action/1 false), so no
+    lamp was commanded.
+  - Still not proven: a lamps-off run with the latch on.
+- **Limits** (R11):
+  - one walk;
+  - no tape reference, so these are the radar's own slant ranges from the mantel, with an
+    unmeasured offset;
+  - the positions are Bill's labels;
+  - the gate energies are logged every 5 s, and only on change.
+- **`open_questions.yaml`.** 2 entries added: this gap, and the Ecobee install date against
+  "8 months" (entry above).
+
 ### mmwave family: Bill's decisions - no phone pushes, contradicted-label alert off, alarm armed, path_skew left as is; an audit-baseline fix tested but not deployed
 
 Bill: "no push notifications to my phone. i have had to pull the thermostat off the base and
