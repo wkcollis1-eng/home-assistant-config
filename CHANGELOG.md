@@ -77,6 +77,33 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### Bill's answers: the walk-test gap was the kitchen, the Ecobees went in in June 2026, and the inverter and charger are identified
+
+Bill: "1. kitchen, 2 june 2026, 3. giandel PS-1500KAR-USA, Li time 12V 80A Smart LiFePO4 Battery
+Charger | 3-Stage Charging" (with a litime.com product link).
+
+No config change.
+
+- **The walk-test gap (entry below): Bill was in the kitchen.** The 41.4 s with no reading was Bill
+  beyond the radar's reach, as the A101 distances predict. It was not a miss at the kitchen table.
+- **The Ecobees were installed in June 2026.**
+  - CLAUDE.md already said so, and is unchanged.
+  - So the 2 reseats [Bill, n=2] fall within about 4 months [D: June 2026 to 2026-10-02], not 8.
+    Read the "8 months" in the decisions entry below as about 4.
+  - Nothing deployed changes: after 5 min the radar decides alone either way.
+- **The converters (the open question of 2026-09-30, part a).**
+  - Inverter: Giandel PS-1500KAR-USA [Bill].
+  - Charger: Bill identified it by its product page, not a label number. It is LiTime "12V 80A Smart
+    LiFePO4 Battery Charger | 3-Stage Charging",
+    `litime.com/products/litime-14-6v-80a-mountable-lifepo4-battery-charger`, variant
+    46968898781404.
+  - A spec for either converter may now be cited (R16), if the document is for these identifiers.
+    None has been cited yet.
+  - Part (b), a clamp-meter reading at the next discharge test, is not answered. It waits on that
+    test. It moved to its own entry, keeping the asked date of 2026-09-30, and took blocks (1)-(3)
+    with it.
+- **`open_questions.yaml`.** 3 entries answered, 1 split out.
+
 ### mmwave family: walk test - the kitchen table reads about 6.1-6.2 m, inside the radar's last gate with margin; the lamps-off hold and the blip fix both proven live
 
 Bill: "At the middle of kitchen table distance when occupied can on. Time about 1:40. At couch time

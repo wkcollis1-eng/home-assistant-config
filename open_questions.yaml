@@ -2033,6 +2033,30 @@
     the charge side read DC/AC = 98.6 % at 1065 W and 100.0 % on energy [D],
     which is impossible for a real charger. (3) Any INA228 gain correction:
     none is made until (b). (4) Citing either converter's spec (R16) needs (a).
+  answered: >-
+    2026-10-02, Bill, for (a): the inverter is a Giandel PS-1500KAR-USA. He
+    identified the charger by its product page, not a label number: LiTime
+    "12V 80A Smart LiFePO4 Battery Charger | 3-Stage Charging",
+    litime.com/products/litime-14-6v-80a-mountable-lifepo4-battery-charger,
+    variant 46968898781404. So (4) can proceed, provided any spec cited is
+    for these identifiers. (b) is not answered: it waits on the next
+    discharge test. It moved to the next entry, keeping this entry's asked
+    date, and blocks (1)-(3) moved with it.
+
+- asked: 2026-09-30
+  question: >-
+    At the next discharge test (Bill, 09-30): a DC clamp-meter reading on one
+    battery cable during a steady hold, read at the same moment as HA's
+    battery current, with the clamp's model.
+  blocks: >-
+    (1) Splitting inverter x charger efficiency, 0.900 [D: (583/647.49) x
+    (730.12/730), n=1 cycle, 09-30], between the two converters. (2) Deciding
+    whether the INA228 path reads high or the plug meter reads low. On 09-30
+    the charge side read DC/AC = 98.6 % at 1065 W and 100.0 % on energy [D],
+    which is impossible for a real charger. (3) Any INA228 gain correction:
+    none is made until this reading. Split 2026-10-02 from the entry above,
+    whose part (a), the model numbers, Bill answered that day.
+  answered: null
 
 - asked: 2026-10-01
   question: >-
@@ -2152,7 +2176,10 @@
     last gate ends at 6.75 m [D, A101]. If you were at the table, someone there
     went unseen for up to 41 s. Nothing is built on either answer yet
     (CHANGELOG 2026-10-02, walk-test entry).
-  answered: null
+  answered: >-
+    2026-10-02, Bill: "kitchen". So the 41.4 s gap was him beyond the
+    radar's reach, as the A101 distances predict, and not a miss at the
+    kitchen table. One walk, n=1.
 
 - asked: 2026-10-02
   question: >-
@@ -2163,4 +2190,7 @@
     reseats in about 4 months, or in 8), and the install date in CLAUDE.md's
     Home section, which changes only on your answer. Nothing deployed rests on
     it: after 5 min the radar decides alone either way.
-  answered: null
+  answered: >-
+    2026-10-02, Bill: "june 2026". CLAUDE.md's Home section was already right
+    and is unchanged. So the 2 reseats [Bill, n=2] fall within about 4 months
+    [D: June 2026 to 2026-10-02], not 8. Nothing deployed changes.
