@@ -76,6 +76,53 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family node: firmware staged in `esphome/`, compiled; not yet flashed
+
+Bill: "have the family room mmWave presence sensor assembled and ready to bring up."
+
+- **What is on H: now.** Design open item 10, steps (a) and (b), for the family node.
+  - `esphome/mmwave-family-node.yaml` is new. It is the repo file at `C:\repos\mmwave-presence-node`
+    with one edit, made in both places, so the two are byte-identical [M]:
+    - `fw_version` changes from `"0.2-draft"` to `"0.4"`, plus a 2-line dated comment.
+    - Why: the node builds from H:'s `mmwave-node-common.yaml`, the file the office node runs and
+      reports as 0.4.
+    - R3: reversing the edit restores the repo original byte for byte. CRLF is kept (100 lines).
+  - Gates stay 8 / 8. `g0_move` stays at the common default of 50: the office's 70 was measured
+    for the office (P25), not for this room.
+  - No `wifi: use_address` yet. The node's IP is unknown until its first boot. Add it then, as
+    for the office (10.0.0.57, [2026.09.25]).
+  - `api_key_mmwave_family_node` is appended to `esphome/secrets.yaml`, which is gitignored.
+    - It is a fresh random 32-byte key.
+    - The file's existing 1,780 bytes are unchanged [M].
+- **Registry before first boot** [M: `core.entity_registry`, `core.device_registry`, read 2026-10-02]:
+  - There are no `family_mmwave_*` ids, live or deleted, and no family device. The ids the held-back
+    package expects should therefore come out without a `_2` suffix. Confirm against the live
+    registry after adoption (R5).
+  - `switch.family_room`, `_2` and `_3` (tplink) are present.
+- **Gates:**
+  - Config: ESPHome 2026.9.1, the add-on's installed version [M: `update.esphome_device_builder_update`],
+    run in the sandbox `C:\sandbox\mmw_family_1002`. Result: `Configuration is valid!`.
+    - Its one WARNING, about the `ota` password, comes from the common file. The office build
+      has the same warning.
+  - Compile from PowerShell: EXIT=0.
+    - `main.cpp.obj` was written at 09:46, after the config run.
+    - `firmware.ota.bin` is 968,464 B and `firmware.factory.bin` is 1,034,000 B [M: build dir].
+    - RAM is 109,574 of 321,296 B [M: compile log].
+    - 0 errors. Both warnings were already there ([2026.09.25]): the unused `get_gain_str` in
+      `veml7700.cpp`, and `%u` at `mmwave-node-common.yaml:1129` (it was at line 1082 before
+      today's comment).
+  - `check_provenance.py --all` on the node file: 0 WARN.
+  - Audit: 0 FAIL, 1 WARN (the 09-30 open question, not this change), 2 INFO across 18 pipelines.
+- **Not done:**
+  - Not flashed. Before first power-on, two questions to Bill:
+    - Was §5.0 step 0.0 done on this module before assembly (a plain `LD2410C` silkscreen, and its
+      VCC-to-GND resistance)?
+    - Is the XIAO's USB-C reachable for a flash from the PC?
+  - The family package subset stays held back until the node is live and commissioned.
+  - The repo's common file is behind H:'s. Today's distance `filters: []` change is on H: only,
+    from the other 10-02 session. It was left alone; the family build used H:'s copy.
+  - No commits.
+
 ### mmwave office node: "contradicted label" notification removed (Bill)
 
 - **Asked.** Bill: "we need to remove this notification" - `mmWave calibration: contradicted
