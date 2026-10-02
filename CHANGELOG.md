@@ -77,6 +77,55 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: the kitchen is beyond the radar's reach (drawing A101), and the Ecobee trigger's blip defect fired live
+
+- **Node position.** Bill: "Yes the family node is on the mantel, facing west down the room". This
+  matches design section 3.6.
+- **Distances.** Bill: "you should be able to scale the distances from this". He meant drawing A101,
+  `East Hampton Home/20210216121002066.pdf`.
+  - Scale: seven dimension strings on the scan agree at 33.25-33.50 px/ft [M: line-detected].
+  - Distances are from the hearth front; the figure in brackets is from the wall face [D]:
+    - island east (stool) edge: 7.56 m (7.88 m);
+    - island west edge: 8.42 m (8.74 m);
+    - sink: 9.44 m (9.75 m);
+    - range: 9.73 m (10.04 m).
+  - The LD2410 tops out at gate 8 [S: ESPHome 2026.8.2 `components/ld2410/number/__init__.py` l.98,
+    l.104]. At 0.75 m gates that ends at 6.75 m, 0.81 m short of the island [D].
+  - That is why the labelled test read the empty-room level, and no setting can change it. The
+    Ecobee is the kitchen's only witness.
+  - A101 is a permit drawing, not as-built. The falsifier is a tape that reads under 6.75 m from the
+    mantel to the island's east edge.
+- **Design error corrected.**
+  - Design section 3.6 said the island sat "about two feet past" the living-room line. It is
+    8'-10" past [D].
+  - The design also put counters at that line. They are on the kitchen's north and west walls.
+  - Two dated CORRECTED notes were added to `docs/mmwave-presence-node-design.md` (repo,
+    uncommitted). That is 34 lines inserted and 0 deleted, and removing them gives back the snapshot
+    [M].
+  - The 2026-09-07 owner decision, that the island counts as occupied, still stands as a lighting
+    rule.
+- **`open_questions.yaml`.** The distance question is now answered: 78 entries, 1 unanswered. Audit:
+  "0 FAIL, 1 WARN, 2 INFO across 18 pipelines".
+- **Trace, and a defect of mine (R13).** The only trace since the 11:45 reload ran at 13:02:00 [M:
+  websocket `trace/get`, HA history].
+  - Trigger: `main_floor_motion` went off -> unavailable at 13:02:00.437 and back to off at
+    13:02:00.507. That is a 70 ms HomeKit blip, not the end of motion.
+  - All five conditions passed. action/0 turned off `mmw_family_manual_override`, which was already
+    off. The run stopped at the latch check, so no lamp was commanded.
+  - What it proves: the new trigger and conditions load and evaluate against live states.
+  - What it shows: the defect. `from: unavailable` fires on every blip. Over 10 days there were 183
+    blips of 51-172 ms (median 86 ms), 155 of them at second :00, 5-25 a day [M: HA history,
+    2026-09-22 to 10-02]. Each one clears a manual override the occupant set.
+  - The fix is `from: ["on", "unknown"]`. It is NOT deployed yet: it waits on Bill's choice of
+    outage policy, so that both go through one gate cycle.
+  - Not yet proven: a lamps-off run with the latch on, and a radar-trigger run held back by the
+    Ecobee condition.
+- **Ecobee integrations** [M: same 10 days]:
+  - HomeKit had no outage longer than 0.172 s.
+  - The cloud integration has `binary_sensor.main_floor_occupancy_2` only: occupancy, no motion.
+    Its on-spans have a median of 4860 s and a maximum of 40111 s, and it went unavailable 8 times,
+    for 180-540 s each. It is not used.
+
 ### mmwave family lamps-off now also waits for the Ecobee to go quiet: the radar does not reach the kitchen working area
 
 Bill, after the first labelled test: "sounds like we need to use both the radar and ecobee for lights
@@ -151,8 +200,9 @@ off."
     with the radar wait identical in trigger and condition.
   - All 131 automations are available, and the log has no entry from the reload.
   - NOT YET OBSERVED: a trace through the new path. The main floor was empty at the reload.
-  - In daylight the lamps stay off (lux is above `lux_on` 35), and the action stops at its "is a
-    lamp on?" check. The proof will therefore be a trace, not a lamp.
+  - In daylight the lamps stay off (lux is above `lux_on` 35), and the action stops at its
+    `mmw_family_latch` check. The proof will therefore be a trace, not a lamp. (CORRECTED
+    2026-10-02: first written as an "is a lamp on?" check, which the action does not have.)
 - **Open:**
   - An Ecobee stuck ON would keep the lamps on with no auto-off. There is no stuck-on watchdog.
   - `sensor.mmw_family_state` and the corroborated-empty sensor still read the radar alone, so they

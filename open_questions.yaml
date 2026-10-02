@@ -2122,3 +2122,18 @@
     behind it. If (c) is beyond 6.75 m that area is out of range for good
     and the Ecobee stays its witness; the sweep is then needed only at the
     island. Nothing is tuned until these are known.
+  answered: >-
+    2026-10-02, Bill pointed to drawing A101 rather than a tape: "you should be
+    able to scale the distances from this" (East Hampton Home/
+    20210216121002066.pdf). Seven dimension strings on it agree at 33.25-33.50
+    px/ft [M]. From the hearth front, wall face in brackets [D]: (a) island
+    east (stool) edge 7.56 m (7.88 m), west edge 8.42 m (8.74 m); (c) sink
+    9.44 m (9.75 m), range 9.73 m (10.04 m). All lie beyond 6.75 m, the end of
+    gate 8, which is the LD2410's maximum [S: ESPHome 2026.8.2
+    components/ld2410/number/__init__.py l.98]. So (b) is moot: neither side
+    of the island is in range. The kitchen working area is out of range for
+    good and the Ecobee stays its witness; the 5.2a sweep covers the great
+    room only out to 6.75 m. The design's "island about 2 ft past the
+    boundary" was wrong: the island is 8'-10" past it [D]. Corrected in design
+    section 3.6 the same day. A101 is a permit drawing; falsifier: a tape
+    reading under 6.75 m (22'-2") from the mantel to the island's east edge.
