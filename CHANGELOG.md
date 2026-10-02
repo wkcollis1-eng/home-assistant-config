@@ -77,6 +77,82 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: Bill's decisions - no phone pushes, contradicted-label alert off, alarm armed, path_skew left as is; an audit-baseline fix tested but not deployed
+
+Bill: "no push notifications to my phone. i have had to pull the thermostat off the base and
+plug back in 2 times over 8 months due to lost connections.. turn off contradicted label
+notification. no need to force update the skew path. re-audit the baseline. arm the alarm."
+
+- **No push for a HomeKit outage.** Not built. Nothing else changed.
+- **The thermostat does lose its connection for real.**
+  - Bill has had to pull it off its base and plug it back in 2 times in 8 months [Bill, n=2].
+  - An outage like that lasts until someone notices and reseats it. Under the outage policy in the
+    entry below, the radar decides alone after 5 min. So for the rest of such an outage, the kitchen
+    cost stated there applies, with no notification (Bill's choice).
+  - The 10 days of HA history held none of these [M: no outage longer than 0.172 s]. That window is
+    too short to contradict a rate of 2 in 8 months.
+  - CLAUDE.md says the Ecobees replaced the T6 Pro in June 2026, about 4 months ago. Bill's
+    "8 months" is recorded as he said it; the install date is asked back to him.
+- **Contradicted-label alert off.** `mmw_label_contradicted_alert` now has `initial_state: false`,
+  with a dated note.
+  - The office trigger was removed earlier today; this turns off the family one.
+  - HA applies `initial_state` over the restored state each time the entity is added, including
+    on a reload [S: core 2026.9.4 `automation/__init__.py` l.629-656]. So it stays off through
+    reloads and restarts.
+  - Both `*_label_contradicted` sensors stay and keep recording.
+  - Repo edit by script: 102563 -> 103226 B, +10 lines [M]. Undoing it gives back the snapshot.
+    The H: copy differs from the previous one by exactly those 10 lines.
+  - Sandbox: validate "PASS (parse-clean)". The first audit gave "FAIL generated-doc-stale
+    PACKAGES.md": the line count moved by 10, as expected. After `gen_reference.py`: "0 FAIL,
+    1 WARN, 2 INFO across 18 pipelines".
+  - H: deployed at 101982 B, identical to the derived file [M: cmp]. PACKAGES.md, AUTOMATIONS.md
+    and ENTITIES.md are identical to the sandbox regen.
+  - `gate.py`: "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines", "NOT READY". Its 1 NEW finding is the standing open-question WARN (see the baseline
+    item below).
+  - `check_config`: {'result': 'valid', 'errors': None, 'warnings': None}.
+  - Live proof [M]:
+    - `automation.reload` at 13:44:43;
+    - `automation.mmw_label_contradicted_by_presence` went from on to off at that moment;
+    - 131 automations, 0 unavailable.
+  - The live contradicted-label notification was dismissed. The dropout notification ("radar says
+    empty, thermostat says occupied") is still up, and is asked about.
+- **`path_skew` `force_update`: closed, no change** (Bill: "no need to force update the skew path").
+- **Alarm armed.** `input_boolean.mmw_family_alarm_enable` was off; it was turned on at 13:37:21
+  [M].
+  - "Disarm tonight" is off, and the alarm automation is on.
+  - Live settings [M]: quiet hours 01:00-05:00, 6 flashes, 20 s grace, 15 min cooldown.
+  - It raises an HA persistent notification only. There is no `notify.*` call anywhere in the
+    package, so nothing goes to a phone.
+  - The helper has no `initial:`, so it keeps its state through a restart.
+  - Not yet proven: a real alarm firing. The earliest it can fire is 01:00 tonight.
+- **Audit baseline: the re-baseline would not have held, so the fix comes first. Tested in the
+  sandbox, NOT deployed.**
+  - The open-question WARN's message carries a day count ("- 2 days outstanding"). The baseline key
+    is level|rule|message. So a baseline written today reports the same question as NEW, and its
+    old line as FIXED, the next day.
+  - The fix keeps the count in the printed report and drops it from the comparison key only:
+    `_BASELINE_VOLATILE` in `_baseline_report`. In the sandbox it went 95479 -> 95933 B [M].
+    Undoing it gives back the snapshot. py_compile OK; local ruff 0.16.4 "already formatted" (the
+    pinned pre-commit hook has not been run).
+  - R2, by running `main()` with `datetime.now()` shifted:
+    - old code, baseline written on day 0 and checked on day +1: "1 NEW, 1 FIXED, 0 UNCHANGED",
+      exit 1 (the churn, reproduced);
+    - new code, day +1 and day +30: "0 NEW, 0 FIXED, 1 UNCHANGED", exit 0;
+    - new code with an injected new unanswered question: "1 NEW, 0 FIXED, 1 UNCHANGED", exit 1;
+      restored, "0 NEW, 0 FIXED, 1 UNCHANGED".
+  - `test_ha_audit.py`: "SUITE PASSED - 32 rule(s) proven in both directions". It has no test of
+    `--baseline`; the shifted-date runs above are the only proof.
+  - Copying it to `H:/scripts/ha_audit.py` was refused by Claude Code's auto-mode classifier as
+    "Logging/Audit Tampering". It is left for Bill. H:'s copy is unchanged [M: cmp against the
+    pre-session snapshot].
+  - `.audit_baseline.json` was NOT re-baselined. Without the fix it would be undone at midnight.
+    It still holds 0 findings, written 2026-08-26.
+- **Seen, not touched.** `automation.sdr_water_meter_leak_flag_set` and
+  `automation.dehumidifier_rh_stall_shutdown` are both off, and have been for all of HA's history
+  (from 2026-09-18 15:10 UTC) [M]. `packages/utility_meters.yaml` says the leak-flag one was
+  enabled on 2026-08-22. Asked of Bill.
+
 ### mmwave family: Ecobee outage policy - after 5 min the radar decides alone - and the blip fix
 
 - **Bill's decision.** On what the lamps should do when HomeKit loses the Ecobee, Bill chose:
