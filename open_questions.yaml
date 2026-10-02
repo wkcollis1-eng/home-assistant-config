@@ -2092,7 +2092,8 @@
     first labelled test (10-02, 10:54-11:21) the radar read the empty-room
     level at every gate for all 564 s of kitchen work at the island,
     counters, sink and range [M: HA history], although design §3.6 [S:
-    docs/design.md l.460-488] puts the island within about 6 m of a mantel
+    docs/mmwave-presence-node-design.md l.460-488] puts the island within
+    about 6 m of a mantel
     mount facing west. Aim, mounting and range cannot be told apart until
     the position is known. Meanwhile the lamps-off also waits for the
     Ecobee (CHANGELOG 2026-10-02), so the kitchen does not go dark.
@@ -2100,3 +2101,24 @@
     2026-10-02, Bill: "Yes the family node is on the mantel, facing west down
     the room". The mount matches design section 3.6, so the kitchen miss is
     not a mounting error. Unblocks the section 5.2a coverage sweep.
+    CORRECTED 2026-10-02: the design doc cited above is
+    docs/mmwave-presence-node-design.md in the mmwave-presence-node repo;
+    it was first written as docs/design.md, which does not exist. The line
+    numbers were right.
+- asked: 2026-10-02
+  question: >-
+    Family kitchen, measured with a tape from the front of the node on the
+    mantel: (a) to the near (living-room) edge of the island; (b) to where
+    you stand when you work at the island, and which side of it you stand
+    on; (c) to the face of the counters, sink and range.
+  blocks: >-
+    Whether the kitchen working area is inside the radar's reach at all, and
+    so what the section 5.2a sweep has to cover. Live settings are 0.75 m
+    gates, max gate 8 [M: HA states 2026-10-02]. Design section 3.6 gives
+    gate 7 as 5.25-6.00 m [S: docs/mmwave-presence-node-design.md l.464],
+    so gate 8, the last, ends at 6.75 m [D: 6.00 + 0.75]. The design puts
+    the island about 2 ft past the 5.36 m living-room boundary (from drawing
+    A101, not measured), and Bill says the counters, sink and range lie
+    behind it. If (c) is beyond 6.75 m that area is out of range for good
+    and the Ecobee stays its witness; the sweep is then needed only at the
+    island. Nothing is tuned until these are known.

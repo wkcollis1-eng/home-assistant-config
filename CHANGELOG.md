@@ -93,7 +93,9 @@ off."
     - "no one present": mean 2.5-5.9, max 5-9.
   - The only readings of 10 or more came at 11:06:08-13, when Bill walked to the table.
   - Lowering a threshold cannot fix this, because kitchen work and an empty room read the same.
-  - Design §3.6 [S: docs/design.md l.460-488] places the node on the mantel facing west, with the
+  - Design §3.6 [S: docs/mmwave-presence-node-design.md l.460-488, mmwave-presence-node repo;
+    CORRECTED 2026-10-02: first written as `docs/design.md`, which does not exist. The line numbers
+    were right] places the node on the mantel facing west, with the
     island within about 6 m. The island was DECIDED in scope on 09-07. This is a coverage miss
     against the design.
   - The next step is the §5.2a coverage sweep, not threshold tuning. The sweep waits on Bill
