@@ -2194,3 +2194,20 @@
     2026-10-02, Bill: "june 2026". CLAUDE.md's Home section was already right
     and is unchanged. So the 2 reseats [Bill, n=2] fall within about 4 months
     [D: June 2026 to 2026-10-02], not 8. Nothing deployed changes.
+
+- asked: 2026-10-02
+  question: >-
+    Family ceiling-fan test: with the fan on and the room empty, the radar holds
+    presence on. Do you run the fan overnight or for long spells, and what speed
+    was it on?
+  blocks: >-
+    The choice between raising family still thresholds (g4 cannot be cleared
+    without blinding it to a seated person) and leaving them, and whether the
+    armed quiet-hours alarm is blind on fan nights (it needs an off-to-on edge).
+  answered: >-
+    2026-10-02, Bill: "do not run overnoight. will run it for a few hours,
+    typically when we are in the room. speed is on low." So the test was the
+    ceiling fan at low speed, and the alarm is blind only on a night the fan is
+    left on by mistake. Bill then chose no threshold change: "let's do this -
+    As it stands: if you leave the room with the fan on, the lamps stay on
+    until the fan goes off. That's a harmless failure."

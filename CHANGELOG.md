@@ -77,6 +77,73 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: ceiling-fan test - at low speed the fan holds presence on in an empty room, and Bill chose no threshold change
+
+Bill: "next test will be the ceiling fan tes. when you see the next walking thru/room empty
+transition, ceiling fan will be on." Then: "Ceiling fan off at 3:52".
+
+No config change.
+
+- **The spell.**
+  - The label went from walking through to no one present at 15:17:27.577, which is when the fan
+    came on. Bill went back in at 15:51:39.973 to switch it off.
+  - Analysed: 15:18:00-15:51:30, 33.5 min [M, InfluxDB, time-weighted step function].
+  - Baseline: the fan-off empty spell, 15:02:30-15:16:30, 14.0 min.
+  - Confounds: `climate.main_floor` was off, idle, fan mode auto for the whole spell [M: one history
+    row, 15:00-15:52]. The thermostat's blower was not running.
+- **The radar held the room occupied for the whole spell.**
+  - Presence and still target were on throughout, with 0 off-edges [M, HA history, 33.5 min].
+  - Moving target was on almost throughout, with 9 brief off-edges [M].
+- **It saw one fixed target about 2.95 m from the mantel.** Still distance had a median of 2.95 m,
+  with p10-p90 of 2.94-2.96 m [M, n=2690 points]. Moving distance had a median of 2.92 m [M,
+  n=6636].
+- **Per-gate energy, time-weighted median, fan on vs fan off** [M]. The 5 s gate samples understate
+  short spikes (R18), so the binary sensors above are the direct record.
+
+  | gate | still, fan on | still threshold | move, fan on (max) | move threshold | fan off, any channel |
+  |---|---|---|---|---|---|
+  | g3 2.25-3.00 m | 48 | 40 | 11 (28) | 30 | ≤ 6 |
+  | g4 3.00-3.75 m | 86, max 100 | 30 | 18 (51) | 20 | ≤ 7 |
+  | g5 3.75-4.50 m | 36 | 30 | 7 (16) | 15 | ≤ 7 |
+  | g6 4.50-5.25 m | 20 | 20 | 4 (9) | 15 | ≤ 6 |
+  | g7 5.25-6.00 m | 21 | 20 | 4 (12) | 15 | ≤ 7 |
+
+  - In the fan-off spell no gate crossed its threshold. The highest reading was g1 move 13, against
+    a threshold of 50.
+- **No threshold set clears the fan without blinding a seat.**
+  - g4 still energy reaches the 100 maximum, so no g4 still threshold sits above the fan. Clearing it
+    means making 3.00-3.75 m blind to a seated person.
+  - The other gates could be cleared (about g3 60, g5 45, g6 25, g7 25). The walk test (n=1) read
+    the couch at g5 still 91 and g6 100, and the table at g8 66, so both would keep their margin.
+  - Design §5.4's rule for a ceiling fan (raise that gate's move threshold only, and leave the still
+    threshold alone) fails here on both counts. The fan trips the move detector, and still energy
+    alone holds presence on.
+- **Bill's answers (open_questions.yaml).** The fan never runs overnight. It runs for a few hours,
+  typically while the room is occupied, at low speed.
+- **Decision (Bill): no change.** "let's do this - As it stands: if you leave the room with the fan
+  on, the lamps stay on until the fan goes off. That's a harmless failure."
+  - Consequence 1: while the fan runs, the lamps cannot go off automatically. The radar never reads
+    empty, and the lights-off path needs it to.
+  - Consequence 2: the quiet-hours alarm is blind on a night the fan is left on. It needs an
+    off-to-on presence edge after at least 300 s empty (`mmw_family_quiet_alarm`), and a fan holding
+    presence on produces none. It does not false-fire.
+- **After the fan went off: no empty-room reading yet.** Bill sat on the couch at 15:53:17, 1.6 min
+  after going in to switch the fan off.
+  - The other direction was seen before the test. With the fan off, presence cleared at 15:02:08,
+    33 s after the 15:01:35 empty label [M]. No gate crossed its threshold in the 14 min after.
+  - Seated on the couch with the fan off, 15:53:30-15:54:52 (1.4 min, the second couch sample) [M]:
+    g5 still 90 and g6 63. Both stay above the clearing levels of about 45 and 25.
+- **Limits.**
+  - One spell, at low speed only. Higher speeds are untested.
+  - The table margin comes from one walk (n=1). The couch has two short samples: the walk and the
+    1.4 min above.
+  - That the 2.95 m target is the fan is [I]. It appeared with the fan, and it was the only target
+    in an empty room. It is falsified if the same target appears with the fan off and the room
+    empty. The 14 min fan-off spell before the test showed no such target.
+  - Bill has not given the fan's position.
+- **Design doc (repo `mmwave-presence-node`, uncommitted).** §5.4's ceiling-fan row now carries a
+  dated note recording this result. It is a correction, not a deletion (R13).
+
 ### Bill's answers: the walk-test gap was the kitchen, the Ecobees went in in June 2026, and the inverter and charger are identified
 
 Bill: "1. kitchen, 2 june 2026, 3. giandel PS-1500KAR-USA, Li time 12V 80A Smart LiFePO4 Battery
