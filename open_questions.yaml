@@ -2002,3 +2002,34 @@
     inverter-side bolt (monitor back online 20:33:29 EDT), so from then the
     monitor is metered too, and nothing on the bank goes unmetered but the
     cells' own self-discharge.
+
+- asked: 2026-09-30
+  question: >-
+    Battery-bank discharge/charge test of 09-30: (a) what cut the monitor's
+    power at 13:49 EDT (INA228 power-on reset, "bridge #3")? (b) what model
+    is the plug-in AC meter, and what does its "H" show? (c) which charger
+    and inverter were used?
+  blocks: >-
+    Whether bridge #3 was a fault; whether the meter's 1088 W reading was
+    live or held; any citation of either converter's efficiency spec (R16).
+  answered: >-
+    2026-09-30, Bill: (a) he disconnected it to clean up the wiring, so it
+    was deliberate and not a fault. (b) A generic Amazon unit, not a branded
+    Kill-A-Watt, and "H" is peak-hold. The data agrees: the 1088 W photo was
+    taken 71 s after the charger stopped, when the DC side read 0.4 W [M].
+    (c) A LiTime 80 A charger and a Giandel 1500 W inverter. Model numbers
+    were not to hand; they are carried in the next entry.
+
+- asked: 2026-09-30
+  question: >-
+    (a) The model numbers from the labels of the LiTime 80 A charger and the
+    Giandel 1500 W inverter. (b) At the next discharge test (Bill, 09-30): a
+    DC clamp-meter reading on one battery cable during a steady hold, read
+    at the same moment as HA's battery current, with the clamp's model.
+  blocks: >-
+    (1) Splitting inverter x charger efficiency, 0.900 [D: (583/647.49) x
+    (730.12/730), n=1 cycle, 09-30], between the two converters. (2) Deciding
+    whether the INA228 path reads high or the plug meter reads low. On 09-30
+    the charge side read DC/AC = 98.6 % at 1065 W and 100.0 % on energy [D],
+    which is impossible for a real charger. (3) Any INA228 gain correction:
+    none is made until (b). (4) Citing either converter's spec (R16) needs (a).
