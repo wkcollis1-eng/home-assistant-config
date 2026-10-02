@@ -2033,3 +2033,23 @@
     the charge side read DC/AC = 98.6 % at 1065 W and 100.0 % on energy [D],
     which is impossible for a real charger. (3) Any INA228 gain correction:
     none is made until (b). (4) Citing either converter's spec (R16) needs (a).
+
+- asked: 2026-10-01
+  question: >-
+    On the UPS-Monitor-THT board as built, which XIAO pin does the INA260
+    ALERT line (R2's non-3V3 end / socket pin 5) beep through to: D1 (GPIO3,
+    second pin from D0) or D3 (GPIO5, fourth pin, opposite D10)?
+  blocks: >-
+    (1) Any fix to ups-monitor.yaml's "INA260 Alert" binary_sensor, which reads
+    GPIO3. In UPS-Monitor-THT.kicad_pcb the pad the custom footprint NAMES
+    "GPIO3" sits at the D3 position (x=7.61, opposite GPIO10 at x=7.62, between
+    D2 and SDA/D4=GPIO6) - i.e. GPIO5 [design file, read 2026-10-01]. If the
+    board matches the file, the smoke detector watches an unconnected pin with
+    INPUT_PULLUP and cannot fire (R7). The bank's Rev 2 file names the same pad
+    D3 and the bank firmware reads GPIO5. (2) The ALERT pin in any INA228 port
+    of the UPS monitor onto the Rev 2 board.
+  answered: >-
+    2026-10-01, Bill: D3 (GPIO5). The board matches the design file, so
+    ups-monitor.yaml's "INA260 Alert" on GPIO3 has watched an unconnected
+    pin (INPUT_PULLUP, always high) and could not fire. Any INA228 port onto
+    the Rev 2 board keeps ALERT on GPIO5, as the bank does.

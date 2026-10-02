@@ -432,6 +432,51 @@ Still open here: the tuning Bill named, then the recorder re-exclusion.
 With the re-exclusion, also remove the "Target distance (P24 tuning)"
 card from the office view (repo source first, then the H: copy per its
 note); after the re-exclusion it draws nothing. Added 2026-09-28.
+
+### P26 — ups-monitor "INA260 Alert" reads an unconnected pin: V1.21 fix written, withdrawn until Bill can test [LOW]
+```
+Opened 2026-10-01. The UPS-Monitor-THT PCB routes INA260 ALERT (socket pin 5,
+R2 pull-up) to XIAO D3 = GPIO5. The footprint NAMES that pad "GPIO3". Since
+V1.9.2 the firmware has read GPIO3 (D1), which is unconnected [M: KiCad pad
+positions; confirmed by Bill, open_questions.yaml 2026-10-01].
+binary_sensor.ups_monitor_ina260_alert therefore cannot fire. Its "off"
+history is not evidence that ALERT never asserted. Nothing else uses it: the
+firmware arms no INA260 alert, no automation reads the entity, and only
+dashboards show it. Hence LOW.
+
+V1.21 was written, compiled, and withdrawn the same day.
+- What it changes. Outside comments, 4 of 3205 lines [M: diff]:
+    - pin `number: GPIO3` -> `GPIO5` under `id: ina260_alert` (the only
+      behaviour change);
+    - the WARN log text "on GPIO3" -> "on GPIO5";
+    - project version 1.20 -> 1.21, and the boot log line to match.
+  It also adds V1.21 notes to the header pin map, the changelog and the sensor
+  comment.
+- Gate. ESPHome 2026.9.1 from PowerShell: main.cpp.obj built, 0 errors,
+  EXIT 0 [M]. The one -Wformat warning predates it (the outage-log %u).
+- Withdrawn from esphome/ at Bill's request because the Device Builder picks
+  up any file there. The git sequence was: 01045d0 (V1.21, auto-commit),
+  then 8732be9 (back to V1.20, auto-commit). The device never left V1.20
+  (config hash 0x8b6edc04) [M].
+- Held at C:/sandbox/ups_v121/: ups-monitor.yaml (V1.21), edit_v121.py (9
+  exact-match edits, plus --reverse), and changelog_entry.md (draft). That is
+  scratch space and may be wiped; the edits above are enough to redo it.
+
+TO DEPLOY:
+1. Re-apply the edits to whatever H:/esphome holds then. edit_v121.py aborts
+   if any site has changed.
+2. Real-compile on the add-on's ESPHome version.
+3. Stage the file only when Bill is ready to Install.
+4. Write the CHANGELOG entry dated the Install.
+5. Fix the repo docs that still say GPIO3 (D1):
+   UPS_SurvivalSleep_Design_Summary_v11.md and v12.md, and the
+   DIY-LiFePO4-UPS copy of ups-monitor.yaml.
+
+CLOSE WHEN, after Install:
+- the sensor reads off at idle;
+- holding the ALERT test point to the GND test point for >200 ms
+  [S: delayed_on] turns it ON with the WARN log line;
+- on release it turns OFF.
 ```
 
 ---
