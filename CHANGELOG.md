@@ -77,6 +77,87 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family: lights on as an occupied room darkens (`mmw_family_dusk_on`)
+
+Bill: "Lights should come while occupied and lux readings go down".
+
+- **The gap.** `mmw_family_presence_on` tests lux only at the off-to-on presence edge (design
+  §4.2). A person who sits down in daylight stays in the dark through dusk, until they leave and
+  come back.
+  - Today: presence on from 15:16:49, lamps off, and lux at 31 at 15:55 and 18 by 16:06 [M, HA
+    history and InfluxDB].
+- **The new automation**, `mmw_family_dusk_on` ("mmW Family: occupied room darkens -> lights on"):
+  - Trigger 1: `sensor.family_mmwave_ambient_light` below `input_number.mmw_family_lux_on` (30 lx
+    live) for 10 min.
+  - Trigger 2: `automation_reloaded`.
+    - A numeric_state trigger does not arm when the reading is already below the threshold as the
+      trigger attaches [S: core 2026.9.4 homeassistant/triggers/numeric_state.py l.141-145].
+      Without this trigger, a reload after dusk would leave an occupied room dark.
+    - The event fires after the triggers attach [S: core 2026.9.4 automation/__init__.py
+      l.288-296; helpers/entity_platform.py l.1127].
+    - A restart needs no trigger here: presence returns from `unavailable`, and
+      `mmw_family_presence_on` tests lux itself.
+  - Conditions: `mmw_family_presence_on`'s own list, reused through a YAML anchor (R10):
+    - auto enable on;
+    - no manual override;
+    - no lamp on;
+    - lux not stale;
+    - threshold above 0;
+    - not the alarm's armed quiet hours.
+  - Action:
+    - the same dark-and-occupied test as `mmw_family_presence_on`, also through an anchor;
+    - then `script.mmw_family_lamp_set` on;
+    - then the latch on, so the empty-room automation releases the lamps as usual.
+  - It only switches on, and only while the lamps are off. Nothing switches a lamp off on lux, so
+    the lamps' own light cannot make it oscillate. That loop is what §4.2 exists to prevent.
+- **Why 10 min** [M, InfluxDB `lx`, 10 s writes, one day].
+  - Between 10:45 and 15:55 the reading fell below 30 lx 35 times, for 16.3 min in total.
+  - The longest dip lasted 200 s (14:29:54-14:33:14, minimum 25.0 lx).
+  - From 15:57:44 the reading stayed below 30 lx.
+  - 10 min is three times the longest dip [D: 600 s / 200 s].
+  - The cost of the wait is a room left dim for 10 min at dusk.
+- **The lamps lift the reading over the threshold (first measurement).**
+  - Bill switched all three lamps on by hand at 15:57:17 and off at 15:57:39 [M, logbook, user
+    context].
+  - The reading went from 23.8-26.8 lx to 33.3-35.4 lx, and back to 24.1 lx [M, 2 samples with
+    the lamps on].
+  - That is above lux_on (30 lx), so a lux-based OFF would oscillate. The comment in
+    `mmw_family_presence_on` that called this unmeasured now carries the figure.
+- **Observed at deploy** [M, HA states, traces and logbook].
+  - `automation.reload` at 16:31:28: 132 automations, 0 unavailable.
+    `automation.mmw_family_occupied_room_darkens_lights_on` is on; its live config has 2 triggers,
+    6 conditions and 3 actions.
+  - Its first trace, 16:31:28.72, was triggered by `automation_reloaded` and stopped at condition 1,
+    the manual override. So the reload event reaches the automation after it attaches.
+  - The room had read empty since 16:26:50. At 16:31:30.13 the Ecobee went quiet, and
+    `mmw_family_presence_off` cleared the override, then stopped at the latch (off). No lamp was
+    touched. Its runs at 16:21:21 and 16:26:50 had held at the Ecobee condition.
+- **Not observed yet.**
+  - The 15:57:17 switch set `mmw_family_manual_override`. It holds until the room is next empty, so
+    the new automation could not light the lamps at the reload. That is by design: a lamp a person
+    turned off stays off.
+  - The dusk trigger cannot be seen until an occupied room next darkens with no override, which is
+    tomorrow at the earliest.
+  - Proof needed:
+    - a trace of `mmw_family_dusk_on`, trigger `darkened`, that reached `script.mmw_family_lamp_set`;
+    - the lamps on in the logbook with that automation's context.
+- **Limits.**
+  - One day of lux data (10:00-16:10, 2026-10-02).
+    - A cloudier day may dip below 30 lx in daylight for longer than 10 min, and would light the
+      lamps.
+    - The measure is the longest daylight dip with the lamps off, from the same series.
+  - Any reading at or above lux_on restarts the 10 min. A reading hovering at the threshold delays
+    the lamps further.
+  - The ceiling fan holds presence on in an empty room (test, 2026-10-02 above). A fan left running
+    therefore lights an empty room at dusk. That is the same harmless failure Bill accepted for the
+    lights-off side.
+  - TV light may hold the reading above 30 lx after dark. That is untested; Bill's TV on/off test
+    is still to come.
+  - The office is unchanged.
+- **Repo** (`mmwave-presence-node`, uncommitted):
+  - package source: 5 sites, +76 lines, and the reversal matches the snapshot;
+  - design §4.2: a dated note, and a pointer from its rule line.
+
 ### mmwave family: ceiling-fan test - at low speed the fan holds presence on in an empty room, and Bill chose no threshold change
 
 Bill: "next test will be the ceiling fan tes. when you see the next walking thru/room empty
