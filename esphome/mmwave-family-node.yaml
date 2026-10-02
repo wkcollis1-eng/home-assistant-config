@@ -1,0 +1,100 @@
+# =============================================================================
+# NODE 2 — FAMILY ROOM
+# -----------------------------------------------------------------------------
+# This file contains NOTHING but substitutions and this node's own API key.
+# All behaviour is in mmwave-node-common.yaml, which both nodes share byte for
+# byte. (The key moved here 2026-09-22: one key per device is the house
+# convention - api_key_mmwave_bench, api_key_ups_monitor, ... - and the shared
+# `api_encryption_key` the common file used would have given both nodes one.)
+#
+# Install geometry (§5.1). MANTEL HEIGHT MEASURED 2026-09-08: 52" = 1.321 m.
+# The design assumed 1.3 m; the measurement agrees to 21 mm, so the assumption
+# stands and is now a measurement. Recomputed against a seated torso at 0.9 m:
+#
+#     distance   depression      note
+#      2.00 m     11.9 deg       near sofa
+#      4.00 m      6.0 deg       the design target below (file previously said 5.7)
+#      5.23 m      4.6 deg       far OCCUPIABLE corner (counters, see §3.6)
+#
+# => 6.0 deg DOWN-tilt. Feet under the REAR edge — the opposite tilt to the
+# office node, which is the single easiest thing to get backwards.
+#
+# WHY 6 deg IS WELL CHOSEN, AND IT IS NOT ONLY ABOUT SEATED PEOPLE. At 1.321 m
+# the sensor sits BETWEEN a seated torso (0.9 m) and a standing one (~1.45 m),
+# so standing targets are ABOVE it and the angle inverts: +1.4 deg UP at the far
+# corner, +3.7 deg UP at 2 m. The full span this node must cover is therefore
+# 11.9 deg down (seated, near) to 1.4 deg up (standing, far) — about 13 deg,
+# comfortably inside the module's vertical beamwidth, and 6 deg down sits close
+# to its midpoint. A single fixed tilt cannot optimise both cases; this one does
+# not have to, because the span is narrow enough that centring it is sufficient.
+#
+# The seated case is still the one to favour if it ever comes to a choice: §1's
+# unattended moment is someone reading for ninety minutes without moving.
+#
+# This is the node the "unattended moment" in §1 was written about: 23:00, dark,
+# empty, someone walks in and reads for ninety minutes without moving.
+# =============================================================================
+
+substitutions:
+  node_name: mmwave-family-node
+  friendly: Family mmWave
+  room_name: Family Room
+  room_slug: family
+  # 0.4 from 2026-10-02, staged for first flash: this node builds from the
+  # same mmwave-node-common.yaml as the office node, which reports 0.4.
+  fw_version: "0.4"
+
+  # Idle timeout, §5.5: family room 300 s+. The ROOM-level total lives in HA as
+  # input_number.mmw_family_idle_timeout (default 300 s). This is the MODULE's
+  # own hold only — short, so the two do not add.
+  radar_timeout_s: "30"
+
+  # DECIDED 2026-09-07, no longer a placeholder. Gate 8 is deliberate here.
+  #
+  # Room measured off drawing A101: LIVING ROOM 17'-7" x 15'-2", fireplace
+  # centred on the 15'-2" east wall, so this node looks WEST along 17'-7".
+  #     far wall, on boresight   5.36 m   -> gate 7
+  #     far corners, diagonal    5.84 m   -> gate 7   (23 deg off boresight,
+  #                                                    well inside the ±60 cone)
+  # Gate 8 (6.00-6.75 m) is chosen over gate 7 to put margin beyond the far
+  # corners rather than ending exactly on them.
+  #
+  # THE WEST SIDE HAS NO WALL. The plan shows no partition to the KITCHEN
+  # (17'-5" x 18'-7") - one continuous space, broken only by an island - so the
+  # radar reaches roughly two feet past the living room into it. The owner
+  # decided on 2026-09-07 that someone at the island COUNTS as living-room
+  # occupied, so that reach is intentional and detection there is correct
+  # behaviour, not a false trigger.
+  #
+  # R6 therefore does NOT bind on the west side; there is no wall to see
+  # through. It still binds on the north and east exterior walls.
+  #
+  # CONTRAST WITH THE OFFICE, and this is why the two files exist: the office
+  # shares a wall with a bathroom, and bench work on 2026-09-07 showed rejecting
+  # it needs the MOVE path capped at gate 2. Same firmware, opposite settings.
+  max_move_gate: "8"
+  max_still_gate: "8"
+
+  gate_log_period: "5"
+
+  # Daily SPC window: 03:40. Offset 30 min from the office node so the two
+  # 18-series bursts do not land on the recorder at the same second. This is the
+  # same class of collision ha_audit's eod-concurrent check exists to catch.
+  eng_window_hour: "3"
+  eng_window_minute: "40"
+
+  # --- COMMISSIONED GATE THRESHOLDS -----------------------------------------
+  # UNCALIBRATED. Hi-Link factory defaults inherited from the common file.
+  # After the §5.9 sweep, paste the analysis script's output block here, commit,
+  # and reflash. The commit hash is the calibration record (R9).
+  # scripts/mmwave_calibrate.py --room family --emit esphome
+
+esphome:
+  name: ${node_name}
+
+api:
+  encryption:
+    key: !secret api_key_mmwave_family_node
+
+packages:
+  common: !include mmwave-node-common.yaml
