@@ -2058,6 +2058,14 @@ def rule_dashboard_yaml_booleans():
             )
 
 
+# ADDED 2026-10-02. The open-question message carries a live day count
+# (" - 2 days outstanding"), so a baseline that kept it reported the same
+# unanswered question as NEW, and its old line as FIXED, every midnight - the
+# churn INFO is excluded for below. The count stays in the printed report;
+# only the comparison key drops it.
+_BASELINE_VOLATILE = re.compile(r" - \d+ days outstanding")
+
+
 def _baseline_report(path, summary):
     """NEW / FIXED / UNCHANGED against a stored finding set.
 
@@ -2077,7 +2085,11 @@ def _baseline_report(path, summary):
     re-baseline without reading it - which is how a baseline stops meaning
     anything.
     """
-    cur = sorted("%s|%s|%s" % (f[0], f[1], f[2]) for f in findings if f[0] != "INFO")
+    cur = sorted(
+        "%s|%s|%s" % (f[0], f[1], _BASELINE_VOLATILE.sub("", f[2]))
+        for f in findings
+        if f[0] != "INFO"
+    )
     nfail = sum(1 for f in findings if f[0] == "FAIL")
     if not os.path.exists(path):
         with io.open(path, "w", encoding="utf-8", newline="\n") as fh:

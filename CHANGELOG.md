@@ -77,6 +77,47 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### audit: the baseline key drops the open-question day count - deployed, and re-baselined
+
+Bill: "Copy the ha_audit.py fix to H:. update documents/commit/push." This deploys the fix that
+the entry "Bill's decisions" below tested in the sandbox and left undeployed.
+
+- **Deployed 16:44:51.** `scripts/ha_audit.py` went from 95479 to 95933 B and is byte-identical
+  to the sandbox copy tested there [M: cmp].
+  - Before the copy, H:'s file matched the pre-session snapshot and `origin/master` [M: cmp].
+  - py_compile OK.
+  - HA needs no restart. Each shell_command runs the script fresh from `/config/scripts/`
+    (`packages/audit.yaml`).
+- **Gate 2b on H:.** `test_ha_audit.py` read "SUITE PASSED - 32 rule(s) proven in both
+  directions".
+  - The first run, with `HA_CONFIG` set but no `HA_URL`, read "SUITE FAILED (2)".
+  - Both rows were labelled ENVIRONMENT: `entity-ref-unresolved` and `live-check-skipped`. The
+    harness could not reach HA at its default URL from Windows.
+  - With `HA_URL='http://10.0.0.210:8123'` (`HA_TOKEN` was already set) the suite passed. Off
+    host it needs both variables, as `docs/off-host-access.md` says.
+- **Re-baselined 16:49:56** (Bill, earlier: "re-audit the baseline").
+  - Before: `.audit_baseline.json` (gitignored) held 0 findings, written 2026-08-26T11:04:22.
+  - A snapshot of it is kept in the session scratchpad.
+  - After: 1 finding, the 09-30 clamp-reading open question. Its key no longer carries the
+    "- N days outstanding" count.
+  - The next run read "0 NEW, 0 FIXED, 1 UNCHANGED", exit 0.
+  - The audit read "0 FAIL, 1 WARN, 2 INFO across 18 pipelines".
+- **`gate.py scripts/ha_audit.py`.**
+  - "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines".
+  - "2b. RULES SUITE PASSED - 32 rule(s) proven in both directions".
+  - "PASS (parse-clean) + audit delta clean."
+  - Steps 3-5 do not apply: no YAML changed, and HA does not load the script.
+- **Pinned pre-commit hooks** (ruff v0.15.9, gitleaks v8.30.1, run in the `C:\repos` clone).
+  - ruff fails on E731 (l.35, `P = lambda`) and E741 (l.42, `lambda l, ...`).
+  - Both errors are pre-existing: `origin/master`'s unmodified copy fails the same two [M].
+  - The fix adds neither. They are not changed here.
+  - ruff-format and gitleaks passed.
+- **Not yet proven.** `test_ha_audit.py` still has no test of `--baseline`. The shifted-date runs
+  in the sandbox remain the only proof that the day count no longer churns the baseline.
+  - The nightly 00:30 audit does not pass `--baseline`, so it proves nothing here.
+  - The proof is a `gate.py` run (or `script.ha_gate`) on 2026-10-03 or later, with the question
+    still unanswered, reading "0 NEW".
+
 ### mmwave family: lights on as an occupied room darkens (`mmw_family_dusk_on`)
 
 Bill: "Lights should come while occupied and lux readings go down".
@@ -388,6 +429,8 @@ notification. no need to force update the skew path. re-audit the baseline. arm 
     pre-session snapshot].
   - `.audit_baseline.json` was NOT re-baselined. Without the fix it would be undone at midnight.
     It still holds 0 findings, written 2026-08-26.
+  - *Superseded the same day:* deployed 16:44:51 and re-baselined 16:49:56 at Bill's request.
+    See "audit: the baseline key drops the open-question day count" above.
 - **Seen, not touched.** `automation.sdr_water_meter_leak_flag_set` and
   `automation.dehumidifier_rh_stall_shutdown` are both off, and have been for all of HA's history
   (from 2026-09-18 15:10 UTC) [M]. `packages/utility_meters.yaml` says the leak-flag one was
