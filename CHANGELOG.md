@@ -77,6 +77,83 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave family package deployed WHOLE for calibration: the radar now drives the family room lamps; §5.0 step 0.8 PASS, 0.6 basement comparison skipped
+
+Bill: "let's deploy for family room calibration." Asked whether the lamps should stay held back,
+he chose "Whole package + restart".
+
+- **`packages/mmwave_presence.yaml` is now the repo file WHOLE.** Source: b074238 plus the
+  uncommitted edits already deployed for the office. Line endings CRLF -> LF, plus a deployed-copy
+  note. Until today it was the office-only cut, with 29 family ranges (848 lines) held back.
+  - It is derived by the new `C:/Users/wkcol/ha-data-repairs/make_full_pkg.py`, which asserts
+    that the note is the only change from the repo.
+  - `make_office_pkg.py` is retired. Re-running it would silently take the family room back off
+    the house.
+  - The office text is unchanged. The old H: file was cmp-identical to the repo minus the family
+    ranges [M: re-derived and cmp'd before the deploy], and the new one is the repo plus the note.
+- **What went live at the restart:**
+  - The radar drives `switch.family_room`, `_2` and `_3`. Lamps go on with presence below
+    `mmw_family_lux_on` 18 lx, and off after `mmw_family_idle_timeout` 300 s empty. Both values are
+    the package's seeds, chosen, not measured (the package's own note).
+  - `mmw_family_auto_enable` has `initial: true`, so turning it off lasts only until the next
+    restart.
+  - The overnight alarm is installed but NOT armed. `mmw_family_alarm_enable` has no `initial:` and
+    came up off [M]. Quiet hours are 01:00-05:00.
+  - Labelling (`input_select.mmw_family_label`), calibration class, corroborated empty, the dropout
+    and contradicted-label alerts.
+  - The recorder exclusion of the five family summary series (moving, still and detection distance;
+    moving and still energy). They were recorded from adoption at 14:03Z until this restart. The
+    g0-g8 gate series, which calibration fits, are not excluded. The office distances are recorded
+    for tuning (P24); the family ones are not.
+- **Dashboard.** `dashboards/views/view-mmwave-family.yaml` is replaced by the repo view WHOLE
+  (5d2f7f9, CRLF -> LF plus note), as the trimmed copy's note said to do.
+- **Gate:**
+  - Sandbox (a fresh mirror of H:): `validate_ha --strict` gave "PASS (parse-clean)" on both files.
+    The audit gave "0 FAIL, 1 WARN, 2 INFO across 18 pipelines"; the WARN is the open question.
+  - R2, fault direction: a misspelt node id in `mmw_family_presence_on` and a misspelt label helper
+    in the view each raised `WARN entity-ref-unresolved`. The same fault also raised
+    `generated-doc-stale AUTOMATIONS.md`.
+  - R2, clean direction: with both files restored byte-identical, the audit was silent again.
+  - R5: all 18 node and thermostat ids the package reads, and all 41 the view reads, were live and
+    none was unavailable. No `mmw_family_*` entity existed before, so none could take a `_2` suffix.
+  - H: `gate.py`: "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines", "NOT READY". The only reason is the open-question WARN, which is new against
+    `.audit_baseline.json`. Not re-baselined; that is Bill's call.
+  - `check_config` gave `valid`. Restart requested 10:42:15; HA was down at 10:42:47 and RUNNING at
+    10:45:07 [M].
+- **Observed after the restart** [M: /api/states, 10:45]:
+  - The seed automation fired at 10:45:00 and set the six family values: lux_on 18, idle 300,
+    cmd_window 10, alarm flashes 6, grace 20, cooldown 15.
+  - `sensor.mmw_family_state` reads OCCUPIED, not UNCOMMISSIONED.
+  - 40 `mmw_family_*` entities: none unavailable, none suffixed. Only
+    `presence_to_lamp_latency` reads unknown, because no lamp has been switched yet.
+  - All three lamps are off, with the room occupied at 218 lx, above lux_on. That is correct.
+  - No persistent notifications. The office state is unaffected.
+  - Dashboard: 6 sections and 69 entities, none missing or unavailable. The two other ids the parse
+    found are action names (`input_boolean.turn_on`, `input_select.select_option`), not entities.
+- **§5.0 step 0.8 PASS.** The spec is "`radar_out` agrees with `has_target`" (design §5.0).
+  - Off edge: UART presence 10:26:28, OUT 10:26:30. The 2 s is OUT's `delayed_off` [S:
+    mmwave-node-common.yaml].
+  - On edge: 10:27:01.329 and .328. `presence_path_disagreement` stayed off throughout [M: HA
+    last_changed].
+  - The on edge came 33 s after the room read empty [D: 10:27:01 - 10:26:28]. Bill is not sure
+    whether it was him walking back in. It is therefore UNATTRIBUTED, and recorded neither as a
+    false trigger nor as a walk-in.
+- **`presence_path_skew` cannot show a repeated value.** It still reads 1.0 ms from 10:19:28.
+  - HA's ESPHome integration drops an identical sensor state unless `force_update` is set [S: core
+    2026.9.4 esphome/entry_data.py l.459-470].
+  - `path_skew` does not set it [S: mmwave-node-common.yaml l.740-742].
+  - So a repeated skew never reaches HA, and the card shows the last DISTINCT value. Not changed:
+    it is firmware for both nodes, and Bill's call.
+- **§5.0 step 0.6, second half (compare against the basement node under similar light): SKIPPED** by
+  Bill: "not a good test, very different lighting." Not a pass.
+- **Open:**
+  - Labelling for calibration (Bill).
+  - The alarm stays unarmed until Bill arms it.
+  - The DHCP reservation for 10.0.0.97.
+  - `force_update` on `path_skew`.
+  - Whether the family distances should be recorded during tuning, as the office's are.
+
 ### mmwave family node: added to HA, reached by IP, own dashboard; §5.0 steps 0.1 and 0.4 pass, 0.6 not met as written (LED kept)
 
 Bill, 10:00: "add to HA. node will be in its position shortly, so we should keep data flowing until

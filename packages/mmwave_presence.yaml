@@ -2,16 +2,14 @@
 # mmWave Presence Lighting — HOME ASSISTANT PACKAGE
 # -----------------------------------------------------------------------------
 # DEPLOYED COPY, H:/packages/. Source: mmwave-presence-node
-# packages/mmwave_presence.yaml at b074238 PLUS UNCOMMITTED EDITS, OFFICE ONLY. Every family-room block
-# is HELD BACK (29 ranges, 848 lines): the family node does not exist, and its
-# automations would drive the real switch.family_room lamps on a sensor that is
-# not there. Nothing else is changed; the text below is the repo's, including
-# its "NOT DEPLOYED" line and its header notes about the family room.
-# Line endings converted CRLF -> LF to match every other file here.
-# Derived by C:/Users/wkcol/ha-data-repairs/make_office_pkg.py (Windows box).
-# Its ranges are pinned to line numbers and asserted, so it REFUSES a changed repo
-# file: when the repo moves, update the ranges and re-derive - never merge by
-# hand (R10).
+# packages/mmwave_presence.yaml at b074238 PLUS UNCOMMITTED EDITS, WHOLE - office and family room.
+# The family blocks went live 2026-10-02 for the family node's calibration
+# (Bill: "let's deploy for family room calibration"). Before that this file was
+# the office-only cut made by make_office_pkg.py, which is now retired.
+# The only differences from the repo file are this note and LF line endings;
+# the text below is the repo's, including its "NOT DEPLOYED" line.
+# Derived by C:/Users/wkcol/ha-data-repairs/make_full_pkg.py (Windows box).
+# To update: re-run it - never merge by hand (R10).
 # -----------------------------------------------------------------------------
 # Rev 0.1 DRAFT (2026-09-05). NOT VALIDATED, NOT DEPLOYED.
 # Rev 0.2 (2026-09-22) — reviewed against 14.5 days of bench data. Still NOT
@@ -112,12 +110,19 @@ input_boolean:
     name: "Office: automatic lighting enabled"
     icon: mdi:lightbulb-auto
     initial: true
+  mmw_family_auto_enable:
+    name: "Family Room: automatic lighting enabled"
+    icon: mdi:lightbulb-auto
+    initial: true
 
   # THE LATCH (§4.2). True only when THIS automation turned the lamp on. The
   # off-automation refuses to touch a lamp it did not switch on, which is what
   # keeps it from switching off a lamp a human turned on.
   mmw_office_latch:
     name: "Office: lamp latched by presence"
+    icon: mdi:lock-check
+  mmw_family_latch:
+    name: "Family Room: lamp latched by presence"
     icon: mdi:lock-check
 
   # R4a. Set when the lamp changes state without this node commanding it.
@@ -126,6 +131,23 @@ input_boolean:
   mmw_office_manual_override:
     name: "Office: manual override active"
     icon: mdi:hand-back-right
+  mmw_family_manual_override:
+    name: "Family Room: manual override active"
+    icon: mdi:hand-back-right
+
+  # Overnight alarm, family room only.
+  mmw_family_alarm_enable:
+    name: "Family Room: overnight alarm armed"
+    icon: mdi:shield-home
+  mmw_family_alarm_disarm_tonight:
+    name: "Family Room: disarm alarm for tonight"
+    icon: mdi:shield-off
+  mmw_family_alarm_running:
+    name: "Family Room: alarm sequence running"
+    icon: mdi:alarm-light
+    # Guard flag. The override detector ignores lamp changes while this is on,
+    # otherwise the alarm's own flashing would register as a human at the switch
+    # and permanently suppress the automation it belongs to.
 
 
 # -----------------------------------------------------------------------------
@@ -151,6 +173,23 @@ input_select:
       - "entering office"
       - "moving in office"
       - "sitting at desk"
+
+  mmw_family_label:
+    name: "Family Room: what is happening now"
+    icon: mdi:tag-text
+    options:
+      - "unlabelled"
+      - "no one present"
+      - "sitting on couch"
+      - "sitting in armchair"
+      - "sitting at kitchen table"
+      - "working in kitchen"
+      - "walking through"
+    # §5.9 computes E_signal per seat, so couch and armchair are separate: they
+    # sit at different gates and different angles off boresight, and a single
+    # merged "seated" class would average a good seat with a shadowed one and
+    # produce a threshold that serves neither. If the room only has one seating
+    # position in practice, drop the unused option rather than merging them.
 
 
 # -----------------------------------------------------------------------------
@@ -218,6 +257,14 @@ input_number:
   # samples lux at the dark->occupied edge ONLY, so there was no EMPTY-state
   # re-check for it to be the hysteresis of. It existed only on the dashboard,
   # where it looked like a control and controlled nothing.
+  mmw_family_lux_on:
+    name: "Family Room: turn on below (lx)"
+    min: 0
+    max: 200
+    step: 0.5
+    unit_of_measurement: "lx"
+    icon: mdi:brightness-5
+  # REMOVED 2026-09-22: mmw_family_lux_off - same reason as the office one.
 
   # ---- idle timeouts, §5.5 -------------------------------------------------
   # THIS IS THE TOTAL ROOM HOLD, not the extra wait. The automations subtract
@@ -229,7 +276,40 @@ input_number:
     step: 10
     unit_of_measurement: "s"
     icon: mdi:timer-sand
+  mmw_family_idle_timeout:
+    name: "Family Room: idle timeout (total, s)"
+    min: 0             # CHANGED 2026-09-22, was 30. 0 = uncommissioned
+    max: 1800
+    step: 30
+    unit_of_measurement: "s"
+    icon: mdi:timer-sand
 
+  # ---- overnight alarm -----------------------------------------------------
+  # Each "flash" is TWO relay operations on each of THREE HS103 plugs. Six
+  # flashes is 36 operations per alarm; fifteen would be 90. Kasa does not
+  # publish a contact rating for these, so the conservative reading is that
+  # alarm count is a consumable, not a free parameter. Six at a 3 s period runs
+  # 18 s, which is long enough that nobody sleeps through it.
+  #
+  # The third plug also lengthens each step: the tplink integration issues the
+  # commands per device, so a flash edge is now three round trips rather than
+  # two. The 1.5 s half-period has correspondingly less headroom. If A-testing
+  # shows the three lamps visibly stepping rather than flashing together, raise
+  # the half-period before reducing the count — ragged flashing reads as a
+  # malfunction, and an alarm that looks broken gets ignored.
+  mmw_family_alarm_flashes:
+    name: "Family Room: alarm flash count"
+    min: 0             # CHANGED 2026-09-22, was 1. 0 = uncommissioned
+    max: 15
+    step: 1
+    icon: mdi:alarm-light
+  mmw_family_alarm_grace:
+    name: "Family Room: alarm grace before escalation (s)"
+    min: 0             # CHANGED 2026-09-22, was 5. 0 = uncommissioned
+    max: 120
+    step: 5
+    unit_of_measurement: "s"
+    icon: mdi:timer-alert
   # ---- R4a command window -------------------------------------------------
   # §4.3 says "not commanded by this node within the last 2 s". That number was
   # written before the device was known, and 2 s is WRONG FOR THIS ONE.
@@ -257,6 +337,21 @@ input_number:
     step: 1
     unit_of_measurement: "s"
     icon: mdi:timer-check
+  mmw_family_cmd_window:
+    name: "Family Room: command window (s)"
+    min: 0             # CHANGED 2026-09-22, was 1. 0 = uncommissioned
+    max: 60
+    step: 1
+    unit_of_measurement: "s"
+    icon: mdi:timer-check
+
+  mmw_family_alarm_cooldown:
+    name: "Family Room: alarm cooldown (min)"
+    min: 0             # CHANGED 2026-09-22, was 1. 0 = uncommissioned
+    max: 120
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-lock
 
 
 # -----------------------------------------------------------------------------
@@ -270,6 +365,28 @@ input_datetime:
     name: "Office: last commanded change"
     has_date: true
     has_time: true
+  mmw_family_last_cmd:
+    name: "Family Room: last commanded change"
+    has_date: true
+    has_time: true
+
+  mmw_family_alarm_last_fired:
+    name: "Family Room: alarm last fired"
+    has_date: true
+    has_time: true
+
+  # Quiet hours. In a helper, not hardcoded in the automation, so the window can
+  # be changed at 02:00 by someone who has just been flashed at.
+  mmw_family_quiet_start:
+    name: "Family Room: quiet hours start"
+    has_date: false
+    has_time: true
+    initial: "01:00:00"
+  mmw_family_quiet_end:
+    name: "Family Room: quiet hours end"
+    has_date: false
+    has_time: true
+    initial: "05:00:00"
 
 
 # -----------------------------------------------------------------------------
@@ -277,6 +394,24 @@ input_datetime:
 # -----------------------------------------------------------------------------
 template:
   - binary_sensor:
+      # Quiet-hours window, computed once and reused. Handles the midnight
+      # wrap, which is the whole difficulty: 01:00-05:00 does not wrap today,
+      # but 23:00-05:00 would, and someone will set it to that.
+      - name: "mmW Family quiet hours"
+        unique_id: mmw_family_quiet_hours
+        icon: mdi:weather-night
+        state: >
+          {% set s = states('input_datetime.mmw_family_quiet_start') %}
+          {% set e = states('input_datetime.mmw_family_quiet_end') %}
+          {% if s in ['unknown','unavailable'] or e in ['unknown','unavailable'] %}
+            false
+          {% else %}
+            {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+            {% set st = state_attr('input_datetime.mmw_family_quiet_start','timestamp') | int(0) %}
+            {% set en = state_attr('input_datetime.mmw_family_quiet_end','timestamp') | int(0) %}
+            {{ (st <= now_s < en) if st <= en else (now_s >= st or now_s < en) }}
+          {% endif %}
+
       # DATA QUALITY. §5.3: "The empty class must be a genuinely empty room."
       # A mislabelled empty run does not produce a slightly wrong threshold; it
       # puts a person's micro-Doppler into the distribution whose P99.5 becomes
@@ -318,6 +453,37 @@ template:
              and is_state('binary_sensor.office_mmwave_presence','on') }}
         delay_on: "00:01:00"
 
+      - name: "mmW Family label contradicted"
+        unique_id: mmw_family_label_contradicted
+        device_class: problem
+        state: >
+          {{ is_state('input_select.mmw_family_label','no one present')
+             and (is_state('binary_sensor.family_mmwave_presence','on')
+                  or is_state('binary_sensor.main_floor_motion','on')
+                  or is_state('binary_sensor.main_floor_occupancy','on')) }}
+        delay_on: "00:01:00"
+
+      # ---- CORROBORATED EMPTY - the strongest thing the thermostat buys -----
+      # E_clutter is P99.5 of the empty class, and a tail percentile is exactly
+      # the statistic that a handful of contaminated samples can move.
+      # Restricting that class to intervals where TWO INDEPENDENT SENSORS agree
+      # the room is empty is the cheapest large improvement available to this
+      # calibration.
+      #
+      # OCCUPANCY, NOT MOTION, is the right signal on the empty side: occupancy
+      # HOLDS after the last motion, so it stays true through someone sitting
+      # quietly - which is precisely when PIR would otherwise wrongly certify an
+      # empty room. Corroborating with motion instead would confirm "empty"
+      # every time somebody sat still, i.e. it would endorse the exact error it
+      # exists to catch. Motion is still ANDed in, but only as a fast
+      # disqualifier, never as the thing granting the certificate.
+      #
+      #   mmwave_calibrate.py --corroborate binary_sensor.mmw_family_empty_corroborated
+      #
+      # intersects the empty class with this and reports how many samples it
+      # dropped. Run it BOTH ways: if the thresholds move much, the
+      # uncorroborated empty class was contaminated and the corroborated numbers
+      # are the real ones.
       # NO `mmW Office empty corroborated` — DELETED 2026-09-05, deliberately.
       #
       # It would have been ACTIVELY HARMFUL, not merely useless. The upstairs
@@ -329,6 +495,32 @@ template:
       # That is worse than having no corroborator at all: `--corroborate` would
       # have kept the bad samples AND reported a reassuring "0.0% dropped".
       # A witness that cannot see the room does not abstain, it perjures.
+
+      - name: "mmW Family empty corroborated"
+        unique_id: mmw_family_empty_corroborated
+        icon: mdi:check-decagram
+        state: >
+          {{ is_state('binary_sensor.family_mmwave_presence','off')
+             and is_state('binary_sensor.main_floor_occupancy','off')
+             and is_state('binary_sensor.main_floor_motion','off') }}
+
+      # ---- DROPOUT WITH A WITNESS - an independent read on R1 ---------------
+      # The thermostat says the floor is occupied and has said so for a while;
+      # the radar says the room is empty. That is a candidate radar dropout,
+      # witnessed by something that is not the radar - which is more than
+      # §5.9.3's L(T) can give, because L(T) is computed on the radar's own
+      # energies and so shares any fault in them.
+      #
+      # CANDIDATE, not proof. The thermostat is somewhere on the floor, not in
+      # this room, and its occupancy holds long after the person walked out. A
+      # hit here means "go and look at the trace", never "the radar is broken".
+      - name: "mmW Family dropout candidate"
+        unique_id: mmw_family_dropout_candidate
+        device_class: problem
+        state: >
+          {{ is_state('binary_sensor.family_mmwave_presence','off')
+             and is_state('binary_sensor.main_floor_occupancy','on') }}
+        delay_on: "00:10:00"
 
       # NO `mmW Office dropout candidate` — same reason, opposite direction.
       # The thermostat reporting occupancy somewhere upstairs says nothing about
@@ -376,6 +568,33 @@ template:
           latched: "{{ is_state('input_boolean.mmw_office_latch','on') }}"
           override: "{{ is_state('input_boolean.mmw_office_manual_override','on') }}"
 
+      - name: "mmW Family state"
+        unique_id: mmw_family_state
+        icon: mdi:state-machine
+        # CHANGED 2026-09-22: two states added. UNCOMMISSIONED - a 0 helper,
+        # so the automations refuse to act (see input_number). NODE_OFFLINE -
+        # presence unknown/unavailable; the lamp holds whatever it was
+        # (Bill 2026-09-22). Before this, an offline node read EMPTY_LIT.
+        state: >
+          {% if states('input_number.mmw_family_lux_on') | float(0) <= 0
+                or states('input_number.mmw_family_idle_timeout') | float(0) <= 0 %}
+            UNCOMMISSIONED
+          {% elif states('binary_sensor.family_mmwave_presence') in ['unknown','unavailable'] %}
+            NODE_OFFLINE
+          {% elif is_state('binary_sensor.family_mmwave_presence','on') %}
+            OCCUPIED
+          {% elif is_state('binary_sensor.family_mmwave_lux_stale','on') %}
+            EMPTY_LUX_UNKNOWN
+          {% elif states('sensor.family_mmwave_ambient_light') | float(999)
+                  < states('input_number.mmw_family_lux_on') | float(0) %}
+            EMPTY_DARK
+          {% else %}
+            EMPTY_LIT
+          {% endif %}
+        attributes:
+          latched: "{{ is_state('input_boolean.mmw_family_latch','on') }}"
+          override: "{{ is_state('input_boolean.mmw_family_manual_override','on') }}"
+
       # ---- THE CALIBRATION CLASS — this is what the analysis groups by -----
       # label | blower | lamp. Three covariates in one recorded string, so the
       # analysis script does one group-by instead of a four-way time join
@@ -395,6 +614,21 @@ template:
           {% set blower = 'blower_on' if (action in ['cooling','heating','fan','drying']
                           or fan == 'on') else 'blower_off' %}
           {% set lamp   = 'lamp_on' if is_state('switch.office_lamp','on') else 'lamp_off' %}
+          {{ label ~ '|' ~ blower ~ '|' ~ lamp }}
+
+      - name: "mmW Family cal class"
+        unique_id: mmw_family_cal_class
+        icon: mdi:beaker-outline
+        state: >
+          {# FAMILY ROOM IS ON THE MAIN FLOOR ZONE — confirmed by Bill 2026-09-05. #}
+          {% set label  = states('input_select.mmw_family_label') | replace(' ','_') %}
+          {% set action = state_attr('climate.main_floor','hvac_action') | default('unknown', true) %}
+          {% set fan    = state_attr('climate.main_floor','fan_mode') | default('', true) %}
+          {% set blower = 'blower_on' if (action in ['cooling','heating','fan','drying']
+                          or fan == 'on') else 'blower_off' %}
+          {% set lamp   = 'lamp_on' if (is_state('switch.family_room','on')
+                  or is_state('switch.family_room_2','on')
+                  or is_state('switch.family_room_3','on')) else 'lamp_off' %}
           {{ label ~ '|' ~ blower ~ '|' ~ lamp }}
 
   # ---- P24: THE BATHROOM FILTER - occupancy must START near the sensor -----
@@ -529,6 +763,39 @@ template:
               - as_timestamp(states.binary_sensor.office_mmwave_presence.last_changed))
              | round(3) }}
 
+  # Family: timed on switch.family_room alone. The three plugs are commanded
+  # in one call; timing the first of three would flatter the figure and the
+  # last would depend on which plug the integration happened to poll last.
+  - trigger:
+      - platform: state
+        entity_id: switch.family_room
+        from: "off"
+        to: "on"
+    condition:
+      - condition: template
+        value_template: >
+          {% set p = states.binary_sensor.family_mmwave_presence %}
+          {% set stamp = state_attr('input_datetime.mmw_family_last_cmd','timestamp') | float(0) %}
+          {% if p is none or p.state != 'on' or stamp <= 0 %}
+            false
+          {% else %}
+            {% set d = as_timestamp(trigger.to_state.last_changed) - as_timestamp(p.last_changed) %}
+            {{ (as_timestamp(now()) - stamp) < 10 and 0 <= d < 10 }}
+          {% endif %}
+    sensor:
+      - name: "mmW Family presence to lamp latency"
+        unique_id: mmw_family_presence_to_lamp_latency
+        unit_of_measurement: "s"
+        device_class: duration
+        state_class: measurement
+        icon: mdi:timer-outline
+        availability: >
+          {{ states('binary_sensor.family_mmwave_presence') not in ['unknown','unavailable'] }}
+        state: >
+          {{ (as_timestamp(trigger.to_state.last_changed)
+              - as_timestamp(states.binary_sensor.family_mmwave_presence.last_changed))
+             | round(3) }}
+
 
 # -----------------------------------------------------------------------------
 # COLLECTION COVERAGE — how much labelled data exists, per class, right now
@@ -584,6 +851,55 @@ sensor:
     start: "{{ now() - timedelta(hours=72) }}"
     end: "{{ now() }}"
 
+  - platform: history_stats
+    name: "mmW Family hours empty"
+    unique_id: mmw_family_hours_empty
+    entity_id: input_select.mmw_family_label
+    state: "no one present"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "mmW Family hours on couch"
+    unique_id: mmw_family_hours_couch
+    entity_id: input_select.mmw_family_label
+    state: "sitting on couch"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "mmW Family hours in armchair"
+    unique_id: mmw_family_hours_armchair
+    entity_id: input_select.mmw_family_label
+    state: "sitting in armchair"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "mmW Family hours at kitchen table"
+    unique_id: mmw_family_hours_kitchen_table
+    entity_id: input_select.mmw_family_label
+    state: "sitting at kitchen table"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "mmW Family hours working in kitchen"
+    unique_id: mmw_family_hours_kitchen_work
+    entity_id: input_select.mmw_family_label
+    state: "working in kitchen"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "mmW Family hours walking through"
+    unique_id: mmw_family_hours_walking
+    entity_id: input_select.mmw_family_label
+    state: "walking through"
+    type: time
+    start: "{{ now() - timedelta(hours=72) }}"
+    end: "{{ now() }}"
+
 
 # -----------------------------------------------------------------------------
 # SCRIPTS
@@ -612,6 +928,141 @@ script:
       - service: "homeassistant.turn_{{ lamp_state }}"
         target:
           entity_id: switch.office_lamp
+
+  mmw_family_lamp_set:
+    alias: "mmW Family: set lamp (stamped)"
+    mode: queued
+    max: 5
+    fields:
+      lamp_state:
+        description: "on or off"
+        example: "on"
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mmw_family_last_cmd
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: "homeassistant.turn_{{ lamp_state }}"
+        target:
+          entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+
+  # ---- the overnight alarm -------------------------------------------------
+  mmw_family_alarm:
+    alias: "mmW Family: overnight alarm"
+    mode: single          # never two alarm sequences on one lamp
+    sequence:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.mmw_family_alarm_running
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mmw_family_alarm_last_fired
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+      # STAGE 1 — two blinks, then a grace period.
+      # This is the part that makes the alarm survivable for the household.
+      # A radar cannot tell a resident from an intruder, and the family room is
+      # on the way to the kitchen. Two blinks says "I saw you" to a person
+      # getting a glass of water and gives them ~20 s to hit disarm before the
+      # house starts strobing. An intruder gets the same two blinks and, not
+      # having the dashboard, the full sequence.
+      #
+      # TIMING IS SET BY THE RELAY, NOT BY TASTE. These are Kasa HS103 plugs:
+      # a mechanical relay behind a Wi-Fi command with a round trip of order
+      # 100-500 ms, and the tplink integration serialises per device. A 0.4 s
+      # half-period is not achievable — the commands queue, the flashing comes
+      # out irregular, and every cycle is two relay operations on a part with a
+      # finite contact life. 1 s reads as unmistakably deliberate and is
+      # actually deliverable.
+      #
+      # If you later want real strobing, that needs a dimmable or colour bulb
+      # driven by transitions, not a plug switching mains.
+      - repeat:
+          count: 2
+          sequence:
+            - service: homeassistant.turn_on
+              target:
+                entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+            - delay: "00:00:01"
+            - service: homeassistant.turn_off
+              target:
+                entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+            - delay: "00:00:01"
+
+      - wait_template: "{{ is_state('input_boolean.mmw_family_alarm_disarm_tonight','on') }}"
+        # CHANGED 2026-09-22: `int(20)` -> `int(0)`, and `int(6)` -> `int(0)`
+        # on the flash count below. Those fallbacks were second copies of the
+        # starting values (R10). The automation refuses to start this script
+        # on an uncommissioned 0, and the script does not invent a value.
+        timeout: >
+          {% set g = states('input_number.mmw_family_alarm_grace') | int(0) %}
+          {{ '00:%02d:%02d' % (g // 60, g % 60) }}
+        continue_on_timeout: true
+
+      - condition: state
+        entity_id: input_boolean.mmw_family_alarm_disarm_tonight
+        state: "off"
+
+      # STAGE 2 — the actual alarm.
+      - service: persistent_notification.create
+        data:
+          title: "Family room: motion during quiet hours"
+          notification_id: mmw_family_alarm
+          message: >
+            {{ now().strftime('%Y-%m-%d %H:%M:%S') }} — presence detected in the
+            family room during quiet hours. Moving target:
+            {{ states('binary_sensor.family_mmwave_moving_target') }}.
+            Distance: {{ states('sensor.family_mmwave_moving_distance') }}
+            {{ state_attr('sensor.family_mmwave_moving_distance','unit_of_measurement') }}.
+            {# CHANGED 2026-09-22: was a literal "cm". HA converts length to the
+               display unit system, so on this imperial install the number is
+               not in cm; the unit is read from the entity instead of assumed. #}
+            Lux: {{ states('sensor.family_mmwave_ambient_light') }}.
+
+            Thermostat witness - main floor motion:
+            {{ states('binary_sensor.main_floor_motion') }}, occupancy:
+            {{ states('binary_sensor.main_floor_occupancy') }}.
+            (Forensics only. The alarm deliberately does NOT wait for this: it
+            is PIR, it is elsewhere on the floor, and requiring it would add its
+            blind spots and its latency to a security function. But if two
+            independent sensors agreed at 02:00, that is worth knowing.)
+      - repeat:
+          count: "{{ states('input_number.mmw_family_alarm_flashes') | int(0) }}"
+          sequence:
+            - service: homeassistant.turn_on
+              target:
+                entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+            - delay: "00:00:01.5"
+            - service: homeassistant.turn_off
+              target:
+                entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+            - delay: "00:00:01.5"
+
+    # Whatever happens — disarm, timeout, error — the lamp ends OFF and the
+    # guard flag is cleared. R7: degrade to a KNOWN state. A failure mid-repeat
+    # that left the flag set would suppress override detection indefinitely.
+    max_exceeded: silent
+
+  mmw_family_alarm_cleanup:
+    alias: "mmW Family: alarm cleanup"
+    mode: single
+    sequence:
+      - service: homeassistant.turn_off
+        target:
+          entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mmw_family_alarm_running
+      # The alarm flashing is not a "commanded" change in the R4a sense, but it
+      # did move the lamp. Stamp it so the detector does not fire on the last
+      # transition of the sequence.
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mmw_family_last_cmd
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
 
 # -----------------------------------------------------------------------------
@@ -929,6 +1380,289 @@ automation:
             the lamp on, above setpoint + lamp + deadband - lamp off
 
   # ===========================================================================
+  # FAMILY ROOM — presence lighting
+  # ===========================================================================
+  - id: mmw_family_presence_on
+    alias: "mmW Family: presence -> lights on"
+    mode: single
+    # ADDED 2026-09-22: a second edge during the lux wait below is dropped
+    # quietly - it carries no new information, and `single` would log it.
+    max_exceeded: silent
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.family_mmwave_presence
+        # CHANGED 2026-09-22: was `from: "off"`. On the bench, 24 of 36 returns
+        # from `unavailable` came back straight to `on` [M, 2026-09-08..22] -
+        # presence already reported when the node or HA reconnected. `from:
+        # "off"` fires for none of those, so a person already in a dark room
+        # would stay in the dark until they left and came back. The lamp-not-on
+        # condition below is what makes this safe after an outage that left the
+        # lamp on (Bill 2026-09-22: it stays on).
+        from: ["off", "unavailable", "unknown"]
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.mmw_family_auto_enable
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.mmw_family_manual_override
+        state: "off"
+      # ADDED 2026-09-22 — the latch (§4.2) means "THIS automation turned the
+      # lamp on". Latching a lamp that was already on - a person lit it, left,
+      # and came back after their override had cleared - would let the
+      # empty-room automation switch off a lamp a human turned on. The lux
+      # test is no guard against that: whether this lamp lifts this node's
+      # VEML7700 above lux_on has never been measured.
+      # "Not on" rather than "all off": a plug that is unavailable must not
+      # stop the other two lighting.
+      - condition: template
+        value_template: >
+          {{ not (is_state('switch.family_room','on')
+                  or is_state('switch.family_room_2','on')
+                  or is_state('switch.family_room_3','on')) }}
+      # §7: a dead light sensor must not read as "dark". Without this, a failed
+      # VEML7700 holds its last value forever and, if that value was low, the
+      # lamp comes on in a sunlit room every time someone walks in — and the
+      # only symptom is a lamp that is on.
+      # CHANGED 2026-09-22: was `condition: state ... state: "off"`, which also
+      # refused `unknown` - and `unknown` is what firmware Rev 0.1 reported for
+      # a HEALTHY sensor all its life (it published only on a change). Firmware
+      # Rev 0.2 publishes on the first tick; this accepts anything except a
+      # positive `on`, and the wait below makes sure there IS a reading.
+      - condition: template
+        value_template: "{{ not is_state('binary_sensor.family_mmwave_lux_stale','on') }}"
+      # ADDED 2026-09-22: uncommissioned threshold (0) - see input_number.
+      - condition: template
+        value_template: "{{ states('input_number.mmw_family_lux_on') | float(0) > 0 }}"
+      # During armed quiet hours the ALARM owns the lights, not this. Without
+      # this condition both automations fire on the same edge and race: one
+      # turns the lights on steady while the other is trying to flash them.
+      - condition: template
+        value_template: >
+          {{ not (is_state('binary_sensor.mmw_family_quiet_hours','on')
+                  and is_state('input_boolean.mmw_family_alarm_enable','on')
+                  and is_state('input_boolean.mmw_family_alarm_disarm_tonight','off')) }}
+    action:
+      # ADDED 2026-09-22 — after a node reboot the radar reports within about a
+      # second but the VEML7700 not until its first 10 s read, so the lux test
+      # saw `unknown` -> float(999) -> "lit" and refused. Wait for a number.
+      - wait_template: "{{ states('sensor.family_mmwave_ambient_light') | is_number }}"
+        timeout: "00:00:30"
+        continue_on_timeout: true
+      - if:
+          - condition: template
+            value_template: "{{ not wait.completed }}"
+        then:
+          - service: logbook.log
+            data:
+              name: "mmW Family"
+              message: "presence, but no lux reading within 30 s - lamp left alone"
+          - stop: "no lux reading"
+      # §4.2 — LUX IS SAMPLED HERE AND ONLY HERE, at the dark->occupied edge.
+      # MOVED 2026-09-22 from `condition:` to after the wait, and presence is
+      # re-checked: the room may have emptied during the wait.
+      - condition: template
+        value_template: >
+          {{ is_state('binary_sensor.family_mmwave_presence','on')
+             and states('sensor.family_mmwave_ambient_light') | float(999)
+                 < states('input_number.mmw_family_lux_on') | float(0) }}
+      - service: script.mmw_family_lamp_set
+        data:
+          lamp_state: "on"
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.mmw_family_latch
+
+  - id: mmw_family_presence_off
+    alias: "mmW Family: empty -> lights off"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.family_mmwave_presence
+        # CHANGED 2026-09-22: was `from: "on"`. Bill 2026-09-22: the lamp STAYS
+        # ON while the node is offline. Nothing here fires on `unavailable`, and
+        # that is the design, not an omission. What `from: "on"` ALSO did was
+        # keep a latched lamp on after the node came back to an empty room -
+        # 12 of 36 bench returns came back `off` [M] - until someone next walked
+        # in and out. (The bench showed the same effect through a different
+        # mechanism, a latch held in RAM: 25.9 h of lamp-on after the node was
+        # back, over 14.5 days [M].) From `unavailable`/`unknown` the `for:`
+        # below still has to elapse, so the release needs the same observed-
+        # empty wait as the normal path.
+        from: ["on", "unavailable", "unknown"]
+        to: "off"
+        for: >
+          {# CHANGED 2026-09-22: float(300) -> float(0); see the office. #}
+          {% set total = states('input_number.mmw_family_idle_timeout') | float(0) %}
+          {% set mod   = states('number.family_mmwave_radar_timeout') | float(30) %}
+          {% set w     = [total - mod, 0] | max | int(0) %}
+          {{ '%02d:%02d:%02d' % (w // 3600, (w % 3600) // 60, w % 60) }}
+    condition:
+      - condition: state
+        entity_id: input_boolean.mmw_family_auto_enable
+        state: "on"
+      # ADDED 2026-09-22: an uncommissioned (0) idle timeout means NEVER
+      # switch off. The `for:` above computes 0 s from it, which would switch
+      # the lamp off the instant the room read empty. Holding the lamp on is
+      # the safe failure - the same rule Bill set for a node outage.
+      - condition: template
+        value_template: "{{ states('input_number.mmw_family_idle_timeout') | float(0) > 0 }}"
+      - condition: state
+        entity_id: input_boolean.mmw_family_alarm_running
+        state: "off"
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mmw_family_manual_override
+      - condition: state
+        entity_id: input_boolean.mmw_family_latch
+        state: "on"
+      - service: script.mmw_family_lamp_set
+        data:
+          lamp_state: "off"
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mmw_family_latch
+
+  - id: mmw_family_override_detect
+    alias: "mmW Family: detect manual intervention"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: [switch.family_room, switch.family_room_2, switch.family_room_3]
+        to: ["on", "off"]
+    condition:
+      - condition: state
+        entity_id: input_boolean.mmw_family_alarm_running
+        state: "off"
+      - condition: template
+        value_template: >
+          {% set stamp  = states('input_datetime.mmw_family_last_cmd') %}
+          {# CHANGED 2026-09-22: float(10) -> float(0), and an uncommissioned
+             window flags nothing. Without a window our own command cannot be
+             told from a hand at the switch; flagging it would suspend the
+             automation on its own first command. Not flagging is benign: the
+             latch logic never switches off a lamp it did not light. #}
+          {% set window = states('input_number.mmw_family_cmd_window') | float(0) %}
+          {% if window <= 0 %}
+            false
+          {% elif stamp in ['unknown','unavailable',''] %}
+            true
+          {% else %}
+            {{ (as_timestamp(now()) - as_timestamp(stamp)) > window }}
+          {% endif %}
+      - condition: template
+        value_template: >
+          {{ trigger.from_state is not none
+             and trigger.from_state.state in ['on','off'] }}
+    action:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.mmw_family_manual_override
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mmw_family_latch
+      - service: logbook.log
+        data:
+          name: "mmW Family"
+          message: >
+            manual intervention detected ({{ trigger.from_state.state }} ->
+            {{ trigger.to_state.state }}); automatic control suspended until the
+            room is next empty
+
+  # ===========================================================================
+  # FAMILY ROOM — overnight alarm
+  # ===========================================================================
+  - id: mmw_family_quiet_alarm
+    alias: "mmW Family: quiet-hours alarm"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.family_mmwave_presence
+        from: "off"
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.mmw_family_alarm_enable
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.mmw_family_alarm_disarm_tonight
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.mmw_family_quiet_hours
+        state: "on"
+
+      # THE ROOM MUST HAVE BEEN GENUINELY EMPTY FIRST.
+      # This is the condition that separates an arrival from a dropout. A person
+      # asleep on the couch since midnight never produces an off->on edge at
+      # all, so they cannot trigger this. But a momentary radar dropout DOES
+      # produce one, and without this test the node would strobe the room at
+      # someone sleeping in it. Requiring five minutes of continuous empty is
+      # what makes the edge mean "someone came in" rather than "the tracker
+      # blinked". §5.9.3's L(T) budget is the reason five minutes is safe: any
+      # gap approaching it is already a threshold failure and shows up in SPC.
+      - condition: template
+        value_template: >
+          {{ trigger.from_state is not none
+             and (as_timestamp(now())
+                  - as_timestamp(trigger.from_state.last_changed)) > 300 }}
+
+      # Cooldown, so one restless night is not one flash per re-acquisition.
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.mmw_family_alarm_last_fired') %}
+          {% if last in ['unknown','unavailable',''] %}
+            true
+          {% else %}
+            {{ (as_timestamp(now()) - as_timestamp(last)) >
+               (states('input_number.mmw_family_alarm_cooldown') | int(0) * 60) }}
+          {% endif %}
+      # ADDED 2026-09-22: no alarm on uncommissioned (0) settings. The cooldown
+      # fallback above was `int(15)`, a second copy of the starting value.
+      - condition: template
+        value_template: >
+          {{ states('input_number.mmw_family_alarm_flashes') | int(0) > 0
+             and states('input_number.mmw_family_alarm_grace') | int(0) > 0
+             and states('input_number.mmw_family_alarm_cooldown') | int(0) > 0 }}
+    action:
+      - service: script.turn_on
+        target:
+          entity_id: script.mmw_family_alarm
+      # Wait for the sequence to finish, then always clean up. Putting cleanup
+      # here rather than at the end of the script means it still runs when the
+      # script is stopped early.
+      - wait_template: "{{ is_state('script.mmw_family_alarm','off') }}"
+        # CHANGED 2026-09-22, was 00:02:00. The longest sequence the helpers
+        # allow is 2 blinks (4 s) + 120 s grace + 15 flashes x 3 s (45 s) =
+        # 169 s [D] before any relay round trips, so a 2 min wait could stop
+        # the alarm mid-sequence. 5 min covers it with room for slow plugs.
+        timeout: "00:05:00"
+        continue_on_timeout: true
+      - service: script.turn_off
+        target:
+          entity_id: script.mmw_family_alarm
+      - service: script.mmw_family_alarm_cleanup
+
+  - id: mmw_family_alarm_rearm
+    alias: "mmW Family: re-arm alarm at end of quiet hours"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.mmw_family_quiet_hours
+        from: "on"
+        to: "off"
+    action:
+      # "Disarm tonight" means tonight. Clearing it at the END of quiet hours
+      # rather than at a fixed clock time means it cannot be cleared while the
+      # window is still open, which is what would make it useless.
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mmw_family_alarm_disarm_tonight
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: mmw_family_alarm
+
+  # ===========================================================================
   # CALIBRATION SUPPORT
   # ===========================================================================
   # Selecting any label except "unlabelled" starts a labelled run: engineering
@@ -953,6 +1687,26 @@ automation:
           message: >
             label -> {{ trigger.to_state.state }}
             (class {{ states('sensor.mmw_office_cal_class') }})
+
+  - id: mmw_family_cal_label_changed
+    alias: "mmW Family: label change starts a labelled run"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_select.mmw_family_label
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.state != 'unlabelled' }}"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.family_mmwave_calibration_hold
+      - service: logbook.log
+        data:
+          name: "mmW Family calibration"
+          message: >
+            label -> {{ trigger.to_state.state }}
+            (class {{ states('sensor.mmw_family_cal_class') }})
 
   # ---- the label he will forget to change ----------------------------------
   # A seat label left set after he gets up does not just lose data, it puts an
@@ -986,9 +1740,88 @@ automation:
           name: "mmW Office calibration"
           message: "seat label stale for 10 min of confirmed absence — downgraded to 'no one present'"
 
+  - id: mmw_family_cal_label_autoclear
+    alias: "mmW Family: downgrade stale seat label"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.family_mmwave_presence
+        to: "off"
+        for: "00:10:00"
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: input_select.mmw_family_label
+            state: ["unlabelled", "no one present"]
+    action:
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.mmw_family_label
+        data:
+          option: "no one present"
+      - service: logbook.log
+        data:
+          name: "mmW Family calibration"
+          message: "seat label stale for 10 min of confirmed absence — downgraded to 'no one present'"
+
+  # ---- data-quality alert --------------------------------------------------
+  - id: mmw_label_contradicted_alert
+    alias: "mmW: label contradicted by presence"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id:
+          # binary_sensor.mmw_office_label_contradicted REMOVED 2026-10-02
+          # (Bill) - see the note at that sensor. The family line stays.
+          - binary_sensor.mmw_family_label_contradicted
+        to: "on"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "mmWave calibration: contradicted label"
+          notification_id: "mmw_label_contradicted_{{ trigger.entity_id }}"
+          message: >
+            {{ trigger.entity_id }} — the label says nobody is present but the
+            radar has held presence for over a minute. Data collected in this
+            state contaminates the EMPTY class, which sets E_clutter and every
+            move threshold with it (§5.3, §5.9). Fix the label or leave the
+            room; then discard this interval in the analysis.
+
   # ===========================================================================
   # HEALTH — §6.2 / §6.3
   # ===========================================================================
+  - id: mmw_dropout_candidate_alert
+    alias: "mmW: radar says empty, thermostat says occupied"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id:
+          # Family room only. The office has no independent witness — the
+          # upstairs thermostat is too far away to see it.
+          - binary_sensor.mmw_family_dropout_candidate
+        to: "on"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "mmWave: possible presence dropout"
+          notification_id: "mmw_dropout_{{ trigger.entity_id }}"
+          message: >
+            {{ trigger.entity_id }} — the radar has reported the room empty for
+            ten minutes while the thermostat on that floor still reports
+            occupancy.
+
+            This is a CANDIDATE, not a fault. The thermostat is elsewhere on the
+            floor and its occupancy holds long after somebody leaves, so the
+            innocent explanation is usually the right one. What makes it worth a
+            notification is that it is the only dropout evidence available from a
+            sensor that is not the radar itself — §5.9.3's L(T) is computed on
+            the radar's own energies and inherits any fault in them.
+
+            If these cluster at one time of day or one seat, that is the R1
+            failure the still thresholds exist to prevent: re-run §5.9 for that
+            seat and check L(T) against the idle-timeout budget.
+
   - id: mmw_path_disagreement_alert
     alias: "mmW: presence paths disagree"
     mode: single
@@ -996,6 +1829,7 @@ automation:
       - platform: state
         entity_id:
           - binary_sensor.office_mmwave_presence_path_disagreement
+          - binary_sensor.family_mmwave_presence_path_disagreement
         to: "on"
         for: "00:05:00"
     action:
@@ -1017,6 +1851,7 @@ automation:
       - platform: state
         entity_id:
           - binary_sensor.office_mmwave_lux_stale
+          - binary_sensor.family_mmwave_lux_stale
         to: "on"
     action:
       - service: persistent_notification.create
@@ -1075,8 +1910,14 @@ automation:
     trigger_variables:
       defaults:
         input_number.mmw_office_lux_on: 30         # CHANGED 2026-09-28, was 18
+        input_number.mmw_family_lux_on: 18
         input_number.mmw_office_idle_timeout: 10   # CHANGED 2026-09-28, was 120
+        input_number.mmw_family_idle_timeout: 300
         input_number.mmw_office_cmd_window: 10
+        input_number.mmw_family_cmd_window: 10
+        input_number.mmw_family_alarm_flashes: 6
+        input_number.mmw_family_alarm_grace: 20
+        input_number.mmw_family_alarm_cooldown: 15
     trigger:
       - platform: homeassistant
         event: start
@@ -1141,3 +1982,8 @@ recorder:
       - sensor.office_mmwave_detection_distance
       - sensor.office_mmwave_moving_energy
       - sensor.office_mmwave_still_energy
+      - sensor.family_mmwave_moving_distance
+      - sensor.family_mmwave_still_distance
+      - sensor.family_mmwave_detection_distance
+      - sensor.family_mmwave_moving_energy
+      - sensor.family_mmwave_still_energy
