@@ -572,14 +572,22 @@ sensor:
 
   # ---- radar summary -------------------------------------------------------
   - platform: ld2410
+    # CHANGED 2026-10-02 (Bill, P24): `throttle: 1s` removed from the two
+    # distances - the only summary series the P24 filter reads. The driver
+    # publishes only on change, so the throttle passed about one reading a
+    # second of a ~10 Hz stream: the 70 in crossing was seen up to 1 s late,
+    # and a jump-then-hold could be held stale (the R13 note below). Cost:
+    # every change now reaches HA, the recorder AND InfluxDB, which has no
+    # entity filter and keeps everything (docs/influx-grafana.md), so a
+    # recorder exclude will not stop the rows - putting the throttle back
+    # will. The bathroom's nearest 89.0 in (P24) was measured THROUGH the
+    # throttle; it is not established for this stream until re-tested.
+    # Energies and detection_distance keep the throttle: no logic reads them
+    # (recorder-excluded, packages/mmwave_presence.yaml).
     moving_distance:
       name: "Moving distance"
-      filters:
-        - throttle: 1s
     still_distance:
       name: "Still distance"
-      filters:
-        - throttle: 1s
     moving_energy:
       name: "Moving energy"
       id: move_energy
