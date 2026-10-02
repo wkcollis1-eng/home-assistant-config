@@ -75,6 +75,28 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.02] - 2026-10-02
 
+### mmwave office node: "contradicted label" notification removed (Bill)
+
+- **Asked.** Bill: "we need to remove this notification" - `mmWave calibration: contradicted
+  label`, raised for `binary_sensor.mmw_office_label_contradicted`.
+- **Why it kept firing.** The office label has read "no one present" since 15:38Z 09-28.
+  `mmw_office_cal_label_autoclear` downgrades a stale seat label to it and nothing moves it back,
+  so the sensor went on every time Bill sat down for a minute: 86 state changes 09-28
+  13:00Z..10-02 12:05Z [M: HA history].
+- **Change.**
+  - Source (mmwave-presence-node `packages/mmwave_presence.yaml`, not yet committed): the office
+    line leaves `mmw_label_contradicted_alert`'s trigger list, with a dated comment. An 8-line
+    note at the sensor says why the sensor stays.
+  - `make_office_pkg.py` (ha-data-repairs) re-pinned to the 1978-line source (was 1849). The alert
+    is family-only now, so the office package holds it back whole: 29 ranges, 848 lines.
+  - The binary_sensor stays, and stays recorded. It lists the "no one present" intervals any
+    §5.9 analysis must discard.
+  - The live notification was dismissed with `persistent_notification.dismiss` after the reload
+    [M: 1 notification before, 0 after, websocket read].
+- **Left behind.** `automation.mmw_label_contradicted_by_presence` is an orphaned registry entry
+  now (`unavailable`, `restored: true`). Not removed: that is a live registry write, offered to
+  Bill.
+
 ### Office mmWave: distance throttle removed (firmware, two flashes)
 - **What.** `esphome/mmwave-node-common.yaml`: moving and still distance publish every changed
   radar frame (the driver drops repeats) instead of at most one reading a second. Bill asked

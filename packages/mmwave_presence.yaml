@@ -2,8 +2,8 @@
 # mmWave Presence Lighting — HOME ASSISTANT PACKAGE
 # -----------------------------------------------------------------------------
 # DEPLOYED COPY, H:/packages/. Source: mmwave-presence-node
-# packages/mmwave_presence.yaml at b074238, OFFICE ONLY. Every family-room block
-# is HELD BACK (29 ranges, 826 lines): the family node does not exist, and its
+# packages/mmwave_presence.yaml at b074238 PLUS UNCOMMITTED EDITS, OFFICE ONLY. Every family-room block
+# is HELD BACK (29 ranges, 848 lines): the family node does not exist, and its
 # automations would drive the real switch.family_room lamps on a sensor that is
 # not there. Nothing else is changed; the text below is the repo's, including
 # its "NOT DEPLOYED" line and its header notes about the family room.
@@ -302,6 +302,14 @@ template:
       # catch the case that matters more: a label that says empty while the
       # radar ALSO fails to see the person. Nothing here can.
       # See open_questions.yaml — what else in the office reports to HA?
+      # NO NOTIFICATION, 2026-10-02 (Bill: "we need to remove this
+      # notification"). The office label has read "no one present" since the
+      # 09-28 go-live - the autoclear below downgrades to it and nothing moves
+      # it back - so this went on every time he sat down for a minute: 86
+      # state changes 09-28 13:00Z..10-02 12:05Z [M: HA history]. The office
+      # line is out of mmw_label_contradicted_alert; this sensor stays,
+      # recorded, as the list of "no one present" intervals any §5.9 analysis
+      # must discard.
       - name: "mmW Office label contradicted"
         unique_id: mmw_office_label_contradicted
         device_class: problem
@@ -857,27 +865,6 @@ automation:
         data:
           name: "mmW Office calibration"
           message: "seat label stale for 10 min of confirmed absence — downgraded to 'no one present'"
-
-  # ---- data-quality alert --------------------------------------------------
-  - id: mmw_label_contradicted_alert
-    alias: "mmW: label contradicted by presence"
-    mode: single
-    trigger:
-      - platform: state
-        entity_id:
-          - binary_sensor.mmw_office_label_contradicted
-        to: "on"
-    action:
-      - service: persistent_notification.create
-        data:
-          title: "mmWave calibration: contradicted label"
-          notification_id: "mmw_label_contradicted_{{ trigger.entity_id }}"
-          message: >
-            {{ trigger.entity_id }} — the label says nobody is present but the
-            radar has held presence for over a minute. Data collected in this
-            state contaminates the EMPTY class, which sets E_clutter and every
-            move threshold with it (§5.3, §5.9). Fix the label or leave the
-            room; then discard this interval in the analysis.
 
   # ===========================================================================
   # HEALTH — §6.2 / §6.3
