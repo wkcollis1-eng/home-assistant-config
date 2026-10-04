@@ -103,6 +103,25 @@ comments carry R13 notes: their episode counts measured steady temperatures, not
 
 **Not caught, before or after:** an accessory that answers polls with a frozen value.
 
+### mmWave dropout-candidate notification OFF (`packages/mmwave_presence.yaml`)
+
+`mmw_dropout_candidate_alert` now has `initial_state: false`, following
+`mmw_label_contradicted_alert`. `binary_sensor.mmw_family_dropout_candidate` still records.
+- 30 firings 10-02 11:31 to 10-04 17:33 [M].
+- The thermostat witness sees the kitchen, which the radar cannot. Its occupancy holds
+  25.0-25.1 min after the last motion (n=42 [M]) and stuck on 8 times with no motion.
+- 6 firings were re-arms from the watchdog blips fixed above.
+- The 2 clusters examined were walk-throughs. The other 28 firings were not examined.
+
+R13: the proposal's "until §5.2a closes the kitchen gap" was wrong. The kitchen work
+area is 7.56 m and more from the hearth front (open_questions.yaml, 2026-10-02 A101
+answer). That is past anything this radar reports: 600 cm moving and 637 cm still
+[M: n=101,296 and n=122,835, 10-02 to 10-04], with both max gates at 8.
+
+Corrected the same evening, after Bill noted the 236 in readings: this entry first said
+"the 6.75 m end of gate 8". That figure is 9 x 0.75 m [D], an upper bound from the gate
+geometry, never a measured range.
+
 ### R20 enforcement: the checkpoint nudge becomes four gates (`context_hygiene.py`)
 
 Bill: "lets build layers 1–4. if they work should not need layer 5", and stay at 200K.

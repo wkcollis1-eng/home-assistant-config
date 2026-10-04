@@ -14,7 +14,7 @@ packages/backup_sizing.yaml             577 lines   input_button:1, sensor:3, te
 packages/billing_overview.yaml          646 lines   automation:1, input_datetime:2, input_number:50, input_text:2 +1 more
 packages/energy_export_package.yaml      32 lines   automation:1, shell_command:1
 packages/grafana.yaml                   105 lines   automation:1, shell_command:1
-packages/mmwave_presence.yaml          2156 lines   automation:20, input_boolean:9, input_datetime:5, input_number:9 +5 more
+packages/mmwave_presence.yaml          2184 lines   automation:20, input_boolean:9, input_datetime:5, input_number:9 +5 more
 packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_meter:34
 packages/spc.yaml                      3726 lines   automation:11, input_datetime:11, input_number:49, script:2, sensor:12 +3 more
 packages/utility_meters.yaml           1423 lines   automation:5, input_boolean:1, input_datetime:1, input_number:25 +3 more
