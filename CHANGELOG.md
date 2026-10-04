@@ -79,6 +79,30 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.04] - 2026-10-04
 
+### Ecobee watchdog: stale means unavailable or unknown, no age test (`packages/watchdog.yaml`)
+
+Bill: "lets do fix 1 and 2." `binary_sensor.watchdog_ecobee_stale` also counted a
+temperature older than 30 min as stale. homekit_controller writes state only when a
+polled value changes [S: core 2026.9.4 homekit_controller/connection.py; aiohomekit
+4.0.1 model/__init__.py:399-419], so a steady house read as a dead thermostat:
+- 151 reloads 09-26 20:00 to 10-04 19:00 EDT. 146 of them came back with the same
+  main-floor temperature [M, HA history].
+- Each reload blipped the accessory's entities to unavailable for ~80 ms (147 of 147
+  blips within 3 s of a reload [M]). That re-armed the mmWave dropout candidate.
+
+Replay of the new predicate over 09-20 08:12 to 10-04 23:04 UTC [M, HA history]:
+- Fires on the fault: on for 60 s or more exactly once, the 09-21 Main Floor outage
+  (616.8 min).
+- Silent when clean: the 236 other episodes lasted 0.51 s or less.
+- `/api/template` renders: live entities give False. Swapping in a nonexistent,
+  unavailable or unknown entity gives True, and flags the right zone.
+
+`input_number.watchdog_threshold_ecobee` is now unused. It was renamed "(unused)" and
+kept, because removing it would orphan its registry row. The reload and reset-failed
+comments carry R13 notes: their episode counts measured steady temperatures, not outages.
+
+**Not caught, before or after:** an accessory that answers polls with a frozen value.
+
 ### R20 enforcement: the checkpoint nudge becomes four gates (`context_hygiene.py`)
 
 Bill: "lets build layers 1–4. if they work should not need layer 5", and stay at 200K.

@@ -479,7 +479,7 @@ sensor.upstairs_current_temperature    2F current temp (watchdog monitored)
 ```
 automation.watchdog_reset_failed                 failure-only notice; still stale 10 min after onset
 binary_sensor.watchdog_battery_bank_stale        Battery Bank monitor stale detection
-binary_sensor.watchdog_ecobee_stale              Ecobee temps stale (either sensor)
+binary_sensor.watchdog_ecobee_stale              Ecobee temperature unavailable or unknown (either sensor); no age test since 2026-10-04
 binary_sensor.watchdog_sem_stale                 SEM Meter stale detection
 binary_sensor.watchdog_ups_stale                 UPS monitor stale detection
 input_boolean.watchdog_auto_reload_battery_bank  Enable auto-reload
@@ -488,7 +488,7 @@ input_boolean.watchdog_auto_reload_sem
 input_boolean.watchdog_auto_reload_ups
 input_number.watchdog_reload_backoff             Reload backoff period (minutes)
 input_number.watchdog_threshold_battery_bank     Stale threshold (minutes)
-input_number.watchdog_threshold_ecobee
+input_number.watchdog_threshold_ecobee           UNUSED since 2026-10-04 (age test removed); kept declared so its registry row is not orphaned
 input_number.watchdog_threshold_sem
 input_number.watchdog_threshold_ups
 script.spc_force_seed_all                        Force seed all SPC day slots from 24h stats

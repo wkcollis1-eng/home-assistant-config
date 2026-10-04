@@ -14,6 +14,7 @@
 #
 # Features:
 #   - Configurable stale thresholds per sensor type
+#     (except Ecobee since 2026-10-04: unavailable/unknown only, no age test)
 #   - Auto-reload with 15-minute backoff
 #   - Persistent notifications on stale/recovery  [RETIRED 2026-09-10]
 #   - Notification ONLY when a reset fails (watchdog_reset_failed), 2026-09-10
@@ -34,8 +35,12 @@ input_number:
     icon: mdi:battery-alert
     initial: 30
 
+  # UNUSED since 2026-10-04: binary_sensor.watchdog_ecobee_stale no longer
+  # has an age test (see its comment). Kept declared because it is in the
+  # entity registry - removing only this block would leave an orphaned row
+  # that needs a UI delete. Remove both together, or leave it.
   watchdog_threshold_ecobee:
-    name: "Watchdog: Ecobee Stale Threshold"
+    name: "Watchdog: Ecobee Stale Threshold (unused)"
     min: 5
     max: 120
     step: 5
@@ -161,6 +166,32 @@ template:
           threshold_minutes: "{{ states('input_number.watchdog_threshold_battery_bank') }}"
 
       # --- Ecobee Thermostats (either sensor stale triggers) ---
+      # UNAVAILABLE OR UNKNOWN ONLY (2026-10-04). Until this date a temperature
+      # whose last_updated was older than input_number.watchdog_threshold_ecobee
+      # (30 min) also counted as stale. That test cannot tell a steady house
+      # from a dead thermostat: homekit_controller writes an entity's state only
+      # when a polled value CHANGES [S: core 2026.9.4
+      # homekit_controller/connection.py async_update -> process_new_events;
+      # aiohomekit 4.0.1 model/__init__.py:399-419 and
+      # characteristics/characteristic.py:169-182], so last_updated stops
+      # whenever the temperature holds inside one 0.18 F (0.1 C) step [M].
+      # 09-26 20:00 to 10-04 19:00 EDT [M, HA history]: 151 reloads, 146 of
+      # them back with the same main-floor temperature; each reload dropped the
+      # accessory's occupancy, motion and climate entities to unavailable for
+      # about 80 ms (147 of 147 such blips within 3 s of a reload), and every
+      # blip re-armed binary_sensor.mmw_family_dropout_candidate.
+      # A thermostat that stops answering still turns this on: homekit_controller
+      # polls every 1 min and marks the entities unavailable after 3 failed
+      # polls [S: aiohomekit 4.0.1 controller/ip/pairing.py:140-142; core
+      # 2026.9.4 homekit_controller/const.py:57]. Replayed over 09-20 08:12 to
+      # 10-04 23:04 UTC [M, HA history, both temperature sensors]: on for 60 s
+      # or more exactly once - the 09-21 Main Floor outage, 00:23:21-10:40:08
+      # EDT, off the LAN, cleared by a reseat - and the other 236 episodes,
+      # all blips from the old reloads, lasted 0.51 s or less. The 09-15 outage
+      # (330 min) is older than the recorder and was not replayed.
+      # NOT CAUGHT, now or before: an accessory that answers polls with a frozen
+      # value. The age test could not catch that either; it could not tell
+      # frozen from steady.
       - name: "Watchdog: Ecobee Stale"
         unique_id: watchdog_ecobee_stale
         icon: "{{ 'mdi:thermostat-alert' if is_state('binary_sensor.watchdog_ecobee_stale', 'on') else 'mdi:thermostat' }}"
@@ -168,28 +199,16 @@ template:
         state: >
           {% set upstairs = states.sensor.upstairs_current_temperature %}
           {% set main = states.sensor.main_floor_current_temperature %}
-          {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
-          {% set upstairs_stale = upstairs is none or upstairs.state in ['unavailable', 'unknown'] or (now() - upstairs.last_updated).total_seconds() > threshold %}
-          {% set main_stale = main is none or main.state in ['unavailable', 'unknown'] or (now() - main.last_updated).total_seconds() > threshold %}
+          {% set upstairs_stale = upstairs is none or upstairs.state in ['unavailable', 'unknown'] %}
+          {% set main_stale = main is none or main.state in ['unavailable', 'unknown'] %}
           {{ upstairs_stale or main_stale }}
         attributes:
           upstairs_stale: >
             {% set sensor = states.sensor.upstairs_current_temperature %}
-            {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
-            {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
-              true
-            {% else %}
-              {{ (now() - sensor.last_updated).total_seconds() > threshold }}
-            {% endif %}
+            {{ sensor is none or sensor.state in ['unavailable', 'unknown'] }}
           main_floor_stale: >
             {% set sensor = states.sensor.main_floor_current_temperature %}
-            {% set threshold = states('input_number.watchdog_threshold_ecobee') | float(30) * 60 %}
-            {% if sensor is none or sensor.state in ['unavailable', 'unknown'] %}
-              true
-            {% else %}
-              {{ (now() - sensor.last_updated).total_seconds() > threshold }}
-            {% endif %}
-          threshold_minutes: "{{ states('input_number.watchdog_threshold_ecobee') }}"
+            {{ sensor is none or sensor.state in ['unavailable', 'unknown'] }}
 
       # --- UPS Monitor ---
       - name: "Watchdog: UPS Stale"
@@ -350,6 +369,13 @@ automation:
       # stale until the temperature happened to move. Since 2026-08-01
       # [M, InfluxDB]: main-floor-only episodes n=82, median 10.6 min, 43
       # lasting >= 10 min; upstairs-only n=78, longest 1.0 min.
+      # R13, 2026-10-04: those episodes were runs of the age-based stale test
+      # retired today (see binary_sensor.watchdog_ecobee_stale), so they
+      # measured how long a temperature held steady, not outages. A reload
+      # "ended" one because its ~80 ms unavailable blip wrote a fresh
+      # last_updated, not because anything recovered: 146 of 151 reloads,
+      # 09-26 to 10-04, came back with the same main-floor temperature
+      # [M, HA history]. Since today this runs only on a real unavailable.
       # reload_config_entry reloads the entry of EVERY targeted entity
       # [S: core 2026.9.1, homeassistant/components/homeassistant/__init__.py:341-354].
       - service: homeassistant.reload_config_entry
@@ -564,6 +590,12 @@ automation:
   # [I] falsifier: with the Ecobee reload now hitting both thermostats, a
   # main-floor episode should clear like an upstairs one. A main-floor notice
   # from this automation means that model is wrong.
+  # R13, 2026-10-04: the Ecobee episode counts above came from the retired
+  # age-based stale test, so they measured steady temperatures, not outages
+  # (see binary_sensor.watchdog_ecobee_stale). Since today an Ecobee notice
+  # here means a thermostat unavailable for 10 min that a reload did not
+  # bring back - on 09-21 that was a thermostat off the LAN, cleared only by
+  # a reseat.
   #
   # One notice per system, same notification_id as the retired ones, so a
   # repeat REPLACES rather than stacks. It stays until dismissed - there is no

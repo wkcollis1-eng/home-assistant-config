@@ -122,7 +122,7 @@ binary_sensor.watchdog_battery_bank_stale:
   note: Battery Bank monitor stale detection
 binary_sensor.watchdog_ecobee_stale:
   group: WATCHDOG (packages/watchdog.yaml)
-  note: Ecobee temps stale (either sensor)
+  note: Ecobee temperature unavailable or unknown (either sensor); no age test since 2026-10-04
 binary_sensor.watchdog_sem_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: SEM Meter stale detection
@@ -291,7 +291,7 @@ input_number.watchdog_threshold_battery_bank:
   note: Stale threshold (minutes)
 input_number.watchdog_threshold_ecobee:
   group: WATCHDOG (packages/watchdog.yaml)
-  note: ''
+  note: UNUSED since 2026-10-04 (age test removed); kept declared so its registry row is not orphaned
 input_number.watchdog_threshold_sem:
   group: WATCHDOG (packages/watchdog.yaml)
   note: ''
