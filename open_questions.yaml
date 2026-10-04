@@ -2211,3 +2211,23 @@
     left on by mistake. Bill then chose no threshold change: "let's do this -
     As it stands: if you leave the room with the fan on, the lamps stay on
     until the fan goes off. That's a harmless failure."
+
+- asked: 2026-10-04
+  question: >-
+    Are the two ecobee thermostats' addresses reserved in the router - Main
+    Floor 10.0.0.96 (MAC 44:61:32:CE:7A:83) and Upstairs 10.0.0.37 (MAC
+    44:61:32:ED:ED:F8)?
+  blocks: >-
+    A ping check in the ecobee watchdog (proposed 2026-10-04). When HomeKit goes
+    unavailable, a ping that answers means the thermostat is on the network and
+    HomeKit is wedged, so a reload is the right fix; no answer means the
+    thermostat is off the network, as on 09-21 (ARP Incomplete, cleared only by
+    a reseat), where a reload cannot help and a bell notification is the right
+    action. A ping sensor is pinned to one address, so a lease that moves would
+    read as "off the network" with the thermostat fine - a false alarm. Both
+    answered 20 of 20 pings at those addresses with matching MACs [M: from
+    10.0.0.105, 2026-10-04 about 19:25 EDT, n=20 each, one burst].
+  answered: >-
+    2026-10-04, Bill: "yes both are reserved now." Main Floor 10.0.0.96 and
+    Upstairs 10.0.0.37 are DHCP-reserved, so a ping sensor pinned to either
+    address will not read a lease move as "off the network".
