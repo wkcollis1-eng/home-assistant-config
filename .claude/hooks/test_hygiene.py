@@ -83,7 +83,7 @@ def push_call(
     )
 
 
-def run(mode, recs, sid="s1", raw=None, extra=None, env_extra=None):
+def run(mode, recs, sid="s1", raw=None, extra=None, env_extra=None, argv=None):
     p = os.path.join(TMP, "t.jsonl")
     with open(p, "w", encoding="utf-8") as f:
         f.write("\n".join(json.dumps(r) for r in recs) + "\n")
@@ -106,7 +106,7 @@ def run(mode, recs, sid="s1", raw=None, extra=None, env_extra=None):
     env.pop("CLAUDE_CODE_AUTO_COMPACT_WINDOW", None)
     env.update(env_extra or {})
     cp = subprocess.run(
-        [sys.executable, HOOK, mode],
+        argv or [sys.executable, HOOK, mode],
         input=stdin.encode(),
         capture_output=True,
         env=env,
@@ -117,11 +117,17 @@ def run(mode, recs, sid="s1", raw=None, extra=None, env_extra=None):
 
 
 def text(got):
-    return ((got or {}).get("hookSpecificOutput") or {}).get("additionalContext", "")
+    h = (got or {}).get("hookSpecificOutput") or {}
+    return (
+        h.get("additionalContext")
+        or h.get("permissionDecisionReason")
+        or (got or {}).get("reason")
+        or ""
+    )
 
 
 def check(name, got, want, has=(), lacks=()):
-    """want: None/block/message/context; has/lacks: substrings of the injected context."""
+    """want: None/block/deny/message/context; has/lacks: substrings of the context or reason."""
     global fails
     kind = (
         None
@@ -129,6 +135,8 @@ def check(name, got, want, has=(), lacks=()):
         else (
             "block"
             if got.get("decision") == "block"
+            else "deny"
+            if (got.get("hookSpecificOutput") or {}).get("permissionDecision") == "deny"
             else "message"
             if "systemMessage" in got
             else "context"
@@ -143,6 +151,25 @@ def check(name, got, want, has=(), lacks=()):
         f"  {'PASS' if ok else 'FAIL'}  {name}: want {want}, got {kind}"
         + ("" if ok else f"  {got}")
     )
+
+
+def ckpt(
+    sid,
+    ago=None,
+    body="GOAL: x\nVERDICT: PASS (parse-clean) - validate_ha.py --strict\n",
+):
+    """Write the session's checkpoint with mtime `ago` seconds back; ago=None removes it."""
+    os.makedirs(CK, exist_ok=True)
+    p = os.path.join(CK, sid + ".md")
+    if ago is None:
+        if os.path.exists(p):
+            os.remove(p)
+        return p
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(body)
+    t = time.time() - ago
+    os.utime(p, (t, t))
+    return p
 
 
 H = 3600
@@ -245,6 +272,9 @@ check(
 check("unknown mode -> silent", run("bogus", stale), None)
 
 print("stop")
+# Future mtime: s1's checkpoint is fresh for every fixture below, so these test
+# the push nudge alone. The R20 Stop block (layer 3) has its own section.
+ckpt("s1", -3600)
 turn = [
     asst(600, 470_000),
     user("commit and push"),
@@ -324,25 +354,6 @@ check(
 )
 
 
-def ckpt(
-    sid,
-    ago=None,
-    body="GOAL: x\nVERDICT: PASS (parse-clean) - validate_ha.py --strict\n",
-):
-    """Write the session's checkpoint with mtime `ago` seconds back; ago=None removes it."""
-    os.makedirs(CK, exist_ok=True)
-    p = os.path.join(CK, sid + ".md")
-    if ago is None:
-        if os.path.exists(p):
-            os.remove(p)
-        return p
-    with open(p, "w", encoding="utf-8") as f:
-        f.write(body)
-    t = time.time() - ago
-    os.utime(p, (t, t))
-    return p
-
-
 def bnd(ago, trigger="auto", pre=185_000):
     return {
         "type": "system",
@@ -373,8 +384,8 @@ up = [
     asst(900, 150_000),
     asst(600, 165_000),
     asst(0, 170_000),
-]  # crosses 160K (80% of 200K) 600 s ago
-print("posttooluse (window 200K from settings, line at 160K)")
+]  # crosses the 126K due line (200K - 34K - 40K) 900 s ago
+print("posttooluse (window 200K from settings, due line at 126K)")
 ckpt("p1")
 check(
     "170K, no checkpoint -> nudge",
@@ -392,11 +403,11 @@ check(
     has=("before the context crossed",),
 )
 check(
-    "159,999 -> silent", run(PT, [asst(600, 150_000), asst(0, 159_999)], sid="p4"), None
+    "125,999 -> silent", run(PT, [asst(600, 120_000), asst(0, 125_999)], sid="p4"), None
 )
 check(
-    "exactly 160,000 -> nudge",
-    run(PT, [asst(600, 150_000), asst(0, 160_000)], sid="p5"),
+    "exactly 126,000 -> nudge",
+    run(PT, [asst(600, 120_000), asst(0, 126_000)], sid="p5"),
     "context",
 )
 check(
@@ -444,7 +455,7 @@ check(
 )
 ckpt("p10", 100)
 check("written after the new crossing -> silent", run(PT, two, sid="p10"), None)
-dip = [asst(1200, 170_000), asst(900, 150_000), asst(300, 165_000), asst(0, 170_000)]
+dip = [asst(1200, 170_000), asst(900, 120_000), asst(300, 165_000), asst(0, 170_000)]
 ckpt("p12", 600)
 check(
     "dip below the line restarts the run -> nudge", run(PT, dip, sid="p12"), "context"
@@ -504,12 +515,230 @@ check(
 )
 check("malformed stdin -> silent", run(PT, [], raw="{not json"), None)
 
+
+# R20 gates, 2026-10-04. Window 200K -> trigger 166K, due 126K, gate 146K, ceiling 256K.
+def gate_rows(event=None):
+    try:
+        with open(os.path.join(CK, "gate.log"), encoding="utf-8") as f:
+            rows = [ln.split("\t") for ln in f.read().splitlines()]
+    except OSError:
+        return []
+    return [r for r in rows if event is None or r[2] == event]
+
+
+def tool(name, path=None, cmd="ls"):
+    return {
+        "tool_name": name,
+        "tool_input": {"file_path": path} if path is not None else {"command": cmd},
+    }
+
+
+PRE = "pretooluse"
+hot = [
+    asst(900, 130_000),
+    asst(600, 150_000),
+    asst(0, 170_000),
+]  # due crossed 900 s ago
+print("pretooluse (layer 2: gate line 146K)")
+g1 = ckpt("g1")
+check(
+    "170K, no checkpoint, Bash -> deny",
+    run(PRE, hot, sid="g1", extra=tool("Bash")),
+    "deny",
+    has=("Bash held", "does not exist", "g1.md"),
+)
+check(
+    "  ...Write of the checkpoint -> allow",
+    run(PRE, hot, sid="g1", extra=tool("Write", g1)),
+    None,
+)
+check(
+    "  ...same path, forward slashes, upper case -> allow",
+    run(PRE, hot, sid="g1", extra=tool("Write", g1.replace("\\", "/").upper())),
+    None,
+)
+check(
+    "  ...Edit of the checkpoint -> allow",
+    run(PRE, hot, sid="g1", extra=tool("Edit", g1)),
+    None,
+)
+check(
+    "  ...Read of the checkpoint -> allow",
+    run(PRE, hot, sid="g1", extra=tool("Read", g1)),
+    None,
+)
+check(
+    "  ...Write of another file -> deny",
+    run(PRE, hot, sid="g1", extra=tool("Write", os.path.join(CK, "other.md"))),
+    "deny",
+)
+check(
+    "  ...Read of another session's checkpoint -> deny",
+    run(PRE, hot, sid="g1", extra=tool("Read", os.path.join(CK, "g2.md"))),
+    "deny",
+)
+check(
+    "  ...Bash that writes the checkpoint -> deny",
+    run(PRE, hot, sid="g1", extra=tool("Bash", cmd="echo x > " + g1)),
+    "deny",
+)
+check(
+    "  ...Write with no tool_input -> deny",
+    run(PRE, hot, sid="g1", extra={"tool_name": "Write"}),
+    "deny",
+)
+ckpt("g1", 300)
+check(
+    "written after the due-line crossing -> allow",
+    run(PRE, hot, sid="g1", extra=tool("Bash")),
+    None,
+)
+ckpt("g1", 1200)
+check(
+    "written before the crossing -> deny",
+    run(PRE, hot, sid="g1", extra=tool("Bash")),
+    "deny",
+    has=("before the context crossed",),
+)
+check(
+    "145,999 (past due, short of the gate) -> allow",
+    run(PRE, [asst(600, 130_000), asst(0, 145_999)], sid="g1", extra=tool("Bash")),
+    None,
+)
+check(
+    "exactly 146,000 -> deny",
+    run(PRE, [asst(600, 130_000), asst(0, 146_000)], sid="g1", extra=tool("Bash")),
+    "deny",
+)
+check(
+    "inside a subagent (agent_id) -> allow",
+    run(PRE, hot, sid="g1", extra=dict(tool("Bash"), agent_id="a1")),
+    None,
+)
+check(
+    "settings unreadable, no env -> allow",
+    run(
+        PRE,
+        hot,
+        sid="g1",
+        extra=tool("Bash"),
+        env_extra={"CONTEXT_HYGIENE_SETTINGS": os.path.join(TMP, "none.json")},
+    ),
+    None,
+)
+check(
+    "compaction after the last response -> allow",
+    run(PRE, hot[:2] + [asst(60, 170_000), bnd(10)], sid="g1", extra=tool("Bash")),
+    None,
+)
+check("malformed stdin -> allow", run(PRE, [], raw="{not json"), None)
+nd = gate_rows("pretooluse-deny")
+check(
+    "every deny logged to gate.log, 5 columns",
+    None
+    if len(nd) == 7 and all(len(r) == 5 for r in gate_rows())
+    else {"denies": len(nd)},
+    None,
+)
+
+print("stop (layer 3: block the end of a turn once while overdue)")
+ckpt("k1")
+check(
+    "170K, no checkpoint -> block",
+    run("stop", hot, sid="k1"),
+    "block",
+    has=("before this turn ends", "k1.md"),
+)
+check(
+    "  ...stop_hook_active -> silent",
+    run("stop", hot, sid="k1", extra={"stop_hook_active": True}),
+    None,
+)
+check(
+    "125,999, no checkpoint -> silent",
+    run("stop", [asst(600, 120_000), asst(0, 125_999)], sid="k1"),
+    None,
+)
+ckpt("k1", 300)
+check("written after the crossing -> silent", run("stop", hot, sid="k1"), None)
+ckpt("k1", 1200)
+check("written before the crossing -> block", run("stop", hot, sid="k1"), "block")
+ckpt("k1")
+check(
+    "pushed this turn but overdue -> block, not the push message",
+    run(
+        "stop",
+        [user("go"), push_call("k9", ctx=165_000), result("k9"), asst(0, 170_000)],
+        sid="k1",
+    ),
+    "block",
+)
+
+PC = "precompact"
+AUTO = {"trigger": "auto", "custom_instructions": None}
+print("precompact (layer 4: auto only, gives way at the 256K ceiling)")
+ckpt("x1")
+check(
+    "auto, 170K, no checkpoint -> block",
+    run(PC, hot, sid="x1", extra=AUTO),
+    "block",
+    has=("x1.md", "gives way at 256K"),
+)
+check(
+    "manual /compact, no checkpoint -> silent",
+    run(PC, hot, sid="x1", extra={"trigger": "manual", "custom_instructions": None}),
+    None,
+)
+check("no trigger field -> silent", run(PC, hot, sid="x1"), None)
+ckpt("x1", 300)
+check(
+    "auto, written after the crossing -> silent",
+    run(PC, hot, sid="x1", extra=AUTO),
+    None,
+)
+ckpt("x1", 1200)
+check(
+    "auto, written before the crossing -> block",
+    run(PC, hot, sid="x1", extra=AUTO),
+    "block",
+)
+check(
+    "auto, 255,999 -> block",
+    run(PC, hot[:2] + [asst(0, 255_999)], sid="x1", extra=AUTO),
+    "block",
+)
+gw0 = len(gate_rows("precompact-gave-way"))
+check(
+    "auto, exactly 256,000 (ceiling) -> gives way",
+    run(PC, hot[:2] + [asst(0, 256_000)], sid="x1", extra=AUTO),
+    None,
+)
+check(
+    "  ...and logs precompact-gave-way",
+    None
+    if len(gate_rows("precompact-gave-way")) == gw0 + 1
+    else {"rows": gate_rows()[-3:]},
+    None,
+)
+check(
+    "auto, settings unreadable -> silent",
+    run(
+        PC,
+        hot,
+        sid="x1",
+        extra=AUTO,
+        env_extra={"CONTEXT_HYGIENE_SETTINGS": os.path.join(TMP, "none.json")},
+    ),
+    None,
+)
+check("auto, malformed stdin -> silent", run(PC, [], raw="{not json"), None)
+
 SS = "sessionstart"
 C = {"source": "compact"}
 pre = [
     audit(5000),
     asst(4000, 60_000),
-    asst(1200, 150_000),
+    asst(1200, 120_000),
     asst(600, 165_000),
     asst(120, 185_000),
 ]
@@ -529,7 +758,7 @@ check(
     "written before the crossing -> STALE WARN + text",
     run(SS, done, sid="c2", extra=C),
     "context",
-    has=("STALE", "crossed 80%", body),
+    has=("STALE", "crossed the 126K due line", body),
 )
 ckpt("c3")
 check(
@@ -590,7 +819,7 @@ check(
     "re-appended copies, written before the crossing -> STALE",
     run(SS, redup, sid="c6", extra=C),
     "context",
-    has=("STALE", "crossed 80%"),
+    has=("STALE", "crossed the 126K due line"),
 )
 ckpt("c6", 300)
 check(
@@ -675,6 +904,21 @@ check(
     "context",
     has=("handler failed",),
 )
+gw = pre[:4] + [asst(120, 260_000)]
+ckpt("c10", 900)
+check(
+    "stale at a 260K compaction -> PreCompact gave-way WARN",
+    run(SS, gw, sid="c10", extra=C),
+    "context",
+    has=("STALE", "gate gave way", "256K ceiling"),
+)
+check(
+    "stale at a 185K compaction -> no gave-way WARN",
+    run(SS, done, sid="c2", extra=C),
+    "context",
+    has=("STALE",),
+    lacks=("gave way",),
+)
 with open(os.path.join(CK, "compactions.log"), encoding="utf-8") as f:
     rows = [ln.split("\t") for ln in f.read().splitlines()]
 st8 = [r[5] for r in rows]
@@ -682,10 +926,59 @@ check(
     "log: one line per compaction, 7 columns, statuses in order",
     None
     if st8[:3] == ["fresh", "stale", "missing"]
-    and len(st8) == 14
+    and len(st8) == 16
     and all(len(r) == 7 for r in rows)
     else {"log": st8, "widths": sorted({len(r) for r in rows})},
     None,
+)
+
+print("launcher (settings.json runs pretooluse and precompact through it)")
+# The exact -c program in settings.json, with p = the deployed path. A missing
+# script must exit 0: exit 2 on PreToolUse denies every tool, and on PreCompact
+# blocks every auto-compaction (hooks.md, exit code 2 behavior).
+LAUNCH = (
+    "import os,runpy,sys;p=%r;sys.argv[0]=p;sys.path.insert(0,os.path.dirname(p));"
+    "os.path.exists(p) and runpy.run_path(p,run_name='__main__')"
+)
+gone = os.path.join(TMP, "gone.py")
+bare = subprocess.run([sys.executable, gone, PRE], input=b"{}", capture_output=True)
+check(
+    "contrast: plain `python missing.py` exits 2 (the hazard)",
+    None if bare.returncode == 2 else {"rc": bare.returncode},
+    None,
+)
+ckpt("g1")
+check(
+    "missing script, pretooluse -> exit 0, silent",
+    run(
+        PRE,
+        hot,
+        sid="g1",
+        extra=tool("Bash"),
+        argv=[sys.executable, "-c", LAUNCH % gone, PRE],
+    ),
+    None,
+)
+check(
+    "missing script, precompact -> exit 0, silent",
+    run(PC, hot, sid="g1", extra=AUTO, argv=[sys.executable, "-c", LAUNCH % gone, PC]),
+    None,
+)
+check(
+    "script present, pretooluse overdue -> deny",
+    run(
+        PRE,
+        hot,
+        sid="g1",
+        extra=tool("Bash"),
+        argv=[sys.executable, "-c", LAUNCH % HOOK, PRE],
+    ),
+    "deny",
+)
+check(
+    "script present, precompact overdue -> block",
+    run(PC, hot, sid="g1", extra=AUTO, argv=[sys.executable, "-c", LAUNCH % HOOK, PC]),
+    "block",
 )
 
 print("real transcripts (read-only parse)")
@@ -714,6 +1007,15 @@ for p in (files[-1], max(files, key=os.path.getmtime)):
     out = run(PT, [], raw=json.dumps({"session_id": "timing", "transcript_path": p}))
     print(
         f"      posttooluse end to end: {'nudge' if out else 'silent'}  {1000 * (time.time() - t0):.0f} ms"
+    )
+    t0 = time.time()
+    out = run(
+        PRE,
+        [],
+        raw=json.dumps(dict(tool("Bash"), session_id="timing", transcript_path=p)),
+    )
+    print(
+        f"      pretooluse end to end: {'deny' if out else 'allow'}  {1000 * (time.time() - t0):.0f} ms"
     )
 print("FAILS:", fails)
 sys.exit(1 if fails else 0)

@@ -54,6 +54,7 @@ is calibrated against.
 | 2026-10-02 | **Office mmWave daylight on/off, live since the 12:18:10Z automation reload** (`mmw_office_lux_dim_on`, `mmw_office_lux_bright_off`; setpoint `input_number.mmw_office_lux_on` = 30). (a) The next dusk with Bill seated, the lamp off, auto on and no override: `mmw_office_lux_dim_on` runs once, about 1 min after `sensor.office_mmwave_ambient_light` crosses below 30, and `mmw_office_lux_bright_off` does not run in the 10 min after it. (b) The first bright morning that finds the lamp lit by the package (latch on): `mmw_office_lux_bright_off` runs once lux has held above 53 [D: 30 + 18 + 5] for 5 min. Falsified by a daylight-off and a dim-on (either order) within 10 min of each other with no change in the light outside, read off the lux history across the pair; or by (a)'s crossing passing with every condition met and no dim-on. Basis: replay of 09-28 13:00Z..10-02 12:05Z, real occupancy and lux, the lamp's lift simulated [D]: 3 dim-ons, 1 daylight-off, 0 off->on within 30 min at any lift 8.4-17.7 lx; a simulated 30 lx lift cycles 11 times. Lift measured +10.6..+17.7 lx on-edges [M, n=22, after dark only] | yes — written after the reload, before any dusk or morning on the new rules | pending |
 | 2026-10-02 | **Office mmWave distance throttle removed** (`esphome/mmwave-node-common.yaml`, `moving_distance` + `still_distance`; compiled on 2026.9.1, Bill flashes). Predicts: (a) with the office labelled empty, bathroom trips give no bathroom target at 70 in or nearer and 0 occupied on-edges, the margin so far being 89.0 in [M] measured THROUGH the 1 s throttle, so a bound, not a fact, for the full stream; (b) walk-ins cross 70 in sooner than the 2.51 s median [M, n=41], by up to 1 s [D: the throttle window]; (c) distance rows/day rise from 54,039 [M: 24 h to 12:41Z, presence 10.76 h] toward, and not above, 2 x 10/s x presence-seconds [D]. Falsifier for (a): any bathroom target <= 70 in or an occupied on-edge during the trips. If (a) fails, put the throttle back. | yes - written before the flash and the bathroom test | (a) HELD on the second flash (13:14:27Z; reading gaps median 0.18 s [M, n=179]): 4 bathroom trips 13:16:00-13:20:44Z, 0 occupied on-edges, 0 of 207 readings at 70 in or nearer, nearest 83.5 in [M] - nearer than the throttled 89.0 bound. (b) SUPPORTED on 3 normal-pace entries 13:29-13:31Z: presence to occupied 1.92, 1.92, 1.52 s [M, n=3] against the throttled median 2.51 s [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; confirm on ordinary walk-ins 10-03. (c) pending, due 10-03. First flash VOID (R13: still throttled at 1 s, see [2026.10.02] "distance throttle removed"). |
 | 2026-10-02 | **Family mmWave VEML7700 floor with the power LED kept** (Bill: "will not cut it"). Once the node is in place, the darkest overnight reading of `sensor.family_mmwave_ambient_light` stays at or above 0.5 lx: the LED lifts the floor. Basis: covered on the desk, with the LED lit, it read 3.11 and 3.17 lx [M: HA history, 2 settled samples, 14:08:27-37Z]. Falsified by any overnight sample below 0.5 lx with the node in place: the LED's in-situ offset would then be under 0.5 lx, and most of the desk reading was leak through the cover or reflection off it. | yes - written 10:21 EDT, before the node was placed | pending |
+| 2026-10-04 | **The R20 gates (layers 1-4) leave no auto-compaction without a fresh checkpoint, so layer 5 is not needed** (Bill: "if they work should not need layer 5"). Window: from the deploy (2026-10-04 ~18:20 EDT) to 2026-10-11. Prediction: every main-thread auto-compaction has status `fresh` in `compactions.log`, except one that `gate.log` marks `precompact-gave-way`, and at most 1 is so marked. The trigger comes from the transcript's compact_boundary, joined to compactions.log by session and time. [I: PreCompact blocks every auto-compaction while the checkpoint is overdue, and only the 90K ceiling lets one through. The largest single-call growth near the line was 49.7K, M n=3,145.] Baseline under the 80% nudge: 24 of 99 stale or missing [M: compactions.log 09-23..10-04]. Falsified by any stale or missing auto-compaction with no gave-way row (the gate leaked: hook error, timeout, or a path the tests missed), or by 2 or more gave-way rows (the gate could not be satisfied in time). Recorded, not scored: `pretooluse-deny` rows per crossing (the nuisance cost). Void if fewer than 10 auto-compactions fall in the window. | yes - written 18:25 EDT 2026-10-04, before any compaction under the gates | pending |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -75,6 +76,52 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.04] - 2026-10-04
+
+### R20 enforcement: the checkpoint nudge becomes four gates (`context_hygiene.py`)
+
+Bill: "lets build layers 1–4. if they work should not need layer 5", and stay at 200K.
+Under the 80% nudge, 24 of 99 compactions had a stale or missing checkpoint
+[M: compactions.log 09-23..10-04]. The nudge fired a median of 2 calls before the
+compaction [M, n=102]. The lines are now fixed gaps below where auto-compaction
+really fires, measured since 2026-09-23 [M]:
+- `TRIGGER_GAP` 34K: auto preTokens min 166,234 at 200K (n=101).
+- `DUE_BEFORE` 40K: p10 of 9 calls in that stretch.
+- `GATE_BEFORE` 20K: 2 of 3,145 calls grew more than that.
+- `CEILING_AFTER` 90K: a design bound, not a measurement.
+
+At 200K: due 126K, gate 146K, ceiling 256K [D]. All four layers read one definition,
+`checkpoint_due()`:
+1. The PostToolUse nudge starts at the due line.
+2. A new PreToolUse entry, from the gate line, denies every tool except
+   Write/Edit/MultiEdit/Read of the checkpoint.
+3. Stop blocks once while the checkpoint is overdue.
+4. A new PreCompact entry, matcher `auto`, blocks while it is overdue and gives way at
+   the ceiling. A manual `/compact` is never blocked.
+
+Every deny and block is logged to `~/.claude/checkpoints/gate.log`. The two new
+settings entries run through a launcher that exits 0 if the script is missing.
+- **Changed meaning:** `compactions.log` status `fresh` now means written after the due
+  line (126K), not after 80% (160K). Rows before 2026-10-04 used the old line.
+- **R13:** the script's docstring and `docs/claude-code-enforcement.md` said there was
+  "deliberately no PreCompact entry". That reasoning treated the 200K trigger as the
+  hard limit. Per hooks.md, a blocked proactive compaction is skipped and the session
+  continues. Both texts are kept, marked SUPERSEDED, with the correction.
+- **Verified:**
+  - `test_hygiene.py` 105 PASS, `FAILS: 0` (41 checks new).
+  - `mutate_hygiene.py`: 28 mutations, `MUTATIONS MISSED: 0` (15 new, covering each
+    line ±1K, the path/normcase gate, stop_hook_active, the manual compaction, the
+    ceiling, and the gave-way WARN).
+  - pre-commit exit 0.
+  - Live: the exact settings.json argv against fixtures, 9/9, 26-49 ms per call [M, n=9].
+  - Deployed copies match under cmp: `H:/.claude/hooks` (3 files) and
+    `~/.claude/hooks/context_hygiene.py`.
+- **Not done:**
+  - The four older entries (UserPromptSubmit, Stop, PostToolUse, SessionStart) still
+    call the script without the launcher.
+  - Nothing is committed.
+  - The prediction is registered in the ledger above (2026-10-04).
 
 ## [2026.10.02] - 2026-10-02
 

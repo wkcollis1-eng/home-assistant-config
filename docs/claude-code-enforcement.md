@@ -101,9 +101,11 @@ on `UserPromptSubmit` "blocks prompt processing and erases the prompt", and on
 unreachable-script trap as the 2026-08-25 move to H: above, with the opposite
 symptom: that session started in silence, whereas here no prompt would get
 through. **To remove or rename the hook, delete both settings entries first,
-then the file.**
+then the file.** (2026-10-04: there are now six entries - see "R20 gates" below. Delete
+every entry that names `context_hygiene.py` first. The two added that day go through a
+launcher that exits 0 when the file is missing; the four older ones do not.)
 
-**Test:** `python .claude/hooks/test_hygiene.py` (64 checks, prints `FAILS: 0`), then
+**Test:** `python .claude/hooks/test_hygiene.py` (105 checks since 2026-10-04, prints `FAILS: 0`), then
 `python .claude/hooks/mutate_hygiene.py` (prints `MUTATIONS MISSED: 0`).
 Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.
 
@@ -118,7 +120,13 @@ Neither entry can wedge a session if the script goes missing: exit 2 on
 `PostToolUse` only shows stderr to Claude, and on `SessionStart` only to the user
 (hooks.md, "Exit code 2 behavior per event"). **There is deliberately no
 PreCompact entry** - there, exit 2 blocks the compaction and at the context limit
-the request fails. Per-compaction record: `~/.claude/checkpoints/compactions.log`,
+the request fails. *(SUPERSEDED 2026-10-04, R13. That reasoning treated the
+`autoCompactWindow` trigger as if it were the hard limit. Per hooks.md (fetched
+2026-10-04), a block on a proactive auto-compaction is skipped and the conversation
+continues. Only a compaction at the model's real limit fails. A PreCompact entry now
+exists; it gives way at a ceiling well below that limit and is launcher-wrapped, so a
+missing script cannot block. See "R20 gates" below. The 80% line above is also
+superseded there.)* Per-compaction record: `~/.claude/checkpoints/compactions.log`,
 columns now, session, window, ref, written, status, chars. Two transcript facts
 measured on the first live compaction (2026-09-23, n=1) shape the code: **the
 compact_boundary record is not yet on disk when the `SessionStart` hook runs** (it is
@@ -126,6 +134,47 @@ written in one batch with the hook's output), so the hook cannot read the trigge
 size and does not try; and **the transcript is not in time order** (that `/compact`
 re-appended 117 older records, same uuids), so every segment decision is by timestamp
 and never by file order.
+
+**R20 gates (added 2026-10-04).** The 80% nudge left 24 of 99 compactions with a
+checkpoint that was stale or missing [M: compactions.log, 2026-09-23..10-04]. It fired a
+median of 2 calls before the compaction [M, n=102 compactions since 2026-09-23]. The lines
+are now fixed gaps below the point where auto-compaction really fires: `TRIGGER_GAP`
+34K under the window [M: auto preTokens min 166,234 at 200K, n=101]. At 200K the lines
+are: due 126K, gate 146K, trigger about 166K, ceiling 256K [D]. All four layers read one
+definition, `checkpoint_due()`:
+1. `posttooluse` - the nudge, from the due line (was 80%). The last 40K before a
+   compaction held a p10 of 9 calls [M], and on-time writes took at most 6.
+2. `pretooluse` (`PreToolUse`, no matcher). From the gate line, every tool is denied
+   except Write/Edit/MultiEdit/Read of the checkpoint path. A tool result starting
+   "R20 GATE (context_hygiene)" is this layer. Only 2 of 3,145 calls grew more than
+   20K [M].
+3. `stop` - blocks the end of the turn once while the checkpoint is overdue, and honours
+   `stop_hook_active`.
+4. `precompact` (`PreCompact`, matcher `auto`). Blocks an auto-compaction while the
+   checkpoint is overdue; Claude Code skips that compaction and carries on. It gives way
+   at the ceiling (trigger + 90K; a design bound, not a measurement) so the session
+   never runs into the hard limit. A manual `/compact` is never blocked.
+
+Every deny and block is appended to `~/.claude/checkpoints/gate.log`, with columns now,
+session, event (`pretooluse-deny`, `stop-block`, `precompact-block`,
+`precompact-gave-way`), ctx and window. **The escape hatch when the checkpoint cannot be
+written:** Stop blocks only once, and Bill's `/compact` always runs. After a compaction,
+`sessionstart` WARNs if the PreCompact gate gave way. **This changes what "fresh" means
+in compactions.log:** from 2026-10-04 it means written after the due line (126K at 200K),
+not after 80%. Rows before that date use the old line.
+
+**The two new entries run through a launcher, not the bare script:**
+`python -c "import os,runpy,sys;p='C:/Users/wkcol/.claude/hooks/context_hygiene.py';sys.argv[0]=p;sys.path.insert(0,os.path.dirname(p));os.path.exists(p) and runpy.run_path(p,run_name='__main__')" <mode>`.
+On these two events, exit 2 from a missing script would deny every tool or block every
+compaction. With the file missing, the launcher exits 0 and prints nothing [M:
+test_hygiene.py launcher checks, plus the live check below]. The constants and their
+basis are in the script's docstring; `trigger_growth.py` in `C:\sandbox\token_replay`
+measured them.
+**Live check (2026-10-04):** the exact argv from settings.json, with the real 200K window
+and a temp checkpoint dir, passed 9 of 9. Bash at 170K with no checkpoint was denied.
+A Write of the checkpoint was allowed. 140K was allowed. auto/manual/260K PreCompact
+returned block/allow/gave way. A fresh checkpoint allowed both. A missing script gave
+exit 0 and silence. Each run took 26-49 ms [M, n=9].
 
 ### `model_router.py` + `ha-gate` agent - the Sonnet/Opus split (added 2026-09-19, RETIRED 2026-09-21)
 

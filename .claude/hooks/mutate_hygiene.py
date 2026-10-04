@@ -7,7 +7,41 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = open(os.path.join(HERE, "context_hygiene.py"), encoding="utf-8").read()
 MUT = [
-    ("line at 79%", "NUDGE_AT = 0.80", "NUDGE_AT = 0.79"),
+    ("due line 1K late", "DUE_BEFORE = 40_000", "DUE_BEFORE = 39_000"),
+    ("due line 1K early", "DUE_BEFORE = 40_000", "DUE_BEFORE = 41_000"),
+    ("gate line 1K late", "GATE_BEFORE = 20_000", "GATE_BEFORE = 19_000"),
+    ("gate line 1K early", "GATE_BEFORE = 20_000", "GATE_BEFORE = 21_000"),
+    ("trigger gap 1K short", "TRIGGER_GAP = 34_000", "TRIGGER_GAP = 33_000"),
+    ("ceiling 1K late", "CEILING_AFTER = 90_000", "CEILING_AFTER = 91_000"),
+    (
+        "gate lets any file through",
+        "tool in CKPT_TOOLS and same_file(",
+        "tool in CKPT_TOOLS or same_file(",
+    ),
+    (
+        "path compared without normcase",
+        "os.path.normcase(os.path.abspath(a))",
+        "os.path.abspath(a)",
+    ),
+    ("gate never denies", 'if not d or d["ctx"] < d["gate"]:', "if True:"),
+    ("deny not logged", 'gate_log(inp, "pretooluse-deny", d)', "pass"),
+    (
+        "stop ignores stop_hook_active",
+        'def on_stop(inp):\n    if inp.get("stop_hook_active"):',
+        "def on_stop(inp):\n    if False:",
+    ),
+    (
+        "stop never blocks",
+        '    d = checkpoint_due(inp)\n    if d:\n        gate_log(inp, "stop-block", d)',
+        '    d = None\n    if d:\n        gate_log(inp, "stop-block", d)',
+    ),
+    ("manual /compact blocked", 'if inp.get("trigger") != "auto":', "if False:"),
+    ("no ceiling", 'if d["ctx"] >= d["ceiling"]:', "if False:"),
+    (
+        "gave-way WARN dropped",
+        'if status != "fresh" and win and seg and seg[-1][1] >= lines(win)[2]:',
+        "if False:",
+    ),
     ("no subagent skip", 'if inp.get("agent_id"):', "if False:"),
     (
         "boundary-written branch never taken",

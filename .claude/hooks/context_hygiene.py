@@ -28,21 +28,43 @@ hook output come back from disk. Measured 09-16..09-23: 13 of 29 Reads after a
 compaction re-read a file read before it [M]. R20 puts what must survive - the
 verdicts verbatim, tagged figures, open questions - in CKPT_DIR/<session>.md.
 
-  posttooluse   Context >= NUDGE_AT of autoCompactWindow AND the checkpoint is
-                not newer than the moment the context crossed that line: add
-                one line asking for it. Repeats after every tool call until
-                written - the compaction is at most ~20% of the window away.
-                Skipped inside subagents (agent_id is set only there).
+  posttooluse   Context >= the due line AND the checkpoint is not newer than
+                the moment the context crossed it: add one line asking for it.
+                Repeats after every tool call until written. Skipped inside
+                subagents (agent_id is set only there).
   sessionstart  Matcher `compact` only. Re-inject the checkpoint verbatim, the
                 session-start audit verdict (read from the transcript - no
                 second copy), and a WARN (R8) when the checkpoint was missing
                 or stale at the compaction. Appends one line to LOG.
 
-NO PreCompact AND NO PostCompact HOOK, on purpose. A missing script makes
-python exit 2, and exit 2 on PreCompact blocks the compaction - at the context
-limit the request then fails (hooks.md, PreCompact). The checkpoint's age when
-this SessionStart handler runs is its age at the compaction. The summary
-PostCompact would save is already in the transcript (isCompactSummary record).
+R20 GATES (added 2026-10-04). The 0.80 x window nudge alone left 24 of 99
+compactions stale or missing (compactions.log, 09-23..10-04 [M]): it fired a
+median 2 calls before the compaction, and in-time writes took a median 2 [M,
+n=102]. One definition of "overdue", checkpoint_due(), feeds four layers:
+
+  1 posttooluse  the nudge above, from the due line (trigger - DUE_BEFORE).
+  2 pretooluse   From the gate line (trigger - GATE_BEFORE): deny every tool but
+                 Write/Edit/Read of the checkpoint until it is written.
+  3 stop         Block the end of a turn once (stop_hook_active) while overdue.
+  4 precompact   Matcher `auto` only: block the compaction while overdue, until
+                 the context reaches the ceiling (trigger + CEILING_AFTER). A
+                 manual /compact is never blocked. Every deny/block -> GATE_LOG.
+
+Escape if the checkpoint cannot be written: the turn can still end (layer 3
+blocks once), and Bill's /compact is never blocked.
+
+SUPERSEDED 2026-10-04 (R13) - the reasoning below was wrong in its premise:
+  "NO PreCompact AND NO PostCompact HOOK, on purpose. A missing script makes
+  python exit 2, and exit 2 on PreCompact blocks the compaction - at the context
+  limit the request then fails (hooks.md, PreCompact)."
+hooks.md, PreCompact, read 2026-10-04: a blocked PROACTIVE auto-compaction is
+skipped and the conversation continues; only a block while recovering from a
+context-limit error fails the request. The missing-script hazard is real, and
+for PreToolUse too (exit 2 there denies the tool). So settings.json runs layers
+2 and 4 through a `python -c` launcher that exits 0 when this file is absent.
+Still true: the checkpoint's age when the SessionStart handler runs is its age
+at the compaction, and the summary PostCompact would save is already in the
+transcript (isCompactSummary record) - so there is still no PostCompact hook.
 """
 
 import json
@@ -61,7 +83,23 @@ STATE_DIR = os.environ.get("CONTEXT_HYGIENE_STATE") or os.path.join(
 STATE = os.path.join(STATE_DIR, "context_hygiene.json")
 ARM = os.path.join(STATE_DIR, "arm_test")
 PUSH = re.compile(r"\bgit\b[^\n|;&]*\bpush\b")
-NUDGE_AT = 0.80
+# Auto-compaction fires at the window minus TRIGGER_GAP. Smallest preTokens of an
+# auto compaction [M]: 166,234 at a 200K window (n=101, 09-23..10-04) and 367,328
+# at 400K (n=4, 09-16..09-23) - a fixed gap of 32.7-33.8K, not a ratio.
+TRIGGER_GAP = 34_000
+# Due line, trigger - 40K. The last 40K before an auto compaction held 9 calls at
+# p10, 16 median [M, n=101]; in-time writes took at most 6 calls after a nudge [M,
+# n=102]. Replaces NUDGE_AT = 0.80 (160K), which left a median of 2 calls.
+DUE_BEFORE = 40_000
+# Gate line, trigger - 20K. 2 of 3,145 calls at 100-169K grew the context by more
+# than 20K [M, 09-23..10-04]: those jump the gate, and the PreCompact block holds.
+GATE_BEFORE = 20_000
+# The PreCompact block gives way here, so a checkpoint that never gets written
+# cannot hold the context open without bound. A design bound, not a measurement:
+# far below the 939K this model has run at [M], so the block is never the one at
+# the real context limit, where it would fail the request (hooks.md, PreCompact).
+CEILING_AFTER = 90_000
+CKPT_TOOLS = ("Write", "Edit", "MultiEdit", "Read")
 SMALL_TAIL = 256 << 10  # per-tool-call read; falls back to TAIL_BYTES
 # additionalContext over 10,000 chars is replaced by a file path and a 2,000-char
 # preview [S: code.claude.com/docs/en/hooks.md, "Add context for Claude"]. The
@@ -72,6 +110,7 @@ CKPT_DIR = os.environ.get("CONTEXT_HYGIENE_CHECKPOINTS") or os.path.join(
     _CLAUDE, "checkpoints"
 )
 LOG = os.path.join(CKPT_DIR, "compactions.log")
+GATE_LOG = os.path.join(CKPT_DIR, "gate.log")  # now, session, event, ctx, window
 SETTINGS = os.environ.get("CONTEXT_HYGIENE_SETTINGS") or os.path.join(
     _CLAUDE, "settings.json"
 )
@@ -215,6 +254,14 @@ def pushed_this_turn(recs):
 def on_stop(inp):
     if inp.get("stop_hook_active"):
         return None
+    d = checkpoint_due(inp)
+    if d:
+        gate_log(inp, "stop-block", d)
+        return {
+            "decision": "block",
+            "reason": "R20 CHECKPOINT DUE before this turn ends (context_hygiene): %s"
+            % due_text(d),
+        }
     recs = tail_records(inp["transcript_path"])
     ctx = last_context(recs)
     if not ctx or ctx[0] < MIN_CONTEXT or not pushed_this_turn(recs):
@@ -299,20 +346,31 @@ def run_start(resp, thr):
     return t
 
 
-def on_tool(inp):
+def lines(win):
+    """(due, gate, ceiling) in tokens for an auto-compact window."""
+    trigger = win - TRIGGER_GAP
+    return trigger - DUE_BEFORE, trigger - GATE_BEFORE, trigger + CEILING_AFTER
+
+
+def checkpoint_due(inp):
+    """The one definition of an overdue R20 checkpoint, for all four layers.
+
+    None, or a dict, when the main thread's context is at or past the due line
+    and the checkpoint was not written since the context crossed it.
+    """
     if inp.get("agent_id"):
         return None  # a subagent: its context is not the one that compacts
     win = window()
     if not win:
         return None
-    thr = int(NUDGE_AT * win)
+    due, gate, ceiling = lines(win)
     path = inp["transcript_path"]
     ctx = last_context(tail_records(path, SMALL_TAIL)) or last_context(
         tail_records(path)
     )
-    if not ctx or ctx[0] < thr:
+    if not ctx or ctx[0] < due:
         return None
-    since = run_start(segment_responses(tail_records(path)), thr)
+    since = run_start(segment_responses(tail_records(path)), due)
     ck = checkpoint_path(inp.get("session_id"))
     written = mtime(ck)
     if written is not None and since is not None and written >= since:
@@ -325,18 +383,106 @@ def on_tool(inp):
             % (hhmm(written), hhmm(since) if since else "?")
         )
     )
+    return dict(
+        ctx=ctx[0], win=win, due=due, gate=gate, ceiling=ceiling, ck=ck, state=state
+    )
+
+
+def due_text(d):
+    return (
+        "context %dK has passed the %dK due line (auto-compaction fires near %dK), "
+        "and %s %s. Write it now, under %d chars: goal / verdicts verbatim / tagged "
+        "figures / decisions + why / disproven theories / open questions to Bill / "
+        "next step / files touched."
+        % (
+            d["ctx"] // 1000,
+            d["due"] // 1000,
+            (d["win"] - TRIGGER_GAP) // 1000,
+            d["ck"],
+            d["state"],
+            CKPT_MAX,
+        )
+    )
+
+
+def gate_log(inp, event, d):
+    log_line(
+        stamp(time.time()),
+        inp.get("session_id", ""),
+        event,
+        d["ctx"],
+        d["win"],
+        to=GATE_LOG,
+    )
+
+
+def on_tool(inp):
+    d = checkpoint_due(inp)
+    if not d:
+        return None
     return {
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
             "additionalContext": (
-                "R20 CHECKPOINT DUE (context_hygiene): context %dK has passed %d%% of the "
-                "%dK auto-compact window, and %s %s. Write it now, under %d chars: goal / "
-                "verdicts verbatim / tagged figures / decisions + why / disproven theories / "
-                "open questions to Bill / next step / files touched. This repeats after "
-                "each tool call until the file is written."
-                % (ctx[0] // 1000, NUDGE_AT * 100, win // 1000, ck, state, CKPT_MAX)
+                "R20 CHECKPOINT DUE (context_hygiene): %s This repeats after each tool "
+                "call until the file is written, and from %dK every other tool is denied."
+                % (due_text(d), d["gate"] // 1000)
             ),
         }
+    }
+
+
+def same_file(a, b):
+    try:
+        return os.path.normcase(os.path.abspath(a)) == os.path.normcase(
+            os.path.abspath(b)
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def on_pretool(inp):
+    """Layer 2. Never denies the checkpoint's own Write/Edit/Read."""
+    d = checkpoint_due(inp)
+    if not d or d["ctx"] < d["gate"]:
+        return None
+    tool = inp.get("tool_name", "")
+    if tool in CKPT_TOOLS and same_file(
+        (inp.get("tool_input") or {}).get("file_path"), d["ck"]
+    ):
+        return None
+    gate_log(inp, "pretooluse-deny", d)
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                "R20 GATE (context_hygiene): %s held. Past the %dK gate line only "
+                "Write/Edit/Read of the checkpoint run until it is written: %s Then retry."
+                % (tool, d["gate"] // 1000, due_text(d))
+            ),
+        }
+    }
+
+
+def on_precompact(inp):
+    """Layer 4. Auto only; gives way at the ceiling, logged either way."""
+    if inp.get("trigger") != "auto":
+        return None  # a manual /compact is Bill's call, never blocked
+    d = checkpoint_due(inp)
+    if not d:
+        return None
+    if d["ctx"] >= d["ceiling"]:
+        gate_log(inp, "precompact-gave-way", d)
+        return None
+    gate_log(inp, "precompact-block", d)
+    return {
+        "decision": "block",
+        "reason": (
+            "R20 checkpoint overdue (context_hygiene): auto-compaction held at %dK "
+            "until %s is written; it gives way at %dK."
+            % (d["ctx"] // 1000, d["ck"], d["ceiling"] // 1000)
+        ),
     }
 
 
@@ -380,10 +526,10 @@ def scan(path):
     return sorted(set(bnd)), sorted(set(resp)), sorted(set(aud))
 
 
-def log_line(*fields):
+def log_line(*fields, to=LOG):
     try:
         os.makedirs(CKPT_DIR, exist_ok=True)
-        with open(LOG, "a", encoding="utf-8") as f:
+        with open(to, "a", encoding="utf-8") as f:
             f.write("\t".join(str(x) for x in fields) + "\n")
     except OSError:
         pass
@@ -412,7 +558,7 @@ def on_compact(inp):
         this, start = now, (bnd[-1] if bnd else 0.0)
     seg = [(t, n) for t, n in resp if start < t <= this]
     win = window()
-    since = run_start(seg, int(NUDGE_AT * win)) if win else None
+    since = run_start(seg, lines(win)[0]) if win else None
     ref = since or (seg[0][0] if seg else start)
     ck = checkpoint_path(sid)
     written = mtime(ck)
@@ -437,17 +583,23 @@ def on_compact(inp):
             "that span before relying on them."
             % (
                 hhmm(written),
-                "the context crossed %d%% of the window at" % (NUDGE_AT * 100)
+                "the context crossed the %dK due line at" % (lines(win)[0] // 1000)
                 if since
                 else "this stretch of the session began at",
                 hhmm(ref),
             )
         )
+    if status != "fresh" and win and seg and seg[-1][1] >= lines(win)[2]:
+        parts.append(
+            "WARN (R8, context_hygiene): the PreCompact gate gave way - the context "
+            "reached %dK, its %dK ceiling, with the checkpoint still overdue."
+            % (seg[-1][1] // 1000, lines(win)[2] // 1000)
+        )
     if not win:
         parts.append(
             "WARN (R8, context_hygiene): autoCompactWindow could not be read "
             "from %s, so staleness was judged from the start of the stretch "
-            "and the pre-compaction nudge cannot fire." % SETTINGS
+            "and the pre-compaction nudge and gates cannot fire." % SETTINGS
         )
     if len(body) > CKPT_MAX:
         parts.append(
@@ -504,6 +656,8 @@ def main():
             "userpromptsubmit": on_prompt,
             "stop": on_stop,
             "posttooluse": on_tool,
+            "pretooluse": on_pretool,
+            "precompact": on_precompact,
             "sessionstart": on_compact,
         }[mode](inp)
         if out:
