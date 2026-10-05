@@ -8,6 +8,24 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
 
 ---
 
+### Wiring notes (moved verbatim from CLAUDE.md 2026-10-04)
+
+"This file" below means `H:/CLAUDE.md`.
+
+- **This file loads only because `~/.claude/CLAUDE.md` contains `@H:/CLAUDE.md`.**
+  The project root is `C:\Users\wkcol`, so a CLAUDE.md on `H:` is never
+  auto-loaded. If `H:` is not mounted the import fails silently; the
+  SessionStart audit hook is what reports `H:` missing.
+- **Hooks run from `~/.claude/hooks/` on C: on purpose.** A guard on the drive it
+  guards cannot report that drive missing. `H:/.claude/hooks/` holds the tracked
+  source; `deploy_drift()` compares the two at every session start.
+- **Settings load only from `~/.claude/settings.json`.** A settings file under
+  `H:` never loads, and nothing announces that.
+- **Deny rules run before hooks, so `ha_guard.py` is the backstop** and rarely
+  fires. A malformed deny rule is silently dropped; the hook catches that.
+- **The hook guard sees the Write/Edit tools only.** A Bash write bypasses it;
+  the Stop gate, which genuinely blocks, is the backstop.
+
 ### Hooks, deny rules and settings (from SESSION PROTOCOL)
 
 **The hooks run from `C:` on purpose - do not "fix" this by moving them
@@ -217,3 +235,66 @@ same command] - so the files could go in the same session.
 `HA_GATE_CONFIG`, `HA_GATE_URL`, `HA_GATE_AUDIT` and `HA_GATE_STAMP` in
 `ha_audit_gate.py` and `ha_validate_edit.py` are unrelated: they configure the
 audit hooks, and they stay. The `HA_GATE=1` command prefix now means nothing.
+
+---
+
+### `read_guard.py` - whole-file Read guard (added 2026-10-04)
+
+PreToolUse, matcher `Read`, first PreToolUse entry, runpy launcher (missing script
+-> exit 0).
+- **What it denies:** a Read with no `offset`/`limit`/`pages` of a file over
+  20,000 bytes that is not an image, PDF or notebook. It denies ONCE per
+  (session, file); the identical repeat runs, so no task is ever stuck behind it.
+- **Errors:** fail-open, logged as `error`.
+- **State and log:** `~/.claude/hooks/.state/read_guard_<sid>.json` (pruned after
+  7 days); `read_guard.log`, tab-separated `deny` / `allow-repeat` / `error`.
+- **Tests:** in `H:/.claude/hooks/`, `python test_read_guard.py` -> "ALL PASSED"
+  and `python mutate_read_guard.py` -> "11/11 caught".
+- **Live, 2026-10-04 [M, n=1 each]:**
+  - A whole Read of a 25 KB file was denied; the identical repeat was allowed and
+    returned the full file, untruncated.
+  - A partial Read satisfied Edit's read-first precondition even for a line
+    outside the range read, so the guard never forces a whole read before editing.
+- **Scoring:** against the CHANGELOG prediction-ledger row dated 2026-10-04.
+
+### `~/.claude/checkpoints/.markdownlint.json` (added 2026-10-04)
+
+`{"default": false}`. markdownlint diagnostics were injected into context after
+Edits of R20 checkpoint files: 112 injections, 562,031 chars, in 7 days [M].
+- **R2, n=1 each [M]:** an Edit without the config returned 31 diagnostics; with
+  it, none.
+- **Write vs Edit:** a new-file Write returned none even without the config. The
+  injections come on Edit.
+
+### Settings `env`, `skillOverrides`, `disableClaudeAiConnectors`; `spanedit.py` (added 2026-10-04)
+
+In `~/.claude/settings.json`:
+
+- **`env.HA_URL`** = `http://10.0.0.210:8123`, so the off-host audit's live check
+  reaches HA, not the localhost default at `ha_audit.py:725`. `HA_CONFIG` is
+  deliberately absent: without it every script fails loudly, and a default would
+  let a forgotten sandbox path hit the live tree. `env` was not visible to the
+  session that set it [M, n=1].
+- **`skillOverrides`**: `off` hides a synced skill from the model and from
+  `/name`; `user-invocable-only` hides it from the model but keeps `/name`;
+  `name-only` lists it without its description (2.1.289 binary schema text [M]).
+  Off: docx, pptx, xlsx, computer-use, chrome-browser, built-in-browser,
+  google-workspace, morning, import-memory, web-artifacts-builder, docs,
+  deep-research. User-invocable only: pdf, skill-creator. Claude Code only;
+  claude.ai web keeps its own skill toggles.
+- **`disableClaudeAiConnectors: true`**: the claude.ai connectors (Claude Docs,
+  Gmail, Calendar, Drive) are not loaded in Claude Code. Remove the key to get
+  them back. Not applied mid-session: they re-listed after a compaction [M, n=1].
+
+`~/.claude/tools/spanedit.py` is a library, not a hook. Use it for any scripted
+text edit, above all on a CRLF file or an H: `.md` where the Edit tool draws
+markdownlint diagnostics:
+
+    import sys; sys.path.insert(0, "C:/Users/wkcol/.claude/tools")
+    from spanedit import edit, install
+    edit(path, [(old, new), ...])             # in place, line endings kept
+    edit(live, pairs, out=sandbox_copy)       # build a copy, live untouched
+    install(live, sandbox_copy, expect=orig)  # deploy only if live == orig
+
+Its guards and the fault that earned it are in its docstring. Tests:
+`python ~/.claude/tools/test_spanedit.py` -> "ALL PASSED (28 checks)".

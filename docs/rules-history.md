@@ -33,6 +33,11 @@ that publishes nothing — it would have taken the whole SDR stack dark.*
 `known_entities()` synthesised `<domain>.<unique_id>`. The rule that should have
 caught a 15-night outage was structurally incapable of it.*
 
+*2026-08-24 (moved here from CLAUDE.md DEFINITION OF DONE step 2b on 2026-10-04):
+twice that day a rule shipped structurally incapable of firing, and a rule that
+CANNOT fire looks exactly like a rule with nothing to report. Hence step 2b:
+when `ha_audit.py` itself moves, `test_ha_audit.py` is not optional.*
+
 ### R8
 
 *2026-08-23: the statistics-buffer check had never run in production. It

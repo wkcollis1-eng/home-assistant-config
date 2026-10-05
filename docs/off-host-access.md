@@ -102,6 +102,14 @@ Off-host gotchas, each of which has cost a session:
   coverage gap) **and** the `sun.sun` false positive returns, because the live
   union is what suppresses it. The audit is not "fully offline by design"; it
   is offline-capable and measurably worse offline.
+- **Off-host, `HA_TOKEN` alone is not enough either (2026-10-04 [M, n=1]).**
+  `HA_URL` defaults to `http://localhost:8123` (`ha_audit.py:725`), so with the
+  token but no `HA_URL` the fetch goes to localhost and fails:
+  `test_ha_audit.py` reported 2 ENVIRONMENT failures (`live-check-skipped`,
+  `sun.sun`), and its message blamed a missing `HA_TOKEN`. CLAUDE.md's gotcha
+  "`HA_TOKEN`, not `HA_URL`, enables the live check" led that session to the
+  wrong cause. Fix: `HA_URL` is set in `~/.claude/settings.json` `env`; it was
+  not visible to the session that set it [M, n=1] - expect it from the next.
 - **Load `secrets.yaml` with `yaml.safe_load` - never grep, `cut`, a
   `split(':')`, or bare `yaml.load`.** Off-host there is no HA environment, so
   credentials come straight from `H:/secrets.yaml` (set `HA_CONFIG='H:/'` - it
