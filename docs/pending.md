@@ -222,6 +222,11 @@ STATE: design only, replay-tested offline. Nothing deployed.
 
 FIRST ACTION: ask Bill the two open decisions in that entry (hold-vs-unavailable,
 drift-rule workflow). Build nothing that depends on them until answered.
+
+REPLAY VECTOR, 2026-10-02: gas_meter_volume 569842 -> 569840 at 09-21 08:23:29,
+back to 569842 at 08:24:01 [M, InfluxDB]. sensor.gas_monthly lost 2 ft3 there
+and 2 more at 09-15 11:02:18, so its September last_period is 1050 against the
+register's 1054 [M].
 ```
 
 ### P19 — `*_last_year` bill helpers: a second copy, with a guard that misfires [LOW]

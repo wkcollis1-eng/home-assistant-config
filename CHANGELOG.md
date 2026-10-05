@@ -267,6 +267,61 @@ settings entries run through a launcher that exits 0 if the script is missing.
 
 ## [2026.10.02] - 2026-10-02
 
+### Navien September total checked against the SDR gas meter: the panel's estimate reads low
+
+Bill entered the Navien app's September figure (8.6986 therm, 11 h operating, 17 h recirc). He
+asked for an SDR cross-check. This was the gate the 2026-09-16 Kasa-plug entry in
+`open_questions.yaml` had named. Read-only analysis; no config changed.
+
+- **Correction, same day (Bill): there is no app and no NaviLink.** Bill reads the figure off the
+  NPE-240S2's own control panel, which labels it an estimate. Read "app" below as that estimate.
+  My error: I carried "app" forward from the 2026-09-16 wording without asking. The heading said
+  "not validated, not refuted" until the bill and oven follow-ups below settled it.
+  - Older docs call the same figure metered: `baseline-repo/` (6 files: "Direct metering via
+    NaviLink", the 220.8 CCF behind the BASELINES DHW ratio) and `GitHub CSV Export/` (3 lines).
+    BASELINES labels it "Navien-metered". Not changed; left for Bill.
+
+- **The save is correct.** `dhw_archive_sep` = 8.39 CCF [D: 8.6986 therm at 0.9643 CCF/therm], with the op and
+  recirc hours archived [M, `/api/states`]. July also reads 8.39, but it was saved 08-01 [M,
+  InfluxDB], so that is a coincidence, not an overwrite.
+- **Whole house, September:** 1054 ft3 [M: register 569120 -> 570174, 00:00 local each end, no
+  step straddling either boundary].
+- **The app's figure:** 838.8 ft3 [D: 869,860 BTU / 1,037 BTU/ft3].
+- **The furnace burned nothing:** 0 heat calls, and 0 non-Navien gas in any hour 19:00-11:59 [M].
+- **Splitting the SDR gas by the Navien's plug state:**
+  - Firing: 880-956 ft3. Idle: 94-146 ft3, all of it 12:00-18:59 [M, 8 method settings, 528
+    +2 steps].
+  - About 14 ft3 of cooking is expected to fall inside Navien firing [D, independence model].
+  - So the app reads 27-103 ft3 below what the meter saw while the Navien fired [D].
+  - They agree only if the gas is at most 1,004 BTU/ft3 [D].
+- **Open:** the bill's heating value. R14 question filed (2026-10-02 therm-factor entry). The
+  provenance of `input_number.gas_btu_factor` = 1030 is unknown: it was set 2026-08-21 13:41, and
+  nothing records its source.
+  - *Answered the same day.* Bill: 1030 was a placeholder, and the bill carries no heating value
+    (CCF billing, correction factor 1).
+  - EIA's Connecticut heat content for 2020-2025 is 1,029-1,031 Btu/ft3 [S: EIA Natural Gas Annual,
+    NGA_EPG0_VGTH_SCT_BTUCF].
+  - At that value the app reads 21-98 ft3 below the firing-window gas [D]. Agreement would need
+    1,004 Btu/ft3.
+  - So the SDR says the Navien app reads low (n=1 month).
+  - Two heating values are now in use: 1,030 (SDR therms sensor, daily export) and 1,037
+    (BASELINES, the DHW 0.9643 conversion). Left for Bill.
+  - *Oven taken out, same day.* Bill: the gas range is on the SEM Island/Range/Hood CT, which is
+    `sensor.sem_counter_1_power` (the YAML still names it Counter #1). Counter 2 carries no range
+    signature, only the 1,050-1,100 W coffee maker [M].
+  - Island/Range/Hood held 350-700 W for 13.8 h in 22 sessions, all 12:15-18:59 [M]. It cycles
+    about 3 min on in 5, as a glow-bar igniter held while the bake burner is lit would [I: falsified
+    if the oven uses spark ignition]. The subtraction does not rest on that: it uses the measured gas.
+  - Gas while that level was on and the Navien idle: 8.5-10.5 ft3 per hour [M, 80-126 ft3 over
+    9.4-12.0 h, 8 settings]. Oven gas hidden under Navien firing: 16-44 ft3 [D: that rate times
+    1.76-4.41 h of overlap]. Cooking with no electrical signature (cooktop): 2-6 ft3 [D, by hour].
+  - Navien net of both: 860-912 ft3 [D]. The app (843.7-845.3 at the CT value) is 14-68 ft3 below it at
+    all 8 settings [D]. Agreement would now need 1,012 Btu/ft3 [D: 869,860 / 859.7], 17 below the
+    lowest CT year. The app reads low; n=1 month.
+- **Side finding, for P18:** `sensor.gas_monthly` reads 1050 for September, 4 ft3 short of the
+  register. It lost 2 ft3 at a counter glitch (569842 -> 569840 -> 569842, 09-21 08:23) and 2 ft3
+  at 09-15 11:02 [M]. Recorded under P18 as a replay vector.
+
 ### mmwave family: "Target distance" graph on the family dashboard; both distances recorded from the next restart
 
 Bill: "the office mmWave has a helpful graph - Target distance (P24 tuning) that shows moving and

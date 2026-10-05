@@ -472,6 +472,26 @@
     CCF/month cooking figure is unvalidated too. The classifier-free check is
     SDR September total minus the Navien app's September total.
 
+    2026-10-02 SEPTEMBER GATE RUN (Bill entered the app's 8.6986 therm that
+    day). SDR register 569120 -> 570174 = 1054 ft3 [M, gas_meter_volume at
+    09-01 and 10-01 00:00 local; nearest steps 08-31 19:06, 09-01 05:59 and
+    09-30 22:04, so none straddles a boundary]. The app's figure is 838.8 ft3
+    [D: 869,860 BTU / 1,037 BTU/ft3]. Classifier-free residual: 215 ft3 [D].
+    The furnace burned none: 0 HomeKit heat calls, and 0 non-firing gas in any
+    hour 19:00-11:59 [M]. Point split (each +2 step assigned by the plug's max
+    over its decode window), 8 settings (12/20 W, 0/60 s lead, 180/600 s gap
+    cap): firing 880-956 ft3, idle 94-146 ft3, unattributed 2-30 ft3 [M, 528
+    +2 steps]. All idle gas fell 12:00-18:59. The independence model hides 14
+    ft3 of cooking under firing [D: sum over hours of idle rate x firing hours,
+    20 W]. So the app sits 27-103 ft3 BELOW the gas the meter saw while the
+    Navien fired [D], and agrees only if the delivered gas is at most 1,004
+    BTU/ft3 [D: 869,860 / (880 - 14)]. NOT VALIDATED, NOT REFUTED: it turns on
+    the bill's heating value (the 2026-10-02 therm-factor entry).
+    Same day: the bill carries none. At EIA's Connecticut 1,029-1,031 the app
+    reads 21-98 ft3 below the firing-window gas [D] (therm-factor entry).
+    Correction, same day (Bill): there is no app or NaviLink. Every "app" in
+    this entry is the figure on the unit's own control panel, labelled an estimate.
+
 - asked: 2026-09-16
   question: >-
     Can you read the Navien app's DAILY gas figures for 2026-08-22 through
@@ -2211,6 +2231,52 @@
     left on by mistake. Bill then chose no threshold change: "let's do this -
     As it stands: if you leave the room with the fan on, the lamps stay on
     until the fan goes off. That's a harmless failure."
+
+- asked: 2026-10-02
+  question: >-
+    On your most recent CNG gas bill, what factor converts CCF to therms (it
+    may be labelled therm factor or BTU factor), and is a pressure factor
+    printed beside it?
+  blocks: >-
+    Whether the Navien app reads low. Its September 8.6986 therm is 838.8 ft3
+    at 1,037 BTU/ft3 [D], which is 27-103 ft3 below the SDR gas measured while
+    the Navien fired (the 2026-09-16 Kasa-plug entry). The two agree only if the
+    gas is at most 1,004 BTU/ft3 [D]. Also the source of
+    input_number.gas_btu_factor = 1030, set 2026-08-21 13:41 with no record of
+    where the number came from [M, InfluxDB]. Nothing deployed changes until
+    you answer: the DHW archive keeps the app's figure.
+  answered: >-
+    2026-10-02, Bill: "the 1030 was a place holder. do ot see any factor on
+    the gas bill." He sent the 09-15 statement: CCF billing, correction factor
+    1, read 5686 -> 5694 Actual. R13, my miss: the pressure half of this
+    question was already answered in the 2026-09-16 register entry, which
+    records correction factor 1. I asked it without reading that entry.
+
+    Heating value instead from EIA, "Heat Content of Natural Gas Delivered to
+    Consumers", Connecticut, 2020-2025: 1,030 / 1,029 / 1,030 / 1,030 / 1,030
+    / 1,031 Btu/ft3 [S: EIA Natural Gas Annual, series NGA_EPG0_VGTH_SCT_BTUCF,
+    fetched 2026-10-02]. That is a state annual average, not CNG's September
+    gas at this meter, so applying it here is [I]; it is falsified if CNG ever
+    publishes a figure for this service area at or below 1,004. The 1030
+    placeholder happens to match it; the 1,037 in CLAUDE.md BASELINES matches
+    the U.S. figure instead (1,036-1,037 for 2020-2025 [S], same table).
+
+    Result: at 1,029-1,031 the app's 8.6986 therm is 843.7-845.3 ft3 [D], 21-98
+    ft3 below the firing-window gas net of the 14 ft3 overlap [D]. Agreement
+    needs 1,004 Btu/ft3, 25 below the lowest CT year [D]. So the SDR says the
+    app reads LOW, unless 35-112 ft3 of cooking coincided with Navien firing
+    [D: 880 - 845.3 to 956 - 843.7] against 14 ft3 by chance. n=1 month.
+    Nothing deployed changes.
+
+    Same day, oven measured instead of modelled. Bill: the range is on the SEM
+    Island/Range/Hood CT (sensor.sem_counter_1_power). Its 350-700 W level ran
+    13.8 h in September, all 12:15-18:59 [M]; gas while it was on and the
+    Navien idle was 8.5-10.5 ft3/h [M]. Oven gas under Navien firing 16-44 ft3,
+    cooktop 2-6 ft3 [D]. Navien net 860-912 ft3, so the app is 14-68 ft3 low at
+    all 8 settings [D]; agreement needs 1,012 Btu/ft3 [D]. Detail in CHANGELOG
+    2026-10-02.
+    Correction, same day (Bill): the 8.6986 therm is the unit's own control-panel
+    figure, which the panel labels an estimate. There is no app or NaviLink.
 
 - asked: 2026-10-04
   question: >-
