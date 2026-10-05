@@ -55,6 +55,7 @@ is calibrated against.
 | 2026-10-02 | **Office mmWave distance throttle removed** (`esphome/mmwave-node-common.yaml`, `moving_distance` + `still_distance`; compiled on 2026.9.1, Bill flashes). Predicts: (a) with the office labelled empty, bathroom trips give no bathroom target at 70 in or nearer and 0 occupied on-edges, the margin so far being 89.0 in [M] measured THROUGH the 1 s throttle, so a bound, not a fact, for the full stream; (b) walk-ins cross 70 in sooner than the 2.51 s median [M, n=41], by up to 1 s [D: the throttle window]; (c) distance rows/day rise from 54,039 [M: 24 h to 12:41Z, presence 10.76 h] toward, and not above, 2 x 10/s x presence-seconds [D]. Falsifier for (a): any bathroom target <= 70 in or an occupied on-edge during the trips. If (a) fails, put the throttle back. | yes - written before the flash and the bathroom test | (a) HELD on the second flash (13:14:27Z; reading gaps median 0.18 s [M, n=179]): 4 bathroom trips 13:16:00-13:20:44Z, 0 occupied on-edges, 0 of 207 readings at 70 in or nearer, nearest 83.5 in [M] - nearer than the throttled 89.0 bound. (b) SUPPORTED on 3 normal-pace entries 13:29-13:31Z: presence to occupied 1.92, 1.92, 1.52 s [M, n=3] against the throttled median 2.51 s [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; confirm on ordinary walk-ins 10-03. (c) pending, due 10-03. First flash VOID (R13: still throttled at 1 s, see [2026.10.02] "distance throttle removed"). |
 | 2026-10-02 | **Family mmWave VEML7700 floor with the power LED kept** (Bill: "will not cut it"). Once the node is in place, the darkest overnight reading of `sensor.family_mmwave_ambient_light` stays at or above 0.5 lx: the LED lifts the floor. Basis: covered on the desk, with the LED lit, it read 3.11 and 3.17 lx [M: HA history, 2 settled samples, 14:08:27-37Z]. Falsified by any overnight sample below 0.5 lx with the node in place: the LED's in-situ offset would then be under 0.5 lx, and most of the desk reading was leak through the cover or reflection off it. | yes - written 10:21 EDT, before the node was placed | pending |
 | 2026-10-04 | **The R20 gates (layers 1-4) leave no auto-compaction without a fresh checkpoint, so layer 5 is not needed** (Bill: "if they work should not need layer 5"). Window: from the deploy (2026-10-04 ~18:20 EDT) to 2026-10-11. Prediction: every main-thread auto-compaction has status `fresh` in `compactions.log`, except one that `gate.log` marks `precompact-gave-way`, and at most 1 is so marked. The trigger comes from the transcript's compact_boundary, joined to compactions.log by session and time. [I: PreCompact blocks every auto-compaction while the checkpoint is overdue, and only the 90K ceiling lets one through. The largest single-call growth near the line was 49.7K, M n=3,145.] Baseline under the 80% nudge: 24 of 99 stale or missing [M: compactions.log 09-23..10-04]. Falsified by any stale or missing auto-compaction with no gave-way row (the gate leaked: hook error, timeout, or a path the tests missed), or by 2 or more gave-way rows (the gate could not be satisfied in time). Recorded, not scored: `pretooluse-deny` rows per crossing (the nuisance cost). Void if fewer than 10 auto-compactions fall in the window. | yes - written 18:25 EDT 2026-10-04, before any compaction under the gates | pending |
+| 2026-10-04 | `read_guard.py`: by 2026-10-11, `read_guard.log` holds at least one `deny`, and fewer `allow-repeat` than `deny` lines (most denied Reads become a Grep + partial Read, not a repeat). Falsified if `allow-repeat` >= `deny`: the guard is then a speed bump, not a saving - raise THRESHOLD or retire it | yes | pending - score 2026-10-11 |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -78,6 +79,104 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.04] - 2026-10-04
+
+### Claude Code token economy: Read guard, checkpoint lint off, CLAUDE.md dedup (`~/.claude`, `CLAUDE.md`, `docs/claude-code-enforcement.md`)
+
+- **Read guard** (`~/.claude/hooks/read_guard.py`; tracked source in
+  `H:/.claude/hooks/`). PreToolUse denies a whole-file Read of a file over 20,000
+  bytes ONCE per (session, file); the identical repeat runs, so nothing is ever
+  stuck. Fail-open; logs `deny` / `allow-repeat` / `error` to
+  `~/.claude/hooks/.state/read_guard.log`. Why: over 14 days, 9 whole-file Reads
+  over 20,000 chars brought in 363,464 chars [M]. Tests: `test_read_guard.py` "ALL
+  PASSED", `mutate_read_guard.py` "11/11 caught". Live: deny, then the repeat
+  allowed [M, n=1]. A partial Read still satisfies Edit's read-first check
+  [M, n=1]. Scored by the ledger row above.
+- **markdownlint off for R20 checkpoints**
+  (`~/.claude/checkpoints/.markdownlint.json` = `{"default": false}`). Checkpoint
+  Edits had drawn 112 diagnostic injections, 562,031 chars, in 7 days [M]. R2: an
+  Edit without the config returned 31 diagnostics, and with it none [M, n=1 each].
+- **CLAUDE.md dedup**: 667 -> 638 lines, 35,046 -> 33,334 bytes [M].
+  - Removed: the end-of-session gate block (now a pointer to DEFINITION OF DONE),
+    Engineering Standards (its four bullets repeated R15-R18, DoD steps 1 and 6,
+    and PRE-COMMIT), PRE-COMMIT's three machine-checked items, and the CHANGELOG
+    section (its scar is `docs/rules-history.md:53`).
+  - Moved verbatim to `docs/claude-code-enforcement.md`: the wiring notes.
+  - **Corrected:** the gate paragraph said `gate.py` runs step 1b. It never runs
+    `gen_reference.py`; its 1b is `py_compile`.
+  - Added: `# Compact instructions`.
+  - R3: 0 hunks outside the 6 spans; CONSTRAINTS byte-identical.
+  - Gates: `test_ha_audit.py` on a sandbox tree "SUITE PASSED - 32 rule(s) proven
+    in both directions"; `ha_audit.py` on H: "0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines" (= session-start baseline); `check_provenance.py` "0 WARN".
+
+### Claude Code: wasted-round fixes, skills off, CLAUDE.md concise pass P1-P9 (`~/.claude`, `CLAUDE.md`, `docs/`)
+
+- **`HA_URL` in `~/.claude/settings.json` `env`.** A Bash run of
+  `test_ha_audit.py` this session failed with 2 ENVIRONMENT failures
+  (`live-check-skipped`, `sun.sun`): `HA_URL` was set nowhere and
+  `ha_audit.py:725` falls back to localhost [M, n=1]. `HA_TOKEN` is a Windows user
+  variable and was present. `HA_CONFIG` is deliberately NOT defaulted: without it
+  every script fails loudly, and a default of `H:/` would let a forgotten sandbox
+  path silently audit or write the live tree (`gen_reference.py` and
+  `export_dashboards.py` write files). `env` did not reach this session's Bash
+  after it was set [M, n=1]; expected from the next session, unverified.
+  - Open: `test_ha_audit.py` blames a missing `HA_TOKEN` when only `HA_URL` is
+    missing. Not changed.
+- **`~/.claude/tools/spanedit.py`**: exact-span text edits that keep the file's
+  line endings. Why: an ad-hoc Python replace on a CRLF memory file missed its LF
+  anchor, and the retry left 7 bare-LF lines that needed a second, normalising
+  pass [M, n=1]. Every guard writes nothing when it fires: exact-once match (R4),
+  mixed-EOL refusal, overlapping spans, a slice-construction proof that every byte
+  outside the spans is unchanged (R3), a re-read before writing, temp +
+  `os.replace`. `out=` builds a sandbox copy; `install()` deploys only if the live
+  file still equals the snapshot. `test_spanedit.py` "ALL PASSED (28 checks)".
+  First use: this pass, 4 files installed, each read back equal [M].
+- **Skills and connectors** (`settings.json`). `skillOverrides`: docx, pptx, xlsx,
+  computer-use, chrome-browser, built-in-browser, google-workspace, morning,
+  import-memory, web-artifacts-builder, docs, deep-research `off`; pdf and
+  skill-creator `user-invocable-only` (hidden from the model; `/pdf` and
+  `/skill-creator` still work). `disableClaudeAiConnectors: true` drops the
+  claude.ai connectors (Claude Docs, Gmail, Calendar, Drive) in Claude Code only.
+  Kept: homeassistant-config-validator, esp-firmware-validation,
+  engineering-monthly-update. Semantics read from the 2.1.289 binary's settings
+  schema text [M]. Not applied mid-session: after this session's compaction the
+  Claude Docs tools were listed again [M, n=1]. Verify at the next session start.
+- **CLAUDE.md concise pass P1-P9**: 638 -> 558 lines, 33,334 -> 28,683 bytes [M].
+  - P1 dashboards corollary, P2 DoD step list, P3 off-host gotchas, P4 R14, P5
+    host line, P6 UPS bullet, P7 enforcement preamble: reworded, same rules.
+  - P3 **corrected** (R13): the gotcha "`HA_TOKEN`, not `HA_URL`, enables the live
+    check" sent this session to the wrong cause; off-host both are needed. Dated
+    note added to `docs/off-host-access.md`.
+  - P2's dated scar (twice on 2026-08-24 a rule shipped unable to fire) moved to
+    `docs/rules-history.md` under R7.
+  - P8 BASELINES moved verbatim to new `docs/baselines.md`. REFERENCE DOCS row
+    added, and "BASELINES" added to its footnote, so the citations in
+    `automations.yaml`, `open_questions.yaml` and `scripts/furnace_gas_cycles.py`
+    resolve without editing those files.
+  - P9 KNOWN ISSUES rows dropped. The 23:58:00 row is already recorded at
+    `docs/rules-history.md:274`; the other two had no CHANGELOG entry, so here
+    they are verbatim:
+
+    ```
+    sensor.furnace_running_watts_daily  was unavailable — fixed 2026-07-20 (threshold + capture stamp)
+    hwh_recirc daily chart flat     was frozen at 144.5W — fixed 2026-07-20 (threshold + energy basis)
+    ```
+
+  - R3: 483 lines outside the 13 spans byte-identical by construction [M];
+    CONSTRAINTS anchors asserted present.
+  - Gates: `test_ha_audit.py` on a sandbox tree "SUITE PASSED - 32 rule(s) proven
+    in both directions"; `ha_audit.py` on H: after install "0 FAIL, 1 WARN, 2 INFO
+    across 18 pipelines" (= session-start baseline; the WARN is the open-question
+    DC clamp reading); `check_provenance.py --all` "0 WARN" on CLAUDE.md,
+    `docs/off-host-access.md` and `docs/baselines.md`, and 1 WARN on
+    `docs/rules-history.md` before = after.
+- **R13, this session's error, at commit time:** `pre-commit run gitleaks`
+  without `--files` stashed every unstaged change on H: for the few seconds of the
+  run (live config, open_questions.yaml and the CSVs automations append to), then
+  restored it. The restore was byte-exact: the unstaged diff afterwards equals the
+  patch pre-commit saved, and the five docs equal their sandbox builds [M]. On H:,
+  run pre-commit only with `--files <staged files>`: that never stashes, and the
+  gitleaks hook's `--staged` still scans the index.
 
 ### Ecobee watchdog: stale means unavailable or unknown, no age test (`packages/watchdog.yaml`)
 
