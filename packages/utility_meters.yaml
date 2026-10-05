@@ -289,6 +289,22 @@ input_datetime:
     has_date: true
     has_time: true
 
+  # Rate-limit stamp for automation.sdr_water_meter_leak_now_high (added
+  # 2026-10-04): when the last LeakNow 2+ phone push went. No `initial:`, so
+  # it restores across restarts; before the first push it reads 1970, which
+  # the condition treats as "long ago".
+  # ^ WRONG as first written (R13). A NEW helper with no `initial:` starts at
+  # TODAY 00:00, not 1970 [M: "2026-10-04 00:00:00" on creation, read back
+  # after input_datetime.reload], which mutes the push until midnight. It was
+  # set to epoch 0 by hand once (input_datetime.set_datetime, timestamp: 0)
+  # and restore keeps that. If this helper is ever deleted or renamed, do the
+  # same again, or the first 24 h after it is re-created are muted. Not
+  # `initial:` instead - that resets it on every restart.
+  sdr_leak_now_high_last_push:
+    name: "SDR leak-now 2+ last phone push"
+    has_date: true
+    has_time: true
+
 
 template:
   - sensor:
@@ -1345,6 +1361,19 @@ automation:
   # noise while unplugging the dongle, and a real leak is not commissioning
   # noise. Staleness alerts and the Leak day-bin notice stay muted by it;
   # this one does not.
+  #
+  # 2026-10-04: LEVEL 1 NO LONGER GOES TO THE PHONE (Bill's choice). The
+  # "goes to the phone" reasoning above assumed non-zero was rare. It is not:
+  # LeakNow read 1 for 50.8% of the time and never above 1 [M, InfluxDB
+  # sensor.water_meter_leak_now, 250 state rows, 2026-08-22..10-04, 43.3 d],
+  # while the overnight-minimum check found a zero-flow hour on 26 of 29
+  # nights [M, sensor.water_overnight_min_flow, same span]. So 1 is how this
+  # house uses water, not a leak. It flips at 15-min boundaries with no
+  # hysteresis (95 segments; 12 of 47 spells at 1 and 14 of 48 at 0 lasted
+  # 0.23-0.27 h), and with the
+  # cleared push below that gave 42 phone pushes in 12 days [M, logbook,
+  # 2026-09-23..10-04: 16 here, 26 cleared]. Level 1 is now a bell entry,
+  # replaced in place. Level 2+ pushes: sdr_water_leak_now_high, below.
   # ---------------------------------------------------------------------
   - id: sdr_water_leak_now
     alias: "SDR water meter - leak NOW"
@@ -1352,7 +1381,8 @@ automation:
       R900 LeakNow is the meter's own past-24h continuous-flow indicator, 0-3.
       Non-zero means water is running that the register considers continuous.
       This is the field that moved during the 2026-08-21 event while Leak
-      stayed 0.
+      stayed 0. Level 1 goes to the bell only (2026-10-04); level 2+ also
+      pushes, from automation.sdr_water_meter_leak_now_high.
     triggers:
       - trigger: numeric_state
         entity_id: sensor.water_meter_leak_now
@@ -1367,56 +1397,140 @@ automation:
         entity_id: binary_sensor.water_meter_stale
         state: "off"
     actions:
+      # Same notification_id every time, so a flap replaces the entry rather
+      # than stacking a new one. The time is the LATEST re-entry, not the
+      # start of the episode - nothing here remembers the start.
+      - action: persistent_notification.create
+        data:
+          notification_id: sdr_water_leak_now
+          title: "Water meter reports flow NOW"
+          message: >
+            LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3, last
+            went non-zero at {{ now().strftime('%Y-%m-%d %H:%M') }}.
+            Today {{ states('sensor.water_daily') | float(0) | round(1) }} gal
+            vs a ~91 gal/day norm. Leak day-bins over 35 d:
+            {{ states('sensor.water_meter_leak') }}.
+            Detection is inside the meter, not in this config - it cannot be
+            tuned, and it sees flow below a turbine's startup threshold.
+            Level 1 has been on about half the time since 2026-08-22, so on
+            its own it is not evidence of a leak; level 2+ pushes to the phone.
+            Removed automatically after 6 h back at 0.
+    mode: single
+
+  # ---------------------------------------------------------------------
+  # LEAK NOW, LEVEL 2+ - the phone path (added 2026-10-04)
+  #
+  # LeakNow has never gone above 1 [M, 2026-08-22..10-04, 43.3 d], so on
+  # the data so far this is silent. It exists so that an escalation still
+  # reaches the phone when nobody is looking at the bell.
+  #
+  # RATE LIMIT, NOT A LATCH: at most one push per 24 h. The 0/1 boundary
+  # flips at 15-min steps with no hysteresis [M, above]; assume 1/2 can do
+  # the same [I - falsified by a level-2 episode that holds without
+  # flapping]. A latch needs a "cleared" signal, and every restart or template
+  # reload knocks the sensor to unavailable for a second, which resets any
+  # `for:` hold (numeric_state re-arms on a non-numeric state - read in
+  # homeassistant/components/homeassistant/triggers/numeric_state.py at
+  # 2026.9.4). A latch whose clear never lands would swallow the NEXT real
+  # escalation. The stamp is input_datetime.sdr_leak_now_high_last_push,
+  # written only when a push goes out and restored across restarts, so the
+  # rate limit cannot get stuck. 24 h is a policy choice matching the meter's
+  # own past-24h field, not a measurement.
+  #
+  # Why a helper and not this.attributes.last_triggered: validate_ha.py
+  # `logic-timing` WARNs on last_triggered time math, and --strict blocks on
+  # it. Its stated reason ("resets to unknown on HA restart") does not hold at
+  # 2026.9.4 - automation/__init__.py async_added_to_hass restores it - but
+  # the stamp is just as good and passes the gate as written.
+  #
+  # NOT gated on sdr_alerts_enabled, for the reason given on leak NOW above.
+  # ---------------------------------------------------------------------
+  - id: sdr_water_leak_now_high
+    alias: "SDR water meter - leak NOW high"
+    description: >
+      Phone push when R900 LeakNow reaches 2 or 3, at most once per 24 h.
+      Level 1 is handled by automation.sdr_water_meter_leak_now (bell only).
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.water_meter_leak_now
+        above: 1
+        for:
+          minutes: "{{ states('input_number.sdr_leak_now_hold_minutes') | int(10) }}"
+        id: leak_now_high
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.water_meter_stale
+        state: "off"
+      # The `timestamp` attribute, not the state string: the state is naive
+      # local time, the attribute is epoch seconds. float(0) makes a missing
+      # helper read as "long ago" - fail toward the push, never away from it.
+      - condition: template
+        value_template: >
+          {{ now().timestamp()
+             - state_attr('input_datetime.sdr_leak_now_high_last_push',
+                          'timestamp') | float(0) > 86400 }}
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.sdr_leak_now_high_last_push
+        data:
+          timestamp: "{{ now().timestamp() }}"
       - action: notify.mobile_app_bills_iphone
         data:
           title: "💧 Water leak - meter reports flow NOW"
           message: >
-            R900 LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3.
-            The meter sees continuous flow.
+            R900 LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3 -
+            above the level-1 it sits at about half the time.
             Today {{ states('sensor.water_daily') | float(0) | round(1) }} gal
             vs a ~91 gal/day norm.
             Last decode {{ states('sensor.water_meter_age') | float(0) | round(0) | int(0) }} min ago.
             Leak day-bins over 35 d: {{ states('sensor.water_meter_leak') }}.
+            No further push for 24 h.
       - action: persistent_notification.create
         data:
-          notification_id: sdr_water_leak_now
-          title: "Water leak - meter reports flow NOW"
+          notification_id: sdr_water_leak_now_high
+          title: "Water leak - meter reports LeakNow 2+"
           message: >
-            LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3 since
-            {{ now().strftime('%Y-%m-%d %H:%M') }}.
-            Detection is inside the meter, not in this config - it cannot be
-            tuned, and it sees flow below a turbine's startup threshold.
-            Check toilets first: a flapper seep is the usual cause at this
-            magnitude.
+            LeakNow = {{ states('sensor.water_meter_leak_now') }} of 3 at
+            {{ now().strftime('%Y-%m-%d %H:%M') }} (pushed to the phone; next
+            push no sooner than 24 h). Check toilets first: a flapper seep is
+            the usual cause of continuous low flow.
     mode: single
 
   # Clearing matters as much as firing. The 2026-08-21 event self-cleared at
   # 11:28 and nothing would have said so - leaving a phone alert as the last
   # word on a condition that had ended.
+  #
+  # 2026-10-04: NOW SILENT - it only removes the bell entries. A "cleared"
+  # push for a condition that is on half the time is noise (26 of the 42
+  # pushes in 12 days were from here), and Bill's standing rule is no
+  # recovery notices. The 6 h hold keeps the bell entry up through the
+  # meter's flapping: 32 of 48 gaps at 0 lasted 4.5 h or less [M, InfluxDB,
+  # 2026-08-22..10-04]. A restart or template reload during the hold
+  # restarts it, so the entry stays up longer; it never fires early.
   - id: sdr_water_leak_now_cleared
     alias: "SDR water meter - leak NOW cleared"
     triggers:
       - trigger: numeric_state
         entity_id: sensor.water_meter_leak_now
         below: 1
+        for:
+          hours: 6
         id: leak_cleared
-    conditions:
-      # Only speak if we actually raised the alarm, so a reboot at 0 is silent.
-      - condition: template
-        value_template: >
-          {{ state_attr('automation.sdr_water_meter_leak_now', 'last_triggered')
-             is not none }}
+    # Only speak if we actually raised the alarm, so a reboot at 0 is silent.
+    # ^ The condition that line described is REMOVED 2026-10-04 because it was
+    # wrong twice over (R13). (1) The check was `last_triggered is not none`,
+    # which stays true forever after the first alarm ever. (2) A reboot or
+    # template reload takes the sensor unavailable -> 0, and numeric_state
+    # fires `below: 1` on that (it re-arms on any non-numeric state, source at
+    # 2026.9.4), so a reboot at 0 was NOT silent. 10 of 26 cleared pushes in
+    # 2026-09-23..10-04 were exactly that, with no alarm open [M, logbook vs
+    # history]. A dismiss is harmless when nothing is open, so no condition.
     actions:
-      - action: notify.mobile_app_bills_iphone
-        data:
-          title: "💧 Water leak flag cleared"
-          message: >
-            R900 LeakNow is back to 0 as of
-            {{ now().strftime('%H:%M') }}. The meter no longer sees continuous
-            flow. Leak day-bins over the last 35 d:
-            {{ states('sensor.water_meter_leak') }} - non-zero there means it
-            happened, even though it has stopped.
       - action: persistent_notification.dismiss
         data:
           notification_id: sdr_water_leak_now
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: sdr_water_leak_now_high
     mode: single

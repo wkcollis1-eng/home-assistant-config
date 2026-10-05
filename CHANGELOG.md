@@ -56,6 +56,7 @@ is calibrated against.
 | 2026-10-02 | **Family mmWave VEML7700 floor with the power LED kept** (Bill: "will not cut it"). Once the node is in place, the darkest overnight reading of `sensor.family_mmwave_ambient_light` stays at or above 0.5 lx: the LED lifts the floor. Basis: covered on the desk, with the LED lit, it read 3.11 and 3.17 lx [M: HA history, 2 settled samples, 14:08:27-37Z]. Falsified by any overnight sample below 0.5 lx with the node in place: the LED's in-situ offset would then be under 0.5 lx, and most of the desk reading was leak through the cover or reflection off it. | yes - written 10:21 EDT, before the node was placed | pending |
 | 2026-10-04 | **The R20 gates (layers 1-4) leave no auto-compaction without a fresh checkpoint, so layer 5 is not needed** (Bill: "if they work should not need layer 5"). Window: from the deploy (2026-10-04 ~18:20 EDT) to 2026-10-11. Prediction: every main-thread auto-compaction has status `fresh` in `compactions.log`, except one that `gate.log` marks `precompact-gave-way`, and at most 1 is so marked. The trigger comes from the transcript's compact_boundary, joined to compactions.log by session and time. [I: PreCompact blocks every auto-compaction while the checkpoint is overdue, and only the 90K ceiling lets one through. The largest single-call growth near the line was 49.7K, M n=3,145.] Baseline under the 80% nudge: 24 of 99 stale or missing [M: compactions.log 09-23..10-04]. Falsified by any stale or missing auto-compaction with no gave-way row (the gate leaked: hook error, timeout, or a path the tests missed), or by 2 or more gave-way rows (the gate could not be satisfied in time). Recorded, not scored: `pretooluse-deny` rows per crossing (the nuisance cost). Void if fewer than 10 auto-compactions fall in the window. | yes - written 18:25 EDT 2026-10-04, before any compaction under the gates | pending |
 | 2026-10-04 | `read_guard.py`: by 2026-10-11, `read_guard.log` holds at least one `deny`, and fewer `allow-repeat` than `deny` lines (most denied Reads become a Grep + partial Read, not a repeat). Falsified if `allow-repeat` >= `deny`: the guard is then a speed bump, not a saving - raise THRESHOLD or retire it | yes | pending - score 2026-10-11 |
+| 2026-10-04 | SDR leak alerts: 0 phone pushes from `sdr_water_leak_now*` 2026-10-05..11-04, because LeakNow never went above 1 in 43.3 d [M]. Falsified by any push; then read the push's LeakNow value and whether it held or flapped (the rate-limit [I] in `packages/utility_meters.yaml`) | yes | pending - score 2026-11-04 |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -79,6 +80,44 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.04] - 2026-10-04
+
+### SDR water leak alerts: level 1 to the bell, level 2+ to the phone, no "cleared" push (`packages/utility_meters.yaml`, `entity_notes.yaml`)
+
+- **Why:** Bill was getting a "leak" then "leak cleared" push several times a
+  day. 42 pushes in 12 days, 16 alarm + 26 cleared [M, logbook,
+  2026-09-23..10-04]. LeakNow read 1 for 50.8% of the time and never above 1
+  [M, InfluxDB `sensor.water_meter_leak_now`, 250 state rows,
+  2026-08-22..10-04, 43.3 d], flipping at 15-min boundaries. The
+  overnight-minimum check found a zero-flow hour on 26 of 29 nights [M], so
+  level 1 is the house's normal use pattern, not a continuous leak.
+- **Two defects in the cleared automation (R13, recorded at the site):** its
+  guard `last_triggered is not none` was permanently true after the first alarm.
+  numeric_state also fires `below: 1` on unavailable -> 0 (source at 2026.9.4),
+  so every restart or template reload sent a "cleared" push: 10 of the 26, with
+  no alarm open [M].
+- **Now (Bill's choice):** `sdr_water_leak_now` creates one bell entry, replaced
+  in place, with no push. New `sdr_water_leak_now_high` (LeakNow >= 2 for the
+  hold) pushes at most once per 24 h, stamped in new
+  `input_datetime.sdr_leak_now_high_last_push`. `sdr_water_leak_now_cleared`
+  silently dismisses both bell entries after 6 h at 0. It used to push.
+- **Rate limit, not a latch:** a reload knocks the sensor to unavailable,
+  which resets any `for:` hold. A latch whose clear never lands would swallow
+  the next real escalation.
+- **Gates:** sandbox `C:\sandbox\leak_1004`. The replay harness
+  (`C:\sandbox\leak_1004_replay\replay.py`) models the trigger semantics read in
+  the 2026.9.4 source. Calibrated: the old logic reproduces the logbook exactly
+  (16 / 26). New logic on 43.3 d: 0 pushes, 15 bell appearances. 6 injected
+  faults: "REPLAY PASSED". Rate limit removed: 3 of 6 FAIL (24 / 60 / 8 pushes),
+  so the harness can fail. validate_ha --strict PASS (parse-clean);
+  check_config "valid"; automation + input_datetime reloaded with Bill's OK.
+  Templates rendered live. No live push test (Bill declined).
+- **Caught on observe (R13):** a new `input_datetime` without `initial:` starts
+  at today 00:00, not 1970 [M], which would have muted a push until midnight.
+  The stamp was set to epoch 0 once; the comment at the site says to do it again
+  if the helper is ever re-created.
+- `validate_ha.py` `logic-timing` says `last_triggered` "resets to unknown on HA
+  restart". At 2026.9.4 `async_added_to_hass` restores it. Not changed here; the
+  helper stamp was used so the gate passes as written.
 
 ### Claude Code token economy: Read guard, checkpoint lint off, CLAUDE.md dedup (`~/.claude`, `CLAUDE.md`, `docs/claude-code-enforcement.md`)
 

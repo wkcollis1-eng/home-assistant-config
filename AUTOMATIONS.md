@@ -123,6 +123,7 @@ sdr_meter_stale_alert                  state:binary_sensor.gas_meter_stale +2 mo
 sdr_water_leak_flag                    numeric_state                                                         single     utility_meters.yaml
 sdr_water_leak_now                     numeric_state                                                         single     utility_meters.yaml
 sdr_water_leak_now_cleared             numeric_state                                                         single     utility_meters.yaml
+sdr_water_leak_now_high                numeric_state                                                         single     utility_meters.yaml
 spc_seed_on_startup                    homeassistant                                                         single     spc.yaml
 spc_seed_slots_manual                  -                                                                     single     spc.yaml
 track_automation_failures              event                                                                 queued     automations.yaml
@@ -141,4 +142,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
 ```
 
-132 automations.
+133 automations.

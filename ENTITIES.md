@@ -292,9 +292,11 @@ sensor.utility_electric_power_rate  statistics change_second, kWh/s; precision 9
 
 ```
 automation.sdr_water_meter_leak_flag_set     Leak day-bins; OUTAGE BACKSTOP
-automation.sdr_water_meter_leak_now          LeakNow; the immediate path, to phone
-automation.sdr_water_meter_leak_now_cleared  says when it ends
+automation.sdr_water_meter_leak_now          LeakNow >= 1; bell only since 2026-10-04 (level 1 is on ~half the time)
+automation.sdr_water_meter_leak_now_cleared  silent; removes both bell entries after 6 h at 0 (2026-10-04)
+automation.sdr_water_meter_leak_now_high     LeakNow >= 2; the phone path, at most one push per 24 h
 binary_sensor.water_meter_stale              no decode in > sdr_water_stale_minutes
+input_datetime.sdr_leak_now_high_last_push   rate-limit stamp for leak NOW high; written only when a push goes
 input_number.sdr_leak_now_hold_minutes       default 10 (~5 frames at 112 s)
 sensor.electric_meter_ert_type
 sensor.electric_meter_tamper_enc

@@ -23,10 +23,13 @@ automation.sdr_water_meter_leak_flag_set:
   note: Leak day-bins; OUTAGE BACKSTOP
 automation.sdr_water_meter_leak_now:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
-  note: LeakNow; the immediate path, to phone
+  note: LeakNow >= 1; bell only since 2026-10-04 (level 1 is on ~half the time)
 automation.sdr_water_meter_leak_now_cleared:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
-  note: says when it ends
+  note: silent; removes both bell entries after 6 h at 0 (2026-10-04)
+automation.sdr_water_meter_leak_now_high:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: LeakNow >= 2; the phone path, at most one push per 24 h
 automation.watchdog_reset_failed:
   group: WATCHDOG (packages/watchdog.yaml)
   note: failure-only notice; still stale 10 min after onset
@@ -219,6 +222,9 @@ input_datetime.hwh_recirc_spc_last_capture:
 input_datetime.hwh_recirc_spc_last_seed:
   group: SPC — HWH RECIRC (packages/spc.yaml)
   note: startup seed, never a capture
+input_datetime.sdr_leak_now_high_last_push:
+  group: SDR WATER METER — R900 (packages/utility_meters.yaml)
+  note: rate-limit stamp for leak NOW high; written only when a push goes
 input_datetime.water_overnight_capture_last_ok:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: ''
