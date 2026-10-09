@@ -57,6 +57,7 @@ is calibrated against.
 | 2026-10-04 | **The R20 gates (layers 1-4) leave no auto-compaction without a fresh checkpoint, so layer 5 is not needed** (Bill: "if they work should not need layer 5"). Window: from the deploy (2026-10-04 ~18:20 EDT) to 2026-10-11. Prediction: every main-thread auto-compaction has status `fresh` in `compactions.log`, except one that `gate.log` marks `precompact-gave-way`, and at most 1 is so marked. The trigger comes from the transcript's compact_boundary, joined to compactions.log by session and time. [I: PreCompact blocks every auto-compaction while the checkpoint is overdue, and only the 90K ceiling lets one through. The largest single-call growth near the line was 49.7K, M n=3,145.] Baseline under the 80% nudge: 24 of 99 stale or missing [M: compactions.log 09-23..10-04]. Falsified by any stale or missing auto-compaction with no gave-way row (the gate leaked: hook error, timeout, or a path the tests missed), or by 2 or more gave-way rows (the gate could not be satisfied in time). Recorded, not scored: `pretooluse-deny` rows per crossing (the nuisance cost). Void if fewer than 10 auto-compactions fall in the window. | yes - written 18:25 EDT 2026-10-04, before any compaction under the gates | pending |
 | 2026-10-04 | `read_guard.py`: by 2026-10-11, `read_guard.log` holds at least one `deny`, and fewer `allow-repeat` than `deny` lines (most denied Reads become a Grep + partial Read, not a repeat). Falsified if `allow-repeat` >= `deny`: the guard is then a speed bump, not a saving - raise THRESHOLD or retire it | yes | pending - score 2026-10-11 |
 | 2026-10-04 | SDR leak alerts: 0 phone pushes from `sdr_water_leak_now*` 2026-10-05..11-04, because LeakNow never went above 1 in 43.3 d [M]. Falsified by any push; then read the push's LeakNow value and whether it held or flapped (the rate-limit [I] in `packages/utility_meters.yaml`) | yes | pending - score 2026-11-04 |
+| 2026-10-09 | `automation.mmw_family_release_a_stale_override` clears `input_boolean.mmw_family_manual_override` on its own: within 5 min 30 s of the first moment `binary_sensor.family_mmwave_presence` AND `binary_sensor.main_floor_motion` both read `off` with the override `on` (the override_set trigger makes it about 1 s when the override is set into an already-empty room), and NEVER while either reads `on`. Written before any run: the new automation has fired 0 times [M, last_triggered None, 2026-10-09 14:50 UTC]. Falsified if the override is still `on` 6 min after both read `off`, or if it clears while the radar or the Ecobee reads `on`. Scored on the first stuck override after 2026-10-09 (the one that prompted it cleared at 14:46:22 UTC by the old path, before this automation loaded) | yes | pending - first real release |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -171,6 +172,46 @@ question" —** the answer was one line away and settled it in one sentence.
     it. The HA source read for this (`UnavailableAutomationEntity`, core 2026.10.0) gives that state.
   - Direction 2 of the suite now reds if the live house has an unavailable automation when the suite runs, with a
     message that says so. That is intended (the house is wrong, not the rule) but it will look like a broken suite.
+
+### The family manual override clears itself when the room is empty (`packages/mmwave_presence.yaml`)
+
+- **Instruction.** Bill, 2026-10-09: "Needs to be able to clear itself."
+- **The design gap.** `input_boolean.mmw_family_manual_override` had one clearer, action step 1 of
+  `mmw_family_presence_off`, which runs only on an edge (radar on->off, or Ecobee on->off) and only behind that
+  automation's conditions. An edge that passes while that automation is down is lost, and `presence_on` and
+  `dusk_on` both need the override `off`. It happened: the 15 h 9 m 43 s outage [D: 13:14:18 - 22:04:35 UTC, entity
+  `last_changed`] above, the lamps switched off by hand at 01:19:53 UTC, the override set, and 5 of 5 stored
+  `presence_on` traces (12:03-14:30 UTC) stopped at condition/1, override "on" where "off" was wanted [M, trace/list,
+  2026-10-09].
+- **Change.** New `mmw_family_override_release` (entity `automation.mmw_family_release_a_stale_override`). A level
+  test, not an edge. Triggers: the override turning on, and a sweep at hh:m5:17 (`time_pattern` minutes `/5`).
+  Condition: the override is `on` AND the room is empty, where "empty" is the condition list of
+  `mmw_family_presence_off` itself. That list now carries the anchor `&mmw_family_empty_conds` and the new
+  automation reuses it (R10), so the two cannot drift. Action: turn the override off, one logbook line. The lamps
+  are not touched; `mmw_family_presence_off` still owns lamp-off.
+- **Not the timer the helper's comment forbids** ("never on a timer"). Nothing counts time. A person in the room
+  (radar on, or the Ecobee on) holds the override exactly as before; the sweep only sets how soon a level is
+  noticed. The 5-minute period is a choice, not a measurement; the comment says so.
+- **Verified.**
+  - Reversing the two edited spans reproduces the HEAD blob byte for byte; 20 of 20 existing automations are
+    structurally identical, 1 added, and the new one's condition list is the same object as `presence_off`'s
+    [M, fresh copy of H:, 2026-10-09].
+  - Both directions, on a fresh copy: the clean tree raises nothing new (audit "0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines"); a misspelt entity in the new automation raises `entity-ref-unresolved` (WARN); a list of states with
+    `for` in it raises `state-for-unsupported` (FAIL).
+  - Deployed: `check_config` -> `{"result":"valid","errors":null,"warnings":null}`; after `automation.reload` the new
+    automation reads `on`, and the house has 134 automations, none `unavailable` [M, 2026-10-09 about 14:49 UTC].
+  - Live, silent direction: `automation.trigger` with conditions enforced at 14:50:01 UTC stopped at condition/0
+    (override `off`, wanted `on`) and wrote nothing [M, trace].
+- **Left open, plainly.**
+  - The release has NOT fired on the live house. The stuck override that prompted it cleared at 14:46:22.754 UTC,
+    2 ms after the Ecobee went `off` [M, entity `last_changed`], by the old path, before this automation was loaded.
+    The "fires" direction is a ledger prediction (see the ledger, 2026-10-09), not a result.
+  - `ha_audit.py`'s `eod-*` rules read only `platform: time` with a literal `at`, so the `time_pattern` trigger is
+    outside them. The only writers of the override are `override_detect` (sets), `presence_off` and this (clear) [M,
+    grep of the tree].
+  - The same edge-only gap is not fixed in two places: the office override, and lamp-off for a latched lamp (the
+    lamps stayed on 3 h 15 m 18 s [D] of that outage after it began). Proposed to Bill, not built.
 
 ## [2026.10.04] - 2026-10-04
 
