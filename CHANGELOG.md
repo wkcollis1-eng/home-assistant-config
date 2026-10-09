@@ -79,6 +79,51 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.09] - 2026-10-09
+
+### `automation.mmw_family_empty_lights_off` was dead for 15 h after the HA 2026.10.0 update; condition split (`packages/mmwave_presence.yaml`)
+
+- **Symptom.** Bill: "Automation failed to set up ... Cannot use 'for' with a list of states at
+  'conditions[4].conditions[1]'". The entity read `unavailable` from 2026-10-08 22:04:35 UTC until the reload at
+  2026-10-09 13:14:18 UTC [M: entity `last_changed`, both ends]: 15 h 9 m 43 s [D: 13:14:18 - 22:04:35]. Its
+  last run was 2026-10-08 20:30:05 UTC [M: `last_triggered`], so no family lamp-off ran in that window. Whether a
+  lamp was left on in it was not checked.
+- **Cause [S].** HA 2026.10.0 added "Cannot use 'for' with a list of states" to `STATE_CONDITION_SCHEMA`
+  [S: core 2026.10.0 `helpers/config_validation.py` l.1559-1565]. 2026.9.4's schema has no such rule [S: core
+  2026.9.4 `helpers/config_validation.py` l.1578-1590]. The condition (written 2026-10-02, Ecobee outage policy)
+  was `state: ["unavailable", "unknown"]` with `for: *mmw_family_ecobee_grace`. The running version is 2026.10.0
+  [M: `/api/config`], and every helper's `last_changed` is 22:04:27 UTC [M], a start 8 s before the failure.
+- **The change.** The one condition became two inside the same `or`: `unavailable` for the grace anchor, and
+  `unknown` for the grace anchor. Runtime semantics are identical: the old condition was true when the state was in
+  the list and `last_changed` was older than `for` [S: core 2026.10.0 `helpers/condition.py` `state()`], so an
+  unavailable -> unknown flip restarted the wait before and still does. The `&mmw_family_ecobee_grace` anchor is
+  still the only copy of the 5 min (R10).
+- **Why no gate caught it.** `check_config` returned "valid" on the broken tree [M, 2026-10-09 about 13:10 UTC, n=1]: conditions
+  are validated when the automation sets up, not by `check_config`. `validate_ha.py` and `ha_audit.py` do not check
+  this rule, and the session-start audit after the restart read 0 FAIL [M]. NOT built: an audit rule for it - see
+  "Left open".
+- **Verification.**
+  - R2, on HA itself: the websocket `test_condition` command (read-only; it runs `async_validate_condition_config`)
+    given the full 6-condition list from the old file returned the exact reported error at
+    `conditions[4].conditions[1]`; given the fixed file it returned `{'result': True}` [M, live 2026.10.0].
+  - R2, static scan (all of H: minus `.storage`, `custom_components`, `www`, `esphome`: 153 files, 123 state
+    conditions, 2 with `for` [M]): fires on exactly the one condition in the old tree, silent (0 offenders) on the
+    fixed sandbox tree (124 conditions, 3 with `for`).
+  - R3: reversing the edit reproduces the original byte-for-byte; 2179 lines outside the span unchanged, 17 added.
+  - Deploy: `gate.py` on H: -> "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines" (the WARN is the clamp-meter open question); `check_config` -> "valid"; `automation.reload`; the
+    entity reads `on`; 133 automations, none `unavailable`; persistent notifications 0, repair issues 0.
+  - `PACKAGES.md` regenerated (line count only); `ENTITIES.md` and `AUTOMATIONS.md` unchanged.
+- **The reload side effect.** `mmw_family_dusk_on` is the only automation with an `automation_reloaded` trigger; its
+  first action needs family presence `on`, which read `off`, so no lamp was switched.
+- **Left open.**
+  - `C:\repos\mmwave-presence-node\packages\mmwave_presence.yaml` (HEAD fa2959a, 2026-10-02) still holds the list-
+    state condition (l.1640) and is behind H: by about 40 lines. It was not touched; `make_full_pkg.py` was not found
+    in that repo's `scripts/`. Anything that re-derives H: from it reinstates this fault.
+  - No audit rule flags an `unavailable` automation or a state condition with `for` and a list. The scan script that
+    fired and stayed silent above is the starting point; it needs the `test_ha_audit.py` two-direction case before it
+    counts (R7).
+
 ## [2026.10.04] - 2026-10-04
 
 ### SDR water leak alerts: level 1 to the bell, level 2+ to the phone, no "cleared" push (`packages/utility_meters.yaml`, `entity_notes.yaml`)
