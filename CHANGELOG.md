@@ -58,6 +58,7 @@ is calibrated against.
 | 2026-10-04 | `read_guard.py`: by 2026-10-11, `read_guard.log` holds at least one `deny`, and fewer `allow-repeat` than `deny` lines (most denied Reads become a Grep + partial Read, not a repeat). Falsified if `allow-repeat` >= `deny`: the guard is then a speed bump, not a saving - raise THRESHOLD or retire it | yes | pending - score 2026-10-11 |
 | 2026-10-04 | SDR leak alerts: 0 phone pushes from `sdr_water_leak_now*` 2026-10-05..11-04, because LeakNow never went above 1 in 43.3 d [M]. Falsified by any push; then read the push's LeakNow value and whether it held or flapped (the rate-limit [I] in `packages/utility_meters.yaml`) | yes | pending - score 2026-11-04 |
 | 2026-10-09 | `automation.mmw_family_release_a_stale_override` clears `input_boolean.mmw_family_manual_override` on its own: within 5 min 30 s of the first moment `binary_sensor.family_mmwave_presence` AND `binary_sensor.main_floor_motion` both read `off` with the override `on` (the override_set trigger makes it about 1 s when the override is set into an already-empty room), and NEVER while either reads `on`. Written before any run: the new automation has fired 0 times [M, last_triggered None, 2026-10-09 14:50 UTC]. Falsified if the override is still `on` 6 min after both read `off`, or if it clears while the radar or the Ecobee reads `on`. Scored on the first stuck override after 2026-10-09 (the one that prompted it cleared at 14:46:22 UTC by the old path, before this automation loaded) | yes | pending - first real release |
+| 2026-10-09 | `automation.mmw_office_release_a_stale_override` clears `input_boolean.mmw_office_manual_override` on its own: within 5 min 1 s of the first moment `binary_sensor.office_mmwave_presence` reads `off` with the override `on` and `input_boolean.mmw_office_auto_enable` `on` (the override_set trigger makes it about 1 s when the override is set into an already-empty room), and NEVER while the radar reads `on`. The wait is 0 s at today's settings [M, see the entry]. Written before any run: the new automation has fired 0 times [M, last_triggered None, 2026-10-09 15:11 UTC]. Falsified if the override is still `on` 6 min after the radar reads `off` continuously with auto_enable `on`, or if it clears while the radar reads `on`. Scored on the first stuck office override after 2026-10-09; none has been seen | yes | pending - first real release |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -212,6 +213,49 @@ question" —** the answer was one line away and settled it in one sentence.
     grep of the tree].
   - The same edge-only gap is not fixed in two places: the office override, and lamp-off for a latched lamp (the
     lamps stayed on 3 h 15 m 18 s [D] of that outage after it began). Proposed to Bill, not built.
+
+### The office manual override clears itself when the room is empty (`packages/mmwave_presence.yaml`)
+
+- **Instruction.** Bill, 2026-10-09: "yes make the change to the office", after the family-room fix above.
+- **Not a second incident.** The office override has NOT been seen stuck: it reads `off`, last changed 2026-10-08
+  22:04:27 UTC [M, `/api/states`, 2026-10-09 15:10 UTC], and I did not read its earlier history. This is the same
+  design gap, read in the code: `input_boolean.mmw_office_manual_override` has one clearer, action step 1 of
+  `mmw_office_presence_off`, which runs only on an edge (radar on->off, held for the wait) and only behind that
+  automation's conditions, and `presence_on` and `lux_dim_on` both need the override `off`. This closes the "office
+  override" item left open in the family entry above.
+- **Change.** New `mmw_office_override_release` (entity `automation.mmw_office_release_a_stale_override`). A level
+  test, not an edge. Triggers: the override turning on, and a sweep at hh:m5:47 (`time_pattern` minutes `/5`; :47
+  keeps it off the family's :17). Conditions: the override is `on`; the condition list of `mmw_office_presence_off`
+  (anchor `&mmw_office_empty_conds`: auto_enable `on`, idle timeout above 0); and the raw radar
+  `binary_sensor.office_mmwave_presence` `off` for the wait on that trigger (anchor `&mmw_office_off_wait`, R10: the
+  same definition of "empty", not a copy). Action: turn the override off, one logbook line. The lamp is not touched.
+- **Raw radar, as `presence_off` does.** Not "mmW Office occupied": a person in the bathroom next door holds the
+  override. An unavailable radar fails the condition, so the override holds through a node outage (the rule Bill
+  set 2026-09-22 for the lamp). The sweep period is a choice, not a measurement; the comment says so.
+- **The wait is 0 s today.** The anchored template is idle timeout minus the radar's own timeout, floored at 0:
+  10 s total [M, `input_number.mmw_office_idle_timeout`] minus 30 s [M, `number.office_mmwave_radar_timeout`] renders
+  `00:00:00` [M, `/api/template`, 2026-10-09 about 15:12 UTC]. So at these settings the release clears the override
+  the moment the raw radar reads `off`, the same test `presence_off`'s own trigger makes; the radar's 30 s hold is
+  the wait.
+- **Verified.**
+  - Reversing the three edited spans reproduces the HEAD blob byte for byte; 21 of 21 existing automations are
+    structurally identical, 1 added; the release's `and:` list is the same object as `presence_off`'s condition
+    list and its `for` the same object as that trigger's [M, fresh copy of H:, 2026-10-09].
+  - Both directions, on a fresh copy: the clean tree raises nothing new (audit "0 FAIL, 1 WARN, 2 INFO across 18
+    pipelines"); a misspelt radar in the new automation raises `entity-ref-unresolved` (WARN); a list of states
+    with `for` in it raises `state-for-unsupported` (FAIL).
+  - Deployed: `check_config` -> `{"result":"valid","errors":null,"warnings":null}`; after `automation.reload` the
+    new automation reads `on`, and the house has 135 automations, none `unavailable` [M, 2026-10-09 15:10 UTC].
+  - Live, silent direction: `automation.trigger` with conditions enforced at 15:11:24 UTC stopped at condition/0
+    (override `off`, wanted `on`) and wrote nothing [M, trace].
+  - Live, the three conditions evaluated by HA itself, read-only (`execute_script`, nothing written): override
+    -> false, the anchored list -> true, radar `off` for the wait -> false (the radar reads `on`); no error from
+    any, so the anchored `for:` template renders in a condition context [M, 2026-10-09].
+- **Left open, plainly.**
+  - The release has NOT fired on the live house, in either room. The "fires" direction, and the `time_pattern`
+    sweep, are ledger predictions (see the ledger, 2026-10-09), not results. I did not set the office override to
+    test it: that is a live helper write, and Bill has not said yes.
+  - Lamp-off for a latched lamp has the same edge-only gap in both rooms. Proposed to Bill, not built.
 
 ## [2026.10.04] - 2026-10-04
 

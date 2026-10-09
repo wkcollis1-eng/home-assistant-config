@@ -82,6 +82,7 @@ mmw_office_cal_label_changed           state:input_select.mmw_office_label      
 mmw_office_lux_bright_off              template                                                              single     mmwave_presence.yaml
 mmw_office_lux_dim_on                  numeric_state                                                         single     mmwave_presence.yaml
 mmw_office_override_detect             state:switch.office_lamp                                              single     mmwave_presence.yaml
+mmw_office_override_release            state:input_boolean.mmw_office_manual_override +1 more                single     mmwave_presence.yaml
 mmw_office_presence_off                state:binary_sensor.office_mmwave_presence                            single     mmwave_presence.yaml
 mmw_office_presence_on                 state:binary_sensor.mmw_office_occupied                               single     mmwave_presence.yaml
 mmw_path_disagreement_alert            state:binary_sensor.office_mmwave_presence_path_disagreement +1 more  single     mmwave_presence.yaml
@@ -143,4 +144,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
 ```
 
-134 automations.
+135 automations.
