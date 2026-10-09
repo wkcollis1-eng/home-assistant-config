@@ -810,6 +810,37 @@ def f_duplicate_pipeline_key(root):
     _add_pipeline(root, block)
 
 
+def f_state_for_unsupported(root):
+    """A state condition with `for` and a LIST of states, nested in an `or`.
+
+    The shape that reached the live config on 2026-10-09: it loaded on core
+    2026.9.4, failed to set up on 2026.10.0, and check_config said "valid".
+    """
+    _add_automation(
+        root,
+        """
+- id: audit_test_state_for_list
+  alias: Audit Test State For List
+  trigger:
+    - platform: state
+      entity_id: input_boolean.ha_maintenance_mode
+  condition:
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: input_boolean.ha_maintenance_mode
+          state: "off"
+        - condition: state
+          entity_id: input_boolean.ha_maintenance_mode
+          state: ["unavailable", "unknown"]
+          for: "00:05:00"
+  action:
+    - delay: "00:00:01"
+  mode: single
+""",
+    )
+
+
 FAULTS = [
     ("dead-constraint", f_dead_constraint),
     ("truncated-id", f_truncated_id),
@@ -838,6 +869,7 @@ FAULTS = [
     ("duplicate-automation-id", f_duplicate_automation_id),
     ("duplicate-pipeline-key", f_duplicate_pipeline_key),
     ("eod-time-unresolvable", f_eod_time_unresolvable),
+    ("state-for-unsupported", f_state_for_unsupported),
 ]
 
 # generated-doc-missing deletes ENTITIES.md, which suppresses the ghost and
@@ -948,8 +980,155 @@ def f_live_check_skipped(tree):
     return out
 
 
+def _audit_module(tree):
+    """The tree's own ha_audit.py, imported (not run) - as f_live_check_skipped."""
+    spec = importlib.util.spec_from_file_location(
+        "ha_audit_under_test", os.path.join(tree, "scripts", "ha_audit.py")
+    )
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    return audit
+
+
+def f_state_for_branches(tree):
+    """[(case, ok, message)] - each rejection branch fires, each lookalike is silent.
+
+    The injected tree above proves the rule fires on the real incident shape.
+    This pins the BRANCHES of _state_for_problem, which that run cannot: it
+    asserts a rule id, not which of the three rejections fired, and a rule that
+    fires on everything passes it. So the silent cases matter as much as the
+    loud ones. In-process: no extra audit run (the suite has ~9 s of headroom
+    under the 60 s shell_command limit).
+    """
+    audit = _audit_module(tree)
+    entity = "input_boolean.x"
+    f = "00:05:00"
+    cases = [
+        # (name, condition, substring the reason must contain, or None = silent)
+        (
+            "list of 2 + for",
+            dict(condition="state", entity_id=entity, state=["a", "b"], **{"for": f}),
+            "list of states",
+        ),
+        (
+            "attribute + for",
+            dict(
+                condition="state",
+                entity_id=entity,
+                attribute="x",
+                state="a",
+                **{"for": f},
+            ),
+            "attribute",
+        ),
+        (
+            "input_select as state + for",
+            dict(
+                condition="state",
+                entity_id=entity,
+                state="input_select.mode",
+                **{"for": f},
+            ),
+            "referencing an entity",
+        ),
+        (
+            "list of 1 + for (allowed)",
+            dict(condition="state", entity_id=entity, state=["a"], **{"for": f}),
+            None,
+        ),
+        (
+            "single state + for (allowed)",
+            dict(condition="state", entity_id=entity, state="a", **{"for": f}),
+            None,
+        ),
+        (
+            "list of 2, no for (allowed)",
+            dict(condition="state", entity_id=entity, state=["a", "b"]),
+            None,
+        ),
+        (
+            "attribute, no for (allowed)",
+            dict(condition="state", entity_id=entity, attribute="x", state="a"),
+            None,
+        ),
+        (
+            "sensor.x as state + for (a literal string, allowed)",
+            dict(
+                condition="state", entity_id=entity, state="sensor.mode", **{"for": f}
+            ),
+            None,
+        ),
+        (
+            "state TRIGGER, list + for (allowed)",
+            {"platform": "state", "entity_id": entity, "to": ["a", "b"], "for": f},
+            None,
+        ),
+    ]
+    out = []
+    for name, cond, want in cases:
+        got = audit._state_for_problem(cond)
+        ok = (got is None) if want is None else (got is not None and want in got)
+        out.append((name, ok, "expected %s, got %r" % (want or "silence", got)))
+    return out
+
+
+def f_automation_unavailable(tree):
+    """[(case, ok, message)] - FAIL on a failed setup, WARN on an orphan, else silent."""
+    audit = _audit_module(tree)
+
+    def st(eid, state, **attrs):
+        return {"entity_id": eid, "state": state, "attributes": attrs}
+
+    cases = [
+        # (name, (states, why), expected [(severity, rule)] ; message must name `needle`)
+        (
+            "unavailable automation -> FAIL",
+            ([st("automation.a", "unavailable")], None),
+            [("FAIL", "automation-unavailable")],
+            "automation.a",
+        ),
+        (
+            "restored (orphan) -> WARN, not FAIL",
+            ([st("automation.b", "unavailable", restored=True)], None),
+            [("WARN", "automation-unavailable")],
+            "automation.b",
+        ),
+        (
+            "on and off -> silent",
+            ([st("automation.c", "on"), st("automation.d", "off")], None),
+            [],
+            None,
+        ),
+        (
+            "unavailable sensor, not an automation -> silent",
+            ([st("sensor.e", "unavailable")], None),
+            [],
+            None,
+        ),
+        # Both rules run, as main() runs them: ONE skip WARN, naming BOTH checks.
+        (
+            "live check skipped -> one WARN naming this check",
+            (None, "set HA_TOKEN"),
+            [("WARN", "live-check-skipped")],
+            "automation-unavailable",
+        ),
+    ]
+    out = []
+    for name, states, want, needle in cases:
+        del audit.findings[:]
+        audit.rule_statistics_buffer(states)
+        audit.rule_automation_unavailable(states)
+        got = [(sev, rule) for sev, rule, _m, _fx in audit.findings]
+        msg = " | ".join(m for _s, _r, m, _f in audit.findings)
+        ok = got == want and (needle is None or needle in msg)
+        out.append((name, ok, "expected %s, got %s: %s" % (want, got, msg[:120])))
+    return out
+
+
 ENV_FAULTS = [
     ("live-check-skipped", f_live_check_skipped),
+    ("state-for-unsupported", f_state_for_branches),
+    ("automation-unavailable", f_automation_unavailable),
 ]
 
 
@@ -1224,6 +1403,11 @@ def main():
                     "known sun.sun false positive. Give the harness a token "
                     "so it tests the audit as actually deployed."
                 )
+            if rid == "automation-unavailable":
+                return (
+                    " -- the LIVE HOUSE has an unavailable automation right "
+                    "now (a finding about the house, not a broken rule)"
+                )
             return ""
 
         if clean_ids:
@@ -1286,9 +1470,7 @@ def main():
             for case, ok, msg in fn(clean):
                 say("   %-4s %s: %s" % ("OK" if ok else "FAIL", rid, case))
                 if not ok:
-                    failures.append(
-                        "%s (%s) named the wrong fix: %s" % (rid, case, msg[-160:])
-                    )
+                    failures.append("%s (%s) failed: %s" % (rid, case, msg[-160:]))
     finally:
         if a.keep:
             say("\ntrees kept at %s" % work)
@@ -1299,7 +1481,10 @@ def main():
         import json as _json
 
         summary = (
-            ("SUITE PASSED - %d rule(s) proven in both directions" % len(selected))
+            (
+                "SUITE PASSED - %d rule(s) proven in both directions"
+                % len({r for r, _ in selected})
+            )
             if not failures
             else ("SUITE FAILED (%d): %s" % (len(failures), "; ".join(failures)))
         )
@@ -1324,7 +1509,10 @@ def main():
         for f in failures:
             print("   " + f)
         return 1
-    print("SUITE PASSED - %d rule(s) proven in both directions" % len(selected))
+    print(
+        "SUITE PASSED - %d rule(s) proven in both directions"
+        % len({r for r, _ in selected})
+    )
     print(
         "%d of %d testable rule ids covered; run --list for the gap"
         % (len(covered), len(testable))

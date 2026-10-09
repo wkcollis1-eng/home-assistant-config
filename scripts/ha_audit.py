@@ -32,14 +32,17 @@ except ImportError:
     sys.exit("PyYAML required")
 
 CONFIG = os.environ.get("HA_CONFIG", "/config")
-P = lambda *a: os.path.join(CONFIG, *a)
+
+
+def P(*a):
+    return os.path.join(CONFIG, *a)
 
 
 class Tolerant(yaml.SafeLoader):
     pass
 
 
-Tolerant.add_multi_constructor("!", lambda l, s, n: {"__tag__": s})
+Tolerant.add_multi_constructor("!", lambda _loader, s, n: {"__tag__": s})
 
 findings = []
 
@@ -822,8 +825,8 @@ def rule_statistics_buffer(states):
         # here would make "no findings" indistinguishable from "never looked".
         warn(
             "live-check-skipped",
-            "statistics buffer check DID NOT RUN, so its findings are absent "
-            "rather than clean: %s" % why,
+            "statistics buffer and automation-unavailable checks DID NOT RUN, "
+            "so their findings are absent rather than clean: %s" % why,
         )
         return
     for st in states:
@@ -907,6 +910,120 @@ def rule_choose_has_default():
 
     for rel in config_files() + ["automations.yaml", "scripts.yaml"]:
         walk(load(rel), "", rel)
+
+
+# HA REJECTS SOME STATE CONDITIONS ONLY WHEN THE AUTOMATION SETS UP.
+# 2026-10-09: `state: ["unavailable", "unknown"]` + `for:` in
+# mmw_family_presence_off loaded on core 2026.9.4 and failed on 2026.10.0
+# ("Cannot use 'for' with a list of states"), so
+# automation.mmw_family_empty_lights_off read `unavailable` for 15 h 9 m 43 s
+# [M]. check_config said "valid" throughout: conditions are validated when the
+# automation is set up, not by check_config. validate_ha.py and this audit
+# were silent too. The three rejections are core's own
+# [S: core 2026.10.0 helpers/config_validation.py STATE_CONDITION_SCHEMA
+# l.1556-1570]; the regex is its INPUT_ENTITY_ID, l.1512-1514.
+_INPUT_ENTITY_ID = re.compile(
+    r"^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$"
+)
+
+
+def _state_for_problem(cond):
+    """Why core 2026.10.0 rejects this state condition, or None.
+
+    Only `condition: state` with a `for` is in scope: the same list is fine in a
+    state TRIGGER (`to: [a, b]` + `for`), which is what ecobee_lost uses.
+    """
+    if (
+        not isinstance(cond, dict)
+        or cond.get("condition") != "state"
+        or "for" not in cond
+    ):
+        return None
+    if "attribute" in cond:
+        return "'for' with an attribute"
+    st = cond.get("state")
+    if isinstance(st, list):
+        if len(st) != 1:
+            return "'for' with a list of states"
+        st = st[0]
+    if isinstance(st, str) and _INPUT_ENTITY_ID.match(st):
+        return "'for' with a state referencing an entity"
+    return None
+
+
+def rule_state_condition_for():
+    """No state condition may pair `for` with an attribute, a list or an entity."""
+
+    def walk(node, path, rel, owner):
+        if isinstance(node, dict):
+            if isinstance(node.get("alias"), str):
+                owner = node["alias"]
+            why = _state_for_problem(node)
+            if why:
+                fail(
+                    "state-for-unsupported",
+                    "%s: state condition at %s (%s) uses %s on %s - HA 2026.10.0 "
+                    "rejects it and the whole automation fails to set up"
+                    % (
+                        rel,
+                        path or "/",
+                        owner or "no alias",
+                        why,
+                        node.get("entity_id"),
+                    ),
+                    fix="a list: one state condition per state inside an `or:`, "
+                    "each with the same `for:` (identical at runtime); an "
+                    "attribute or an entity-valued state: a template condition "
+                    "on now() - states.<id>.last_changed. check_config will NOT "
+                    "report this one",
+                )
+            for k, v in node.items():
+                walk(v, "%s/%s" % (path, k), rel, owner)
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, "%s[%d]" % (path, i), rel, owner)
+
+    for rel in config_files() + ["automations.yaml", "scripts.yaml"]:
+        walk(load(rel), "", rel, None)
+
+
+def rule_automation_unavailable(states):
+    """An automation HA could not set up reads `unavailable` in the state machine.
+
+    The static rule above knows one validation HA added; HA adds more every
+    release. This reads the outcome, so it catches the ones nobody has written
+    a rule for. `restored: true` marks a registry row with no automation behind
+    it (removed from YAML), a different thing from a config that failed to load.
+    The reason is in the automation's repair issue, not in its state attributes
+    [S: core 2026.10.0 automation/__init__.py UnavailableAutomationEntity].
+    """
+    states, _why = states
+    if states is None:
+        # R8 is met by rule_statistics_buffer's live-check-skipped WARN, which
+        # names this check too. A second WARN here would raise the WARN count
+        # on every skipped run for one cause (the gate reads that count).
+        return
+    for st in states:
+        eid = st.get("entity_id") or ""
+        if not eid.startswith("automation.") or st.get("state") != "unavailable":
+            continue
+        if (st.get("attributes") or {}).get("restored"):
+            warn(
+                "automation-unavailable",
+                "%s is a registry row with no automation behind it (restored: "
+                "true) - it was removed from YAML or never loaded" % eid,
+                fix="remove the stale row in Settings > Entities if the "
+                "automation is gone for good",
+            )
+        else:
+            fail(
+                "automation-unavailable",
+                "%s is unavailable: HA could not set the automation up, so it "
+                "is NOT running" % eid,
+                fix="Settings > Repairs names the failing line; fix it, then "
+                "automation.reload. check_config does not validate conditions, "
+                "so it will say valid",
+            )
 
 
 def rule_fabricated_limit_constants():
@@ -2176,6 +2293,8 @@ def main():
     # check was skipped AFTER other rules had already consumed live data. One
     # fetch, one truth.
     rule_statistics_buffer((_live, _live_err))
+    rule_state_condition_for()
+    rule_automation_unavailable((_live, _live_err))
     rule_eod_collisions(man)
     rule_stamp_snapshotted(man)
     rule_latched_guards(man)

@@ -100,8 +100,8 @@ question" —** the answer was one line away and settled it in one sentence.
   still the only copy of the 5 min (R10).
 - **Why no gate caught it.** `check_config` returned "valid" on the broken tree [M, 2026-10-09 about 13:10 UTC, n=1]: conditions
   are validated when the automation sets up, not by `check_config`. `validate_ha.py` and `ha_audit.py` do not check
-  this rule, and the session-start audit after the restart read 0 FAIL [M]. NOT built: an audit rule for it - see
-  "Left open".
+  this rule, and the session-start audit after the restart read 0 FAIL [M]. The audit rules for it were built the
+  same day: next subsection.
 - **Verification.**
   - R2, on HA itself: the websocket `test_condition` command (read-only; it runs `async_validate_condition_config`)
     given the full 6-condition list from the old file returned the exact reported error at
@@ -120,9 +120,57 @@ question" —** the answer was one line away and settled it in one sentence.
   - `C:\repos\mmwave-presence-node\packages\mmwave_presence.yaml` (HEAD fa2959a, 2026-10-02) still holds the list-
     state condition (l.1640) and is behind H: by about 40 lines. It was not touched; `make_full_pkg.py` was not found
     in that repo's `scripts/`. Anything that re-derives H: from it reinstates this fault.
-  - No audit rule flags an `unavailable` automation or a state condition with `for` and a list. The scan script that
-    fired and stayed silent above is the starting point; it needs the `test_ha_audit.py` two-direction case before it
-    counts (R7).
+
+### `ha_audit.py` fails on a state condition HA 2026.10.0 rejects, and on any automation HA could not set up (`scripts/ha_audit.py`, `scripts/test_ha_audit.py`)
+
+- **Why.** The fault above passed `check_config` ("valid"), `validate_ha.py` and the audit, and the automation was off
+  for 15 h 9 m 43 s [D, above]. Bill asked for the rule and its test ("yes build the test_ha_audit.py then commit and
+  push", 2026-10-09).
+- **`state-for-unsupported` (FAIL, static).** Walks `configuration.yaml`, every package, `automations.yaml` and
+  `scripts.yaml`. Flags a `condition: state` that carries `for` together with an `attribute`, a state list whose
+  length is not 1, or a state that matches HA's `INPUT_ENTITY_ID` [S: core 2026.10.0 `helpers/config_validation.py`
+  `STATE_CONDITION_SCHEMA` l.1556-1570; the regex l.1512-1514]. State TRIGGERS are out of scope: HA allows
+  `to: [a, b]` with `for`, and `ecobee_lost` uses it. It knows the three rejections that exist today and nothing HA
+  adds later.
+- **`automation-unavailable` (live).** FAIL for an `automation.*` in state `unavailable`; WARN when it carries
+  `restored: true` (a registry row with no automation behind it, a different thing from a config that failed to
+  load). It reads the outcome, so it also covers a rejection nobody has written a rule for. When the live fetch is
+  skipped it adds no finding of its own: the existing `live-check-skipped` WARN now names both checks, so a skipped
+  run still counts one WARN, not two (the gate compares WARN counts).
+- **Verification (R2/R7, both directions).**
+  - `test_ha_audit.py` in the sandbox: "SUITE PASSED - 34 rule(s) proven in both directions"; direction 2 "OK - clean
+    tree silent" [M, n=1 run, 56 s off-host]. Covered rule ids 32 -> 34 [D: 27 batch + 4 solo + 1 env before; the two
+    new ids after]; testable ids 45 -> 47.
+  - `state-for-unsupported`: the batch injector (the incident's shape, nested in an `or`) fires it. Nine in-process
+    cases pin the branches: 3 loud (list of 2, attribute, `input_select.*` as the state), 6 silent (list of 1, single
+    state, list without `for`, attribute without `for`, `sensor.*` as a literal state, a state trigger with a list
+    and `for`). A rule that fired on every `for` would pass the injector alone; the silent cases are what stop it.
+  - `automation-unavailable`: five in-process cases on fabricated `/api/states` lists (unavailable -> FAIL,
+    `restored` -> WARN, `on`/`off` -> silent, an unavailable non-automation -> silent, no live data -> exactly one
+    `live-check-skipped` WARN that names `automation-unavailable`).
+  - On the real incident, in the sandbox: the original broken package gives `FAIL state-for-unsupported ...
+    /automation[7]/condition[4]/conditions[1] (mmW Family: empty -> lights off)`, the same path HA reported as
+    `conditions[4].conditions[1]`; the fixed package gives "0 FAIL, 1 WARN, 2 INFO across 18 pipelines", the same as
+    H: before this change [M, n=1 each].
+  - Audit run time is unchanged: old 5.50-5.63 s, new 5.47-5.55 s [M, n=3 each, off-host]. The suite's host time was
+    not re-measured (51 s before this change [M, 2026-09-18], against HA's 60 s shell_command kill).
+  - R3 [M, difflib against HEAD]: `ha_audit.py` 4 lines changed, 123 added, 2268 of the 2272 unchanged: the skip
+    message (2), and the two ruff fixes below (2). `test_ha_audit.py` 5 changed, 193 added, 1331 of 1336 unchanged:
+    the failure text now reads "failed:", since the old "named the wrong fix" would be false for the new cases, and the
+    two "SUITE PASSED" prints now count distinct rule ids, because one id now appears in two fault lists.
+  - Two findings already in `ha_audit.py` blocked the commit. The pinned pre-commit `ruff` hook (v0.15.9; rules E4,
+    E7, E9, F) failed on `P = lambda *a: ...` (E731) and `lambda l, s, n` (E741). H: has no hooks installed, so
+    neither had been seen. Cleared without changing behaviour: `def P(*a): return os.path.join(CONFIG, *a)` (12 call
+    sites, all calls) and the unused lambda parameter renamed `_loader`. With the hook's rule set `ruff check` and
+    `ruff format --check` are now clean on both scripts, and `gate.py` was re-run after the change.
+- **Left open.**
+  - `automation-unavailable` has never fired on a real unavailable automation. State comes from live HA, so no tree
+    edit can inject it, and breaking a live automation to watch it fire is testing in production (R2). On the live
+    house it is silent: 133 automations, none `unavailable` [M, 2026-10-09, read after the 13:14 UTC reload].
+  - If HA ever reports a failed-to-set-up automation some way other than `state: unavailable`, this rule is blind to
+    it. The HA source read for this (`UnavailableAutomationEntity`, core 2026.10.0) gives that state.
+  - Direction 2 of the suite now reds if the live house has an unavailable automation when the suite runs, with a
+    message that says so. That is intended (the house is wrong, not the rule) but it will look like a broken suite.
 
 ## [2026.10.04] - 2026-10-04
 
