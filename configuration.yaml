@@ -2955,6 +2955,19 @@ input_datetime:
     has_date: true
     has_time: true
     icon: mdi:check-circle
+  # 2026-10-10: stamped at the START of every run of
+  # capture_daily_furnace_min_per_cycle, skip or success. last_ok says the
+  # capture succeeded; this says the automation ran at all, which last_ok
+  # cannot once a skip has set it to 1970. notify_furnace_cycle_capture_stale
+  # reads it. A helper, not automation last_triggered: house convention
+  # (validate_ha logic-timing; packages/utility_meters.yaml same choice).
+  # Created reading today 00:00 ([S] core 2026.10.0 input_datetime/__init__.py
+  # l.283-287), so the 25 h trigger cannot fire before the first run.
+  furnace_cycle_capture_last_run:
+    name: "Furnace Cycle Capture Last Run"
+    has_date: true
+    has_time: true
+    icon: mdi:play-circle-outline
 
   cdd_capture_last_ok:
     name: "CDD Capture Last OK"

@@ -211,6 +211,12 @@ sensor.hvac_zone_overlap_today
 sensor.hvac_zone_overlap_week
 ```
 
+## FURNACE MIN/CYCLE (configuration.yaml)
+
+```
+input_datetime.furnace_cycle_capture_last_run  every run of the min/cycle capture, skip or success - liveness, not success
+```
+
 ## GUARDS / MODES
 
 ```
@@ -432,8 +438,10 @@ sensor.fridge_runtime_today                [pipeline: capture_daily_fridge_watts
 ```
 binary_sensor.furnace_watts_out_of_control
 input_datetime.furnace_spc_last_capture     measured captures only  [pipeline: capture_daily_furnace_watts]
+input_datetime.furnace_spc_last_excused     idle night (blower never ran) or seasonal reset; stale grace counts from it, never a capture
 input_datetime.furnace_spc_last_seed        startup seed, never a capture  [pipeline: capture_daily_furnace_watts]
 input_number.furnace_power_threshold        default 300W
+script.spc_reset_furnace                    Seasonal reset, run each fall and spring - zeroes the 7 running-watts slots, capture 1970, excused today
 sensor.furnace_running_watts_24h            statistics; unavailable while blower is off  [pipeline: capture_daily_furnace_watts]
 sensor.furnace_running_watts_latched        last numeric 24h mean; what the capture guard reads  [pipeline: capture_daily_furnace_watts]
 sensor.furnace_running_watts_lower          [pipeline: capture_daily_furnace_watts]

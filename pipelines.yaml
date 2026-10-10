@@ -305,6 +305,14 @@ pipelines:
     at: "23:59:00"
     stamp: "input_datetime.furnace_spc_last_capture"
     seed_stamp: "input_datetime.furnace_spc_last_seed"
+    # 2026-10-10: written on an idle night (blower never ran) and by
+    # script.spc_reset_furnace; the stale detector's grace counts from it.
+    # Never a capture. See packages/spc.yaml SPC CAPTURE WATCHDOG.
+    excused_stamp: "input_datetime.furnace_spc_last_excused"
+    # season kept "heating" 2026-10-10 although the buffer is now mixed (heat
+    # AND AC-call blower, Bill's decision, cleared each season by
+    # script.spc_reset_furnace): the buffer is only empty for the days after
+    # a reset, and "heating" keeps that gap INFO, not WARN.
     season: "heating"
     stale_detector: "binary_sensor.furnace_spc_capture_stale"
     buffer_slots: 7
@@ -321,7 +329,7 @@ pipelines:
       live_source: "sensor.furnace_running_watts_24h"
       band: [300, 1000]
       activity: "sensor.furnace_runtime_today"
-      activity_min: 1.0
+      activity_min: 0.25  # 1.0 until 2026-10-10 (Bill); see the capture guard
     limits:
       - sensor.furnace_running_watts_mean_7d
       - sensor.furnace_running_watts_sigma_7d

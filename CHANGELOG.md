@@ -81,6 +81,73 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.10] - 2026-10-10
+
+### Furnace SPC: both captures rejected real heat days, and idle days counted as missed captures (`packages/spc.yaml`, `automations.yaml`, `configuration.yaml`, `pipelines.yaml`, `scripts/ha_audit.py`, `scripts/test_ha_audit.py`)
+
+- **Symptom.** Bill: "the furnace spc does not seem to be capturing correctly."
+- **Causes.**
+  1. **Watts capture needed runtime >= 1.0 h.** Heat began 10-06, and the first days ran short. Daily `furnace_runtime_today` max / cycles: 10-06 0.49 h / 2, 10-07 1.04 / 5, 10-08 0.46 / 1, 10-09 0 / 0, 10-10 0.49 / 1 by 09:50 [M: recorder, history from 09-26, n=15 d]. Only 10-07 was captured.
+  2. **The 7-slot watts buffer mixes two populations.** day_1 584.7 W is from heat (10-07); day_2..7, 765.4-775.6 W, are AC-call blower days (n=6) [M, 10-10]. That gives mean 743.2, sigma 70.0, LCL 603.2 [M].
+     - All 9 heat cycles 10-06..10-10 ran 569.0-601.8 W and 8.7-29.2 min [M: `sem_furnace_power` ~2 s samples, per-cycle mean]. Every one sits under the cooling LCL, so `furnace_watts_out_of_control` read ON from 10-06 06:54 [M].
+  3. **Min/cycle capture needed >= 2 cycles.** 10-08 was one 26.8 min cycle and was skipped [M]. The buffer held 2 values, short of the 3 `furnace_mpc_pipeline_healthy` needs [M].
+  4. **`furnace_spc_capture_stale` counted days since capture whether or not the furnace ran.** It read ON 10-06 06:55, 10-07 02:17 and 10-10 06:45 [M]. The last two also needed cause 1 to have rejected a heat day.
+  5. **`notify_furnace_cycle_capture_stale` belled on every skip, since a skip writes the 1970 sentinel.** It fired 10-10 03:31 UTC [M]. The 1970 stamp is that sentinel, not corruption.
+- **Bill's decisions (2026-10-10).**
+  - "Keep mixed, reset by season"
+  - "0.25 h (Recommended)"
+  - "Count them (>=1) (Recommended)"
+  - "Only when it ran (Recommended)": the stale display stays, and the bell fires only when the furnace ran and the capture failed, or when the capture stopped running. The SPC watchdog's idle-gap false-fire is fixed the same way.
+- **The change.**
+  - **Watts guard:** `rt >= 0.25`. 10-06 and 10-08 would now be kept. Manifest `activity_min` 1.0 -> 0.25.
+  - **New `input_datetime.furnace_spc_last_excused`:**
+    - It is written only by the watts capture's skip branch on a night the blower never ran (runtime <= 0), and by the reset script.
+    - The stale sensor's 2-day grace counts from the later of capture and excused.
+    - A capture automation that stops running cannot excuse itself, and an unknown excused stamp is ignored, which falls back to the old, louder answer.
+  - **New `script.spc_reset_furnace`:** run it each fall and spring. It zeroes the 7 watts slots, sets capture to 1970 and excused to today, and logs a warning.
+  - **Min/cycle:** `cycles_ok` is now `>= 1`. A skip on a day with at least 1 cycle posts the bell `furnace_cycle_capture_skipped`.
+  - **New `input_datetime.furnace_cycle_capture_last_run`:** stamped at the start of every capture run.
+    - The notifier gains a template trigger (no run in 90000 s) and a condition: a real stamp gone old, or the capture not running.
+    - This is a helper, not `last_triggered`, because `validate_ha --strict` blocks the `logic-timing` WARN. Its premise ("resets to unknown on restart") is false at 2026.10.0: [S] core `automation/__init__.py` l.635-639 restores `last_triggered`. The house convention was followed anyway.
+  - **Audit:** `ha_audit.py` `rule_entities_resolve` now resolves `excused_stamp`. A new SOLO suite fault, `f_entity_missing_excused`, covers it; batched, other test pipelines' stamps would mask it.
+  - **AC min/cycle** left at `>= 2` and silent, on purpose (header note).
+- **Verification.**
+  - **Templates (R2/R7):** the exact new and old templates were rendered by live HA (`/api/template`, read-only). `states()` was swapped for variables and `now()` fixed. Of 35 cases [M]:
+    - the 2 old-template cases reproduce the bug: an idle gap fires stale, and a 1-cycle day is skipped;
+    - the 33 new-template cases give the specified answer, including an idle gap quiet, 2 active misses firing, a post-reset day quiet then firing by day 3, an unknown excused firing, a dead capture belling, and a naive run stamp read as local time.
+  - **Solo audit fault:** the old `ha_audit.py` gives "SUITE FAILED (1) entity-missing did not fire"; the new one gives "SUITE PASSED - 1 rule(s) proven in both directions".
+  - **R3:**
+    - 21,994 H: lines are byte-identical across the 11 files.
+    - The 11 removed lines are all the intended edits.
+    - The 4 YAML md5s were unchanged since the sandbox copy, and the install was compare-and-swap.
+    - gen_reference output on H: was byte-identical to the sandbox's.
+  - **Helper defaults:** [S] core 2026.10.0 `input_datetime/__init__.py` l.283-287 creates a new helper at today 00:00. Live after the reload: `last_run` 2026-10-10 00:00:00 and `excused` 2026-10-10 [M]. So the 25 h trigger cannot fire before the first run, and excused carries a one-time 2-day grace. Both are noted beside the helpers.
+- **Verdicts, verbatim.**
+  - gate.py (H:): 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 2b. RULES SUITE PASSED - 35 rule(s) proven in both directions.
+  - check_config: "valid" -> PASS (HA-certified).
+  - check_provenance: 22 WARN, 0 on lines this change added.
+- **Live, on Bill's OK.**
+  - `input_datetime`, `template`, `script` and `automation` reload at 14:02:24 UTC, all HTTP 200. Only the 3 changed automations restart ([S] core `automation/__init__.py` l.1111-1191).
+  - `script.spc_reset_furnace` at 14:02:40 UTC [M]:
+    - all 7 slots read 0.0;
+    - `last_capture` 1970-01-01, `excused` 2026-10-10;
+    - `furnace_watts_out_of_control` and `furnace_spc_capture_stale` both read off;
+    - the system log carries the reset line;
+    - the bell is empty.
+  - Prior buffer, for a restore: day_1..7 = 584.7 / 771.9 / 775.6 / 765.4 / 767.2 / 770.7 / 767.1, `last_capture` 2026-10-07 [M, 13:49 UTC].
+  - `script.spc_reset_furnace` was annotated in `entity_notes.yaml` after the script reload; before it, the note was an orphan WARN.
+- **Not yet observed.** Tonight's 23:56:15 min/cycle and 23:59:00 watts captures on the new rules are the first real proof. 10-10 so far is 1 cycle, 28.5 min, and 0.49 h with latched 593.3 W, so both should capture.
+- **Left open.**
+  - The other 5 SPC capture watchdogs still count idle days as misses.
+  - AC min/cycle stale reads on all winter. That is the display only, with no bell.
+  - The reset is manual, twice a year.
+  - Cycle counting across midnight is unverified.
+  - The new template trigger needs a false -> true edge, so it does not fire if HA starts with it already true.
+  - `spc_force_seed_all`'s completion log line sits inside `spc_reset_dehumidifier`. This predates this change and needs its own commit.
+- **My errors (R13).**
+  - I first took a new `input_datetime` to start at 1970 [I]. The source says today 00:00. No behaviour rested on it except the one-time grace, which is now documented.
+  - The annotation could not be tested in the sandbox: refreshing the sandbox's registry copy is a command naming `H:/.storage`, which the deny rule blocks. It was installed and gated on H: instead, a doc-only change checked by an already-proven rule, with the original kept for a revert.
+
 ## [2026.10.09] - 2026-10-09
 
 ### `sensor.mmw_family_state`: two lamp-on states, so a lit room no longer reads EMPTY_DARK (`packages/mmwave_presence.yaml`)

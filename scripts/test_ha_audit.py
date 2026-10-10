@@ -381,6 +381,26 @@ def f_no_detector(root):
     )
 
 
+def f_entity_missing_excused(root):
+    """An excused_stamp that resolves nowhere (key added 2026-10-10).
+
+    entity-missing had no injector. This pipeline carries ONLY excused_stamp,
+    so the finding can come from nowhere else - and it runs SOLO, because in
+    the batch the other test pipelines' unresolvable stamps would make
+    entity-missing fire whether or not excused_stamp is checked.
+    """
+    _add_pipeline(
+        root,
+        """  audit_test_excused:
+    label: "excused stamp missing"
+    kind: accumulator
+    defined_in: automations.yaml
+    at: null
+    excused_stamp: input_datetime.audit_test_no_such_excused
+""",
+    )
+
+
 def f_unlatched_guard(root):
     """A guard reading a statistics sensor directly - the 15-night outage.
 
@@ -879,6 +899,7 @@ SOLO_FAULTS = [
     ("doc-ids-uncheckable", f_doc_ids_uncheckable),
     ("eod-doc-uncheckable", f_eod_doc_uncheckable),
     ("open-questions-malformed", f_open_questions_malformed),
+    ("entity-missing", f_entity_missing_excused),
 ]
 
 

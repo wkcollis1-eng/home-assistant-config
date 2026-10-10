@@ -659,6 +659,20 @@ input_datetime:
     name: "Dehumidifier SPC Last Seed"
     has_date: true
     has_time: false
+  # --- Furnace SPC excused stamp (2026-10-10) -----------------------------
+  # Written ONLY by capture_daily_furnace_watts, on a night it skips because
+  # the blower never ran (furnace_runtime_today <= 0), and by
+  # script.spc_reset_furnace. binary_sensor.furnace_spc_capture_stale counts
+  # its 2-day grace from the later of this and the capture stamp, so a warm
+  # spell is not scored as missed captures. NOT a capture: no buffer, limit,
+  # chart or seeder reads it. Because only the capture automation writes it,
+  # a capture automation that stops running cannot excuse itself.
+  # On first creation HA dates it today (no restore state; [S] core 2026.10.0
+  # input_datetime/__init__.py l.283-287): a one-time 2-day grace.
+  furnace_spc_last_excused:
+    name: "Furnace SPC Last Excused"
+    has_date: true
+    has_time: false
   cooling_kwh_cdd_spc_last_capture:
     name: "Cooling kWh/CDD SPC Last Capture"
     has_date: true
@@ -819,6 +833,18 @@ template:
       # live activity reports stale. That is intended, not a false positive:
       # the buffer is empty and the chart is blank, and you want to be told
       # if the first capture does not land.
+      #
+      # FURNACE ONLY, 2026-10-10: the 2-day grace counts from the later of
+      # the capture stamp and input_datetime.furnace_spc_last_excused (an
+      # idle night, or script.spc_reset_furnace). Before this, the first heat
+      # morning after a warm spell of 2+ idle days read stale before that
+      # night's capture could run, and spc_capture_stale_any belled 2 h later.
+      # [M] It read stale 10-06 06:55, 10-07 02:17 and 10-10 06:45; the last
+      # two also needed the old 1.0 h capture guard (lowered to 0.25 h the
+      # same day) to have rejected a short heat day. A reset still
+      # reports stale if the first capture has not landed 2 days later with
+      # the blower running. The other five detectors are unchanged and keep
+      # the idle-gap behaviour (left open, CHANGELOG 2026-10-10).
       # =================================================================
       - name: "Fridge SPC Capture Stale"
         unique_id: fridge_spc_capture_stale
@@ -852,10 +878,15 @@ template:
         state: >
           {% set last = states('input_datetime.furnace_spc_last_capture') %}
           {% set act = states('sensor.furnace_runtime_today') | float(0) %}
+          {# 2026-10-10: grace counts from the later of capture and excused
+             (see the note above). An unknown or unparseable excused stamp is
+             ignored, which falls back to the old, louder answer - never a
+             quieter one. #}
+          {% set exc = states('input_datetime.furnace_spc_last_excused') | as_datetime %}
           {% if act <= 0 %}
             false
           {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
-            true
+            {{ exc is none or (now().date() - exc.date()).days > 2 }}
           {% else %}
             {% set dt = last | as_datetime %}
             {% if dt is none %}
@@ -864,13 +895,15 @@ template:
                  fault it exists to catch. #}
               true
             {% else %}
-              {{ (now().date() - dt.date()).days > 2 }}
+              {% set ref = dt.date() if exc is none else [dt.date(), exc.date()] | max %}
+              {{ (now().date() - ref).days > 2 }}
             {% endif %}
           {% endif %}
         attributes:
           last_capture: "{{ states('input_datetime.furnace_spc_last_capture') }}"
+          last_excused: "{{ states('input_datetime.furnace_spc_last_excused') }}"
           activity_today: "{{ states('sensor.furnace_runtime_today') }}"
-          capture_guard: "runtime >= 1.0 h"
+          capture_guard: "runtime >= 0.25 h"
 
       - name: "AC SPC Capture Stale"
         unique_id: ac_spc_capture_stale
@@ -2624,7 +2657,15 @@ automation:
                 value_template: >
                   {% set w = states('sensor.furnace_running_watts_latched') | float(-1) %}
                   {% set rt = states('sensor.furnace_runtime_today') | float(0) %}
-                  {{ w > 0 and rt >= 1.0 and 300 < w <= 1000 }}
+                  {# 2026-10-10: runtime floor 1.0 h -> 0.25 h (Bill). The 1.0 h
+                     floor rejected heat days 10-06 (0.49 h) and 10-08 (0.46 h)
+                     and kept only 10-07 (1.04 h) [M]. One cycle is already a
+                     stable mean [M: 9 cycles 10-06..10-10, 8.7-29.2 min each,
+                     per-cycle mean 569.0-601.8 W, sem_furnace_power at ~2 s].
+                     rt and w share furnace_power_threshold, so rt >= 0.25 h
+                     means >= 15 min of today's samples are in the 24 h mean -
+                     a lower floor cannot capture a latch left from a past day. #}
+                  {{ w > 0 and rt >= 0.25 and 300 < w <= 1000 }}
             sequence:
               - variables:
                   # Snapshot the calendar date alongside the values.
@@ -2682,7 +2723,25 @@ automation:
                 running_watts_latched={{ lw }} (what the guard reads),
                 live 24h statistic={{ w }},
                 threshold={{ states('input_number.furnace_power_threshold') }} W
-                (needs runtime >= 1.0 h and 300 < running_watts_24h <= 1000).
+                (needs runtime >= 0.25 h and 300 < running_watts_24h <= 1000).
+          # 2026-10-10: a night the blower never ran is EXCUSED, not missed -
+          # there was nothing to measure. Stamp it so the watchdog's 2-day
+          # grace does not count a warm spell against the next heat morning.
+          # Activity that fails the guard (0 < rt < 0.25 h, or watts outside
+          # 300-1000) is NOT excused: that is the fault the watchdog is for.
+          # Date snapshotted at branch start, same reason as capture_date.
+          - variables:
+              skip_date: "{{ now().date() }}"
+              skip_rt: "{{ states('sensor.furnace_runtime_today') | float(0) }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ skip_rt | float(0) <= 0 }}"
+                sequence:
+                  - service: input_datetime.set_datetime
+                    target: {entity_id: input_datetime.furnace_spc_last_excused}
+                    data: {date: "{{ skip_date }}"}
+            default: []
 
   # ===============================================================
   # AC RUNNING-WATTS SPC — EOD capture
@@ -3697,6 +3756,69 @@ script:
         data:
           level: info
           message: "SPC force seed completed - all 6 populations seeded"
+
+  # ===============================================================
+  # FURNACE SPC SEASONAL RESET (2026-10-10)
+  #
+  # Bill's decision 2026-10-10: the furnace running-watts SPC keeps ONE
+  # buffer for every blower run above furnace_power_threshold - heat calls
+  # AND the AC-call blower - and is cleared at each season change. RUN IT
+  # TWICE A YEAR: in the fall once heating has started, and in the spring
+  # once cooling has started. Nothing runs it automatically.
+  #
+  # Why. The two blower modes are separate populations [M, 10-10]:
+  #   heat call  569.0-601.8 W  (9 cycles 10-06..10-10, sem_furnace_power ~2 s)
+  #   AC call    765.4-775.6 W  (the 6 cooling captures in day_2..day_7)
+  # On 10-10 the buffer held those 6 plus one heat capture: mean 743.2 W,
+  # sigma 70.0 W, LCL 603.2 W - above every heat cycle measured [M]. So
+  # furnace_watts_out_of_control has read ON since the first heat cycle
+  # (10-06 06:54) [M] with the blower healthy.
+  #
+  # What it does: zeroes day_1..7 (zeros fail select('>', 0), so mean,
+  # sigma and limits go unavailable - an honest gap, as for the
+  # dehumidifier above), stamps the capture 1970-01-01, and stamps
+  # furnace_spc_last_excused today so the watchdog gives the first capture
+  # the usual 2-day grace instead of reading stale at the next blower run.
+  # If no capture has landed 2 days after the reset while the blower runs,
+  # it still reports stale - that is wanted.
+  #
+  # Shoulder-season days with both heat and AC calls blend the two modes
+  # into one daily mean. That is the accepted cost of one buffer.
+  # ===============================================================
+  spc_reset_furnace:
+    alias: "SPC Reset - Furnace Only"
+    icon: mdi:broom
+    mode: single
+    sequence:
+      - service: input_number.set_value
+        target:
+          entity_id:
+            - input_number.furnace_running_watts_day_1
+            - input_number.furnace_running_watts_day_2
+            - input_number.furnace_running_watts_day_3
+            - input_number.furnace_running_watts_day_4
+            - input_number.furnace_running_watts_day_5
+            - input_number.furnace_running_watts_day_6
+            - input_number.furnace_running_watts_day_7
+        data:
+          value: 0
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.furnace_spc_last_capture
+        data:
+          date: "1970-01-01"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.furnace_spc_last_excused
+        data:
+          date: "{{ now().date() }}"
+      - service: system_log.write
+        data:
+          level: warning
+          message: >-
+            SPC reset: furnace running-watts 7-day buffer cleared to 0, capture
+            stamp set to 1970-01-01, excused stamp set to today (seasonal
+            reset, Bill 2026-10-10). Other SPC populations untouched.
 
 shell_command:
   # spc_seed_from_history REMOVED 2026-08-22. It had been declared and never

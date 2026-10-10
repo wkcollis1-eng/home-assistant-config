@@ -416,6 +416,13 @@
   action:
     - variables:
         capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    # 2026-10-10: liveness stamp, every run (see configuration.yaml
+    # furnace_cycle_capture_last_run).
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.furnace_cycle_capture_last_run
+      data:
+        datetime: "{{ capture_stamp }}"
     - choose:
         - conditions:
             - condition: template
@@ -425,7 +432,12 @@
                 {% set furnace_runtime = states('sensor.hvac_furnace_runtime_today') %}
                 {% set val = min_per_cycle | float(-1) %}
                 {# Upstream validation: need at least 2 cycles for meaningful average #}
-                {% set cycles_ok = furnace_cycles | int(0) >= 2 %}
+                {# 2026-10-10: >= 2 -> >= 1 (Bill). A one-cycle day is a real
+                   measurement, not a thin average. 10-08 was one 26.8 min cycle
+                   and was skipped, 10-10 (one 28.5 min cycle by 09:00) would
+                   have been, and the buffer sat at 2 values, short of the 3
+                   furnace_mpc_pipeline_healthy needs [M]. #}
+                {% set cycles_ok = furnace_cycles | int(0) >= 1 %}
                 {# Value validation: min/cycle must be in valid range #}
                 {% set values_ok = is_number(min_per_cycle) and 0 < val <= 60 %}
                 {{ cycles_ok and values_ok }}
@@ -532,6 +544,27 @@
             message: >
               Furnace min/cycle capture skipped — Cycles={{ states('sensor.hvac_furnace_cycles_today') }},
               Min_per_cycle={{ states('sensor.hvac_furnace_min_per_cycle') }}. Zero written to shift window.
+        # 2026-10-10 (Bill: bell only when it ran). With cycles_ok at >= 1, a
+        # skip on a day the furnace cycled means the value itself failed
+        # (non-numeric, or outside 0-60 min) - a real miss, so say so here.
+        # A day with no cycles is "furnace didn't run", not a fault (09-14),
+        # and stays silent; furnace_cycle_capture_stale still DISPLAYS it.
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ states('sensor.hvac_furnace_cycles_today') | int(0) >= 1 }}"
+              sequence:
+                - service: persistent_notification.create
+                  data:
+                    notification_id: furnace_cycle_capture_skipped
+                    title: "⚠️ Furnace Min/Cycle Not Captured"
+                    message: >
+                      The furnace ran today but its min/cycle was not captured
+                      (zero written to day_1).
+                      Cycles={{ states('sensor.hvac_furnace_cycles_today') }},
+                      Min_per_cycle={{ states('sensor.hvac_furnace_min_per_cycle') }}
+                      (guard: numeric and 0 < value <= 60).
+          default: []
 
 # ===============================================================
 # MONTHLY REPORT TRACKING - Daily capture at 11:56:30 PM
@@ -3179,6 +3212,27 @@
       to: "on"
       for:
         hours: 2
+    # 2026-10-10: the capture automation itself has not run in 25 h (90000 s,
+    # the stale sensor's own age limit). Catches a disabled or dead capture
+    # even when its last run was a skip and the stamp already reads 1970 -
+    # the case the condition below would otherwise silence all summer.
+    # Unknown or unparseable run stamp counts as not run: fail loud.
+    - platform: template
+      value_template: >
+        {% set r = states('input_datetime.furnace_cycle_capture_last_run') | as_datetime %}
+        {{ r is none or (now() - (r | as_local)).total_seconds() > 90000 }}
+  # 2026-10-10 (Bill: bell only when it ran). The stale sensor reads on after
+  # EVERY skip (1970 sentinel) - every no-heat day and all summer - and the
+  # 09-14 review kept that display as honest. The bell is narrower: a real
+  # stamp gone old (the capture stopped succeeding without skipping), or the
+  # capture automation not running. A skip on a day the furnace ran belled
+  # from the capture's own skip branch already.
+  condition:
+    - condition: template
+      value_template: >
+        {% set s = states('input_datetime.furnace_cycle_capture_last_ok') %}
+        {% set r = states('input_datetime.furnace_cycle_capture_last_run') | as_datetime %}
+        {{ s[:4] != '1970' or r is none or (now() - (r | as_local)).total_seconds() > 90000 }}
   action:
     - service: persistent_notification.create
       data:
@@ -3190,6 +3244,7 @@
           Check:
           - sensor.hvac_furnace_min_per_cycle: {{ states('sensor.hvac_furnace_min_per_cycle') }}
           - sensor.hvac_furnace_cycles_today: {{ states('sensor.hvac_furnace_cycles_today') }}
+          - capture automation last ran: {{ states('input_datetime.furnace_cycle_capture_last_run') }}
 
 # WATCHDOG: Monthly Report Capture Health Monitor
 - id: notify_monthly_report_stale
@@ -3649,6 +3704,9 @@
 # ===============================================================
 # AC MIN/CYCLE TRACKING - Daily capture at 11:55:30 PM
 # Mirrors capture_daily_furnace_min_per_cycle exactly.
+#   NO LONGER EXACTLY, 2026-10-10: the furnace gate is now >= 1 cycle and its
+#   skip branch bells when the furnace ran. This AC copy was left at >= 2 and
+#   silent on purpose - Bill's decision covered the furnace only.
 # Gate: requires >= 2 AC cycles (same as furnace gate) and
 #       value in valid range 0 < val <= 120 min/cycle.
 # Fires at 23:55:30 — after CDD capture (23:55:15),

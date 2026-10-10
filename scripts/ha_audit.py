@@ -504,7 +504,10 @@ def rule_entities_resolve(man, ents):
     """Every entity the manifest names must exist. Catches renames and typos."""
     for name, p in (man.get("pipelines") or {}).items():
         cand = list(p.get("buffer") or []) + list(p.get("limits") or [])
-        for k in ("stamp", "seed_stamp", "stale_detector"):
+        # excused_stamp added 2026-10-10 (furnace SPC): a manifest key that
+        # sits beside stamp/seed_stamp must be resolved like them, or a rename
+        # leaves it looking checked when it is not.
+        for k in ("stamp", "seed_stamp", "excused_stamp", "stale_detector"):
             if p.get(k):
                 cand.append(p[k])
         g = p.get("guard") or {}

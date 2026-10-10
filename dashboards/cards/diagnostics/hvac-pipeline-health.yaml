@@ -1,7 +1,8 @@
 # HVAC Pipeline Health — capture status entities card
 # Dashboard: HVAC Diagnostics
 # This is where "Furnace MPC capture" actually surfaces. The attribute reads
-# "stale" whenever the furnace hasn't logged 2+ cycles that day (see
+# "stale" whenever the furnace hasn't logged a cycle that day (1+ since
+# 2026-10-10; it was 2+ before) (see
 # automations.yaml:capture_daily_furnace_min_per_cycle) - that's a correct
 # report of no cycle data, not an automation fault. Cross-check
 # input_datetime.furnace_cycle_capture_last_ok: a real ISO timestamp = last

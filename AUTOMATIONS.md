@@ -95,7 +95,7 @@ notify_cdd_capture_stale               state:binary_sensor.cdd_capture_stale    
 notify_climate_norms_failure           state:sensor.climate_norms_today                                      single     automations.yaml
 notify_climate_norms_stale             state:binary_sensor.climate_norms_stale                               single     automations.yaml
 notify_filter_change_due               state:binary_sensor.hvac_filter_change_alert                          single     automations.yaml
-notify_furnace_cycle_capture_stale     state:binary_sensor.furnace_cycle_capture_stale                       single     automations.yaml
+notify_furnace_cycle_capture_stale     state:binary_sensor.furnace_cycle_capture_stale +1 more               single     automations.yaml
 notify_hdd_capture_stale               state:binary_sensor.hdd_capture_stale                                 single     automations.yaml
 notify_monthly_report_stale            state:binary_sensor.monthly_report_stale                              single     automations.yaml
 notify_pirate_weather_stale            template                                                              single     automations.yaml
