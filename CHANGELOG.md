@@ -83,6 +83,47 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.09] - 2026-10-09
 
+### `sensor.mmw_family_state`: two lamp-on states, so a lit room no longer reads EMPTY_DARK (`packages/mmwave_presence.yaml`)
+
+- **Symptom.** Bill: "since the last HA update the family mmwave has not been working correctly. lights come on ok
+  but dashboard will say empty/dark while lights are still on."
+- **The update's part was already fixed.** From 2026-10-08 22:04:35 to 10-09 13:14:18 UTC no family lamp-off ran
+  (subsection below), so lamps stayed on under EMPTY_DARK. What remained pre-dates the update: with a lamp on, this
+  sensor read EMPTY_DARK or EMPTY_LIT for 26-128 min a day on every day 10-03..10-09 [M: recorder, this sensor x
+  `switch.family_room`, 10-03 00:00 - 10-09 21:15 EDT].
+- **Causes.** (1) EMPTY was the radar alone, but since 2026-10-02 the lamp waits for the radar AND the Ecobee, a
+  ~4-5 min tail (4 m 24 s, 10-10 01:07:52 -> 01:12:16 UTC [M, n=1]). (2) Radar dropouts with someone seated: 173 in
+  20.35 radar-on h before the update, 41 in 5.92 h after [M: off <= 15 min between two on, 10-03 04:00 - 10-10 01:15
+  UTC]; exact conditional test n=214, p=0.25. Unchanged by the update, which does not make the rate acceptable.
+  (3) DARK was raw lux, and the lamps lift the VEML7700 7.3 lx [D: 7.66 - 0.37, n=1 off-edge, 10-10 01:12:16 UTC]
+  against `lux_on` 24.
+- **The change.** After OCCUPIED: any lamp on + latch on + auto on -> `HOLDING` (mmw_family_presence_off will switch
+  it off when its conditions hold); any lamp on otherwise -> `LAMP_ON_MANUAL` (nothing will switch it off). The lux
+  states now describe a room with every lamp off. HOLDING is keyed on the latch, not on the Ecobee as first proposed
+  to Bill: an Ecobee key leaves latch-on / Ecobee-quiet / lamp-on falling through to EMPTY_DARK, and would restate
+  `&mmw_family_empty_conds` in a template (R10). "Lamp on" is the package's existing three-plug test. The office
+  sensor is unchanged. Only consumer: the view's State badge; nothing compares these values [M: grep of H:].
+- **Verification.**
+  - R2 truth table, local Jinja, old (H:) vs new (sandbox), 10,368 input combinations: the old template reads
+    EMPTY_* in 456 of 456 lamp-on/radar-off cases (the fault fires); the new one gives the specified state in all 456
+    and is identical to the old in the other 9,912 (silent) [M].
+  - R2 replay of the recorder, 10-03 04:00 - 10-10 01:15 UTC: the old template replayed matches the recorded state
+    except at 1,017 render-lag edges totalling 4.9 s [M]; the new one reads EMPTY_* for 0 lamp-on minutes on every
+    day (HOLDING 30-138 min/day, LAMP_ON_MANUAL 0-80) [M].
+  - HA's own engine (`/api/template`, read-only) renders the new template to EMPTY_DARK with every lamp off, equal
+    to the live sensor and to the local harness [M, n=1].
+  - R3: the edit is three insertions, 25 lines; dropping them gives the live file byte-for-byte, and the parsed tree
+    is equal outside this one template.
+- **Verdicts, verbatim.** gate.py: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+  pipelines. check_config: "valid" -> PASS (HA-certified). `PACKAGES.md` regenerated (line count only). Not live
+  until `template.reload` (R12: asked, not run).
+- **Observed, not acted on.** At 10-09 22:58:06 UTC the lamps went off 4 m 25 s after the radar dropped and were
+  switched back on 15 s later from outside HA. Bill: he was in the kitchen, out of radar sight, then walked back
+  through. So the Ecobee, the kitchen's witness, read `off` with him in the kitchen [M: `main_floor_motion` off
+  22:58:06 - 23:03:14 UTC; Bill, 2026-10-09], and the lamp-off released on someone present. n=1; nothing built. In
+  the same second mmw_family_override_release cleared the override mmw_family_override_detect had just set, three
+  times (one per plug); no lamp effect, the latch was already off.
+
 ### `automation.mmw_family_empty_lights_off` was dead for 15 h after the HA 2026.10.0 update; condition split (`packages/mmwave_presence.yaml`)
 
 - **Symptom.** Bill: "Automation failed to set up ... Cannot use 'for' with a list of states at
