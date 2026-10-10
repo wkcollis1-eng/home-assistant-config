@@ -2,7 +2,7 @@
 # mmWave Presence Lighting — HOME ASSISTANT PACKAGE
 # -----------------------------------------------------------------------------
 # DEPLOYED COPY, H:/packages/. Source: mmwave-presence-node
-# packages/mmwave_presence.yaml at ad959b9, WHOLE - office and family room.
+# packages/mmwave_presence.yaml at 6b78807, WHOLE - office and family room.
 # The family blocks went live 2026-10-02 for the family node's calibration
 # (Bill: "let's deploy for family room calibration"). Before that this file was
 # the office-only cut made by make_office_pkg.py, which is now retired.

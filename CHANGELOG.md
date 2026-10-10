@@ -123,6 +123,16 @@ question" —** the answer was one line away and settled it in one sentence.
   22:58:06 - 23:03:14 UTC; Bill, 2026-10-09], and the lamp-off released on someone present. n=1; nothing built. In
   the same second mmw_family_override_release cleared the override mmw_family_override_detect had just set, three
   times (one per plug); no lamp effect, the latch was already off.
+- **Live.** `template.reload` on Bill's OK ("run template.reload"), 2026-10-10 01:31:25 UTC, after `check_config`
+  "valid" again. The sensor re-rendered EMPTY_DARK with all three lamps, the latch and the radar off - the
+  specified state; no `mmw_` sensor unavailable, no template error in the log [M, n=1]. HOLDING / LAMP_ON_MANUAL
+  not yet seen live: that needs a lamp on with the radar off.
+- **My error (R13): I hand-edited a derived file.** This package's header says it is derived from the
+  `mmwave-presence-node` repo by `make_full_pkg.py` - "never merge by hand (R10)" - and I edited H: directly in
+  b636ff6, leaving the repo behind and the header naming ad959b9 for a file that was no longer ad959b9's.
+  Corrected the same evening: the same 25 lines committed to the repo as 6b78807 (insert-only, CRLF; dropping
+  them gives ad959b9's file byte for byte), then `make_full_pkg.py` re-run; its output is byte-identical to H:
+  except the header's revision, now 6b78807 [M: cmp]. Not pushed to GitHub.
 
 ### `automation.mmw_family_empty_lights_off` was dead for 15 h after the HA 2026.10.0 update; condition split (`packages/mmwave_presence.yaml`)
 
