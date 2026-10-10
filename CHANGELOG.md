@@ -298,6 +298,24 @@ question" —** the answer was one line away and settled it in one sentence.
     test it: that is a live helper write, and Bill has not said yes.
   - Lamp-off for a latched lamp has the same edge-only gap in both rooms. Proposed to Bill, not built.
 
+## [2026.10.05] - 2026-10-05
+
+### DIY UPS Rev 4 board drawn with the INA260 on board; R14 wiring answers recorded (`open_questions.yaml`)
+
+- Bill answered both R14 questions: 16 AWG on VIN+ and VIN-; Wago bus -> VIN+, Battery+ -> VIN-; the breakout's
+  VB jumper is intact, so VBUS ties to IN+. Recorded in `open_questions.yaml`.
+- New KiCad project OUTSIDE this repo: `Desktop\UPS Monitor Rev 4 -Oct 2026\` (schematic + layout; Rev 3 folder
+  untouched). The Adafruit INA260 socket becomes an INA260AIPWR TSSOP-16 with a VS bypass cap, SCL/SDA pull-ups
+  and an ALERT pull-up, and ALERT is now routed to XIAO D1/GPIO3. Rev 3 had no ALERT net at all, although
+  `esphome/ups-monitor.yaml` (lines 37-45) describes one [M, read of the Rev 3 board nets].
+- Verdicts, verbatim: ERC "Found 2 violations" (both warnings, inherited UPS_Custom footprint links); DRC
+  "Found 22 violations" (all warnings), "Found 0 unconnected items", "Found 0 schematic parity issues". Against
+  the Rev 3 baseline of 24 warnings [M], one is new: J1's silk sits 0.28 mm [D: 13.78 - 13.50] inside the board
+  edge, the same class as TB1's existing warning.
+- No Home Assistant behaviour change. The firmware header comments (`ups-monitor.yaml` lines 8-11, 37, 49-55)
+  still describe the breakout socket and were not edited (the Device Builder auto-commits `esphome/` edits).
+- Gate for `open_questions.yaml`: `gate.py` -> PASS (parse-clean) + audit delta clean; `check_config` -> "valid".
+
 ## [2026.10.04] - 2026-10-04
 
 ### SDR water leak alerts: level 1 to the bell, level 2+ to the phone, no "cleared" push (`packages/utility_meters.yaml`, `entity_notes.yaml`)

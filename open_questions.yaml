@@ -2297,3 +2297,35 @@
     2026-10-04, Bill: "yes both are reserved now." Main Floor 10.0.0.96 and
     Upstairs 10.0.0.37 are DHCP-reserved, so a ping sensor pinned to either
     address will not read a lease move as "off the network".
+
+- asked: 2026-10-05
+  question: >-
+    DIY UPS: what wire gauge is on the INA260 breakout's VIN+/VIN- screw
+    terminals, and is it still Wago bus -> VIN+, Battery+ -> VIN- (as
+    ups-monitor.yaml lines 24-30 state) since the boost went in on 2026-08-29?
+  blocks: >-
+    The current-path layout of a Rev 4 UPS monitor board carrying a bare INA260
+    (TSSOP-16) in place of the breakout: the power terminal's size and rating
+    and the IN+/IN- pour orientation. On Rev 3 the socket's pins 5-8 carry no
+    net [M: parse of the Rev 3 .kicad_pcb, 2026-10-05], so this current has
+    never crossed the board's copper; a bare chip puts the board itself in
+    series between battery and bus.
+  answered: >-
+    2026-10-05, Bill: "16awg on the vin+vin-, and yes still on the wago
+    bus." 16 AWG on both current terminals; wiring unchanged since the
+    boost: Wago bus -> VIN+, Battery+ -> VIN-.
+
+- asked: 2026-10-05
+  question: >-
+    DIY UPS: is the "VB" solder jumper on the INA260 breakout still intact
+    (never cut)?
+  blocks: >-
+    Which rail a Rev 4 board ties the INA260 VBUS pin to. Adafruit ties VBus to
+    Vin+ through that jumper by default [S: Adafruit INA260 learn guide,
+    Pinouts page], so with the wiring above "Battery Voltage" is read on the
+    bus side, and VBUS -> IN+ keeps the voltage history continuous only if the
+    jumper is intact. IN+ and IN- differ by up to 20.7 mV [D: 4.591 A peak
+    recharge (UPS_Report_2026-05-06) x 4.5 mOhm (SBOS656C 7.5)].
+  answered: >-
+    2026-10-05, Bill: "solder jumper still in tact." VBus is read on Vin+,
+    the Wago bus side, so Rev 4 ties the INA260 VBUS pin to IN+.
