@@ -27,6 +27,8 @@ import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from http_guard import DEADLINE_S, prefer_ipv4, within
+
 ACIS_URL = "https://data.rcc-acis.org/StnData"
 HEADER = ["month", "hdd65", "cdd65", "source", "captured_utc"]
 SOURCE = "ACIS/xmACIS2 (NWS Bradley KBDL, base 65F)"
@@ -67,8 +69,12 @@ def main() -> int:
     end = f"{cy:04d}-{cm:02d}"  # never request past the last completed month
 
     p = Path(args.csv)
+    # 2026-10-10: IPv4 first + a 30 s deadline (http_guard.py header). Broken
+    # LAN IPv6 made each run take ~90 s, so HA's 45 s kill landed before the
+    # stale fallback below could print - 2026-10-01 -> 10-10 with no trailing_12.
+    prefer_ipv4()
     try:
-        d = fetch(args.sid, args.start, end)
+        d = within(DEADLINE_S, fetch, args.sid, args.start, end)
         if "error" in d:
             raise RuntimeError(f"ACIS: {d['error']}")
     except Exception as e:  # network / parse failure -> report, don't crash HA

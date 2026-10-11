@@ -83,6 +83,27 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.10] - 2026-10-10
 
+### BDL / KBDL degree-day fetches timed out on broken LAN IPv6, blanking the three 12M HVAC sensors (`scripts/http_guard.py` new, `scripts/fetch_bdl_degree_days.py`, `scripts/kbdl_degree_days.py`)
+
+- **Symptom.** Bill: `sensor.hvac_building_load_ua_12m`, `sensor.hvac_heating_efficiency_12m`, `sensor.hvac_performance_vs_baseline` unavailable.
+- **Cause chain.**
+  1. Both 12M sensors need `sensor.bdl_degree_days` attribute `trailing_12_count == 12`; vs-baseline reads efficiency_12m. `sensor.bdl_degree_days` read `unknown` with no attributes from 2026-10-01 16:36:30Z, `sensor.kbdl_degree_days_24h` from 2026-10-01 09:06:31Z [M, HA history 09-28..10-11]. So all three were dark ~9.5 days.
+  2. HA `system_log`: `Timeout for command` for both scripts, 302 occurrences since the 10-08 22:04Z start [M]. On a timeout HA blanks every attribute.
+  3. LAN IPv6 is black-holed: the host gets `2601:19e:4285:63a0::/64` and a default route from router advertisements, but all 5 v6 connects to `data.rcc-acis.org` / `api.weather.gov` timed out at 10 s while all 5 v4 connects succeeded in 0.02-0.03 s [M, n=1 probe from the host, 2026-10-10 ~19:55 EDT]. traceroute6 answers at hop 1 (the router, 1.1 ms) and nothing beyond; Windows `tracert -6` gives error 1231, network unreachable [M].
+  4. urllib tries addresses in order, v6 first, each with the full `timeout=30`: ACIS 3 x 30 = 90 s, NWS 2 x 30 = 60 s [D], past `command_timeout: 45`. Both scripts' own fallbacks (BDL `stale`, KBDL `error`) were built for exactly a network failure, but could never print inside the kill. The 09-23 design assumed a failed fetch fails *fast*.
+- **Fix.** `scripts/http_guard.py` (one copy for both scripts): `prefer_ipv4()` sorts getaddrinfo v4-first (v6 kept as fallback); `within(DEADLINE_S=30, fetch, ...)` raises TimeoutError wherever the fetch is stuck, via an abandoned daemon thread (no SIGALRM, so it also runs off-host). Each script gains 1 import + 1 call + a dated comment (+6 lines each).
+- **Verified.**
+  - R2, live fault on the host [M, n=1 each, 2026-10-10 ~20:00 EDT]: old BDL 91 s -> new 1 s, byte-identical JSON (`trailing_12_count` 12, sum 6069); old KBDL 72 s -> new 11 s, both `ok`, hdd65 11.5. CSV md5 unchanged.
+  - R2, injected fault (every urlopen hangs, Windows): BDL 30.0 s, `status: stale`, `trailing_12_count` 12; KBDL 30.0 s, `status: error`; rc 0 both [M, n=1 each].
+  - R3: reversing the 2 edit spans per script gives the live originals byte-identical; LF kept. Ruff: the 9 findings in the originals are unchanged; 1 new BLE001 in `http_guard.py` (catches BaseException only to re-raise it on the caller's thread).
+  - gate.py: 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; PASS (parse-clean). `check_config`: valid. No reload needed; command_line runs the file fresh each scan.
+  - Observe: HA's own KBDL scan 2026-10-11 00:05:19Z read `ok`, hdd65 11.5, 23 obs [M].
+- **Data impact.** Daily HDD/CDD captured 2026-10-01..10-10 came from the proxy chain, not KBDL (the template's fallback). Not backfilled.
+- **Left open.**
+  - `sensor.bdl_degree_days` rescans daily (~22:05Z); the three 12M sensors return on that scan or on a `homeassistant.update_entity`.
+  - Neither sensor is declared in `pipelines.yaml`, so `ha_audit.py` could not see a 9.5-day outage.
+  - LAN IPv6 itself is unfixed (router/Comcast side; Bill's call).
+
 ### Furnace SPC: both captures rejected real heat days, and idle days counted as missed captures (`packages/spc.yaml`, `automations.yaml`, `configuration.yaml`, `pipelines.yaml`, `scripts/ha_audit.py`, `scripts/test_ha_audit.py`)
 
 - **Symptom.** Bill: "the furnace spc does not seem to be capturing correctly."

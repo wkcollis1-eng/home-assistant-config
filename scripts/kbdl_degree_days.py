@@ -40,6 +40,8 @@ import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+from http_guard import DEADLINE_S, prefer_ipv4, within
+
 API = "https://api.weather.gov/stations/{sid}/observations?start={start}&limit=500"
 USER_AGENT = "home-assistant-config/kbdl_degree_days.py"
 MIN_OBS = 12  # of ~24-30 per 24 h window
@@ -127,8 +129,12 @@ def main() -> int:
         "station": args.sid,
         "method": "65 - (max+min)/2 of METAR obs (hourly + special), trailing 24 h",
     }
+    # 2026-10-10: IPv4 first + a 30 s deadline (http_guard.py header). Broken
+    # LAN IPv6 made each run take ~60 s, past HA's 45 s kill, so the "error"
+    # status below never printed and HA blanked the sensor 2026-10-01 -> 10-10.
+    prefer_ipv4()
     try:
-        obs = parse(fetch(args.sid, start))
+        obs = parse(within(DEADLINE_S, fetch, args.sid, start))
     except Exception as e:  # network / HTTP / JSON -> announce it, never crash
         print(
             json.dumps(
