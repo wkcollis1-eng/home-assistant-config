@@ -83,6 +83,20 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### `hvac_daily_electric_cost_estimate` gets an `availability:` guard (`configuration.yaml`, `PACKAGES.md`, `dashboards/cards/mushroom/daily-cost-electric.yaml`)
+
+- **Defect.** This was left open by the total-cost guard below. An unreadable furnace or AC runtime counted as 0 h. An unreadable `sensor.electricity_effective_rate` fell back to $0.2733/kWh against a live $0.2553 [M, /api/states, 13:23], which reads 7.1 % high [D: 0.2733 / 0.2553 - 1]. Because the sensor never went unavailable, the total's guard could not see either fault.
+- **Fix.** The sensor is now available only while both runtimes and the rate pass `is_number`. `input_number.ac_condenser_kw` is a stored helper and keeps its 4.9 fallback, the same treatment as the furnace rate helper in the gas guard. The state template is unchanged.
+- **Card snippet.** `dashboards/cards/mushroom/daily-cost-electric.yaml` now uses `round(2, default='—')`. **The live "Electric Cost Today" card (`dashboards/lovelace/energy_performance.yaml`, Billing view) still has a bare `round(2)` and is NOT changed until Bill pastes it.** Re-run `export_dashboards.py` after the paste.
+- **Verified.**
+  - R2/R7 through `POST /api/template`, 7 of 7 cases [M]. Silent: live inputs (0.448 h, 0.0 h, 0.2553) -> True; an idle day of zeros -> True. Fires: furnace runtime `unavailable`, AC runtime `unavailable` or `unknown`, rate `unavailable` or `''` -> False.
+  - The old template on 10 h of heat gave 0.54 at the live rate and 0.57 with the rate unavailable, which is the fallback reproduced.
+  - R3: deleting the 9 added lines reproduces HEAD byte for byte. H: is byte-identical to the tested sandbox.
+  - `PACKAGES.md` was regenerated for the line count.
+  - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+  - 4. RELOAD and 5. OBSERVE: not run at commit time (R12).
+- **Limit, also of the gas guard below.** `sensor.electricity_effective_rate` and `sensor.gas_effective_rate` substitute 0.2733 and 1.6818 themselves whenever their bill helpers are 0. They are still numbers then, so neither guard fires. The 64 % low gas case [D: 1 - 1.6818 / 4.6275] remains possible through that path. The guards catch only an unreadable rate sensor, in practice at startup. Closing that path means changing the two rate sensors, which 13 lines in `configuration.yaml`, `automations.yaml` and `packages/` read, counting this guard [M, grep]. Left open.
+
 ### `hvac_daily_total_cost_estimate` gets an `availability:` guard (`configuration.yaml`, `PACKAGES.md`, `dashboards/cards/mushroom/daily-cost-total.yaml`)
 
 - **Defect.** This was left open by the gas-cost guard below. The total reads both cost sensors through `| float(0)`, so once gas cost can be unavailable, the total quietly drops to electric-only. On today's inputs that is $0.02 instead of $2.02 [M, /api/template, 13:16], and it reads like a quiet day.

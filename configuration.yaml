@@ -4568,6 +4568,15 @@ template:
         unit_of_measurement: "$"
         state_class: measurement
         icon: mdi:currency-usd
+        # Guarded 2026-10-11. Without it an unreadable runtime counted as 0 h, and an
+        # unreadable electricity_effective_rate fell back to 0.2733 against a live
+        # 0.2553 $/kWh [M], 7.1 % high [D: 0.2733 / 0.2553 - 1]. The condenser kW is a
+        # stored helper and keeps its 4.9 fallback. NOT caught here: the rate sensor
+        # itself emits 0.2733 when the bill helpers are 0 - it is a number, so it passes.
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_today') | is_number
+             and states('sensor.hvac_ac_runtime_today') | is_number
+             and states('sensor.electricity_effective_rate') | is_number }}
         state: >
           {% set heat_runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set ac_runtime = states('sensor.hvac_ac_runtime_today') | float(0) %}
