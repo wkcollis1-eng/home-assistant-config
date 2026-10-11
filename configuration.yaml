@@ -4545,7 +4545,12 @@ template:
           {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
           {% set gas_rate = states('sensor.gas_effective_rate') | float(1.6818) %}
-          {% set ccf_used = (runtime * rate) / (103700 * 0.95) %}
+          {# Gas INPUT basis: rate is the 100,000 BTU/hr INPUT rating, so     #}
+          {# CCF burned = runtime x rate / 103,700. AFUE must NOT appear.     #}
+          {# Fixed 2026-10-11: the old /(103700*0.95) overstated gas +5.26%,  #}
+          {# the defect fixed 2026-07-03 in hvac_heating_efficiency_mtd and   #}
+          {# missed in this twin.                                             #}
+          {% set ccf_used = (runtime * rate) / 103700 %}
           {{ (ccf_used * gas_rate) | round(2) }}
 
       # Uses furnace blower runtime (heating) + AC compressor runtime (cooling)

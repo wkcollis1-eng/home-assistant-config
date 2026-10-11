@@ -81,6 +81,27 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.11] - 2026-10-11
+
+### `hvac_daily_gas_cost_estimate` no longer divides gas input by AFUE (`configuration.yaml`, `PACKAGES.md`)
+
+- **Defect.** The sensor computed `ccf_used = (runtime * rate) / (103700 * 0.95)`. `input_number.furnace_heating_rate_btu_hr` is the 100,000 BTU/hr INPUT rating, so runtime x rate is already gas burned. Dividing by AFUE overstated gas, and so the daily cost, by +5.26 % [D: 1 / 0.95 - 1]. `hvac_heating_efficiency_mtd` had the same defect and was fixed on 2026-07-03; this twin was missed. Found while answering Bill's "do we have enough data to calculate the furnace gas consumption?".
+- **Scope [M, grep, 2026-10-11].** Two live sites combine 103,700 with 0.95. This was the only wrong one. The other (`hvac_building_load_ua_12m`) multiplies metered CCF by 0.95 to get delivered heat, which is correct.
+- **Fix.** Now `/ 103700`, with the incident recorded in a comment at the site. `PACKAGES.md` was regenerated because it records the file's line count (7437 -> 7442). `ENTITIES.md` and `AUTOMATIONS.md` were unchanged.
+- **Effect.** `hvac_daily_gas_cost_estimate`, and `hvac_daily_total_cost_estimate`, which sums it, read 5.0 % lower [D] (new = old x 0.95) from the template reload on. Neither feeds a CSV or a helper [M, grep]. Recorder and InfluxDB history will show a step at the reload.
+- **Verified.**
+  - R2/R7, through HA's own engine (`POST /api/template`) on the old and new template text:
+    - Injected 10 h x 100,000 BTU/hr x $1.6818/CCF: new $16.22, which is the expected value [D: 9.643 CCF x 1.6818]; old $17.07, so the test fails on the defect.
+    - Runtime 0 and `unavailable`: $0.0 on both.
+    - Live inputs, ~08:58 EDT: old $2.11, new $2.00.
+  - R3: reversing the edit reproduces the original byte for byte. The change is 1 line replaced plus 5 comment lines; the other 7,435 lines are untouched.
+  - Sandbox `C:\sandbox\gascost_1011`: the gate first FAILED `generated-doc-stale` on `PACKAGES.md` (the line count). That is the check firing on a real fault. It passed after regeneration. H: was then confirmed byte-identical to the sandbox.
+  - Gate on H: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines, the same as at session start; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+- **Not changed.**
+  - The rate helper stays at 100,000 [S: BASELINE_REPORT.md nameplate]. Whether the furnace really fires at that rate is what `scripts/furnace_gas_cycles.py` measures. On 2026-10-11 it had 2 of the 5 clean cycles needed [M: 12 heat runs, 10-06..10-11].
+  - The sensor still has no `availability:` guard. It predates that rule and was left alone to keep the diff minimal.
+  - The inline comment above `hvac_building_load_ua_estimate` still says "empirical 60,556 BTU/hr effective rate", although the helper reads 100,000 [M]. Inline comments are not removed; this is recorded here instead.
+
 ## [2026.10.10] - 2026-10-10
 
 ### HVAC baselines rebased to ACIS Bradley 2025, four baseline helpers written live (`configuration.yaml`, `PACKAGES.md`, `docs/baselines.md`, `dashboards/views/energy-performance-analysis.yaml`, `open_questions.yaml`, `CLAUDE.md`)
