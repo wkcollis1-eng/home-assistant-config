@@ -83,6 +83,26 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### InfluxDB write watchdog, step 0 of the recorder-size plan (`packages/influx_watchdog.yaml` new, `entity_notes.yaml`, `ENTITIES.md`, `AUTOMATIONS.md`, `PACKAGES.md`)
+
+- **Bill:** "build step 0".
+- **The plan it is step 0 of** (today's evaluation, which changed no config). The recorder file is 5,237,080,064 B [M, 2026-10-11]. InfluxDB already takes every entity, with no entity filter and infinite retention, and `docs/influx-grafana.md` (08-31, not re-checked) says it has no backup. Step 1 would purge about 79 high-rate entities to `keep_days: 2` daily, by explicit list, freeing about 3.26 GB [D: Influx points per entity per day over 7 d, x 12 days, x 165.4 B/row from the 09-12 dbstat]. Reading Influx points as recorder rows is [I]; an on-host per-entity row count on `states` would falsify it, and that read was denied. **Step 1 is not authorised.** Before it: a fresh `export_dashboards.py` mirror for the consumer scan, and the per-entity row count.
+- **Why step 0 first.** Shortening raw history leaves Influx as the only long copy, and nothing watched it [M: grep of `automations.yaml`, `packages/`, `pipelines.yaml` and `ha_audit.py`]. The unattended moment: Influx stops taking HA's points in a week when nobody opens Grafana.
+- **What it does.**
+  - `sensor.influxdb_points_last_15_min` (rest, every 5 min): the count of numeric `value` points Influx holds from the last 15 min, all measurements. It reads Influx's error body as text when the answer is not a count, and `unavailable` when there is no answer.
+  - `binary_sensor.watchdog_influxdb_writes_stale`: on unless that is a positive number. No `availability:` guard, by design; one would turn "Influx unreachable" into `unavailable` and the alarm could never fire (R8).
+  - `automation.watchdog_influxdb_writes_stale`: one bell notice (`notification_id: watchdog_influxdb`, no push, no recovery notice) once the binary has been on 15 min. On an HA start it waits 15 min and reads the binary itself, because one already on at start gives the state trigger no edge.
+- **Window and delay, from the writes' own record** [M: per-minute count of `value` points, all measurements, 2026-07-13 23:14Z to 2026-10-11, 129,600 min]. There were 10 runs of whole minutes with no point. The longest was 66 min (2026-09-15 13:55Z, a UPS discharge-test day; whether HA was up through it is not checked), then 10, 6 and 4 min. Minutes with any point held at least 6, and the 1st percentile held 495. Notice latency is about 35 min for a total stop [D: 15 window + up to 5 poll + 15 `for:`] and about 20 min for no answer [D: up to 5 poll + 15 `for:`].
+- **Verified.**
+  - R6 at the pinned version [S: HA 2026.10.1]: `rest/data.py:180-192` sets data None on a timeout or client error, so the sensor goes `unavailable`. A value_template error returns `error_value` None (`helpers/trigger_template_entity.py:134-148`), so it goes `unknown` and never keeps the last good count. Both read as stale.
+  - R2/R7, scratchpad `r2_influxwd.py`: the package's own templates through `POST /api/template` on the exact rest request, 6 cases plus the start condition, all pass [M]. Silent on the real query (HTTP 200, 28,315 points). Fires on an empty window (0), no such db (403), a bad password (401), a statement error (200 with `results[0].error`), and no answer (port 8087, `unavailable`). The start-path condition with the entity absent renders False, not an error. Each notice branch rendered.
+  - Sandbox gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines. The extra WARN was `entity-ref-unresolved` for the new sensor, which did not exist yet.
+  - H: is byte-identical to the sandbox. 3. DEPLOYED `check_config` "valid". 4. RELOAD rest, template, automation (HTTP 200). 5. OBSERVE [M, /api/states, 23:28Z]: sensor `28540`, binary `off`, automation `on`, never triggered.
+  - Gate on H:: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines (0 NEW against the baseline); with 3. `check_config` "valid" -> **PASS (HA-certified)**.
+- **Not done.** The fires direction live, end to end (R12: it raises a notice; asking Bill). The HA log was not read: `/api/error_log` is 404 off-host.
+- **Limits.** Total stops only: a partial loss (one integration's points) keeps the count positive. Numeric `value` points only, not string states. The URL is a second copy of `influxdb_url` in `secrets.yaml`; if Influx moves, the sensor goes `unavailable` and the notice fires. An automation reload while the binary is already on re-arms nothing until the next edge or HA start.
+- **Found, not changed.** `watchdog_reset_failed` (`packages/watchdog.yaml`) has five state triggers and no start trigger [M], so a sensor already stale when HA starts gives it no edge: the case this package's start trigger covers.
+
 ### mmWave: the four target distances are out of the recorder again, and their two history cards are gone (`packages/mmwave_presence.yaml`, `dashboards/views/view-mmwave-office.yaml`, `dashboards/views/view-mmwave-family.yaml`, `PACKAGES.md`, `docs/pending.md` P24; source repo `mmwave-presence-node` c98dfb8 and 7df49f0)
 
 - **Bill:** "tuning done for both the office and family mmWave so we can exclude."

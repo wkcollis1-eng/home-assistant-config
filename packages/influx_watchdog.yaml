@@ -1,0 +1,166 @@
+# =============================================================================
+# InfluxDB Watchdog - alarm when Home Assistant's points stop landing in Influx
+# =============================================================================
+#
+# ADDED 2026-10-11 (Bill: "build step 0"). Step 0 of the recorder-size plan
+# (CHANGELOG 2026-10-11): before any recorder history is shortened, a stop in
+# InfluxDB writes has to be seen within the hour. Influx is the only long copy
+# of the raw series, and it has no backup (docs/influx-grafana.md). Before this
+# file, nothing watched it [M: grep of automations.yaml, packages/,
+# pipelines.yaml and ha_audit.py, 2026-10-11].
+#
+# THE UNATTENDED MOMENT: Influx stops taking HA's points in a week when nobody
+# opens Grafana - add-on stopped, disk full, credentials changed, or HA's
+# influxdb writer stuck. Working means a bell notice within about 35 min that
+# stays until dismissed, and none on an ordinary HA or add-on restart. Bell
+# only, no phone push (Bill 2026-10-02).
+#
+# HOW: every 5 min HA asks Influx how many numeric points it holds from the
+# last 15 min, across every measurement. That counts what LANDED, so it covers
+# both ends: Influx refusing writes, and HA not sending them. What the sensor
+# then reads:
+#   a positive number  writes are landing
+#   0                  Influx answered; nothing landed in 15 min
+#   text               Influx answered with something that is not a count
+#                      (bad credentials, query error); the body is the state
+#   unavailable        no answer: Influx down or unreachable [S: HA 2026.10.1
+#                      rest/data.py:180-192 sets data None on a timeout or
+#                      client error; rest/entity.py available is
+#                      "data is not None"]
+#   unknown            the value_template itself errored. It never keeps the
+#                      last good count [S: HA 2026.10.1
+#                      helpers/trigger_template_entity.py:134-148, a template
+#                      error returns error_value None]
+# Anything but a positive number reads as a problem (R8: a check that did not
+# run is not a clean result).
+#
+# WINDOW AND DELAY, from what the writes have actually done [M: per-minute
+# count of "value" points, all measurements, 2026-07-13 23:14Z to 2026-10-11,
+# 129,600 min]: 10 runs of whole minutes with no point at all, the longest
+# 66 min (2026-09-15 13:55Z), then 10, 6 and 4 min; of the minutes with any
+# point, the 1st percentile held 495. So 15 min of nothing is far outside
+# normal, and the 15-min `for:` lets one failed poll (an add-on update) pass.
+# A silent run has to last about 30 min to raise a notice [D: 15-min window
+# reads 0 from minute 15, then on for 15]; of the past 90 days only the 66-min
+# run would have, and only if HA was up through it - not checked; 09-15 was a
+# UPS discharge-test day (CHANGELOG), so the host may have been off [I:
+# falsified if HA's own history shows it up]. Latency: about 35 min for a
+# total stop [D: 15 window + up to 5 poll + 15 for], about 20 min for no
+# answer [D: up to 5 poll + 15 for].
+#
+# LIMITS, stated so nobody reads more into it:
+#   * total stops only. A partial loss (one integration's points dropping) is
+#     not seen - the count stays positive.
+#   * string states (field "state") are not counted, only numeric "value".
+#   * the URL below is a second copy of influxdb_url in secrets.yaml (a rest
+#     resource cannot be built from a !secret). If Influx moves, this fails
+#     LOUD - the sensor goes unavailable and the notice fires - not silent.
+#   * an automation reload while the sensor is already on re-arms nothing until
+#     the next edge or the next HA start.
+#
+# NO availability: GUARD on the binary_sensor, deliberately. The house rule
+# (every new template sensor gets one) is for value sensors; on an alarm it
+# would turn "Influx unreachable" into "unavailable" and the alarm could never
+# fire. Same reason the binary_sensors in watchdog.yaml carry none.
+# =============================================================================
+
+rest:
+  - resource: "http://10.0.0.210:8086/query"
+    method: GET
+    authentication: basic
+    username: !secret influxdb_user
+    password: !secret influxdb_pass
+    params:
+      db: "Home Assistant"
+      q: 'SELECT count("value") FROM /.*/ WHERE time > now() - 15m'
+    scan_interval: 300
+    timeout: 30
+    sensor:
+      # One series per measurement (unit) comes back, each with one
+      # [window-start, count] row; the sum is the total. A query error comes
+      # back as HTTP 200 with results[0].error, a bad login as HTTP 401 with a
+      # top-level "error" - both fall to the else branch and read as text.
+      # map(attribute='values') is an item lookup, so it gets the list, not
+      # dict.values.
+      - name: "InfluxDB Points Last 15 min"
+        unique_id: influxdb_points_last_15_min
+        icon: mdi:database-clock
+        value_template: >-
+          {%- set ok = value_json is defined and value_json is mapping
+                       and value_json.results is defined
+                       and value_json.results[0].error is not defined -%}
+          {%- if ok -%}
+            {{ value_json.results[0].series | default([])
+               | map(attribute='values') | map('first') | map('last') | sum }}
+          {%- else -%}
+            {{ (value | string)[:200] }}
+          {%- endif -%}
+
+template:
+  - binary_sensor:
+      - name: "Watchdog: InfluxDB Writes Stale"
+        unique_id: watchdog_influxdb_writes_stale
+        icon: "{{ 'mdi:database-alert' if is_state('binary_sensor.watchdog_influxdb_writes_stale', 'on') else 'mdi:database-check' }}"
+        device_class: problem
+        state: >
+          {{ not (states('sensor.influxdb_points_last_15_min') | int(0) > 0) }}
+        attributes:
+          points_last_15_min: "{{ states('sensor.influxdb_points_last_15_min') }}"
+
+automation:
+  # One notice, one notification_id, so a repeat REPLACES rather than stacks.
+  # It stays until dismissed; there is no recovery notice (Bill 2026-09-10:
+  # failures only). Same pattern as watchdog_reset_failed.
+  #
+  # WHY THE START TRIGGER: when Influx is down across an HA restart, the binary
+  # sensor is 'on' from its first render, before automations attach, so the
+  # state trigger never sees an edge and nothing would ever fire. At start the
+  # automation waits the same 15 min and then reads the sensor itself.
+  - id: watchdog_influxdb_writes_stale
+    alias: "Watchdog: InfluxDB Writes Stale"
+    description: "Bell notice (no push) when InfluxDB has taken no Home Assistant point, or has not answered, for 15 min."
+    mode: single
+    max_exceeded: silent
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.watchdog_influxdb_writes_stale
+        to: "on"
+        for:
+          minutes: 15
+      - platform: homeassistant
+        event: start
+        id: start
+    action:
+      - if:
+          - condition: trigger
+            id: start
+        then:
+          - delay:
+              minutes: 15
+      - condition: template
+        value_template: >-
+          {% set s = states.binary_sensor.watchdog_influxdb_writes_stale %}
+          {{ s is not none and s.state == 'on'
+             and now() - s.last_changed >= timedelta(minutes=14) }}
+      - service: persistent_notification.create
+        data:
+          notification_id: watchdog_influxdb
+          title: "⚠️ Watchdog: InfluxDB is not taking writes"
+          message: >-
+            {%- set n = states('sensor.influxdb_points_last_15_min') -%}
+            {%- set since = as_local(states.binary_sensor.watchdog_influxdb_writes_stale.last_changed) -%}
+            First seen at {{ since.strftime('%H:%M') }}, still so 15 min later.
+            {% if n == 'unavailable' -%}
+            InfluxDB did not answer the query - the add-on is stopped or
+            10.0.0.210:8086 is unreachable.
+            {%- elif n == '0' -%}
+            InfluxDB answered: 0 numeric points in the last 15 min. It is up,
+            but Home Assistant's points are not landing - a full disk, a write
+            error, or HA's influxdb integration stopped (check the HA log).
+            {%- else -%}
+            InfluxDB answered with something that is not a count: "{{ n }}" -
+            credentials or a query error.
+            {%- endif %}
+            Points not written now exist only in the recorder, and only for
+            its keep window. This notice stays until dismissed;
+            binary_sensor.watchdog_influxdb_writes_stale shows the current state.

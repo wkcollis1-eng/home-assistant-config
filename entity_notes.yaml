@@ -30,6 +30,9 @@ automation.sdr_water_meter_leak_now_cleared:
 automation.sdr_water_meter_leak_now_high:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: LeakNow >= 2; the phone path, at most one push per 24 h
+automation.watchdog_influxdb_writes_stale:
+  group: WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)
+  note: bell notice (no push), id watchdog_influxdb; binary on 15 min, or still on 15 min after an HA start
 automation.watchdog_reset_failed:
   group: WATCHDOG (packages/watchdog.yaml)
   note: failure-only notice; still stale 10 min after onset
@@ -126,6 +129,9 @@ binary_sensor.watchdog_battery_bank_stale:
 binary_sensor.watchdog_ecobee_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: Ecobee temperature unavailable or unknown (either sensor); no age test since 2026-10-04
+binary_sensor.watchdog_influxdb_writes_stale:
+  group: WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)
+  note: on unless the points count is a positive number; no availability guard, by design
 binary_sensor.watchdog_sem_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: SEM Meter stale detection
@@ -842,6 +848,9 @@ sensor.hwh_recirc_runtime_today:
 sensor.hwh_today_s_consumption:
   group: KASA PLUGS
   note: Hot Water Heater (Basement)
+sensor.influxdb_points_last_15_min:
+  group: WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)
+  note: rest, 5 min; numeric points Influx holds from the last 15 min; text = Influx error body, unavailable = no answer
 sensor.kbdl_degree_days_24h:
   group: HDD/CDD
   note: 'State ok/insufficient/error. Trailing 24 h HDD65/CDD65 = 65 - (max+min)/2 of KBDL METARs (api.weather.gov); primary basis of hvac_hdd65/cdd65_today (2026-09-23)'

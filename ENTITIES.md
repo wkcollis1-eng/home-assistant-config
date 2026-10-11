@@ -506,6 +506,14 @@ script.watchdog_reload_all_stale                 Manual reload all stale integra
 sensor.watchdog_stale_sensor_count               Count of stale systems
 ```
 
+## WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)
+
+```
+automation.watchdog_influxdb_writes_stale     bell notice (no push), id watchdog_influxdb; binary on 15 min, or still on 15 min after an HA start
+binary_sensor.watchdog_influxdb_writes_stale  on unless the points count is a positive number; no availability guard, by design
+sensor.influxdb_points_last_15_min            rest, 5 min; numeric points Influx holds from the last 15 min; text = Influx error body, unavailable = no answer
+```
+
 ## WEATHER
 
 ```

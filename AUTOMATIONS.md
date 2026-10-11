@@ -136,6 +136,7 @@ ups_graceful_shutdown_v3               state:binary_sensor.ups_monitor_voltage_w
 ups_outage_start_v3                    state:binary_sensor.ups_monitor_on_battery                            single     automations.yaml
 ups_voltage_warning_v3                 state:binary_sensor.ups_monitor_voltage_warning                       single     automations.yaml
 validate_input_numbers_startup         homeassistant                                                         single     automations.yaml
+watchdog_influxdb_writes_stale         state:binary_sensor.watchdog_influxdb_writes_stale +1 more            single     influx_watchdog.yaml
 watchdog_reload_basement_th            state:binary_sensor.watchdog_basement_th_stale                        single     watchdog.yaml
 watchdog_reload_battery_bank           state:binary_sensor.watchdog_battery_bank_stale                       single     watchdog.yaml
 watchdog_reload_ecobee                 state:binary_sensor.watchdog_ecobee_stale                             single     watchdog.yaml
@@ -144,4 +145,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
 ```
 
-135 automations.
+136 automations.
