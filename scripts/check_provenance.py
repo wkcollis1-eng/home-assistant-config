@@ -26,7 +26,12 @@ EVIDENCE = re.compile(
     r'\bn\s*=|\bN\s*=|\bz\s*=|\bP\s*[=<(]|\bp\s*[=<]|\bchi|\bsd\b|\bCI\b'
     r'|\d+\s*/\s*\d+|\bof\s+[\d,]|\bin\s+[\d,]|\bover\s+[\d,]'
     r'|\bframes\b|\bslots\b|\bsamples\b|\bgaps\b|\bmin\b|\bhours?\b'
-    r'|\[M\]|\[S\]|\[D\]|\[I\]')
+    # R15 tag, bare or long form: [D], [D: formula], [M, source], [S; doc],
+    # [D from M]. Was bare-only until 2026-10-11, which false-WARNed a line whose
+    # only evidence was a long-form tag (hit on a new CHANGELOG line). Long form is
+    # 557 of 967 tags in CHANGELOG.md + docs/baselines.md, but 0 of the 37 WARNs
+    # then standing in the corpus were of that kind [M] - other evidence or none.
+    r'|\[[MSDI](?:[\]:,;]| [^\]\n]*\])')
 SKIP = re.compile(r'^\s*[-=!#*_]{3,}\s*$|^\s*$')
 WATCH = ('.md', '.yaml', '.yml')
 

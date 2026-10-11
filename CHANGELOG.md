@@ -83,6 +83,17 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### `check_provenance.py` accepts long-form R15 tags such as `[D: formula]` (`scripts/check_provenance.py`)
+
+- **Defect.** The R17 checker's EVIDENCE regex accepted only the bare tags `[M]`, `[S]`, `[D]` and `[I]`. A line whose only evidence was a long-form tag (`[D: 1 / 0.95 - 1]`, `[M, grep]`, `[S: doc]`) WARNed as a naked ratio, although R15 allows the long form and the house style uses it. Hit while writing the AFUE entry below, which was reworded to a bare `[D]` to get past it.
+- **Fix.** The tag alternative is now `\[[MSDI](?:[\]:,;]| [^\]\n]*\])`. That is a tag letter followed by `]`, `:`, `,` or `;`, or by a space and then text up to a `]` on the same line (`[D from M]`). A bracketed date or word (`[Dec 2025]`, `[Most]`) is still not a tag.
+- **Scope, corrected (R13).** I told Bill the long form covers "most CHANGELOG figures", which implied most of the current WARNs were false. The long form is 557 of 967 tags in `CHANGELOG.md` + `docs/baselines.md` [M]. But the fix silences none of the WARNs standing today: 37 under the old regex and 37 under the new, across 17 files and 15,613 lines [M]. Every existing long-form line also carried other evidence, or is a real naked ratio. The fix matters for new lines, not for the backlog.
+- **Verified (R7).**
+  - 10 of 10 fixtures [M]. A naked comparative %, a naked multiplier, `[Dec 2025]` and `[Most]` still WARN. `[D]`, `[D: ...]`, `[M, ...]`, `[S; ...]` and `[D from M]` are silent, as is a plain table %.
+  - Corpus as above: no WARN added or removed.
+  - `py_compile` clean. Step 2b n/a, since neither `ha_audit.py` nor `gen_reference.py` changed.
+- **Left open.** The 37 standing WARNs are real findings in old text and were not touched.
+
 ### `hvac_daily_gas_cost_estimate` no longer divides gas input by AFUE (`configuration.yaml`, `PACKAGES.md`)
 
 - **Defect.** The sensor computed `ccf_used = (runtime * rate) / (103700 * 0.95)`. `input_number.furnace_heating_rate_btu_hr` is the 100,000 BTU/hr INPUT rating, so runtime x rate is already gas burned. Dividing by AFUE overstated gas, and so the daily cost, by +5.26 % [D: 1 / 0.95 - 1]. `hvac_heating_efficiency_mtd` had the same defect and was fixed on 2026-07-03; this twin was missed. Found while answering Bill's "do we have enough data to calculate the furnace gas consumption?".
