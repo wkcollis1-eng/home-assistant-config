@@ -1146,10 +1146,109 @@ def f_automation_unavailable(tree):
     return out
 
 
+def f_fetch_health(tree):
+    """[(case, ok, message)] - every branch of rule_fetch_health, plus silence."""
+    audit = _audit_module(tree)
+    from datetime import datetime, timedelta, timezone
+
+    def ago(h):
+        return (datetime.now(timezone.utc) - timedelta(hours=h)).isoformat()
+
+    def st(eid, state, rep_h=0.1, **attrs):
+        return {
+            "entity_id": eid,
+            "state": state,
+            "attributes": attrs,
+            "last_changed": ago(rep_h),
+            "last_reported": ago(rep_h),
+        }
+
+    man = {
+        "fetches": {
+            "monthly": {
+                "entity": "sensor.m",
+                "status_attribute": "status",
+                "ok": ["ok"],
+                "max_age_h": 26,
+            },
+            "hourly": {"entity": "sensor.h", "ok": ["ok"], "max_age_h": 1},
+        }
+    }
+    good_m = st("sensor.m", "2026-09", status="ok")
+    good_h = st("sensor.h", "ok")
+    cases = [
+        # (name, manifest, (states, why), expected [(severity, rule)], needle)
+        ("both fresh and ok -> silent", man, ([good_m, good_h], None), [], None),
+        (
+            # the 2026-10-01 outage exactly: HA killed the script, blanked attrs
+            "unknown, no attributes -> FAIL",
+            man,
+            ([st("sensor.m", "unknown"), good_h], None),
+            [("FAIL", "fetch-health")],
+            "sensor.m is unknown",
+        ),
+        (
+            "status attribute stale -> WARN, not FAIL",
+            man,
+            ([st("sensor.m", "2026-09", status="stale", detail="x"), good_h], None),
+            [("WARN", "fetch-health")],
+            "'stale'",
+        ),
+        (
+            "state-as-status error -> WARN",
+            man,
+            ([good_m, st("sensor.h", "error")], None),
+            [("WARN", "fetch-health")],
+            "'error'",
+        ),
+        (
+            "no report within max_age_h -> FAIL",
+            man,
+            ([good_m, st("sensor.h", "ok", rep_h=3)], None),
+            [("FAIL", "fetch-health")],
+            "stopped scanning",
+        ),
+        (
+            "declared entity absent -> FAIL",
+            man,
+            ([good_h], None),
+            [("FAIL", "fetch-health")],
+            "sensor.m",
+        ),
+        (
+            "no max_age_h -> WARN (staleness NOT checked, R8)",
+            {"fetches": {"h": {"entity": "sensor.h"}}},
+            ([good_h], None),
+            [("WARN", "fetch-health")],
+            "NOT checked",
+        ),
+        ("no fetches: section -> silent", {}, ([good_h], None), [], None),
+        # As main() runs them: ONE skip WARN, naming this check too.
+        (
+            "live check skipped -> one WARN naming this check",
+            man,
+            (None, "set HA_TOKEN"),
+            [("WARN", "live-check-skipped")],
+            "fetch-health",
+        ),
+    ]
+    out = []
+    for name, m, states, want, needle in cases:
+        del audit.findings[:]
+        audit.rule_statistics_buffer(states)
+        audit.rule_fetch_health(m, states)
+        got = [(sev, rule) for sev, rule, _m, _fx in audit.findings]
+        msg = " | ".join(m_ for _s, _r, m_, _f in audit.findings)
+        ok = got == want and (needle is None or needle in msg)
+        out.append((name, ok, "expected %s, got %s: %s" % (want, got, msg[:120])))
+    return out
+
+
 ENV_FAULTS = [
     ("live-check-skipped", f_live_check_skipped),
     ("state-for-unsupported", f_state_for_branches),
     ("automation-unavailable", f_automation_unavailable),
+    ("fetch-health", f_fetch_health),
 ]
 
 
@@ -1427,6 +1526,11 @@ def main():
             if rid == "automation-unavailable":
                 return (
                     " -- the LIVE HOUSE has an unavailable automation right "
+                    "now (a finding about the house, not a broken rule)"
+                )
+            if rid == "fetch-health":
+                return (
+                    " -- a LIVE fetch sensor is down or on its fallback right "
                     "now (a finding about the house, not a broken rule)"
                 )
             return ""

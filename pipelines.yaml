@@ -458,3 +458,31 @@ gaps:
   no_stamp: []
   # These record a stamp, so a detector is a few lines of template away.
   stamp_but_no_detector: []
+
+# Fetches: command_line sensors that pull outside data on a timer. They have
+# no capture automation, stamp or buffer, so no `pipelines:` rule can see them;
+# ha_audit.py rule_fetch_health reads their LIVE state instead (R8: it is
+# skipped, and says so, when the audit has no HA token).
+#
+# WHY (2026-10-10). Both degree-day fetches read `unknown` with no attributes
+# from 2026-10-01 to 10-10 - broken LAN IPv6 pushed each run past HA's
+# command_timeout - and the three 12M HVAC sensors that need trailing_12_count
+# were unavailable for 9.5 days while every nightly audit said 0 FAIL.
+#
+#   entity            the command_line sensor
+#   status_attribute  attribute holding the script's status; omit when the
+#                     sensor's state IS the status
+#   ok                status values that mean "fresh data"; anything else is
+#                     the script's own fallback (WARN)
+#   max_age_h         last_reported older than this = the sensor stopped
+#                     scanning (FAIL). scan_interval plus slack.
+fetches:
+  bdl_degree_days:
+    entity: sensor.bdl_degree_days
+    status_attribute: status  # state is the latest month; "stale" = serving the CSV
+    ok: ["ok"]
+    max_age_h: 26  # scan_interval 86400
+  kbdl_degree_days_24h:
+    entity: sensor.kbdl_degree_days_24h
+    ok: ["ok"]  # insufficient / error = the daily HDD template is on the proxy chain
+    max_age_h: 1  # scan_interval 600

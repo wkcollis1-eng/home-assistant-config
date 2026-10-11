@@ -83,6 +83,26 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.10] - 2026-10-10
 
+### Degree-day fetches declared in `pipelines.yaml` (`fetches:`), checked live by new audit rule `fetch-health` (`pipelines.yaml`, `scripts/ha_audit.py`, `scripts/test_ha_audit.py`)
+
+- **Why.** `sensor.bdl_degree_days` and `sensor.kbdl_degree_days_24h` read `unknown` from 2026-10-01 to 10-10 (entry below) and every nightly audit said 0 FAIL: neither sensor was declared anywhere the audit looks. Bill: "add the degree-day sensor to the pipelines.yaml".
+- **Data (R9).** New top-level `fetches:` section, after `gaps:`. Not under `pipelines:`: every rule there expects a capture automation, stamp and buffer, and these have none. Per fetch: `entity`, `status_attribute` (omitted for KBDL, whose state IS the status), `ok`, `max_age_h` (BDL 26 for a scan_interval of 86400; KBDL 1 for 600).
+- **Rule `fetch-health`** (live states, like `automation-unavailable`):
+  - FAIL: entity missing from the state machine; state `unknown`/`unavailable` (the scripts promise one JSON line and exit 0, so this means HA killed or lost them); `last_reported` older than `max_age_h`. `last_reported` moves on every scan even when nothing changed [S: core 2026.10.0 `homeassistant/core.py`, State.last_reported docstring and `async_set_internal`].
+  - WARN: status outside `ok` (the script's own fallback: BDL `stale` CSV, KBDL `insufficient`/`error` -> proxy chain); no `max_age_h` declared (staleness not checked, R8).
+  - Skipped run: no second WARN; the existing `live-check-skipped` message now names `fetch-health` too.
+- **Verified.**
+  - R2, live states, faults injected into a sandbox manifest (ghost entity, `ok: ["nope"]`, `max_age_h: 0.001`): 2 FAIL, 2 WARN, each naming its entity; clean manifest: 0 FAIL, 1 WARN, 2 INFO across 18 pipelines (the WARN is the pre-existing open question).
+  - R7: `f_fetch_health`, 9 cases, every branch plus silence and the skip. Mutation (drop `unknown` from the dark-state test) -> `SUITE FAILED (1)`; restored.
+  - R3: reversing the edit spans gives the previous H: `ha_audit.py` and `test_ha_audit.py` byte-identical; `pipelines.yaml` is a pure 1,426-byte append. LF throughout. Ruff: only new findings are 6 + 1 UP031 (%-format, the files' idiom: 100 + 32 already); format clean.
+  - Gate on H:: 1 PASS (parse-clean); 2 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 2b SUITE PASSED - 36 rule(s) proven in both directions. `check_config`: valid.
+  - The nightly run has a token: 2026-10-10 00:30 reported warn 1 / fail 0, the open question alone; a skipped live check would have made it 2 [M, `binary_sensor.ha_audit_failing` attributes]. So the 10-01 outage would have raised 2 FAIL the first night.
+- **Noise [M].** Recorder history 2026-09-26 12:10Z -> 10-01 09:06Z (as far back as it goes): KBDL `ok` without a break, so 0 non-ok transitions in ~4.9 days; n is small.
+- **Left open.**
+  - `sensor.climate_norms_today`, the third command_line sensor, is not declared (not asked for).
+  - `duplicate-pipeline-key` scans every 2-space key after `pipelines:`, so it also counts fetch names; harmless unless a fetch reuses a pipeline's name.
+  - A session-start audit run in the seconds after an HA restart, before the first scan, could see `unknown` and FAIL once.
+
 ### BDL / KBDL degree-day fetches timed out on broken LAN IPv6, blanking the three 12M HVAC sensors (`scripts/http_guard.py` new, `scripts/fetch_bdl_degree_days.py`, `scripts/kbdl_degree_days.py`)
 
 - **Symptom.** Bill: `sensor.hvac_building_load_ua_12m`, `sensor.hvac_heating_efficiency_12m`, `sensor.hvac_performance_vs_baseline` unavailable.

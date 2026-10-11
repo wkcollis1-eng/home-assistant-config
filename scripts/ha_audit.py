@@ -24,7 +24,7 @@ import os
 import posixpath
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     import yaml
@@ -828,7 +828,8 @@ def rule_statistics_buffer(states):
         # here would make "no findings" indistinguishable from "never looked".
         warn(
             "live-check-skipped",
-            "statistics buffer and automation-unavailable checks DID NOT RUN, "
+            "statistics buffer, automation-unavailable and fetch-health checks "
+            "DID NOT RUN, "
             "so their findings are absent rather than clean: %s" % why,
         )
         return
@@ -1026,6 +1027,88 @@ def rule_automation_unavailable(states):
                 fix="Settings > Repairs names the failing line; fix it, then "
                 "automation.reload. check_config does not validate conditions, "
                 "so it will say valid",
+            )
+
+
+def rule_fetch_health(man, states):
+    """A fetch that has gone dark must not read as a clean audit.
+
+    `fetches:` in pipelines.yaml declares the command_line sensors that pull
+    outside data on a timer. They have no capture automation, stamp or buffer,
+    so no rule above can see them. 2026-10-01 -> 10-10 both degree-day fetches
+    read `unknown` for 9.5 days (broken LAN IPv6 pushed each run past HA's
+    command_timeout, and on a timeout HA blanks every attribute) while the
+    three 12M HVAC sensors that need them were unavailable - and every nightly
+    audit said 0 FAIL.
+
+    Both scripts promise one JSON line and exit 0 even with the network down,
+    so `unknown`/`unavailable` means that promise broke: FAIL. A status outside
+    `ok` is the script's own fallback working as designed (stale CSV, proxy
+    chain): WARN. No report within max_age_h means it stopped scanning: FAIL.
+    `last_reported` moves on every scan even when nothing changed
+    [S: core 2026.10.0 homeassistant/core.py, State.last_reported docstring
+    and async_set_internal's same_state-and-same_attr branch]; last_updated
+    would not.
+    """
+    states, _why = states
+    if states is None:
+        # R8 is met by rule_statistics_buffer's live-check-skipped WARN, which
+        # names this check too (one cause, one WARN - see the rule above).
+        return
+    by_id = {s.get("entity_id"): s for s in states}
+    now = datetime.now(timezone.utc)
+    for name, f in sorted((man.get("fetches") or {}).items()):
+        eid = f.get("entity")
+        st = by_id.get(eid)
+        if st is None:
+            fail(
+                "fetch-health",
+                "%s: declared entity %s is not in HA's state machine, so the "
+                "fetch is not running at all" % (name, eid),
+                fix="fix `entity:` in pipelines.yaml fetches, or the "
+                "command_line sensor's unique_id/name",
+            )
+            continue
+        state = st.get("state")
+        if state in ("unknown", "unavailable"):
+            fail(
+                "fetch-health",
+                "%s is %s since %s: the script did not print its JSON (HA "
+                "timeout or crash), so every attribute is blank and whatever "
+                "reads them is dark" % (eid, state, st.get("last_changed")),
+                fix="Settings > System > Logs for 'Timeout for command' or a "
+                "traceback; run the command by hand on the host and time it "
+                "against command_timeout",
+            )
+            continue
+        key = f.get("status_attribute")
+        status = (st.get("attributes") or {}).get(key) if key else state
+        if status not in (f.get("ok") or ["ok"]):
+            detail = (st.get("attributes") or {}).get("detail")
+            warn(
+                "fetch-health",
+                "%s status %r: the script's fallback is active, not fresh "
+                "data%s" % (eid, status, " - %s" % detail if detail else ""),
+                fix="read the `detail` attribute; run the command by hand on the host",
+            )
+        max_h = f.get("max_age_h")
+        seen = st.get("last_reported") or st.get("last_updated")
+        if max_h is None or not seen:
+            warn(
+                "fetch-health",
+                "%s: no max_age_h in pipelines.yaml or no timestamp in the "
+                "state, so staleness was NOT checked" % name,
+                fix="declare max_age_h (scan_interval plus slack)",
+            )
+            continue
+        age_h = (now - datetime.fromisoformat(seen)).total_seconds() / 3600
+        if age_h > max_h:
+            fail(
+                "fetch-health",
+                "%s last reported %.1f h ago (max %s h): the sensor has "
+                "stopped scanning" % (eid, age_h, max_h),
+                fix="check the command_line integration loaded (Settings > "
+                "System > Logs) and its scan_interval",
             )
 
 
@@ -2298,6 +2381,7 @@ def main():
     rule_statistics_buffer((_live, _live_err))
     rule_state_condition_for()
     rule_automation_unavailable((_live, _live_err))
+    rule_fetch_health(man, (_live, _live_err))
     rule_eod_collisions(man)
     rule_stamp_snapshotted(man)
     rule_latched_guards(man)
