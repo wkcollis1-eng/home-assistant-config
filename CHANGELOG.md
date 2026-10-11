@@ -83,6 +83,63 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.10] - 2026-10-10
 
+### HVAC baselines rebased to ACIS Bradley 2025, four baseline helpers written live (`configuration.yaml`, `PACKAGES.md`, `docs/baselines.md`, `dashboards/views/energy-performance-analysis.yaml`, `open_questions.yaml`, `CLAUDE.md`)
+
+- **Why.** Bill, answering the DHW question: "for the Navien HWH, reduced the recirculation hours; was 24hr recirc, now about 6 hours/day recirc. we should re-baseline to the bdl data." This reverses his 2026-09-16 no-rebase ruling (`open_questions.yaml`, the BASELINE_REPORT HDD-source entry, now with a REVERSED paragraph). He chose to re-derive the HDD59/HDD65 ratio from BDL too, and to apply the values live with `input_number.set_value`.
+- **Source [M].** ACIS StnData HARTFORD-BRADLEY 2025, queried 2026-10-10, 365 days, 0 missing: HDD65 5,629, HDD59 4,230.
+- **New values.**
+
+  | helper | was | now | derivation |
+  |---|---|---|---|
+  | `annual_hdd_baseline` | 6,270 | 5,629 | ACIS [M] |
+  | `hdd_balance_point_ratio` | 0.844 | 0.751 | [D] 4,230 / 5,629 = 0.7515 |
+  | `heating_efficiency_baseline` | 90.3 | 100.6 | [D] 566.2 CCF / 5.629 k HDD65 = 100.59; 566.2 = 787 - 220.8 Navien DHW |
+  | `building_ua_baseline` | 493 | 585 | [D] the `hvac_building_load_ua_12m` formula on 2025: (566.2 x 103,700 x 0.95 + 3.6 MMBTU fireplace x 1e6) / (5,629 x 0.751 x 24) = 585.26 (584.90 at the unrounded ratio). The same formula on the old inputs (599 CCF, NOAA HDD59 5,294) gives 492.78, so 493 is reproduced. |
+
+- **Live writes.**
+  - The prior state was snapshotted to the scratchpad `rebase_snapshot.json`.
+  - Each helper was confirmed at its old value and inside its min/max before anything was written.
+  - Write order was UA baseline first and ratio last, so the degradation alert could not trip on a half-applied set.
+  - All four read back exactly. The logbook shows `set_value` at 00:56:05-08Z.
+- **Observed [M, read 2026-10-10 ~20:56 EDT, before -> after].**
+  - `hvac_building_load_ua_12m`: 529 -> 595.
+  - `hvac_heating_efficiency_12m`: 102.8 -> 102.8. Its HDD65 is the ACIS trailing 12 months, so it does not move.
+  - `hvac_performance_vs_baseline`: +13.8 % -> +2.2 % [M].
+  - `ua_performance_vs_baseline`: +7.3 % -> +1.7 % [M].
+  - `hvac_building_load_ua_estimate`: 156 -> 175.
+  - `eui_vs_baseline`: -0.5 % [M], unchanged.
+  - `binary_sensor.hvac_ua_degradation_alert`: `off`, and `last_changed` is still 14:02Z, so it did not flicker.
+  - Predicted before the writes [D]: UA 594.5, +2.2 %, +1.6 % [D], alert off.
+  - No automation references any of the four helpers.
+- **Files.**
+  - `configuration.yaml`: 11 spans.
+    - The four `initial:` values, each with a dated comment that holds the old value and its source.
+    - Seven template `float()` fallbacks: 493 -> 585, 0.844 -> 0.751, 90.3 -> 100.6.
+    - The fallbacks act at the next template reload or restart. The `initial:` values act at the next restart, where they now equal the live helpers.
+    - Two history comments that cite 90.3 are kept.
+    - The file went from 7,428 to 7,436 lines; `PACKAGES.md` was regenerated for the line count.
+  - `docs/baselines.md`: the four HDD-dependent lines, each keeping its old value, plus a dated note.
+  - `CLAUDE.md` (Active Projects): 90.3 -> 100.6, keeping the old value.
+  - `dashboards/views/energy-performance-analysis.yaml` is **NOT LIVE until Bill pastes it**; re-run `export_dashboards.py` afterwards.
+    - Fallbacks 90.3 / 480 / 0.844 -> 100.6 / 585 / 0.751.
+    - The Forward Projection prose now reads the helpers.
+    - Its Expected column scales with the baseline [D on the card's own [I] ranges]: `eff_base x 80/90.3 .. 83/90.3` and `ua_base x 440/480 .. 460/480`.
+    - 2025 heating gas is now the Navien-corrected 566 CCF instead of 599, so Expected becomes 467-499 [D: 566 - 99 .. 566 - 67].
+    - Until the paste, the live card shows "100.6 -> ~80-83 CCF/1k HDD" [M: `/api/template` render]. That is a projected improvement created by the rebase, not by anything the house did.
+  - `open_questions.yaml`:
+    - The DHW question is answered with Bill's words.
+    - The REVERSED paragraph is above.
+    - A new R14 question asks the date of the recirc change. Bill answered it the same evening: "gradual step down over 6-8 months. dont have specific dates."
+- **Verified.**
+  - Every file was built in `C:\sandbox` by span edit. Reversing the spans reproduces each H: original byte-for-byte.
+  - Counts in `configuration.yaml` after the edit: 585 x6, 0.751 x3, 100.6 x3, 5629 x1. The old 90.3 / 493 / 0.844 now remain only in comments.
+  - The old and new dashboard templates both render against live state. The new one shows ~89-92 CCF/1k HDD and ~536-561 BTU/hr-F.
+  - Gate on `configuration.yaml`, before the writes: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines; 2b n/a; "PASS (parse-clean) + audit delta clean."; check_config `{"result":"valid","errors":null,"warnings":null}`, which is PASS (HA-certified).
+  - Sandbox gate on `open_questions.yaml` and the view: 1 NEW (the recirc-date question) and 1 FIXED (the DHW question). I read both, re-baselined deliberately, and the re-run gave "PASS (parse-clean) + audit delta clean."
+- **Left open.**
+  - The public Residential-HVAC-Performance-Baseline repo (README, METHODOLOGY.md, BASELINE_REPORT.md, DATA_SUMMARY) still states 90.3 / 493 / 6,270. It is not touched; Bill to decide.
+  - The [I] that the recirculation loop's heat loss was heating the house is not entered in the prediction ledger, because it has no clean test. Only its first step is dated: 24 -> 15 h/day in mid-January 2026, per Bill's baseline repo (UPDATES.md). I first recorded that no step had a date, and corrected that the same evening (R13, `open_questions.yaml`). The heating months after mid-January 2026 predate the Ecobee and are a partial test, not run. The first heating season wholly at ~6 h/day (2026-27) also carries the Ecobee replacement, which the Analysis card projects to move heating intensity the other way [I] (`open_questions.yaml`).
+
 ### Daily HDD/CDD for 2026-10-01..10-09 backfilled from ACIS Bradley daily figures (13 live helpers, no file change)
 
 - **Why.** During the KBDL outage (second entry below, whose "Not backfilled" this supersedes) `sensor.hvac_hdd65_today` / `hvac_cdd65_today` ran on the proxy chain, and every 23:55 capture stored proxy values. Bill: "backfill data with bradley daily figures".

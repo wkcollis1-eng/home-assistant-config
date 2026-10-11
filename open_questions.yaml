@@ -563,6 +563,12 @@
     Do not re-propose; the analysis above stays as the record of why it was
     considered.
 
+    REVERSED 2026-10-10, Bill: "we should re-baseline to the bdl data", given
+    with his answer to the DHW question below. Bill chose to re-derive the
+    HDD59/HDD65 ratio from BDL too. Applied on ACIS BDL 2025: HDD65 5,629 [M],
+    ratio 0.751, intensity 100.6, UA 585 [D] - the `initial:` values in
+    configuration.yaml and the four live helpers (CHANGELOG [2026.10.10]).
+
 - asked: 2026-09-16
   question: >-
     On the gas bill entered 2026-09-15, what are the printed PREVIOUS and CURRENT
@@ -2347,4 +2353,53 @@
     real use, heating intensity is +2.2 % on one ACIS basis [D: 102.8 / 100.6,
     n=1 year each side, no test possible]; if it is metering, heating is
     overstated by up to that 60.7 CCF. Nothing is changed until he answers.
-  answered: null
+  answered: >-
+    2026-10-10, Bill: "for the Navien HWH, reduced the recirculation hours;
+    was 24hr recirc, now about 6 hours/day recirc." No date given (asked
+    below). The DHW drop has a physical cause, so it is read as real use, not
+    metering, and the +58 CCF it moves into heating stands. In the same
+    message Bill reversed the 09-16 no-rebase ruling (entry above); the
+    baselines were rebased to ACIS BDL 2025 that day.
+
+- asked: 2026-10-10
+  question: >-
+    On what date, roughly, did the Navien recirculation go from 24 h/day to
+    about 6 h/day - and was it one change, or stepped down over time?
+  blocks: >-
+    Attributing the 2026 heating change. Navien DHW is below 2025 in all 9
+    months Jan-Sep 2026 [D, entry above], and the trailing 12-month heating
+    intensity (102.8 against the rebased 100.6 [D]) mixes months before and
+    after the change. Splitting heating CCF at the change date is the only
+    test of the [I] that recirculation loop loss was heating the house, so
+    that cutting it moves load to the furnace. Falsifier: heating-month heat
+    CCF rises after the change with no summer counterpart. Nothing is
+    computed on a guessed date.
+  answered: >-
+    2026-10-10, Bill: "stepped down over time", then "gradual step down over
+    6-8 months. dont have specific dates." So there is no change date to split
+    on, and the dates cannot be recovered from Bill or from the Navien app
+    (monthly totals only, 2026-09-16 entry). It ended at or before 2026-10-10
+    ("now about 6 hours/day"), so it began no later than early February to
+    early April 2026 [D: 6-8 months back]; whether any of 2025 was already
+    stepped down is unknown. Consequence: the [I] above has no clean test. The
+    first heating season wholly at ~6 h/day is 2026-27, which also carries the
+    Ecobee replacement (June 2026) that the Analysis card projects to LOWER
+    heating intensity [I]. The two land in the same months with opposite signs,
+    so a heating-month comparison cannot separate them. Left untested and not
+    pre-registered.
+
+    CORRECTED 2026-10-10, same session (R13): "the dates cannot be
+    recovered" and "whether any of 2025 was already stepped down is
+    unknown" were wrong. I searched H: and the Navien app, not Bill's public
+    Residential-HVAC-Performance-Baseline repo. Its UPDATES.md (January 2026
+    Update, "DHW Recirculation Optimization") records the first step:
+    "Navien schedule reduced 24 hr/day -> 15 hr/day (off 9 PM - 6 AM),
+    implemented mid-January 2026", against a "Jan 2025 (24 hr)" column. The
+    same repo carries a monthly DHW_Recirc_Hrs series, 2025-01..2026-06
+    (data/monthly_summary.csv), and HA has
+    binary_sensor.hwh_recirc_pump_running (packages/spc.yaml; start date not
+    checked).
+    Still undated: the later steps from 15 to about 6 h/day. So the [I] has
+    a partial test that the paragraph above denied: the heating months after
+    mid-January 2026 ran at 15 h/day and predate the Ecobee (June 2026). Not
+    run and not pre-registered.

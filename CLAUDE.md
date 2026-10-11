@@ -301,7 +301,8 @@ every compaction, and WARNs (R8) when it was stale or missing.
 - **DIY LiFePO4 UPS**: powers the N100DC host via an 18 V U3V70A boost (fitted
   2026-08-29, EN/FET not installed). V1.20 firmware on ESPHome 2026.9.0
   (2026-09-16). 53.3 Wh; ~128 min [D] at 2.089 A / 26.80 W [M, 2026-08-29].
-- **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 90.3 CCF/1k HDD efficiency
+- **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 100.6 CCF/1k HDD65 efficiency
+  (ACIS BDL 2025, rebased 2026-10-10; was 90.3 on NOAA 6,270 HDD - see `docs/baselines.md`)
 - **Dehumidifier Control**: RH-band (49%/46%), 150min max runtime, stall detection
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
 

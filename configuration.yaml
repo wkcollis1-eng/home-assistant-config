@@ -402,7 +402,10 @@ input_number:
     unit_of_measurement: "BTU/hr-°F"
     mode: box
     icon: mdi:home-thermometer
-    initial: 493
+    # 2026-10-10 rebased to ACIS BDL 2025 (Bill). Was 493 = 599 CCF over NOAA
+    # HDD59 5,294 (METHODOLOGY.md Feb 2026). Now the ua_12m formula on
+    # 566.2 CCF (787 - Navien DHW 220.8), 3.6 MMBTU fireplace, BDL HDD59 4,230 [M].
+    initial: 585
 
   balance_point_baseline:
     name: Balance Point Baseline
@@ -421,7 +424,9 @@ input_number:
     step: 0.001
     mode: box
     icon: mdi:math-compass
-    initial: 0.844
+    # 2026-10-10 rebased (Bill): ACIS BDL 2025 HDD59 4,230 / HDD65 5,629 [M,
+    # 365 days]. Was 0.844 = NOAA HDD59 5,294 / 6,270, two different sources.
+    initial: 0.751
 
   fireplace_annual_heat_mmbtu:
     name: Fireplace Annual Heat Contribution (MMBTU)
@@ -441,7 +446,9 @@ input_number:
     unit_of_measurement: "CCF/1k HDD"
     mode: box
     icon: mdi:chart-bell-curve
-    initial: 90.3
+    # 2026-10-10 rebased (Bill): 566.2 CCF / ACIS BDL 2025 5,629 HDD65 [D].
+    # Was 90.3 on 6,270 HDD, 641 above the BDL figure for the same year.
+    initial: 100.6
 
   gas_baseload_monthly:
     name: Gas Baseload (CCF/month)
@@ -461,7 +468,8 @@ input_number:
     unit_of_measurement: "HDD"
     mode: box
     icon: mdi:snowflake
-    initial: 6270
+    # 2026-10-10: ACIS BDL 2025 [M, 365 days, 0 missing] (Bill). Was 6,270.
+    initial: 5629
 
   annual_electricity_baseline:
     name: Annual Electricity Baseline (kWh)
@@ -3048,8 +3056,8 @@ template:
         unique_id: hvac_ua_degradation_alert
         device_class: problem
         state: >
-          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(493) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
+          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(585) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(585) %}
           {{ ua > (baseline * 1.10) }}
 
       # Furnace-level short cycling alert (replaces per-zone alerts)
@@ -4927,7 +4935,7 @@ template:
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
-          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.844) %}
+          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.751) %}
           {% set days = now().day %}
           {% if hdd > 0 and runtime > 0 and days > 0 %}
             {% set avg_dt = (hdd * bp_ratio) / days %}
@@ -4936,7 +4944,7 @@ template:
             {# 0.95). Fixed 2026-07-03: raw input BTU overstated UA +5.26% vs   #}
             {# the ua_12m twin, which already applies x0.95 to metered CCF.     #}
             {{ ((runtime * rate * 0.95) / (avg_dt * hours)) | round(0) }}
-          {% else %}{{ 493 }}{% endif %}
+          {% else %}{{ 585 }}{% endif %}
 
       - name: "Balance Point Temperature"
         unique_id: balance_point_temperature
@@ -5042,7 +5050,7 @@ template:
           {% endfor %}
           {# Heating = Total Gas - Actual DHW (Navien-metered) #}
           {% set heating_ccf = ns.ccf - ns.dhw %}
-          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.844) %}
+          {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.751) %}
           {% set fp_heat = states('input_number.fireplace_annual_heat_mmbtu') | float(3.6) %}
           {% if ns.hdd >= 100 and heating_ccf > 0 %}
             {# UA = (CCF × 103700 BTU/CCF × 0.95 AFUE + fireplace MMBTU) / (HDD65 × BP_ratio × 24) #}
@@ -5062,7 +5070,7 @@ template:
         availability: "{{ states('sensor.hvac_heating_efficiency_12m') | float(0) > 0 }}"
         state: >
           {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(90.3) %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(100.6) %}
           {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
 
       - name: "UA Performance vs Baseline"
@@ -5071,8 +5079,8 @@ template:
         state_class: measurement
         availability: "{{ states('sensor.hvac_building_load_ua_12m') | float(0) > 0 }}"
         state: >
-          {% set current = states('sensor.hvac_building_load_ua_12m') | float(493) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(493) %}
+          {% set current = states('sensor.hvac_building_load_ua_12m') | float(585) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(585) %}
           {{ ((current / baseline - 1) * 100) | round(1) }}
 
       - name: "EUI vs Baseline"
@@ -5138,7 +5146,7 @@ template:
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
           {% set t12 = state_attr('sensor.bdl_degree_days', 'trailing_12') %}
-          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(90.3) %}
+          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(100.6) %}
           {% set dhw_annual = states('sensor.dhw_gas_12m') | float(42) %}
           {% set dhw_monthly = dhw_annual / 12 %}
           {% set ns = namespace(actual=0, projected=0) %}
