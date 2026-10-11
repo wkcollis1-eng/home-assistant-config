@@ -1,8 +1,10 @@
 # Daily Total HVAC Cost - Mushroom Template Card
 # Shows combined gas + electric cost for today
 # Dashboard: HVAC Performance, Billing & Cost
+# round(2, default='—'): the sensor has an availability guard since 2026-10-11,
+# and a bare round(2) on 'unavailable' is a template error [M, HA /api/template].
 type: custom:mushroom-template-card
-primary: "${{ states('sensor.hvac_daily_total_cost_estimate') | round(2) }}"
+primary: "${{ states('sensor.hvac_daily_total_cost_estimate') | round(2, default='—') }}"
 secondary: Total HVAC Cost Today
 icon: mdi:currency-usd
 layout_options:

@@ -83,6 +83,20 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### `hvac_daily_total_cost_estimate` gets an `availability:` guard (`configuration.yaml`, `PACKAGES.md`, `dashboards/cards/mushroom/daily-cost-total.yaml`)
+
+- **Defect.** This was left open by the gas-cost guard below. The total reads both cost sensors through `| float(0)`, so once gas cost can be unavailable, the total quietly drops to electric-only. On today's inputs that is $0.02 instead of $2.02 [M, /api/template, 13:16], and it reads like a quiet day.
+- **Fix.** The total is now available only while both the gas and the electric cost pass `is_number`. The state template is unchanged.
+- **Card snippet.** `dashboards/cards/mushroom/daily-cost-total.yaml` now uses `round(2, default='—')`, the same as the gas card. No live dashboard uses this snippet. The live total is a `mushroom-entity-card` (`dashboards/lovelace/lovelace.yaml`), which shows unavailable natively, so there is nothing to paste.
+- **Verified.**
+  - R2/R7 through `POST /api/template`, 6 of 6 cases [M]. Silent: live inputs (gas 2.0, electric 0.02) -> True; both `0.0` -> True. Fires: gas `unavailable` or `unknown`, electric `unavailable` or `''` -> False.
+  - The old template with gas `unavailable` rendered 0.02, which is the defect reproduced.
+  - R3: deleting the 6 added lines reproduces HEAD byte for byte. H: is byte-identical to the tested sandbox.
+  - `PACKAGES.md` was regenerated for the line count; `ENTITIES.md` and `AUTOMATIONS.md` are unchanged.
+  - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+  - 4. RELOAD and 5. OBSERVE: not run at commit time (R12).
+- **Left open.** `hvac_daily_electric_cost_estimate` has no guard. It falls back to runtime 0 and $0.2733/kWh, so it never goes unavailable, and this guard cannot catch a fault in it.
+
 ### `hvac_daily_gas_cost_estimate` gets an `availability:` guard (`configuration.yaml`, `PACKAGES.md`, `dashboards/cards/mushroom/daily-cost-gas.yaml`)
 
 - **Defect.** The sensor predates the availability rule. When `sensor.hvac_furnace_runtime_today` was unreadable it read $0.00. When `sensor.gas_effective_rate` was unreadable it fell back to $1.6818/CCF against a live $4.6275 [M, /api/states, 2026-10-11], a cost 64 % low [D: 1 - 1.6818 / 4.6275]. Both looked like real readings.

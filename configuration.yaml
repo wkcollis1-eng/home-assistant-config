@@ -4583,6 +4583,12 @@ template:
         unit_of_measurement: "$"
         state_class: measurement
         icon: mdi:currency-usd
+        # Guarded 2026-10-11. The gas cost has been unavailable on bad inputs since
+        # 1fad1c7; through float(0) alone this total then read electric-only
+        # ($0.02 of $2.02 at 13:16 [M]) and looked like a quiet day.
+        availability: >
+          {{ states('sensor.hvac_daily_gas_cost_estimate') | is_number
+             and states('sensor.hvac_daily_electric_cost_estimate') | is_number }}
         state: >
           {% set gas = states('sensor.hvac_daily_gas_cost_estimate') | float(0) %}
           {% set elec = states('sensor.hvac_daily_electric_cost_estimate') | float(0) %}
