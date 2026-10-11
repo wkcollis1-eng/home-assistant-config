@@ -83,6 +83,38 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.10] - 2026-10-10
 
+### Daily HDD/CDD for 2026-10-01..10-09 backfilled from ACIS Bradley daily figures (13 live helpers, no file change)
+
+- **Why.** During the KBDL outage (second entry below, whose "Not backfilled" this supersedes) `sensor.hvac_hdd65_today` / `hvac_cdd65_today` ran on the proxy chain, and every 23:55 capture stored proxy values. Bill: "backfill data with bradley daily figures".
+- **Source [M].** ACIS StnData, HARTFORD-BRADLEY daily, queried 2026-10-10 ~20:30 EDT. HDD 10-01..10-09: 0, 0, 4, 9, 7, 15, 14, 3, 8 (sum 60). CDD: 1, 11, 0, 0, 0, 0, 0, 0, 0 (sum 12). 10-10 was not yet published; tonight's capture runs on KBDL, which reads `ok` again.
+- **Captured [M].** From recorder history at 23:55 each night: HDD sum 73.3, CDD sum 6.4. Per day the HDD differed from ACIS by 0 to -3.1. The captured sums equal the month accumulators exactly, so no night was skipped.
+- **Why ACIS fits a KBDL-fed series.** The template comments (`configuration.yaml`, HVAC HDD65/CDD65 Today) record agreement with ACIS [M, n=752 days, 2026-09-23]: KBDL sd 0.57 HDD/day, the proxy sd 1.42; KBDL CDD bias -0.08, sd 0.39. ACIS values therefore put those days back on the basis the rest of the month already uses.
+- **Writes.** Bill approved them. The prior state was snapshotted, and each write ran only after confirming its target still held the snapshot value.
+
+  | helper | before | after |
+  |---|---|---|
+  | `hdd_cumulative_month_auto` | 73.3 | 60.0 |
+  | `cdd_cumulative_month_auto` | 6.4 | 12.0 |
+  | `hdd_cumulative_year_auto` | 3890.1 | 3876.8 |
+  | `cdd_cumulative_year_auto` | 679.6 | 685.2 |
+  | `hdd_day_1..6` (10-09..10-04) | 10.5 / 5.7 / 15.8 / 15.8 / 10.1 / 11.4 | 8 / 3 / 14 / 15 / 7 / 9 |
+  | `runtime_per_hdd_day_2..4` (10-08..10-06) | 4.7 / 3.8 / 1.8 | 8.9 / 4.2 / 1.9 |
+
+  The new runtime/HDD values [D] = the furnace runtime logged at 23:56 x 60 / ACIS HDD. The slot-to-date mapping was checked first: each slot equalled that night's logged 23:56 runtime/HDD (7 of 7). No write was needed for `hdd_day_7` (10-03, 4 = 4), for `cdd_day_1..7` (0 = 0), or for the runtime slots with 0 runtime. 10-01 and 10-02 had already rolled out of the 7-day buffers.
+- **Verified.**
+  - All 13 values read back as written, 0 mismatch.
+  - The 12 snapshotted helpers that were not written are unchanged in both state and `last_changed`.
+  - No automation trigger references any written helper.
+  - `sensor.hdd_rolling_7_day_auto_2` reads 60.0.
+  - `sensor.hvac_runtime_per_hdd_7_day_mean` moved from 3.4 [D, mean of the 3 non-zero slots before] to 5.0. Its std dev reads 3.6, with n = 3 valid days.
+  - `binary_sensor.hvac_runtime_per_hdd_high_alert` and `_low_alert` both read `off`, unchanged.
+- **Not reachable.**
+  - The daily CSV rows for 10-01..10-09 are append-only and keep the proxy values.
+  - The recorder and InfluxDB history of the two daily sensors also keeps the proxy values.
+  - The month's outdoor-temperature sum for those days is still proxy-based. It is not HDD, so it was not touched.
+  - The 10-31 monthly CSV row and the October archive read the corrected month accumulator.
+- **Error (R13).** The approval question said "12 writes" above a 13-row table. 13 were written, as the table showed.
+
 ### Degree-day fetches declared in `pipelines.yaml` (`fetches:`), checked live by new audit rule `fetch-health` (`pipelines.yaml`, `scripts/ha_audit.py`, `scripts/test_ha_audit.py`)
 
 - **Why.** `sensor.bdl_degree_days` and `sensor.kbdl_degree_days_24h` read `unknown` from 2026-10-01 to 10-10 (entry below) and every nightly audit said 0 FAIL: neither sensor was declared anywhere the audit looks. Bill: "add the degree-day sensor to the pipelines.yaml".
