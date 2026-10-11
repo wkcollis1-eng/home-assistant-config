@@ -102,6 +102,7 @@ question" —** the answer was one line away and settled it in one sentence.
 - **Not done.** The fires direction live, end to end (R12: it raises a notice; asking Bill). The HA log was not read: `/api/error_log` is 404 off-host.
 - **Limits.** Total stops only: a partial loss (one integration's points) keeps the count positive. Numeric `value` points only, not string states. The URL is a second copy of `influxdb_url` in `secrets.yaml`; if Influx moves, the sensor goes `unavailable` and the notice fires. An automation reload while the binary is already on re-arms nothing until the next edge or HA start.
 - **Found, not changed.** `watchdog_reset_failed` (`packages/watchdog.yaml`) has five state triggers and no start trigger [M], so a sensor already stale when HA starts gives it no edge: the case this package's start trigger covers.
+- **After Bill's restart, 2026-10-11 23:42:18Z.** The sensor came back at 27,461 points and the binary `off` [M]. The start trigger fired at 23:44:19Z [M], when HA finished starting; its 15-min re-read falls near 23:59Z and, with the binary off, should end at the condition with no notice. That outcome was not yet observed at commit time.
 
 ### mmWave: the four target distances are out of the recorder again, and their two history cards are gone (`packages/mmwave_presence.yaml`, `dashboards/views/view-mmwave-office.yaml`, `dashboards/views/view-mmwave-family.yaml`, `PACKAGES.md`, `docs/pending.md` P24; source repo `mmwave-presence-node` c98dfb8 and 7df49f0)
 
@@ -117,6 +118,7 @@ question" —** the answer was one line away and settled it in one sentence.
   - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
 - **Not yet in effect.** The recorder reads `exclude` only at start, so this waits for an HA RESTART (R12: asking Bill). Rows already recorded age out within 14 days of it [D: `purge_keep_days` 14]; the file shrinks at the 2026-11-08 repack [S: HA 2026.10.1 `recorder/core.py:509`].
 - **Left open.** The two repo commits are local, not pushed, so the deployed header cites a rev GitHub does not have yet. P24 stays open (`docs/pending.md`).
+- **In effect from Bill's restart, 2026-10-11 23:42:18Z.** From 23:42:18 to 23:45:00Z the office pair sent 687 and 682 points to Influx, and the recorder's history API returned only its start-time state for each, no recorded change [M: /api/history/period against an Influx count per entity_id]. Control, still recorded: `sensor.sem_whole_home_power_10min`, 127 history rows against 126 Influx points in the same window [M]. The family pair changed once each in that window, so it does not test them (n=1); they are in the same exclude list. Both repos were pushed the same evening, so the deployed header's 7df49f0 is on GitHub.
 
 ### Family room: lamps lit by hand now go off when the room empties (`packages/mmwave_presence.yaml`, `PACKAGES.md`; source repo `mmwave-presence-node` `packages/mmwave_presence.yaml` and `docs/mmwave-presence-node-design.md` §4.2)
 
