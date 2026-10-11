@@ -2329,3 +2329,22 @@
   answered: >-
     2026-10-05, Bill: "solder jumper still in tact." VBus is read on Vin+,
     the Wago bus side, so Rev 4 ties the INA260 VBUS pin to IN+.
+
+- asked: 2026-10-10
+  question: >-
+    Did anything about hot water change around January 2026 - the Navien
+    recirculation schedule or mode, how many people live in the house, or the
+    Navien unit itself (replaced, reset, app account or firmware)?
+  blocks: >-
+    Reading the 12-month heating intensity. Heating gas is total gas minus
+    Navien DHW, and Navien DHW is lower in every month Jan-Sep 2026 than the
+    same month of 2025: 9 of 9, -60.7 CCF in all, sign test p = 0.004
+    two-sided [D: monthly_dhw_navien.csv for 2025 vs HA dhw_archive_* for
+    2026]. Recirc hours fell too in Jan-May (43/28/61/32/35 vs 2025
+    61/53/61/57/58 [M: 2025 monthly_dhw_navien.csv; 2026 monthly_summary.csv
+    via the 09-16 backfill]). With total
+    gas flat (784 vs 787 CCF) that moves +58 CCF into heating. If the drop is
+    real use, heating intensity is +2.2 % on one ACIS basis [D: 102.8 / 100.6,
+    n=1 year each side, no test possible]; if it is metering, heating is
+    overstated by up to that 60.7 CCF. Nothing is changed until he answers.
+  answered: null
