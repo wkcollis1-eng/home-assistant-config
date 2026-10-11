@@ -4929,7 +4929,11 @@ template:
 
       # MTD UA estimate from furnace runtime (real-time)
       # Balance-point ratio aligns HDD65 → HDD59 equivalent per METHODOLOGY
-      # Note: Runtime method excludes fireplace; uses empirical 60,556 BTU/hr effective rate
+      # Note: Runtime method excludes fireplace; rate is input_number.furnace_heating_rate_btu_hr,
+      # the 100,000 BTU/hr nameplate INPUT, x 0.95 AFUE below = delivered heat.
+      # CORRECTED 2026-10-11: this said "uses empirical 60,556 BTU/hr effective rate".
+      # 60,556 was the helper's `initial:` until bb7eb28 (2026-08-24) removed it and
+      # moved every template fallback to 100000; this comment was not updated then.
       - name: "HVAC Building Load UA Estimate"
         unique_id: hvac_building_load_ua_estimate
         unit_of_measurement: "BTU/hr-°F"

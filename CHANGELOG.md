@@ -83,6 +83,17 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### Stale "empirical 60,556 BTU/hr" comment above `hvac_building_load_ua_estimate` corrected in place (`configuration.yaml`, `PACKAGES.md`)
+
+- **Defect.** The comment said the runtime method "uses empirical 60,556 BTU/hr effective rate". The template reads `input_number.furnace_heating_rate_btu_hr`, with a `float(100000)` fallback, and multiplies by 0.95 AFUE. The helper reads 100,000 [M, /api/states, 2026-10-11].
+- **History [M, git log -S].** The comment arrived in `4f4aca5` (2026-02-25), when 60,556 was the helper's `initial:`. `bb7eb28` (2026-08-24) removed that `initial:` and moved four `float(60556)` fallbacks to `float(100000)`. Neither its commit message nor this CHANGELOG mentions the change, and the comment was not updated.
+- **Fix.** The comment is amended, not deleted, because inline comments are never removed. The original wording is quoted inside a dated `CORRECTED` note. Comment-only change: no behaviour changes and no reload is needed.
+- **Verified.**
+  - R3: reversing the edit reproduces HEAD byte for byte. 1 line became 5; the other 7,440 lines are untouched.
+  - `PACKAGES.md` was regenerated for the line count; `ENTITIES.md` and `AUTOMATIONS.md` are unchanged.
+  - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+- **Left open.** Why `bb7eb28` moved the rate to 100,000 is not recorded anywhere. The value matches the nameplate INPUT rating [S: BASELINE_REPORT.md nameplate], which the AFUE fix below relies on.
+
 ### `check_provenance.py` accepts long-form R15 tags such as `[D: formula]` (`scripts/check_provenance.py`)
 
 - **Defect.** The R17 checker's EVIDENCE regex accepted only the bare tags `[M]`, `[S]`, `[D]` and `[I]`. A line whose only evidence was a long-form tag (`[D: 1 / 0.95 - 1]`, `[M, grep]`, `[S: doc]`) WARNed as a naked ratio, although R15 allows the long form and the house style uses it. Hit while writing the AFUE entry below, which was reworded to a bare `[D]` to get past it.
