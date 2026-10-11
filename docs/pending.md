@@ -514,6 +514,15 @@ note); after the re-exclusion it draws nothing. Added 2026-09-28.
   to occupied 1.92 / 1.92 / 1.52 s [M, n=3] vs throttled median 2.51 s
   [M, n=41], exact one-sided rank-sum p = 0.0093 [D]; no flag skip.
   Confirm on ordinary walk-ins 10-03.
+2026-10-11, TUNING DONE (Bill: "tuning done for both the office and family
+mmWave so we can exclude"; CHANGELOG [2026.10.11]). All four target
+distances are back in recorder.exclude (repo 7df49f0), effective at the
+next HA restart, and the "Target distance" cards are gone from both views,
+which settles the 09-28 "Still open here" note. Influx keeps every point,
+so the tuning history stays in Grafana. The filter comment flagged above
+(settle) is corrected at the source (repo c98dfb8). Close condition not
+re-scored here: open until Bill says a bathroom occupancy with the office
+empty produced no presence edge.
 ```
 
 ### P26 — ups-monitor "INA260 Alert" reads an unconnected pin: V1.21 fix written, withdrawn until Bill can test [LOW]

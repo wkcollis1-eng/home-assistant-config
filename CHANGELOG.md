@@ -83,6 +83,21 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### mmWave: the four target distances are out of the recorder again, and their two history cards are gone (`packages/mmwave_presence.yaml`, `dashboards/views/view-mmwave-office.yaml`, `dashboards/views/view-mmwave-family.yaml`, `PACKAGES.md`, `docs/pending.md` P24; source repo `mmwave-presence-node` c98dfb8 and 7df49f0)
+
+- **Bill:** "tuning done for both the office and family mmWave so we can exclude."
+- **Change.** `sensor.office_mmwave_moving_distance`, `sensor.office_mmwave_still_distance`, `sensor.family_mmwave_moving_distance` and `sensor.family_mmwave_still_distance` are back in `recorder.exclude`, which now lists 10 entities. The comments that recorded their re-inclusion for P24 are kept, each with an "excluded again 2026-10-11" line under it. The office "Target distance (P24 tuning)" and family "Target distance" history-graphs were the only readers of their recorder history [M: impact scan; no `.storage/lovelace` reference]. Both are removed, with a REMOVED comment where each stood.
+- **Size.** 360,120 points/day across the four [M, Influx point count, 7 d]: office moving 138,427, still 134,834; family still 54,658, moving 32,201. That is about 834 MB of the 14-day recorder [D: 360,120 x 14 x 165.4 B/row from the 09-12 dbstat]. Reading Influx points as recorder rows is [I]; an on-host per-entity row count on `states` would falsify it, and that read was denied. The office pair was 33,144/day on 09-27 [M]; the rise matches the 10-02 removal of the firmware throttle (reading gap median 1.10 s -> 0.18 s [M, P24]).
+- **Not changed.** Influx has no entity filter and keeps every point, so the tuning history stays readable in Grafana. Restoring a firmware throttle would cut the Influx points too; not proposed. The automations use these sensors only as state triggers and `states()` reads (package lines 710-711, 727-728, 1053), which read live state, not the recorder.
+- **Also, R13, in its own repo commit (c98dfb8).** The comment over the office filter said "at a distance update the flag is that frame's own". It ignored ESPHome's default `settle: 1000ms` on the flags (`binary_sensor/filter.cpp:107-119`), as P24 recorded on 10-02. Corrected at the source.
+- **Verified.**
+  - Repo 934c343 derived byte-identical to the H: package before the edit [M, cmp]. Derived again at 7df49f0; H: is byte-identical to the tested sandbox, and the deployed header reads 7df49f0.
+  - R3 against the H: originals: the package differs by the 4 added exclude ids plus comment and header lines only; each view by its removed card (8 lines) plus the REMOVED comment.
+  - The live yaml-mode dashboards (websocket `lovelace/config`, forced) hold 0 references to the four ids; the originals held 2 per view [M].
+  - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+- **Not yet in effect.** The recorder reads `exclude` only at start, so this waits for an HA RESTART (R12: asking Bill). Rows already recorded age out within 14 days of it [D: `purge_keep_days` 14]; the file shrinks at the 2026-11-08 repack [S: HA 2026.10.1 `recorder/core.py:509`].
+- **Left open.** The two repo commits are local, not pushed, so the deployed header cites a rev GitHub does not have yet. P24 stays open (`docs/pending.md`).
+
 ### Family room: lamps lit by hand now go off when the room empties (`packages/mmwave_presence.yaml`, `PACKAGES.md`; source repo `mmwave-presence-node` `packages/mmwave_presence.yaml` and `docs/mmwave-presence-node-design.md` §4.2)
 
 - **Bill:** "need to have the automation honor manual lamps on, but turn off when room is empty."

@@ -2,7 +2,7 @@
 # mmWave Presence Lighting — HOME ASSISTANT PACKAGE
 # -----------------------------------------------------------------------------
 # DEPLOYED COPY, H:/packages/. Source: mmwave-presence-node
-# packages/mmwave_presence.yaml at 934c343, WHOLE - office and family room.
+# packages/mmwave_presence.yaml at 7df49f0, WHOLE - office and family room.
 # The family blocks went live 2026-10-02 for the family node's calibration
 # (Bill: "let's deploy for family room calibration"). Before that this file was
 # the office-only cut made by make_office_pkg.py, which is now retired.
@@ -692,6 +692,17 @@ template:
   # Rendering on a flag change would pair a fresh flag with the previous
   # frame's distance - Bill's last seated distance with a bathroom target, say.
   # It is also exactly how the figures above were measured.
+  # CORRECTED 2026-10-11 (R13; P24 asked for it at the next package edit):
+  # "that frame's own" holds only if the flag has not changed in the last
+  # second. ESPHome puts `settle: 1000ms` on every ld2410 binary sensor
+  # (esphome/mmwave-bench.yaml, DEFAULT FILTER): a change publishes at once,
+  # then later changes are held for 1 s, so a flag that flips back inside
+  # that second reaches HA late, and a distance update in between pairs with
+  # the held flag. The symptom, from P24: the gate skipped readings while
+  # "Moving target" read off on 8 of 47 throttled-era on-edges [M],
+  # 0.117-1.103 s, once 12.502 s [M]. Radar bit or settle is not separable
+  # in HA history [I]; the 12.502 s skip is not settle's [D: settle holds a
+  # change for at most 1 s].
   #
   # FAILS OPEN: an unrecognised distance unit, or no numeric distance at all
   # (entities disabled, node just booted), makes this follow radar presence -
@@ -2351,6 +2362,17 @@ automation:
 #     unmeasured; the office pair ran 33,144 rows/day [M, above]. Recording
 #     starts at the first HA restart after the edit: recorder config does
 #     not reload.
+#   * CHANGED 2026-10-11: all four distances EXCLUDED again (Bill 2026-10-11:
+#     "tuning done for both the office and family mmWave so we can exclude").
+#     The two bullets above are history now, not the current state. Cost
+#     they ran at: 360,120 rows/day for the four [M: InfluxDB point count,
+#     7 d to 2026-10-11, one point per state change; the recorder's own count
+#     was not read], the office pair 273,261 of it - up from 33,144 [M,
+#     above] after the 1 s throttle came off on 2026-10-02 (P24: reading gap
+#     median 1.10 s before, 0.18 s after [M]). InfluxDB still takes every
+#     point: it has no entity filter (H:/docs/influx-grafana.md). Rows already
+#     recorded age out with purge_keep_days (14 d). Both "Target distance"
+#     cards left the views with this edit - they would draw nothing.
 # Explicit ids, not a glob: `sensor.*_mmwave_*` would also catch the bench
 # node's sensor.bench_mmwave_* series. HA merges a package's
 # recorder.exclude lists into the main recorder config (config.py
@@ -2359,10 +2381,16 @@ recorder:
   exclude:
     entities:
       # office moving/still distance: recorded again, see "NOT excluded" (P24)
+      # - and excluded again 2026-10-11, tuning done (same section):
+      - sensor.office_mmwave_moving_distance
+      - sensor.office_mmwave_still_distance
       - sensor.office_mmwave_detection_distance
       - sensor.office_mmwave_moving_energy
       - sensor.office_mmwave_still_energy
       # family moving/still distance: recorded since 2026-10-02, see "NOT excluded"
+      # - and excluded again 2026-10-11, tuning done (same section):
+      - sensor.family_mmwave_moving_distance
+      - sensor.family_mmwave_still_distance
       - sensor.family_mmwave_detection_distance
       - sensor.family_mmwave_moving_energy
       - sensor.family_mmwave_still_energy
