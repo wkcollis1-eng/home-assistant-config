@@ -83,6 +83,19 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.11] - 2026-10-11
 
+### `hvac_daily_gas_cost_estimate` gets an `availability:` guard (`configuration.yaml`, `PACKAGES.md`, `dashboards/cards/mushroom/daily-cost-gas.yaml`)
+
+- **Defect.** The sensor predates the availability rule. When `sensor.hvac_furnace_runtime_today` was unreadable it read $0.00. When `sensor.gas_effective_rate` was unreadable it fell back to $1.6818/CCF against a live $4.6275 [M, /api/states, 2026-10-11], a cost 64 % low [D: 1 - 1.6818 / 4.6275]. Both looked like real readings.
+- **Fix.** The sensor is now available only while both inputs pass `is_number`. The rate helper is not guarded because it has a fallback of its own and is a stored input, not a feed. A comment at the site records why.
+- **Card snippet.** `dashboards/cards/mushroom/daily-cost-gas.yaml` now renders `round(2, default='—')`. A bare `round(2)` on 'unavailable' is a template error (HTTP 400 from `/api/template` [M]); the default form renders `$—`. **The live card is UI-managed and is NOT changed until Bill pastes it.** The mirror is `dashboards/lovelace/energy_performance.yaml`, Billing view; re-run `export_dashboards.py` after the paste.
+- **Verified.**
+  - R2/R7 through HA's own engine (`POST /api/template`), 7 of 7 cases [M]. Silent: live inputs (runtime 0.448 h, rate 4.6275) -> True; runtime `0` -> True, since zero is a reading, not a fault. Fires: runtime `unavailable` or `unknown`, rate `unavailable` or `''` -> False.
+  - R3: deleting the 6 added lines reproduces HEAD byte for byte. H: is byte-identical to the tested sandbox `C:\sandbox\gascost_1011`.
+  - `PACKAGES.md` was regenerated for the line count; `ENTITIES.md` and `AUTOMATIONS.md` are unchanged.
+  - Gate: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 3. DEPLOYED `check_config` "valid" -> **PASS (HA-certified)**.
+  - 4. RELOAD and 5. OBSERVE: not run at commit time (R12).
+- **Left open.** `hvac_daily_total_cost_estimate` reads this sensor through `| float(0)`. While gas is unavailable, the total silently becomes electric-only. It needs its own guard and was not changed here.
+
 ### Stale "empirical 60,556 BTU/hr" comment above `hvac_building_load_ua_estimate` corrected in place (`configuration.yaml`, `PACKAGES.md`)
 
 - **Defect.** The comment said the runtime method "uses empirical 60,556 BTU/hr effective rate". The template reads `input_number.furnace_heating_rate_btu_hr`, with a `float(100000)` fallback, and multiplies by 0.95 AFUE. The helper reads 100,000 [M, /api/states, 2026-10-11].

@@ -4541,6 +4541,12 @@ template:
         unit_of_measurement: "$"
         state_class: measurement
         icon: mdi:currency-usd
+        # Guarded 2026-10-11. Without it an unreadable runtime read $0.00, and an
+        # unreadable gas_effective_rate fell back to 1.6818 against a live 4.6275
+        # $/CCF [M] - a cost 64 % low [D: 1 - 1.6818 / 4.6275] with no sign of it.
+        availability: >
+          {{ states('sensor.hvac_furnace_runtime_today') | is_number
+             and states('sensor.gas_effective_rate') | is_number }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
           {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
