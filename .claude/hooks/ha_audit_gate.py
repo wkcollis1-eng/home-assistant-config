@@ -6,9 +6,11 @@ start of every session and again before saying you are done, and that "an audit
 you did not read is an audit that did not run for you." That made compliance a
 matter of the model remembering. This makes it the harness's job.
 
-  sessionstart  always runs, injects the verdict into context.
+  sessionstart  always runs, injects the verdict into context, and writes
+                this session's finding baseline (ha_audit.py --baseline).
   stop          runs ONLY if something under H: changed since the last run,
-                and BLOCKS on FAIL/WARN.
+                and BLOCKS on any FAIL, or on a WARN that was not there at
+                session start. With no baseline, on any WARN (fails closed).
 
 WHAT CHANGED 2026-08-25, and why it mattered
 --------------------------------------------
@@ -41,6 +43,19 @@ WHAT CHANGED 2026-08-25, and why it mattered
    newest() and the gate silently skipped, on the one surface CLAUDE.md calls
    "the one place a broken entity is completely silent". P12 was that class.
 
+WHAT CHANGED 2026-10-11, and why
+--------------------------------
+4. STOP BLOCKS ON WHAT THE SESSION ADDED, NOT ON WHAT IT INHERITED. It blocked
+   on any WARN, while DEFINITION OF DONE step 2 says "WARN count must not
+   rise". Over 30 d it blocked 105 times in 44 sessions and 85 of those named
+   only the standing open-question WARN [M, transcripts, stop_blocks.py in
+   C:/sandbox/token_replay] - a WARN that waits on Bill and that no session can
+   fix, so each was a forced extra turn that taught waving blocks through
+   (R7). Session start now runs ha_audit.py --baseline (one run: --log keeps
+   the human report), and Stop compares against that file, so the comparison
+   lives in ha_audit.py once (R10), day-count churn included. Any FAIL still
+   blocks, baselined or not. A missing or unreadable baseline blocks as before.
+
 LOOP SAFETY. A blocking Stop hook that keeps blocking would wedge the session,
 and the original docstring's "a broken gate must never wedge a session" still
 holds. After MAX_BLOCKS consecutive blocks the gate downgrades itself to a
@@ -50,8 +65,10 @@ message and lets the turn end, saying so.
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 
 CONFIG = os.environ.get("HA_GATE_CONFIG", "H:/")
 URL = os.environ.get("HA_GATE_URL", "http://10.0.0.210:8123")
@@ -60,7 +77,11 @@ STAMP = os.environ.get(
     "HA_GATE_STAMP",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ha_audit_stamp"),
 )
+STATE = os.environ.get(
+    "HA_GATE_STATE", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".state")
+)
 MAX_BLOCKS = 2
+BASELINE_DAYS = 30
 _root = CONFIG.rstrip("/")
 WATCH = [
     _root + "/*.yaml",
@@ -114,11 +135,11 @@ def write_stamp(mtime, blocks=0):
         return False
 
 
-def run_audit():
+def run_audit(*extra):
     env = dict(os.environ, HA_CONFIG=CONFIG, HA_URL=URL)
     try:
         r = subprocess.run(
-            [sys.executable, AUDIT],
+            [sys.executable, AUDIT] + list(extra),
             env=env,
             capture_output=True,
             text=True,
@@ -138,6 +159,84 @@ def verdict_line(out):
 
 def emit(obj):
     json.dump(obj, sys.stdout)
+
+
+def session_id():
+    """This session's id from the hook's stdin JSON, filename-safe; '' if none."""
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return ""
+        data = json.load(sys.stdin)
+    except (ValueError, OSError):
+        return ""
+    sid = data.get("session_id") if isinstance(data, dict) else None
+    return re.sub(r"[^A-Za-z0-9_-]", "", str(sid or ""))[:80]
+
+
+def baseline_path(sid):
+    """Per session, so two concurrent sessions never compare against each other."""
+    return os.path.join(STATE, "audit_baseline_%s.json" % sid) if sid else ""
+
+
+def prune_baselines():
+    cutoff = time.time() - BASELINE_DAYS * 86400
+    for p in glob.glob(os.path.join(STATE, "audit_baseline_*")):
+        try:
+            if os.path.getmtime(p) < cutoff:
+                os.remove(p)
+        except OSError:
+            pass
+
+
+NO_BASELINE = (
+    "\n\nNO STOP-GATE BASELINE for this session (%s): the Stop gate "
+    "will block on EVERY WARN, inherited ones included, as it did "
+    "before 2026-10-11."
+)
+
+
+def start_audit(base):
+    """(report, err, note): one audit run that also writes this session's baseline.
+
+    One run, not two: in --baseline mode ha_audit.py prints only the delta, so
+    --log captures the human report from the same run. A second run would add
+    7.4 s to every session start [M, n=1, live, 2026-10-11].
+    """
+    if not base:
+        out, err = run_audit()
+        return out, err, NO_BASELINE % "the hook got no session id"
+    log = base + ".log"
+    try:
+        os.makedirs(STATE, exist_ok=True)
+        for p in (base, log):
+            if os.path.exists(p):
+                os.remove(p)
+    except OSError as e:
+        out, err = run_audit()
+        return out, err, NO_BASELINE % ("state dir not writable: %s" % e)
+    out, err = run_audit("--baseline", base, "--log", log)
+    if err:
+        return out, err, ""
+    report = ""
+    try:
+        with open(log, encoding="utf-8") as fh:
+            report = re.sub(r"\A\s*=+ .* =+\n", "", fh.read()).strip()
+        os.remove(log)
+    except OSError:
+        pass
+    note = "" if os.path.exists(base) else NO_BASELINE % "ha_audit.py did not write it"
+    if not report:
+        # It stopped before reporting (e.g. pipelines.yaml not found): its own
+        # words are the report.
+        return out, None, note
+    extra = [
+        ln
+        for ln in out.splitlines()
+        if ln.strip()
+        and not ln.startswith("BASELINE WRITTEN")
+        and ln.strip() not in report
+    ]
+    return "\n".join([report] + extra), None, note
 
 
 def deploy_drift():
@@ -202,17 +301,62 @@ def main():
         mtime, blocks = read_stamp()
         if newest() <= mtime:
             return
-        out, err = run_audit()
+        base = baseline_path(session_id())
+        have_base = bool(base) and os.path.exists(base)
+        out, err = run_audit("--baseline", base) if have_base else run_audit()
         if err:
             write_stamp(newest(), 0)
             emit({"systemMessage": "HA audit gate: %s" % err})
             return
         v = verdict_line(out)
-        clean = v.startswith("0 FAIL") and " 0 WARN," in v
+        if have_base:
+            # ha_audit.py prints only the delta here: NEW/FIXED lines and
+            # "N NEW, N FIXED, N UNCHANGED". No such line = the comparison did
+            # not run (unreadable baseline, crash) - not clean, block.
+            m = re.search(r"^(\d+) NEW, \d+ FIXED", out, re.M)
+            # Finding lines only: ha_audit.py's closing "NEW findings block ...
+            # re-baseline DELIBERATELY" advice would invite silencing this gate.
+            new = [
+                ln for ln in out.splitlines() if re.match(r"NEW\s+(FAIL|WARN)\s", ln)
+            ]
+            clean = bool(m) and m.group(1) == "0" and v.startswith("0 FAIL")
+            bad = new or [
+                ln for ln in out.splitlines() if ln.startswith(("FAIL", "WARN"))
+            ]
+            if not m and "BASELINE WRITTEN" in out:
+                # The file vanished between exists() and the run, so ha_audit.py
+                # wrote a new one from the CURRENT tree - which would bless
+                # whatever this session added. Remove it, so the later stops
+                # fall back to blocking on every WARN.
+                try:
+                    os.remove(base)
+                except OSError:
+                    pass
+                bad = [
+                    "(the session baseline vanished before the comparison; "
+                    "the one ha_audit.py just wrote from the current tree was "
+                    "removed, so this session now blocks on every WARN)"
+                ]
+            if not bad and m and not v.startswith("0 FAIL"):
+                bad = [
+                    "(no NEW finding, but a FAIL already there at session "
+                    "start still blocks - FAIL is never baselined. The "
+                    "session-start report names it.)"
+                ]
+            how = (
+                "Compared with this session's start (ha_audit.py "
+                "--baseline %s):\n" % base
+            )
+        else:
+            clean = v.startswith("0 FAIL") and " 0 WARN," in v
+            bad = [ln for ln in out.splitlines() if ln.startswith(("FAIL", "WARN"))]
+            how = (
+                "No session-start baseline for this session, so every WARN "
+                "blocks, inherited ones included:\n"
+            )
         if clean:
             write_stamp(newest(), 0)
             return
-        bad = [ln for ln in out.splitlines() if ln.startswith(("FAIL", "WARN"))]
         if blocks >= MAX_BLOCKS:
             write_stamp(newest(), 0)
             emit(
@@ -242,6 +386,7 @@ def main():
                 "reason": "H: changed this turn and ha_audit.py is not clean. Fix "
                 "these before finishing, or say explicitly what you are "
                 "leaving open and why (CLAUDE.md OUTPUT FORMAT):\n"
+                + how
                 + "\n".join(bad[:12])
                 + "\n"
                 + v,
@@ -260,7 +405,8 @@ def main():
             }
         )
         return
-    out, err = run_audit()
+    prune_baselines()
+    out, err, note = start_audit(baseline_path(session_id()))
     write_stamp(newest(), 0)
     if err:
         emit(
@@ -280,7 +426,7 @@ def main():
                 "hookEventName": "SessionStart",
                 "additionalContext": "HA CONFIG AUDIT (ran automatically per CLAUDE.md SESSION PROTOCOL).\n"
                 "Read this verdict aloud in your first message and name every FAIL "
-                "and WARN:\n\n" + out + deploy_drift(),
+                "and WARN:\n\n" + out + note + deploy_drift(),
             }
         }
     )
