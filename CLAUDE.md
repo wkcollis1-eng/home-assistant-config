@@ -24,15 +24,18 @@ and the prose ever disagree, follow the rule and fix the prose.
 
 ### At the START of every session, before touching anything
 
+Off-host the SessionStart hook has already run the audit and put its verdict in
+context: read it, do not re-run it. By hand only if the hook could not run,
+after `/clear` (it matches startup|resume), or on the HA host:
+
 ```bash
 # ON THE HA HOST
 cd /config
 python3 scripts/ha_audit.py    # inherit the truth, do not assume it
 
-# OFF-HOST (Claude Code on Windows, H: over Samba) - all three are REQUIRED
+# OFF-HOST, only in those cases
 cd /h
 HA_CONFIG='H:/' HA_URL='http://10.0.0.210:8123' python scripts/ha_audit.py
-python scripts/check_provenance.py --all <files>   # R17 gate, git-free mode
 ```
 
 Off-host gotchas (evidence: `docs/off-host-access.md` - read it before the first
@@ -69,8 +72,10 @@ house is not a thing to do quietly.
 ### At the END of every session, before saying you are done
 
 Run the DEFINITION OF DONE gate below: `gen_reference.py` if entities,
-automations or packages moved, then `gate.py <edited files>`, then the
-deployed gate (`check_config` -> "valid"; only it certifies HA will load it).
+automations or packages moved, then `gate.py <edited files>`, then
+`python scripts/check_provenance.py --all <edited files>` (R17, git-free mode;
+gate.py does not run it), then the deployed gate (`check_config` -> "valid";
+only it certifies HA will load it).
 
 Then, in the final message:
 - state the three verdicts verbatim — do not upgrade them (see below)

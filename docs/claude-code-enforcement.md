@@ -87,6 +87,18 @@ consecutive blocks so a broken gate cannot wedge a session. It also now watches
 its mtime stamp, so the gate silently skipped on the one surface this file
 calls "the one place a broken entity is completely silent".
 
+*Narrowed 2026-10-11:* the Stop gate blocked on ANY WARN, while DEFINITION OF
+DONE step 2 asks only that the WARN count not rise; 85 of its 105 blocks in 30 d
+named only the standing `open-question` WARN [M, transcripts], which no session
+can fix. Session start now runs `ha_audit.py --baseline
+~/.claude/hooks/.state/audit_baseline_<session id>.json --log <file>` once (an
+audit takes 7.4 s [M, n=1]), and Stop runs `--baseline` against that file: it
+blocks on any FAIL (never baselined) or a NEW WARN. With no baseline - no session
+id, a session opened by `/clear` (the matcher is `startup|resume`), or a file
+that is missing, unreadable or vanished mid-run - it blocks on every WARN, as
+before. Tests: `python .claude/hooks/test_audit_baseline.py` (16 cases, a fake
+audit that follows the CLI contract) and `mutate_audit_baseline.py` (9 mutants).
+
 **`deploy_drift()` checks every deployed hook** (corrected 2026-09-16). It
 compared only `ha_audit_gate.py` with its own tracked copy, so the other hooks
 could drift, or run with no tracked copy at all, with nothing said. The
