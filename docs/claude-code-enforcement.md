@@ -280,11 +280,23 @@ In `~/.claude/settings.json`:
   `name-only` lists it without its description (2.1.289 binary schema text [M]).
   Off: docx, pptx, xlsx, computer-use, chrome-browser, built-in-browser,
   google-workspace, morning, import-memory, web-artifacts-builder, docs,
-  deep-research. User-invocable only: pdf, skill-creator. Claude Code only;
-  claude.ai web keeps its own skill toggles.
+  deep-research, and since 2026-10-11 artifact-design, artifact-diagramming,
+  artifact-capabilities (see the `Artifact` deny below). User-invocable only:
+  pdf, skill-creator. Claude Code only; claude.ai web keeps its own skill
+  toggles.
 - **`disableClaudeAiConnectors: true`**: the claude.ai connectors (Claude Docs,
   Gmail, Calendar, Drive) are not loaded in Claude Code. Remove the key to get
   them back. Not applied mid-session: they re-listed after a compaction [M, n=1].
+- **`permissions.deny`: bare `Artifact`, `ArtifactComments`, `ArtifactData`**
+  (2026-10-11, Bill authorised). A bare tool name removes the tool from the
+  model's context, not only its calls [S: code.claude.com/docs/en/permissions.md
+  line 66]. With tool search on, the definition stays in the request of the
+  session that adds the deny, so the saving starts at the next session [S:
+  code.claude.com/docs/en/prompt-caching.md, "Denying an entire tool"]. Why:
+  1 `Artifact` call in 97 main-thread transcripts [M, transcript scan
+  2026-10-11], while the definition rides on every request. Falsifier: the
+  CHANGELOG prediction-ledger row of 2026-10-11. To restore: delete the three
+  deny entries and the three `artifact-*` overrides.
 
 `~/.claude/tools/spanedit.py` is a library, not a hook. Use it for any scripted
 text edit, above all on a CRLF file or an H: `.md` where the Edit tool draws
