@@ -257,6 +257,34 @@ PreToolUse, matcher `Read`, first PreToolUse entry, runpy launcher (missing scri
     outside the range read, so the guard never forces a whole read before editing.
 - **Scoring:** against the CHANGELOG prediction-ledger row dated 2026-10-04.
 
+### `bash_guard.py` - doubled-backslash Bash guard (added 2026-10-11)
+
+PreToolUse, matcher `Bash`, second PreToolUse entry, runpy launcher (missing
+script -> exit 0).
+- **Why:** the Bash tool turns every doubled backslash into one before bash
+  runs, in any quoting, while the transcript and the hook still see both [M,
+  2026-10-11, n=1 per form: single quotes, double quotes, quoted heredoc,
+  `python -c` argument]. Of 155 commands holding one, 29 had a Python/shell
+  error in the result, against 107 of 5,319 with no backslash (Fisher
+  p=2.5e-18); lone backslashes only, 82 of 3,798 (p=0.65): safe [M, all
+  main-thread transcripts, `C:/sandbox/token_replay/heredoc_cost.py`]. The
+  silent case is the real risk: on 2026-10-10 two stray CRs went into a
+  checkpoint with no error. A memory note did not stop it.
+- **What it denies:** any Bash command containing two backslashes in a row.
+  No repeat-allow: a file written with Write and run is always a way through.
+- **Errors:** fail-open, logged as `error`.
+- **Log:** `~/.claude/hooks/.state/bash_guard.log`, tab-separated `deny` /
+  `error`, with the first 100 chars of the command.
+- **Tests:** in `H:/.claude/hooks/`, `python test_bash_guard.py` -> "ALL PASSED
+  (26 checks)". `BASH_GUARD_MODULE=<copy>` runs the suite on a mutant; three
+  mutants (detection off, fail-open removed, lone backslash firing) all
+  failed it on 2026-10-11.
+- **Live, 2026-10-11 [M, n=1 each]:** a command with a doubled backslash was
+  denied with the guard's message and logged; the same command with one
+  backslash ran.
+- **Scoring:** against the CHANGELOG prediction-ledger row for `bash_guard.py`,
+  dated 2026-10-11.
+
 ### `~/.claude/checkpoints/.markdownlint.json` (added 2026-10-04)
 
 `{"default": false}`. markdownlint diagnostics were injected into context after
