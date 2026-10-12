@@ -46,6 +46,7 @@ and the original docstring's "a broken gate must never wedge a session" still
 holds. After MAX_BLOCKS consecutive blocks the gate downgrades itself to a
 message and lets the turn end, saying so.
 """
+
 import glob
 import json
 import os
@@ -57,14 +58,20 @@ URL = os.environ.get("HA_GATE_URL", "http://10.0.0.210:8123")
 AUDIT = os.environ.get("HA_GATE_AUDIT", CONFIG.rstrip("/") + "/scripts/ha_audit.py")
 STAMP = os.environ.get(
     "HA_GATE_STAMP",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ha_audit_stamp"))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ha_audit_stamp"),
+)
 MAX_BLOCKS = 2
 _root = CONFIG.rstrip("/")
-WATCH = [_root + "/*.yaml", _root + "/*.md",
-         _root + "/packages/*.yaml", _root + "/scripts/*.py",
-         _root + "/dashboards/*.yaml",
-         _root + "/dashboards/*/*.yaml", _root + "/dashboards/*/*/*.yaml",
-         _root + "/esphome/*.yaml"]
+WATCH = [
+    _root + "/*.yaml",
+    _root + "/*.md",
+    _root + "/packages/*.yaml",
+    _root + "/scripts/*.py",
+    _root + "/dashboards/*.yaml",
+    _root + "/dashboards/*/*.yaml",
+    _root + "/dashboards/*/*/*.yaml",
+    _root + "/esphome/*.yaml",
+]
 
 
 def newest():
@@ -110,8 +117,13 @@ def write_stamp(mtime, blocks=0):
 def run_audit():
     env = dict(os.environ, HA_CONFIG=CONFIG, HA_URL=URL)
     try:
-        r = subprocess.run([sys.executable, AUDIT], env=env, capture_output=True,
-                           text=True, timeout=180)
+        r = subprocess.run(
+            [sys.executable, AUDIT],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
     except (OSError, subprocess.SubprocessError) as e:
         return None, "ha_audit could not run: %s" % e
     return ((r.stdout or "") + (r.stderr or "")).strip(), None
@@ -147,8 +159,9 @@ def deploy_drift():
     # fixed 2026-09-16, present since the check was written). Same idiom as AUDIT.
     repo = CONFIG.rstrip("/") + "/.claude/hooks"
     try:
-        if not os.path.isdir(repo) or \
-                os.path.normcase(os.path.abspath(repo)) == os.path.normcase(here):
+        if not os.path.isdir(repo) or os.path.normcase(
+            os.path.abspath(repo)
+        ) == os.path.normcase(here):
             return ""
         drift = []
         for path in sorted(glob.glob(os.path.join(here, "*.py"))):
@@ -164,16 +177,19 @@ def deploy_drift():
         return ""
     if not drift:
         return ""
-    return ("\n\nHOOK DEPLOY DRIFT: %s - running hooks in %s against the tracked "
-            "copies in %s. One side is stale - re-copy before trusting what the "
-            "hooks enforce." % (", ".join(drift), here, repo))
+    return (
+        "\n\nHOOK DEPLOY DRIFT: %s - running hooks in %s against the tracked "
+        "copies in %s. One side is stale - re-copy before trusting what the "
+        "hooks enforce." % (", ".join(drift), here, repo)
+    )
 
 
 def missing_audit_message():
-    return ("HA CONFIG AUDIT DID NOT RUN: %s does not exist. CLAUDE.md: \"If "
-            "ha_audit.py cannot run at all, say so and stop. Working blind on a "
-            "live house is not a thing to do quietly.\" Check that H: is mounted."
-            % AUDIT)
+    return (
+        'HA CONFIG AUDIT DID NOT RUN: %s does not exist. CLAUDE.md: "If '
+        "ha_audit.py cannot run at all, say so and stop. Working blind on a "
+        'live house is not a thing to do quietly." Check that H: is mounted.' % AUDIT
+    )
 
 
 def main():
@@ -196,53 +212,78 @@ def main():
         if clean:
             write_stamp(newest(), 0)
             return
-        bad = [l for l in out.splitlines() if l.startswith(("FAIL", "WARN"))]
+        bad = [ln for ln in out.splitlines() if ln.startswith(("FAIL", "WARN"))]
         if blocks >= MAX_BLOCKS:
             write_stamp(newest(), 0)
-            emit({"systemMessage":
-                  "HA CONFIG GATE: still not clean after %d blocked stops - "
-                  "letting the turn end so the session is not wedged. UNRESOLVED:\n%s\n%s"
-                  % (MAX_BLOCKS, "\n".join(bad[:12]), v)})
+            emit(
+                {
+                    "systemMessage": "HA CONFIG GATE: still not clean after %d blocked stops - "
+                    "letting the turn end so the session is not wedged. UNRESOLVED:\n%s\n%s"
+                    % (MAX_BLOCKS, "\n".join(bad[:12]), v)
+                }
+            )
             return
         if not write_stamp(newest(), blocks + 1):
             # Cannot persist the block count, so cannot guarantee this ever
             # stops. Speak instead of blocking - a gate that cannot count its
             # own retries has no business holding the session open.
-            emit({"systemMessage":
-                  "HA CONFIG GATE: audit is not clean, but the gate stamp (%s) "
-                  "could not be written, so the retry count cannot be tracked. "
-                  "NOT blocking, to avoid wedging the session. UNRESOLVED:\n%s\n%s"
-                  % (STAMP, "\n".join(bad[:12]), v)})
+            emit(
+                {
+                    "systemMessage": "HA CONFIG GATE: audit is not clean, but the gate stamp (%s) "
+                    "could not be written, so the retry count cannot be tracked. "
+                    "NOT blocking, to avoid wedging the session. UNRESOLVED:\n%s\n%s"
+                    % (STAMP, "\n".join(bad[:12]), v)
+                }
+            )
             return
-        emit({"decision": "block",
-              "reason": "H: changed this turn and ha_audit.py is not clean. Fix "
-                        "these before finishing, or say explicitly what you are "
-                        "leaving open and why (CLAUDE.md OUTPUT FORMAT):\n"
-                        + "\n".join(bad[:12]) + "\n" + v})
+        emit(
+            {
+                "decision": "block",
+                "reason": "H: changed this turn and ha_audit.py is not clean. Fix "
+                "these before finishing, or say explicitly what you are "
+                "leaving open and why (CLAUDE.md OUTPUT FORMAT):\n"
+                + "\n".join(bad[:12])
+                + "\n"
+                + v,
+            }
+        )
         return
 
     # ---- session start --------------------------------------------------
     if not os.path.exists(AUDIT):
-        emit({"hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": missing_audit_message()}})
+        emit(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": missing_audit_message(),
+                }
+            }
+        )
         return
     out, err = run_audit()
     write_stamp(newest(), 0)
     if err:
-        emit({"hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext":
-                "HA CONFIG AUDIT could not run: %s\nCLAUDE.md: if ha_audit.py "
-                "cannot run at all, say so and stop. Working blind on a live "
-                "house is not a thing to do quietly." % err}})
+        emit(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": "HA CONFIG AUDIT could not run: %s\nCLAUDE.md: if ha_audit.py "
+                    "cannot run at all, say so and stop. Working blind on a live "
+                    "house is not a thing to do quietly." % err,
+                }
+            }
+        )
         return
-    emit({"hookSpecificOutput": {
-        "hookEventName": "SessionStart",
-        "additionalContext":
-            "HA CONFIG AUDIT (ran automatically per CLAUDE.md SESSION PROTOCOL).\n"
-            "Read this verdict aloud in your first message and name every FAIL "
-            "and WARN:\n\n" + out + deploy_drift()}})
+    emit(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "HA CONFIG AUDIT (ran automatically per CLAUDE.md SESSION PROTOCOL).\n"
+                "Read this verdict aloud in your first message and name every FAIL "
+                "and WARN:\n\n" + out + deploy_drift(),
+            }
+        }
+    )
 
 
 if __name__ == "__main__":
