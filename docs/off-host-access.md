@@ -40,6 +40,17 @@ Off-host gotchas, each of which has cost a session:
   "the UPS monitor never dropped" were all read off data that ended before the
   events. Always pass `end_time`, and check each returned series' first and last
   timestamp against the window you asked for.
+- **`/api/states` freezes `last_reported` while a state is unchanged.** An
+  unchanged write moves `State.last_reported` in place, but `/api/states` serves
+  `State.as_dict_json`, a cached property that move never invalidates [S: core
+  2026.10.1 `homeassistant/core.py` 2477-2481 and 2043,
+  `components/api/__init__.py` 220]. For an entity whose state and attributes
+  have not changed, REST shows `last_reported` as of whenever HA first
+  serialised it, not its last scan. 2026-10-15 [M]: `sensor.bdl_degree_days`
+  read 2026-10-11T23:42:19Z over REST and 2026-10-14T23:42:20Z live, a false
+  `fetch-health` FAIL on three nightly audits. Read it live with
+  `POST /api/template` and `{{ states.sensor.bdl_degree_days.last_reported }}`;
+  `ha_audit.py`'s `_live_reported()` does.
 - **`HA_TOKEN` cannot reach the Supervisor directly, but CAN drive it through
   services.** Every `/api/hassio/*` path returns a flat `401 Unauthorized` to a
   long-lived token — `supervisor/info`, `addons`, `store/addons`, all of them —

@@ -1177,7 +1177,8 @@ def f_fetch_health(tree):
     good_m = st("sensor.m", "2026-09", status="ok")
     good_h = st("sensor.h", "ok")
     cases = [
-        # (name, manifest, (states, why), expected [(severity, rule)], needle)
+        # (name, manifest, (states, why), expected [(severity, rule)], needle
+        #  [, reported: the live last_reported read, as main() supplies it])
         ("both fresh and ok -> silent", man, ([good_m, good_h], None), [], None),
         (
             # the 2026-10-01 outage exactly: HA killed the script, blanked attrs
@@ -1223,6 +1224,32 @@ def f_fetch_health(tree):
             "NOT checked",
         ),
         ("no fetches: section -> silent", {}, ([good_h], None), [], None),
+        # 2026-10-15: the false FAIL exactly. /api/states froze last_reported
+        # at the restart; the live object had it 24 h ago. Believe the object.
+        (
+            "/api/states last_reported 95 h, live 24 h -> silent",
+            man,
+            ([st("sensor.m", "2026-09", rep_h=95, status="ok"), good_h], None),
+            [],
+            None,
+            ({"sensor.m": ago(24), "sensor.h": ago(0.1)}, None),
+        ),
+        (
+            "live last_reported past max_age_h -> FAIL",
+            man,
+            ([good_m, good_h], None),
+            [("FAIL", "fetch-health")],
+            "stopped scanning",
+            ({"sensor.m": ago(27), "sensor.h": ago(0.1)}, None),
+        ),
+        (
+            "live read failed -> one WARN, never the /api/states value",
+            man,
+            ([st("sensor.m", "2026-09", rep_h=95, status="ok"), good_h], None),
+            [("WARN", "fetch-health")],
+            "NOT checked",
+            (None, "POST /api/template -> refused"),
+        ),
         # As main() runs them: ONE skip WARN, naming this check too.
         (
             "live check skipped -> one WARN naming this check",
@@ -1233,10 +1260,10 @@ def f_fetch_health(tree):
         ),
     ]
     out = []
-    for name, m, states, want, needle in cases:
+    for name, m, states, want, needle, *reported in cases:
         del audit.findings[:]
         audit.rule_statistics_buffer(states)
-        audit.rule_fetch_health(m, states)
+        audit.rule_fetch_health(m, states, *reported)
         got = [(sev, rule) for sev, rule, _m, _fx in audit.findings]
         msg = " | ".join(m_ for _s, _r, m_, _f in audit.findings)
         ok = got == want and (needle is None or needle in msg)

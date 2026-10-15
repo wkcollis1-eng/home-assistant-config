@@ -84,6 +84,18 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.15] - 2026-10-15
+
+### Fix: `fetch-health` read a cached `last_reported` and FAILed a healthy sensor (`scripts/ha_audit.py`, `scripts/test_ha_audit.py`, `docs/off-host-access.md`)
+
+- **Bill:** pasted the 10-15 00:30 audit, `FAIL fetch-health - sensor.bdl_degree_days last reported 76.8 h ago (max 26 h)`, and HA's shell_command "return code: 1" error for `ha_audit.py`, 3 occurrences since 10-13.
+- **The sensor was healthy** [M, 2026-10-15 22:58Z]: live `State.last_reported` 2026-10-14T23:42:20Z; `reports/bdl_degree_days.csv` rewritten 23:42:20Z; no command_line error in the core log since the 10-11 19:42 EDT restart. `/api/states` said 2026-10-11T23:42:19Z.
+- **Cause (R13, the audit's own defect):** an unchanged write moves `last_reported` on the State object, but `/api/states` serves the cached `as_dict_json`, which that move never invalidates [S: core 2026.10.1 core.py:2477-2481, 2043; api/__init__.py:220]. The rule's 10-10 [S] citation was true of the object, not of the route it read. The CSV's newest row was captured 2026-10-01 [M], so every daily scan since was identical and the REST value froze at the restart. The same freeze shows on `sensor.climate_norms_today`: REST 04:42Z, live 22:42Z [M].
+- **The return code 1 is not a second fault:** `ha_audit.py` exits 1 whenever it has a FAIL, and HA logs that as a shell_command error.
+- **Fix:** `_live_reported()` reads `last_reported` for the declared `fetches:` entities in one `POST /api/template`, on the route `/api/states` answered on. If that read fails, one WARN says staleness was NOT checked (R8); it never falls back to the cached value.
+- **Verified** (sandbox `C:\sandbox\fetch_health_1015`, live HA): unmodified audit 1 FAIL (bdl 95.3 h); edited audit 0 FAIL, 1 WARN, 2 INFO; injected `max_age_h: 1` on bdl -> FAIL at 23.4 h, the live value; restored, cmp identical. `test_ha_audit.py`: SUITE PASSED - 36 rule(s), with 3 new fetch-health cases (the exact false FAIL -> silent; live past max -> FAIL; live read failed -> WARN). R3: 2,475 of 2,479 original lines of ha_audit.py and 1,647 of 1,650 of test_ha_audit.py unchanged; reversing the edit is byte-identical.
+- **Left open:** (1) the audit's shell_command carries `HA_TOKEN` in its command line, so HA's core log holds the full token in plain text after every non-zero exit, 3 times since 10-13 [M]; moving it out is a separate change awaiting Bill. (2) Anything else that reads `last_reported` over REST or the websocket has the same blind spot; in `scripts/` only this rule does [M, grep].
+
 ## [2026.10.11] - 2026-10-11
 
 ### Claude Code: the Stop gate blocks only on what the session added; start protocol trimmed (`.claude/hooks/ha_audit_gate.py`, `.claude/hooks/test_audit_baseline.py` new, `.claude/hooks/mutate_audit_baseline.py` new, `CLAUDE.md`, `docs/claude-code-enforcement.md`)

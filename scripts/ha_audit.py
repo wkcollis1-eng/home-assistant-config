@@ -702,6 +702,47 @@ def rule_generated_docs(ents):
         )
 
 
+# [url, token] of the /api/states fetch that answered, for _live_reported.
+_LIVE_ROUTE = []
+
+
+def _live_reported(eids):
+    """({entity_id: last_reported ISO, or None if absent}, None), or (None, why).
+
+    Read from HA's live State objects through /api/template, NOT from
+    /api/states (2026-10-15, R13). An unchanged write moves State.last_reported
+    in place, but /api/states serves State.as_dict_json, a cached property the
+    move never invalidates [S: core 2026.10.1 homeassistant/core.py:2477-2481
+    and 2043, components/api/__init__.py:220]. A template renders the object.
+    """
+    import urllib.request
+
+    if not _LIVE_ROUTE:
+        return None, "/api/states never answered, so there is no route to HA"
+    url, tok = _LIVE_ROUTE
+    tpl = (
+        "{% set ns = namespace(v=[]) %}{% for e in ids %}{% set s = states[e] %}"
+        "{% set ns.v = ns.v + [s.last_reported.isoformat() if s is not none "
+        "else none] %}{% endfor %}{{ ns.v | tojson }}"
+    )
+    try:
+        req = urllib.request.Request(
+            url[: -len("/states")] + "/template",
+            data=json.dumps({"template": tpl, "variables": {"ids": eids}}).encode(),
+            headers={
+                "Authorization": "Bearer " + tok,
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as fh:
+            vals = json.loads(fh.read().decode())
+    except Exception as e:
+        return None, "POST /api/template -> %s" % e
+    if not isinstance(vals, list) or len(vals) != len(eids):
+        return None, "POST /api/template returned %r, not one value per id" % (vals,)
+    return dict(zip(eids, vals)), None
+
+
 def _live_states():
     """/api/states, or None when no token is reachable.
 
@@ -752,7 +793,9 @@ def _live_states():
                 url, headers={"Authorization": "Bearer " + tok}
             )
             with urllib.request.urlopen(req, timeout=10) as fh:
-                return json.load(fh), None
+                live = json.load(fh)
+            _LIVE_ROUTE[:] = [url, tok]  # _live_reported asks the same HA
+            return live, None
         except Exception as e:
             why.append("%s -> %s" % (label, e))
             if label == "HA_TOKEN":
@@ -1030,7 +1073,7 @@ def rule_automation_unavailable(states):
             )
 
 
-def rule_fetch_health(man, states):
+def rule_fetch_health(man, states, reported=None):
     """A fetch that has gone dark must not read as a clean audit.
 
     `fetches:` in pipelines.yaml declares the command_line sensors that pull
@@ -1049,12 +1092,32 @@ def rule_fetch_health(man, states):
     [S: core 2026.10.0 homeassistant/core.py, State.last_reported docstring
     and async_set_internal's same_state-and-same_attr branch]; last_updated
     would not.
+
+    2026-10-15 (R13): that [S] is true of the State OBJECT, and this rule read
+    /api/states, which is not the object. An unchanged write never invalidates
+    State.as_dict_json, the cached JSON /api/states serves (_live_reported), so
+    a daily fetch whose JSON had not changed read "stopped scanning" from 26 h
+    after a restart. sensor.bdl_degree_days FAILed 10-13 -> 10-15 at 76.8 h
+    [M, the 10-15 00:30 run] while its live last_reported was
+    2026-10-14T23:42:20Z and its CSV was rewritten at 23:42:20Z [M]. `reported`
+    is now that live read; None means not supplied (the suite puts
+    last_reported in the state dicts), and main() always supplies it.
     """
     states, _why = states
     if states is None:
         # R8 is met by rule_statistics_buffer's live-check-skipped WARN, which
         # names this check too (one cause, one WARN - see the rule above).
         return
+    live_rep, rep_why = reported if reported is not None else ({}, None)
+    if live_rep is None and man.get("fetches"):
+        # Never fall back to /api/states here: its last_reported is the frozen
+        # value that produced the false FAIL. One cause, one WARN (R8).
+        warn(
+            "fetch-health",
+            "last_reported could not be read from HA's live state (%s), so "
+            "staleness was NOT checked for any fetch" % rep_why,
+            fix="check POST /api/template answers with the audit's token",
+        )
     by_id = {s.get("entity_id"): s for s in states}
     now = datetime.now(timezone.utc)
     for name, f in sorted((man.get("fetches") or {}).items()):
@@ -1092,7 +1155,9 @@ def rule_fetch_health(man, states):
                 fix="read the `detail` attribute; run the command by hand on the host",
             )
         max_h = f.get("max_age_h")
-        seen = st.get("last_reported") or st.get("last_updated")
+        if live_rep is None:
+            continue  # staleness skipped, announced once above
+        seen = live_rep.get(eid) or st.get("last_reported") or st.get("last_updated")
         if max_h is None or not seen:
             warn(
                 "fetch-health",
@@ -2381,7 +2446,13 @@ def main():
     rule_statistics_buffer((_live, _live_err))
     rule_state_condition_for()
     rule_automation_unavailable((_live, _live_err))
-    rule_fetch_health(man, (_live, _live_err))
+    rule_fetch_health(
+        man,
+        (_live, _live_err),
+        _live_reported([f.get("entity") for f in (man.get("fetches") or {}).values()])
+        if _live is not None
+        else None,
+    )
     rule_eod_collisions(man)
     rule_stamp_snapshotted(man)
     rule_latched_guards(man)
