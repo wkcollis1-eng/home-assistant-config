@@ -2476,3 +2476,14 @@
     should, and the re-light was a preference - no radar coverage defect to
     chase. Keeping the family lamps on while someone is in the kitchen would
     be a design change, Bill's call; nothing changed.
+    R13, same day (mine): "no radar coverage defect to chase" above is
+    wrong, and so was the question's framing. Under Bill's 2026-09-07 rule
+    the kitchen counts as the family room for lighting, and since 10-02 the
+    Ecobee's main_floor_motion is its only witness (the radar cannot reach
+    it). A person in the kitchen when the lamps went off means that witness
+    missed them long enough to release, three times: a kitchen coverage
+    gap, not a preference. The kitchen SEM circuits agree: in the 30 min
+    before each switch-off the dining/kitchen lights drew 17-56 W and the
+    island/range/hood circuit peaked at 205-689 W; on 10-12, 10-13 and
+    10-14, house away, both read 0 W in the same window [M, recorder, n=3
+    each]. How to close the gap is Bill's call, asked 2026-10-16.
