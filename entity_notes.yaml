@@ -119,7 +119,7 @@ binary_sensor.hwh_recirc_watts_out_of_control:
   note: ''
 binary_sensor.mmw_office_occupied:
   group: MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
-  note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 70 in while radar presence is on, holds while it is on; fails open to raw presence
+  note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 82 in (70 until 2026-10-16) while radar presence is on, holds while it is on; fails open to raw presence
 binary_sensor.spc_capture_stale_any:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: roll-up; attr stale_populations

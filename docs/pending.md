@@ -523,6 +523,18 @@ so the tuning history stays in Grafana. The filter comment flagged above
 (settle) is corrected at the source (repo c98dfb8). Close condition not
 re-scored here: open until Bill says a bathroom occupancy with the office
 empty produced no presence edge.
+2026-10-16, APPROACH LIMIT 70 -> 82 in (Bill: "increase the light on
+distance threshold from 70 to just under the minimum bath room value";
+CHANGELOG [2026.10.16]). Live from the 16:12:18Z template reload. Bathroom
+nearest, unthrottled: 83.46 in (212 cm) on the labelled 10-02 run [M], and
+82.28 in (209 cm) on an unlabelled DETECTED_FAR episode 10-10 17:43:52Z
+[M; what it was, I]. 82 is under both; 83 would have started on 10-10 [M,
+replay]. Replay 10-02..10-16: 0 new starts in 42 never-entered episodes,
+starts a median 0.20 s sooner [M, n=129]. Margin 1 cm [D]. Expected cost
+about 1.0 empty-office start per 14 days [D: 1/41 per far episode, order
+statistics, exchangeability I]; ledger row 2026-10-16 scores it on 10-30.
+Source commit da3a374 is local, not pushed. Rollback copy in
+C:\sandbox\mmw_approach_1016.
 ```
 
 ### P26 — ups-monitor "INA260 Alert" reads an unconnected pin: V1.21 fix written, withdrawn until Bill can test [LOW]

@@ -62,6 +62,7 @@ is calibrated against.
 | 2026-10-11 | **Bare `Artifact`, `ArtifactComments`, `ArtifactData` deny + `artifact-*` skills off** (`~/.claude/settings.json`). Sessions started after session 94ae1b5f ended have a first-call context 8-13K tokens below the 2026-10-04..11 median of 51.4K [M, n=28 transcripts, `levers.py` fresh-session line] [I: tool definition ~25-30K chars at 0.46-0.48 tok/char]. Scored 2026-10-18 with `C:\sandbox\token_replay\levers.py <UTC end of 94ae1b5f>`. Falsified if the median falls by less than 4K: the definition was not the cost, and the deny bought nothing | yes | pending - 2026-10-18 |
 | 2026-10-11 | **`bash_guard.py`** (PreToolUse deny of any Bash command holding a doubled backslash). Baseline: 21-47 such commands per full ISO week, 2026-W38..W41 [M, `heredoc_cost.py`, main thread]. Prediction [I: the deny message names the fix, so the habit changes]: `bash_guard.log` holds fewer than 10 `deny` lines dated 2026-10-19..10-25. Falsified at 10 or more: the guard then costs about one re-issued call per deny without changing the habit - remove it, or make the message do more. Also falsified if any doubled-backslash Bash command in that window RAN (a result other than the guard's deny): the guard was not loaded | yes | pending - 2026-10-26 |
 | 2026-10-11 | **Stop gate blocks only on findings new since session start** (`ha_audit_gate.py` + `ha_audit.py --baseline`). Baseline: 85 of 105 Stop-gate blocks in 30 d named only an inherited WARN [M, `stop_blocks.py`]. Prediction [I: inherited WARNs are the whole of that 85]: in sessions started by `startup` or `resume` from 2026-10-12 to 2026-10-25, 0 Stop-gate blocks whose findings were all named in that session's start report. Falsified if 1 or more such blocks, or if any such session's block says "No session-start baseline" (the start hook did not write one) | yes | pending - 2026-10-26 |
+| 2026-10-16 | **Office mmWave approach limit 82 in, live since the 16:12:18Z template reload** (`binary_sensor.mmw_office_occupied`, `approach_in` 70 -> 82; Bill: "just under the minimum bath room value"). Over the 14 days to 2026-10-30 16:12Z, **at most 2** presence episodes start `occupied` on a reading in the new band (above 70, at most 82 in) and never come nearer than 70 in before presence ends - the class the 70 limit kept out. Basis: such an episode needs a far reading below the nearest of all 40 measured far episodes (209 cm), probability 1/41 each [D, order statistics; I that the episodes are exchangeable], at 2.83 far episodes/day [M: 40 with a flagged reading in 14.12 d, 10-02 13:14Z..10-16 16:01Z], so an expected 0.97 in 14 days [D: 39.7 / 41]; Poisson P(at least 3 \| 0.97) = 0.075 [D]. Falsified by 3 or more. Score with `C:\Users\wkcol\ha-data-repairs\mmw_approach_replay\replay.py 2026-10-16T16:12:18Z 2026-10-30T16:12:18Z` (its `@82: new starts` line), and cross-check that every one is an actual `occupied` on-edge. | yes - written after the reload, before any walk-in had been scored | pending, due 2026-10-30 |
 
 **Running score: 12 hits, 5 misses, 2 falsified, 4 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -83,6 +84,44 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.16] - 2026-10-16
+
+### Office mmWave: the bathroom filter starts at 82 in, not 70 (`packages/mmwave_presence.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `PACKAGES.md`)
+
+- **Why.** Bill, 2026-10-16: "for the office mmWave lets increase the light on distance threshold from 70 to just under the minimum bath room value."
+  - The threshold is `approach_in` in `binary_sensor.mmw_office_occupied` (P24). The lamp-on triggers follow that sensor.
+- **What the bathroom minimum is** (unthrottled stream, since the 10-02 13:14Z flash):
+  - 83.46 in = 212 cm on the labelled run of 10-02 [M: 207 readings, 4 trips]. This is the "83.5" in P24 and the 10-02 ledger row.
+  - **82.28 in = 209 cm** on an unlabelled 60.4 s `DETECTED_FAR` episode, 2026-10-10 17:43:52Z (13:43 EDT) [M, InfluxDB].
+    - A moving target closed to 82.3 in over ~4 s, then backed off, with the state going `DETECTED_FAR` -> `EMPTY_LIT` (daylight, so the lamp was not asked to light).
+    - It has a bathroom trip's shape. What it was is not known [I].
+  - **82 in was chosen, not 83.** 82 is under both. 83 would have started `occupied` on the 10-10 episode [M, replay], and it is only safe if that episode was not the bathroom, a physical fact (R14). Costs 0.09 s of median gain [D: 0.29 - 0.20].
+  - The node reports whole cm: 294,207 distance points on 10-09, none off a whole cm [M]. So 82 in admits up to 208 cm [D: 82 x 2.54 = 208.28], 1 cm inside the 10-10 nearest.
+- **Replay before the change** (`C:\Users\wkcol\ha-data-repairs\mmw_approach_replay\replay.py`, InfluxDB, 2026-10-02 13:14:27Z..10-16 16:01Z, 171 presence episodes):
+  - It reproduces the deployed 70 in sensor on 128 of 129 starts, within 0.49 s [M]. The one sim-only start, 10-02 14:43Z, is unexplained; a reload or edit that morning is a candidate [I].
+  - At 82: **0 new starts** among the 42 episodes that never reached 70 in; the lowest nearests there are 82.28, 83.46, 85.04, 88.58 in [M].
+  - Starts come a median **0.20 s** sooner, P75 0.30 s, max 8.61 s [M, n=129]. Presence-to-start median at 70 is 2.01 s [M, n=129].
+  - **What this buys is small**, stated so it does not surprise: the 6-ft spot Bill named on 10-02 reads 116-122 in (open_questions.yaml, 2026-10-02), still beyond 82.
+- **The cost, accepted with the request.** A limit just under a sample minimum is beaten as often as the minimum is.
+  - A future far episode reads nearer than all 40 measured with probability 1/41 [D, order statistics; I that episodes are exchangeable].
+  - That is about 1.0 start in an empty office per 14 days [D: 2.83 far episodes/day x 14 / 41]. The lamp follows only when the room is dark, and goes off ~30 s after radar presence ends (idle 10, P24).
+  - Pre-registered as the 2026-10-16 ledger row: at most 2 such starts by 10-30.
+- **Files.**
+  - Source first: `mmwave-presence-node` commit `da3a374` (local, **not pushed**). It changes 1 operative line, `{% set approach_in = 82 %}`, and adds 22 dated comment lines at 3 sites (the filter, `mmw_office_state`'s DETECTED_FAR note, the latency sensor). No comment text was removed. The 09-27 recorder note, which names the 70 in limit as of that date, is left as written.
+  - `packages/mmwave_presence.yaml` re-derived with `make_full_pkg.py`: the header rev 7df49f0 -> da3a374 plus those 23 lines; nothing else.
+  - `entity_notes.yaml`: the `mmw_office_occupied` note reads 82 in (70 until 2026-10-16). `ENTITIES.md` (that line) and `PACKAGES.md` (line count 2397 -> 2418) regenerated.
+  - Left as is, still true at 82: `esphome/mmwave-office-node.yaml:66` (the gate-0 ghosts read 11.8 in) and `esphome/mmwave-node-common.yaml:578` (throttle history). The answered `open_questions.yaml` entries are history.
+- **Gate.**
+  - R3: with the edit reversed, the source file is byte-identical to 7df49f0; 2,385 of 2,386 lines untouched.
+  - R2: the template text, rendered from the file against injected states, fires at 208 cm and at 75 in and is silent at 209 and 212 cm, with presence off, on a flag-off target, and on a presence-only trigger; it holds when on and fails open on an unknown unit (9 of 9). The live 70 copy fails exactly the two band cases, so the test can tell them apart.
+  - Sandbox (`C:\sandbox\mmw_approach_1016`): `gate.py` -> PASS (parse-clean); ha_audit 0 FAIL, 1 WARN, 2 INFO across 18 pipelines, 0 NEW.
+  - Live: `check_config` -> `valid`. `template.reload` 16:12:18Z (HA clock; it runs ~6 s behind the Windows box). Bill was in the room: `occupied` came back `on`, the lamp did not change (last changed 15:43:45Z), and the system log has no new entries.
+  - On H: after install: `gate.py` -> PASS (parse-clean); ha_audit 0 FAIL, 1 WARN, 2 INFO across 18 pipelines. `check_provenance.py --all` on the four edited files: 28 WARN, the same 28 as the pre-edit copies once line numbers are stripped, so 0 new.
+  - Observed: the live sensor now starts on the 82 rule. The last 5 starts before the change matched the simulated 70 start within 0.002 s [M, 10-16 10:52-11:37 EDT]. The first 2 after it (12:15:18 and 12:16:34 EDT) match the simulated 82 start within 0.001 s and come 0.48 s before the simulated 70 start [M, n=2]. Signed comparison: `C:\Users\wkcol\ha-data-repairs\mmw_approach_replay\signed.py 2026-10-16T16:12:18Z`.
+  - Bill's test, 12:16-12:20 EDT ("2 enters office, bathroom, then office again"). The two office entries (12:16:34, 12:17:28) and the return (12:19:19) each started `occupied` and lit the lamp, 2.0, 2.1 and 3.5 s after radar presence [M]. The bathroom trip (12:18:39, 38.0 s, DETECTED_FAR only) came no nearer than 94.5 in on 21 flag-on readings [M]: `occupied` stayed off and the lamp stayed off. It did not come near the 82 in edge, so it does not test the 1 cm margin. An earlier entry at 12:15:18 started `occupied` but did not light the lamp, because the room read 46.6 lx against a 30 lx threshold. A user raised `input_number.mmw_office_lux_on` from 30 to 111 at 12:15:46; that change is not part of this one.
+  - Rollback: `C:\sandbox\mmw_approach_1016\rollback_mmwave_presence_7df49f0.yaml` is the prior H: copy, byte-identical; put it back and reload templates.
+- **Open.** The cost side: the ledger row scores it on 10-30. The 10-10 82.28 in episode is still unidentified (not blocking at 82). One replay mismatch (10-02 14:43Z, sim-only at 70) is unexplained.
 
 ## [2026.10.15] - 2026-10-15
 

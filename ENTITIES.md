@@ -256,7 +256,7 @@ sensor.furnace_running_watts_daily  was unavailable — fixed 2026-07-20 (thresh
 ## MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
 
 ```
-binary_sensor.mmw_office_occupied  P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 70 in while radar presence is on, holds while it is on; fails open to raw presence
+binary_sensor.mmw_office_occupied  P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 82 in (70 until 2026-10-16) while radar presence is on, holds while it is on; fails open to raw presence
 ```
 
 ## MMWAVE OFFICE NODE (esphome/mmwave-office-node.yaml)
