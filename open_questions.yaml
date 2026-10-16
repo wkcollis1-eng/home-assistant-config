@@ -2403,3 +2403,46 @@
     a partial test that the paragraph above denied: the heating months after
     mid-January 2026 ran at 15 h/day and predate the Ecobee (June 2026). Not
     run and not pre-registered.
+
+- asked: 2026-10-16
+  question: >-
+    What powers the office mmWave node (which USB supply, plugged into which
+    outlet, strip or smart plug), and is anything on that supply switched off
+    around 23:30 EDT and back on at 07:00?
+  blocks: >-
+    Any remedy for the office node's nightly power loss: 13 nights,
+    2026-09-29/30 to 10-11/12, last write 22:51-23:29 EDT, back at
+    07:00:09-13 EDT with reset reason "power-on event" [M]; then dark 79.66 h,
+    10-12 08:34 to 10-15 16:13 EDT [M]. Also the office 03:10 EDT SPC window,
+    which opened once in that period (10-16) [M], and design doc section 9
+    item 16. Until it is answered, the section 7 hold keeps the office lamp
+    lit through each outage: 6 times, 47.06 h in all [M].
+  answered: >-
+    2026-10-16, Bill: "a outlet strip connected to the Kasa computer outlet,
+    goes off overnight." Checked against HA, not substituted for it:
+    switch.computer_outlet has an off-span over each of the node's 14 dark
+    gaps and none without one; the node's last write comes 5-61 s before the
+    outlet goes off and it is back 3-9 s after the outlet comes on [M]; the
+    outlet switches with no HA context [M, logbook, n=3]. The remedy (an
+    always-on supply for the node) is Bill's call; nothing changed.
+
+- asked: 2026-10-16
+  question: >-
+    What switches the family room's three Kasa lamps on at about 18:05-18:58
+    EDT and off 67-192 min later with no HA involvement: a Kasa app schedule,
+    Kasa Away Mode, or someone at the plug?
+  blocks: >-
+    Any change to family lamp-off, or to how the package treats these
+    switchings (it logs each as a manual intervention and releases the
+    override within 1 s), design doc section 9 item 17. Then a design call
+    for Bill: should the package switch off a lamp lit into a room that is
+    already empty (the 2026-10-11 CHANGELOG "left open (1)")? Evidence: 6
+    evenings, 10-05 to 10-14, all three plugs on and later off with an empty
+    logbook context while the radar and the Ecobee both read empty [M].
+  answered: >-
+    2026-10-16, Bill: "a kasa app turns lights on at dusk. i manually turned
+    them off since we were away." The physical question is closed. Still
+    open, as design calls for Bill rather than physical facts: whether the
+    package should switch off a lamp lit into an already-empty room, and
+    whether the Kasa dusk schedule stays alongside mmw_family_dusk_on, which
+    lights only an occupied room.
