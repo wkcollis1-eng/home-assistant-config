@@ -108,7 +108,7 @@ question" —** the answer was one line away and settled it in one sentence.
   - That is about 1.0 start in an empty office per 14 days [D: 2.83 far episodes/day x 14 / 41]. The lamp follows only when the room is dark, and goes off ~30 s after radar presence ends (idle 10, P24).
   - Pre-registered as the 2026-10-16 ledger row: at most 2 such starts by 10-30.
 - **Files.**
-  - Source first: `mmwave-presence-node` commit `da3a374` (local, **not pushed**). It changes 1 operative line, `{% set approach_in = 82 %}`, and adds 22 dated comment lines at 3 sites (the filter, `mmw_office_state`'s DETECTED_FAR note, the latency sensor). No comment text was removed. The 09-27 recorder note, which names the 70 in limit as of that date, is left as written.
+  - Source first: `mmwave-presence-node` commit `da3a374` (pushed 2026-10-16). It changes 1 operative line, `{% set approach_in = 82 %}`, and adds 22 dated comment lines at 3 sites (the filter, `mmw_office_state`'s DETECTED_FAR note, the latency sensor). No comment text was removed. The 09-27 recorder note, which names the 70 in limit as of that date, is left as written.
   - `packages/mmwave_presence.yaml` re-derived with `make_full_pkg.py`: the header rev 7df49f0 -> da3a374 plus those 23 lines; nothing else.
   - `entity_notes.yaml`: the `mmw_office_occupied` note reads 82 in (70 until 2026-10-16). `ENTITIES.md` (that line) and `PACKAGES.md` (line count 2397 -> 2418) regenerated.
   - Left as is, still true at 82: `esphome/mmwave-office-node.yaml:66` (the gate-0 ghosts read 11.8 in) and `esphome/mmwave-node-common.yaml:578` (throttle history). The answered `open_questions.yaml` entries are history.

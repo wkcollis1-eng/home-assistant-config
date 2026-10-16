@@ -533,7 +533,7 @@ replay]. Replay 10-02..10-16: 0 new starts in 42 never-entered episodes,
 starts a median 0.20 s sooner [M, n=129]. Margin 1 cm [D]. Expected cost
 about 1.0 empty-office start per 14 days [D: 1/41 per far episode, order
 statistics, exchangeability I]; ledger row 2026-10-16 scores it on 10-30.
-Source commit da3a374 is local, not pushed. Rollback copy in
+Source commit da3a374, pushed 2026-10-16. Rollback copy in
 C:\sandbox\mmw_approach_1016.
 ```
 
