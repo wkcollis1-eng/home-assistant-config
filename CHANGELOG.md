@@ -86,6 +86,61 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.15] - 2026-10-15
 
+### HVAC baselines rebased again: the Navien 220.8 was therms, two helpers written live (`configuration.yaml`, `PACKAGES.md`, `docs/baselines.md`, `automations.yaml`, `dashboards/views/energy-performance-analysis.yaml`)
+
+- **Why.** Bill, 2026-10-15, answering the HVAC-repo baseline question: "4. yes rebase."
+  - The [2026.10.10] rebase subtracted the Navien 2025 DHW figure, 220.8, from 787 CCF as if it were CCF.
+  - It is therms: 220.7775 Thm [M, Navien meter, HVAC repo `data/`]. In CCF it is 212.9 [D: 220.7775 x 0.9643].
+  - So 2025 space heat is 574.1 CCF [D: 787 - 212.9], not 566.2.
+  - The same correction is in the public HVAC repo (local commit fe97a2c, not pushed).
+- **New values.** The HDD side of the 10-10 rebase is unchanged: `annual_hdd_baseline` 5,629 and `hdd_balance_point_ratio` 0.751 [D] stand.
+
+  | helper / constant | was | now | derivation |
+  |---|---|---|---|
+  | `heating_efficiency_baseline` | 100.6 | 102.0 | [D] 574.1 CCF / 5.629 k HDD65 = 101.99 |
+  | `building_ua_baseline` | 585 | 593 | [D] the `hvac_building_load_ua_12m` formula: (574.1 x 103,700 x 0.95 + 3.6 MMBTU x 1e6) / (5,629 x 0.751 x 24) = 592.9 |
+  | heating-share fallback (`gas_heating_usage_month`, `gas_heating_cost_month`) | 0.719 | 0.729 | [D] 574.1 / 787 = 0.7295 |
+  | DHW-share fallback (`gas_dhw_usage_month`) | 0.281 | 0.271 | [D] 212.9 / 787 = 0.2705 |
+
+- **Live writes.**
+  - The prior state was snapshotted to the scratchpad `e_snapshot_before.json`.
+  - Both helpers were confirmed at 585.0 / 100.6, with the new values inside min/max (300-600, 50-150), before anything was written.
+  - Write order was UA first, so the degradation alert could not trip on a half-applied set.
+  - Both read back exactly. The logbook shows `set_value` at 02:12:47Z and 02:12:49Z (2026-10-15 22:12 EDT).
+- **Observed [M, read 2026-10-15 22:12 EDT, before -> after].**
+  - `hvac_performance_vs_baseline`: +1.6 % -> +0.2 % [M]. Predicted [D: (102.2 / 102.0 - 1) x 100] +0.2.
+  - `ua_performance_vs_baseline`: +1.0 % -> -0.3 % [M]. Predicted [D: (591 / 593 - 1) x 100] -0.3.
+  - Unchanged, since none reads the two helpers: `hvac_building_load_ua_12m` 591, `hvac_heating_efficiency_12m` 102.2, `hvac_building_load_ua_estimate` 176, `eui_vs_baseline` -1.0 % [M].
+  - `binary_sensor.hvac_ua_degradation_alert`: `off`, and `last_changed` is still 2026-10-11T23:42:20Z, so it did not flicker.
+  - The share fallbacks are inactive: `input_number.dhw_bill_thm` is 8.6986 > 0, and `gas_dhw_usage_month` reads 8.39 [D: 8.6986 x 0.9643].
+- **Files.**
+  - `configuration.yaml`: 10 spans, 7,466 -> 7,471 lines.
+    - The two `initial:` values, each with a dated comment that keeps the old value and why it moved.
+    - Ten template constants: `float(585)` x4 and `{{ 585 }}` -> 593; `float(100.6)` x2 -> 102.0; the shares above.
+    - The Jinja comment `Fallback to fixed 71.9% heating share` [D: 566/787] is kept, with a dated comment beside it.
+    - Counts in code after the edit: 593 x6, 102.0 x3, 0.729 x2, 0.271 x1. The old 585 / 100.6 now remain only in comments, and 0.719 / 0.281 nowhere.
+    - The fallbacks act at the next template reload or restart; no reload was run, as on 10-10, because every one of them is inactive while its source is live. The `initial:` values act at the next restart, where they now equal the live helpers.
+  - `PACKAGES.md` was regenerated for the line count (7,467 -> 7,472). `ENTITIES.md` and `AUTOMATIONS.md` regenerate unchanged.
+  - `docs/baselines.md`: a dated paragraph, plus the UA, efficiency, DHW-ratio and heating-ratio lines, each keeping its old value.
+  - `automations.yaml`: one comment line after the 71.9 % fixed-share comment [D: 566/787], which is kept. No logic change.
+  - `dashboards/views/energy-performance-analysis.yaml` is **NOT LIVE until Bill pastes it**; re-run `export_dashboards.py` afterwards.
+    - Fallbacks 100.6 / 585 -> 102.0 / 593.
+    - Forward Projection: 2025 heating gas ~566 -> ~574 CCF, so Expected ~467-499 -> ~475-507 CCF [D: 574 - 99 .. 574 - 67, the card's own offsets].
+    - The live card already shows 102.0 / 593 wherever it reads the helpers; only the hard-coded 566 and 467-499 wait for the paste.
+  - `CLAUDE.md` was **NOT edited**. The Claude Code auto-mode classifier refused a scripted write to it as self-modification, and that refusal was not worked around.
+    - The two-span change (Home "Gas" line, Active Projects efficiency line) is built in `C:\sandbox\rebase_1015\CLAUDE.md`. Bill to apply or approve.
+    - Until then CLAUDE.md states 100.6 and the 71.9 / 28.1 split [D: 566/787, 220.8/787].
+- **Verified.**
+  - Every file was built from its live original in `C:\sandbox\rebase_1015` by span edit, 21 spans in all. Reversing the spans reproduces each H: original byte for byte.
+  - Lines outside the spans, identical by construction: 7,451 / 25 / 4,622 / 88.
+  - Gate on the sandbox, all edited files: 1. SYNTAX PASS (parse-clean); 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines; 2b n/a; "PASS (parse-clean) + audit delta clean."
+  - `check_provenance.py --all`: per-file count unchanged, live vs sandbox, on all five files.
+  - check_config `{"result": "valid", "errors": null, "warnings": null}` after the install and before the writes: PASS (HA-certified).
+  - Live audit after the writes: 0 FAIL, 1 WARN, 2 INFO across 18 pipelines. The WARN is the open clamp-meter question, unchanged.
+- **Left open.**
+  - `CLAUDE.md` and the view paste, above.
+  - `open_questions.yaml` keeps 100.6 / 585 in the answered DHW question's text. That is the historical record, so it is not edited.
+
 ### Fix: `fetch-health` read a cached `last_reported` and FAILed a healthy sensor (`scripts/ha_audit.py`, `scripts/test_ha_audit.py`, `docs/off-host-access.md`)
 
 - **Bill:** pasted the 10-15 00:30 audit, `FAIL fetch-health - sensor.bdl_degree_days last reported 76.8 h ago (max 26 h)`, and HA's shell_command "return code: 1" error for `ha_audit.py`, 3 occurrences since 10-13.

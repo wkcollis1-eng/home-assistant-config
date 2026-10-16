@@ -4454,6 +4454,7 @@
         need_label: "{{ '%d-%02d' | format(((bill_idx | int(0)) - 1) // 12, ((bill_idx | int(0)) - 1) % 12 + 1) }}"
         # save_dhw_button skips a 0 entry; so does this, or the sensor's fixed-share
         # fallback (71.9% [D: 566/787 CCF, CLAUDE.md BASELINES]) would be archived
+        # (2026-10-15: 72.9% [D: 574.1/787]; 566 read the Navien therms as CCF)
         dhw_ready: "{{ (dhw_idx | int(-1)) == (bill_idx | int(0)) - 1 and states('input_number.dhw_bill_thm') | float(0) > 0 }}"
     - choose:
         - conditions: "{{ arr != 'none' and dhw_ready }}"

@@ -405,7 +405,9 @@ input_number:
     # 2026-10-10 rebased to ACIS BDL 2025 (Bill). Was 493 = 599 CCF over NOAA
     # HDD59 5,294 (METHODOLOGY.md Feb 2026). Now the ua_12m formula on
     # 566.2 CCF (787 - Navien DHW 220.8), 3.6 MMBTU fireplace, BDL HDD59 4,230 [M].
-    initial: 585
+    # 2026-10-15 (Bill: "4. yes rebase"): 585 -> 593. The 220.8 above is Navien
+    # THERMS = 212.9 CCF [D: x 0.9643], so space heat is 574.1 CCF [D: 787 - 212.9].
+    initial: 593
 
   balance_point_baseline:
     name: Balance Point Baseline
@@ -448,7 +450,9 @@ input_number:
     icon: mdi:chart-bell-curve
     # 2026-10-10 rebased (Bill): 566.2 CCF / ACIS BDL 2025 5,629 HDD65 [D].
     # Was 90.3 on 6,270 HDD, 641 above the BDL figure for the same year.
-    initial: 100.6
+    # 2026-10-15 (Bill: "4. yes rebase"): 100.6 -> 102.0 [D: 574.1 CCF / 5.629];
+    # 566.2 read the Navien 220.8 THERMS as CCF (212.9 CCF [D: x 0.9643]).
+    initial: 102.0
 
   gas_baseload_monthly:
     name: Gas Baseload (CCF/month)
@@ -3056,8 +3060,8 @@ template:
         unique_id: hvac_ua_degradation_alert
         device_class: problem
         state: >
-          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(585) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(585) %}
+          {% set ua = states('sensor.hvac_building_load_ua_12m') | float(593) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(593) %}
           {{ ua > (baseline * 1.10) }}
 
       # Furnace-level short cycling alert (replaces per-zone alerts)
@@ -4974,7 +4978,7 @@ template:
             {# 0.95). Fixed 2026-07-03: raw input BTU overstated UA +5.26% vs   #}
             {# the ua_12m twin, which already applies x0.95 to metered CCF.     #}
             {{ ((runtime * rate * 0.95) / (avg_dt * hours)) | round(0) }}
-          {% else %}{{ 585 }}{% endif %}
+          {% else %}{{ 593 }}{% endif %}
 
       - name: "Balance Point Temperature"
         unique_id: balance_point_temperature
@@ -5100,7 +5104,7 @@ template:
         availability: "{{ states('sensor.hvac_heating_efficiency_12m') | float(0) > 0 }}"
         state: >
           {% set current = states('sensor.hvac_heating_efficiency_12m') | float(0) %}
-          {% set baseline = states('input_number.heating_efficiency_baseline') | float(100.6) %}
+          {% set baseline = states('input_number.heating_efficiency_baseline') | float(102.0) %}
           {{ ((current / baseline - 1) * 100) | round(1) if current > 0 else 0 }}
 
       - name: "UA Performance vs Baseline"
@@ -5109,8 +5113,8 @@ template:
         state_class: measurement
         availability: "{{ states('sensor.hvac_building_load_ua_12m') | float(0) > 0 }}"
         state: >
-          {% set current = states('sensor.hvac_building_load_ua_12m') | float(585) %}
-          {% set baseline = states('input_number.building_ua_baseline') | float(585) %}
+          {% set current = states('sensor.hvac_building_load_ua_12m') | float(593) %}
+          {% set baseline = states('input_number.building_ua_baseline') | float(593) %}
           {{ ((current / baseline - 1) * 100) | round(1) }}
 
       - name: "EUI vs Baseline"
@@ -5176,7 +5180,7 @@ template:
           {% set months = ['jan','feb','mar','apr','may','jun',
                            'jul','aug','sep','oct','nov','dec'] %}
           {% set t12 = state_attr('sensor.bdl_degree_days', 'trailing_12') %}
-          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(100.6) %}
+          {% set efficiency = states('sensor.hvac_heating_efficiency_12m') | float(102.0) %}
           {% set dhw_annual = states('sensor.dhw_gas_12m') | float(42) %}
           {% set dhw_monthly = dhw_annual / 12 %}
           {% set ns = namespace(actual=0, projected=0) %}
@@ -5385,7 +5389,7 @@ template:
           {% if dhw_thm > 0 %}
              {{ (dhw_thm * 0.9643) | round(2) }}
           {% else %}
-             {{ (states('input_number.gas_bill_ccf') | float(0) * 0.281) | round(2) }}
+             {{ (states('input_number.gas_bill_ccf') | float(0) * 0.271) | round(2) }}
           {% endif %}
 
       - name: "Gas Heating Usage Month"
@@ -5399,7 +5403,7 @@ template:
              {% set dhw_ccf = dhw_thm * 0.9643 %}
              {{ [total - dhw_ccf, 0] | max | round(2) }}
           {% else %}
-             {{ (total * 0.719) | round(2) }}
+             {{ (total * 0.729) | round(2) }}
           {% endif %}
 
       - name: "Gas Cost This Month"
@@ -5420,7 +5424,8 @@ template:
              {{ (total_cost * (heating_ccf / total_ccf)) | round(2) }}
           {% else %}
              {# Fallback to fixed 71.9% heating share #}
-             {{ (total_cost * 0.719) | round(2) }}
+             {# 2026-10-15: 72.9% [D: 574.1/787]; 71.9% read Navien therms as CCF #}
+             {{ (total_cost * 0.729) | round(2) }}
           {% endif %}
 
       - name: "Total Cost Month"
