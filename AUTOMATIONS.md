@@ -70,6 +70,7 @@ mmw_family_alarm_rearm                 state:binary_sensor.mmw_family_quiet_hour
 mmw_family_cal_label_autoclear         state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_family_cal_label_changed           state:input_select.mmw_family_label                                   single     mmwave_presence.yaml
 mmw_family_dusk_on                     numeric_state, event                                                  single     mmwave_presence.yaml
+mmw_family_lit_empty_off               state:switch.family_room,switch.family_room_2 +1 more +1 more         single     mmwave_presence.yaml
 mmw_family_override_detect             state:switch.family_room,switch.family_room_2 +1 more                 single     mmwave_presence.yaml
 mmw_family_override_release            state:input_boolean.mmw_family_manual_override +1 more                single     mmwave_presence.yaml
 mmw_family_presence_off                state:binary_sensor.family_mmwave_presence +2 more                    single     mmwave_presence.yaml
@@ -79,6 +80,7 @@ mmw_label_contradicted_alert           state:binary_sensor.mmw_family_label_cont
 mmw_lux_stale_alert                    state:binary_sensor.office_mmwave_lux_stale +1 more                   single     mmwave_presence.yaml
 mmw_office_cal_label_autoclear         state:binary_sensor.office_mmwave_presence                            single     mmwave_presence.yaml
 mmw_office_cal_label_changed           state:input_select.mmw_office_label                                   single     mmwave_presence.yaml
+mmw_office_lit_empty_off               state:switch.office_lamp                                              single     mmwave_presence.yaml
 mmw_office_lux_bright_off              template                                                              single     mmwave_presence.yaml
 mmw_office_lux_dim_on                  numeric_state                                                         single     mmwave_presence.yaml
 mmw_office_override_detect             state:switch.office_lamp                                              single     mmwave_presence.yaml
@@ -145,4 +147,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
 ```
 
-136 automations.
+138 automations.

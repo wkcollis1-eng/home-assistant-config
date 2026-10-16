@@ -2446,3 +2446,33 @@
     package should switch off a lamp lit into an already-empty room, and
     whether the Kasa dusk schedule stays alongside mmw_family_dusk_on, which
     lights only an occupied room.
+    Later on 2026-10-16, Bill: "Package should turn off lamps that come on
+    with no one present, I will remove Kasa schedule for dusk." Both calls
+    are made: mmw_family_lit_empty_off and mmw_office_lit_empty_off. R13:
+    that answer fits 10-12, 10-13 and 10-14 only. On 10-05, 10-06 and 10-09
+    the lamps came back on 9.8-15.3 s after the package's own lamp-off - the
+    next entry.
+- asked: 2026-10-16
+  question: >-
+    On 10-05 at 18:07, 10-06 at 18:05 and 10-09 at 18:58 EDT the package
+    switched the family lamps off and they were back on 9.8-15.3 s later
+    from the Kasa app or the plugs: who did that, and were they in the family
+    room at the time?
+  blocks: >-
+    Nothing built: mmw_family_lit_empty_off leaves such a correction on
+    either way (its 120 s guard). It decides the next work. In the family
+    room means the radar and the Ecobee both read empty with a person there,
+    three times, and the empty-room release switched the
+    lamps off on them (the 2026-10-11 CHANGELOG "left open (2)"): a radar
+    coverage defect to chase. Elsewhere means the package was right and the
+    re-light was a preference. Evidence [M, logbook]: off at 18:07:43.6,
+    18:05:42.9 and 18:58:06.4 when the Ecobee went quiet; all three plugs on
+    9.8, 14.5 and 15.3 s later with no HA context; Ecobee motion 2.5, 0.7
+    and 4.9 min after that. Design doc section 9 item 18.
+  answered: >-
+    2026-10-16, Bill: "Most likely moved from the family room to the kitchen." So not in the
+    family room, by his best recollection rather than a certainty: the radar
+    and the Ecobee read the room right, the empty-room release did what it
+    should, and the re-light was a preference - no radar coverage defect to
+    chase. Keeping the family lamps on while someone is in the kitchen would
+    be a design change, Bill's call; nothing changed.
