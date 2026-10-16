@@ -127,6 +127,12 @@ question" —** the answer was one line away and settled it in one sentence.
     - Fallbacks 100.6 / 585 -> 102.0 / 593.
     - Forward Projection: 2025 heating gas ~566 -> ~574 CCF, so Expected ~467-499 -> ~475-507 CCF [D: 574 - 99 .. 574 - 67, the card's own offsets].
     - The live card already shows 102.0 / 593 wherever it reads the helpers; only the hard-coded 566 and 467-499 wait for the paste.
+    - Later 2026-10-15: Bill, "dashboard live and templates reloaded." `export_dashboards.py` re-exported `dashboards/lovelace/energy_performance.yaml`, +13 / -3 lines [M, git diff].
+      - The four value spans are live, each once: `float(102.0)`, `float(593)`, `~574 CCF`, `~475–507` [M, grep of the mirror]. `float(100.6)`, `float(585)` and `~566 CCF` are gone; `~467–499` remains only inside its dated Jinja comment. The view's YAML header comment does not survive a paste, as for every view.
+      - The same export picked up a "Total HVAC Cost Today" mushroom card in the Billing view. It matches the snippet `dashboards/cards/mushroom/daily-cost-total.yaml` (7200151), not this entry's view; it is committed here because the mirror is one generated file.
+      - Read after the reload [M, 02:33:36Z, against the 02:12Z after-snapshot], all unchanged: `building_ua_baseline` 593.0, `heating_efficiency_baseline` 102.0, `hvac_performance_vs_baseline` +0.2 %, `ua_performance_vs_baseline` -0.3 %, `hvac_building_load_ua_12m` 591, `hvac_heating_efficiency_12m` 102.2, `eui_vs_baseline` -1.0 %, `gas_dhw_usage_month` 8.39, `gas_heating_usage_month` 5.61, `gas_heating_cost_month` 18.9. `hvac_ua_degradation_alert` is `off`.
+      - `hvac_building_load_ua_estimate` 176 -> 173 [M]. It reads 173, not its `{{ 593 }}` fallback, so the main branch ran, and 937242d did not touch that branch [M, git show]; the move comes from its runtime and HDD inputs.
+      - Live audit after: 0 FAIL, 1 WARN, 2 INFO across 18 pipelines. No `dashboard-boolean-key` finding; that check reads the live `.storage/lovelace*` configs.
   - `CLAUDE.md` was **NOT edited**. The Claude Code auto-mode classifier refused a scripted write to it as self-modification, and that refusal was not worked around.
     - The two-span change (Home "Gas" line, Active Projects efficiency line) is built in `C:\sandbox\rebase_1015\CLAUDE.md`. Bill to apply or approve.
     - Until then CLAUDE.md states 100.6 and the 71.9 / 28.1 split [D: 566/787, 220.8/787].
@@ -139,7 +145,7 @@ question" —** the answer was one line away and settled it in one sentence.
   - check_config `{"result": "valid", "errors": null, "warnings": null}` after the install and before the writes: PASS (HA-certified).
   - Live audit after the writes: 0 FAIL, 1 WARN, 2 INFO across 18 pipelines. The WARN is the open clamp-meter question, unchanged.
 - **Left open.**
-  - `CLAUDE.md` and the view paste, above.
+  - `CLAUDE.md` and the view paste, above; both closed later the same day.
   - `open_questions.yaml` keeps 100.6 / 585 in the answered DHW question's text. That is the historical record, so it is not edited.
 
 ### Fix: `fetch-health` read a cached `last_reported` and FAILed a healthy sensor (`scripts/ha_audit.py`, `scripts/test_ha_audit.py`, `docs/off-host-access.md`)
