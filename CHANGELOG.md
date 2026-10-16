@@ -130,6 +130,7 @@ question" —** the answer was one line away and settled it in one sentence.
   - `CLAUDE.md` was **NOT edited**. The Claude Code auto-mode classifier refused a scripted write to it as self-modification, and that refusal was not worked around.
     - The two-span change (Home "Gas" line, Active Projects efficiency line) is built in `C:\sandbox\rebase_1015\CLAUDE.md`. Bill to apply or approve.
     - Until then CLAUDE.md states 100.6 and the 71.9 / 28.1 split [D: 566/787, 220.8/787].
+    - Later 2026-10-15: Bill, "5. permission to update claude.md granted." The sandbox build was installed unchanged, after confirming live `CLAUDE.md` still matched the bytes it was built from. It is committed separately, after 937242d.
 - **Verified.**
   - Every file was built from its live original in `C:\sandbox\rebase_1015` by span edit, 21 spans in all. Reversing the spans reproduces each H: original byte for byte.
   - Lines outside the spans, identical by construction: 7,451 / 25 / 4,622 / 88.
