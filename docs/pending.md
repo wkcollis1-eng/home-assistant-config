@@ -199,6 +199,11 @@ in place with the source citations, R13.
 
 DO NOT move the antenna while the 09-18..09-24 ledger row is live; the survey
 in section 8 voids it.
+
+2026-10-16: that row is SCORED - FALSIFIED on water, but the timing does not
+put it on the antenna (CHANGELOG 2026.10.16). It no longer constrains a move.
+Water capture switches level for days at a time, so judge any placement
+change by same-hour A/B, not day against day.
 ```
 
 ---

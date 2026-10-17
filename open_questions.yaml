@@ -2487,3 +2487,24 @@
     island/range/hood circuit peaked at 205-689 W; on 10-12, 10-13 and
     10-14, house away, both read 0 W in the same window [M, recorder, n=3
     each]. How to close the gap is Bill's call, asked 2026-10-16.
+
+- asked: 2026-10-16
+  question: >-
+    Has the W5012 antenna, or anything metal near it or near the water meter,
+    moved since 09-17 - in particular around 06:00 on 09-18, midday on 09-28
+    or midday on 10-07?
+  blocks: >-
+    Attributing the water miss on the 2026-09-17 antenna ledger row (CHANGELOG
+    2026.10.16) to the antenna or to the meter, and with it any antenna
+    placement survey (docs/sdr-signal-level.md section 8) or new SDR ledger
+    row. Water capture changed level at each of those three times [M, 3-h
+    blocks, InfluxDB *_meter_last_seen]; no antenna move is on record after 09-17.
+  answered: >-
+    2026-10-16, Bill: "not aware of any changes to antenna or items around
+    the water meter moving." His recollection, not a check of each date.
+    Consequence: the antenna sat still while water capture moved between
+    ~57 and ~71 % [M, CHANGELOG 2026.10.16] three times, so its spot does
+    not hold water low and the 09-17 antenna row's water miss is not put on
+    the antenna. The meter-side [I] in that entry survives this falsifier
+    but is not proven; an IQ capture is its remaining test. The placement
+    survey and new SDR ledger rows are no longer blocked by this question.
