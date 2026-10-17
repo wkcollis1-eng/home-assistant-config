@@ -117,6 +117,12 @@ binary_sensor.hwh_recirc_spc_capture_stale:
 binary_sensor.hwh_recirc_watts_out_of_control:
   group: SPC — HWH RECIRC (packages/spc.yaml)
   note: ''
+binary_sensor.mmw_family_kitchen_lights_in_use:
+  group: MMWAVE FAMILY LAMP (packages/mmwave_presence.yaml)
+  note: kitchen witness, 2026-10-16; on at each rise of SEM Dining/Kitchen Lights Energy, off 10 min after the last (auto_off). With mmw_family_seen_recently on, holds the family lamps
+binary_sensor.mmw_family_seen_recently:
+  group: MMWAVE FAMILY LAMP (packages/mmwave_presence.yaml)
+  note: kitchen witness cap, 2026-10-16; family radar or Ecobee motion on, and 15 min after (delay_off). Lights left on cannot hold the lamps past it
 binary_sensor.mmw_office_occupied:
   group: MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
   note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 82 in (70 until 2026-10-16) while radar presence is on, holds while it is on; fails open to raw presence
