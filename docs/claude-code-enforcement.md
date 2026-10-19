@@ -133,7 +133,9 @@ symptom: that session started in silence, whereas here no prompt would get
 through. **To remove or rename the hook, delete both settings entries first,
 then the file.** (2026-10-04: there are now six entries - see "R20 gates" below. Delete
 every entry that names `context_hygiene.py` first. The two added that day go through a
-launcher that exits 0 when the file is missing; the four older ones do not.)
+launcher that exits 0 when the file is missing; the four older ones do not. 2026-10-18: all six
+now do, with every other hook entry - see "One hook launcher" below. A missing file now prints
+`HOOK MISSING` on each event instead of blocking it.)
 
 **Test:** `python .claude/hooks/test_hygiene.py` (105 checks since 2026-10-04, prints `FAILS: 0`), then
 `python .claude/hooks/mutate_hygiene.py` (prints `MUTATIONS MISSED: 0`).
@@ -200,6 +202,9 @@ compaction. With the file missing, the launcher exits 0 and prints nothing [M:
 test_hygiene.py launcher checks, plus the live check below]. The constants and their
 basis are in the script's docstring; `trigger_growth.py` in `C:\sandbox\token_replay`
 measured them.
+*(SUPERSEDED 2026-10-18: these two entries and the other ten now use the launcher under "One
+hook launcher" below. It still exits 0 on a missing file, but prints a `HOOK MISSING`
+`systemMessage` instead of nothing, R8.)*
 **Live check (2026-10-04):** the exact argv from settings.json, with the real 200K window
 and a temp checkpoint dir, passed 9 of 9. Bash at 170K with no checkpoint was denied.
 A Write of the checkpoint was allowed. 140K was allowed. auto/manual/260K PreCompact
@@ -295,7 +300,44 @@ script -> exit 0).
   denied with the guard's message and logged; the same command with one
   backslash ran.
 - **Scoring:** against the CHANGELOG prediction-ledger row for `bash_guard.py`,
-  dated 2026-10-11.
+  dated 2026-10-11. That row was withdrawn on 2026-10-18 and re-registered the
+  same day: the guard is kept for safety and scored on its deny count, due 2026-11-02.
+
+### One hook launcher for every entry (added 2026-10-18)
+
+All 12 hook entries in `~/.claude/settings.json` run `python -c <launcher> <mode>`,
+not `python <script> <mode>`. Source: `H:/.claude/hooks/hook_launcher.py`. Its `CODE`
+is the launcher, and `python hook_launcher.py <in> <out>` rewrites a settings file
+after checking that the file round-trips.
+- **Why:** eight entries called their script bare. Python exits 2 on a missing or
+  renamed script, and that blocks every prompt on `UserPromptSubmit` and every
+  stop on `Stop` (see "It fails open" above). The four in the 2026-10-04 launcher
+  skipped silently, which R8 forbids.
+- **Script present:** it runs as `__main__`, exactly as `python <script>` would:
+  same argv, `__file__`, `sys.path[0]`, stdin, stdout and exit code. The cwd
+  entry that `-c` puts on `sys.path` is dropped before any import, so a stray
+  `json.py` in the cwd cannot shadow the stdlib.
+- **Script missing:** exit 0 and a JSON `systemMessage`: "HOOK MISSING: <path> -
+  copy it back from H:/.claude/hooks, or remove its entries from
+  ~/.claude/settings.json (H:/docs/claude-code-enforcement.md)".
+- **To remove or rename a hook:** delete its settings entries first, then the file.
+  In the other order nothing blocks, but every event prints the HOOK MISSING
+  line until the entries go.
+- **Adding a hook:** its entry goes through the launcher too. Write the entry bare,
+  then rewrite the file with `hook_launcher.py`; entries already in launcher form
+  come out byte-identical. Then run the test.
+- **Tests:** in `H:/.claude/hooks/`, `python test_hook_launcher.py <old settings>
+  <new settings>` -> `FAILS: 0`. Part 1 is the probe (`hook_launcher_probe.py`:
+  exit 0, exit 2 and an uncaught exception, plus a missing script). Part 2 has five
+  mutants, each of which must fail part 1. Part 3 runs every real hook under the old
+  and new argv with the same payload, in a temp home. `ha_audit_gate.py` is skipped
+  because it runs the live audit; the probe covers how its argv is passed.
+- **Install, 2026-10-18 [M, n=12 comparisons]:** FAILS: 0 against the installed file.
+  Only the 12 `args` lists changed, and reversing them gives the 7,420-byte file from
+  before the install. That file is the rollback:
+  `C:/sandbox/hook_launcher/settings.orig.json`. The auto-mode classifier blocked
+  the install as Self-Modification despite Bill's authorisations in chat. It went
+  in once Bill turned auto mode off.
 
 ### `~/.claude/checkpoints/.markdownlint.json` (added 2026-10-04)
 
@@ -305,6 +347,9 @@ Edits of R20 checkpoint files: 112 injections, 562,031 chars, in 7 days [M].
   it, none.
 - **Write vs Edit:** a new-file Write returned none even without the config. The
   injections come on Edit.
+- **Memory folder (2026-10-18):** the same file in
+  `~/.claude/projects/C--Users-wkcol/memory/`. An Edit there returned 3 diagnostics
+  before it and none after [M, n=1 each].
 
 ### Settings `env`, `skillOverrides`, `disableClaudeAiConnectors`; `spanedit.py` (added 2026-10-04)
 

@@ -233,6 +233,47 @@ dial and in the green band.
   Monthly view (the old file did not), and reversing the two spans gives the original bytes
   [M]. A re-paste of the source view no longer reverts anything.
 
+### Context-hygiene rescore; one hook launcher for all 12 entries, installed (2026-10-18 evening)
+
+- **Ledger.** The 2026-10-11 Artifact-deny row scored **HIT**: session-start context 51.4K -> 39.2K
+  [M, n=27 -> 17], Mann-Whitney p=1.2e-05 [D]. The 2026-10-11 `bash_guard.py` row is WITHDRAWN before
+  its window and re-registered for safety (Bill). Running score 19 hits, 5 withdrawn.
+- **Bill's decisions.** Effort stays xhigh ("xhigh is more accurate"). The Bash-output-size habit is no
+  longer a scored lever: results over 4K chars went 277/2,804 -> 208/1,928 [M], z=1.01, p=0.31 [D], and
+  its ceiling was about 1.9% of spend [D, 2026-10-11 entry].
+- **markdownlint off in the memory folder** (`~/.claude/projects/C--Users-wkcol/memory/.markdownlint.json`,
+  `{"default": false}`), as in `~/.claude/checkpoints` since 10-04. An Edit there drew 3 diagnostics into
+  context before and 0 after [M, n=1 each].
+- **Re-reads after compaction: measured, no mechanism added.** Since 10-12 02:05Z, 90 of 226 Reads after a
+  compaction re-read a file read before it, over 49 compactions, 323,516 chars; 53 were followed by an
+  Edit of the same file [M, `C:/sandbox/token_replay/rereads.py`, which now takes `start [end]` and prints
+  both denominators]. Gates week: 95 of 203, 69 compactions [M]. The 10-11 "94/200" is re-reads over all
+  Reads after a compaction, not per compaction. Removing every one would save under 1% of spend [D: 0.32M
+  chars x 10.3% / 4.72M, the 10-11 Bash price]. A PostCompact hook cannot help: it has no decision control
+  and its output never reaches the model [S: code.claude.com/docs/en/hooks.md, "PostCompact", fetched
+  10-18]. SessionStart with source `compact` can, and `context_hygiene.py` already re-injects the R20
+  checkpoint there.
+- **One launcher for all 12 hook entries in `~/.claude/settings.json`, installed.** Eight entries
+  called their script bare, so a missing script made python exit 2, which on `UserPromptSubmit` blocks
+  every prompt and on `Stop` stops a turn from ending. The four in the 2026-10-04 launcher skipped
+  silently (R8). The new launcher exits 0 and prints a JSON `systemMessage` ("HOOK MISSING: <file>",
+  plus the fix), and drops the cwd from `sys.path` before any import. Tracked in `.claude/hooks/`:
+  `hook_launcher.py` (the code and the settings rewrite), `test_hook_launcher.py` and
+  `hook_launcher_probe.py`. The test prints FAILS: 0. The probe is identical under `python <script>`
+  and the launcher in argv, `__name__`, `__file__`, `sys.path`, stdin and exit code (0, 2 and an
+  uncaught exception); 5 of 5 mutants are caught; 12 real-hook old-vs-new comparisons are identical,
+  2 of them shown non-vacuous. Only the 12 `args` lists changed, and reversing them gives the
+  7,420-byte pre-install file, kept as the rollback (`C:/sandbox/hook_launcher/settings.orig.json`).
+  R13: the first build imported `json` before dropping the cwd, so a cwd `json.py` shadowed it; the
+  probe caught it before deploy. A mutant without `sys.argv[0]=p` was equivalent, because
+  `runpy.run_path` sets it [S: C:/Python314/Lib/runpy.py:288,302], so the line was dropped.
+  **Install:** the auto-mode classifier blocked it as Self-Modification despite Bill's authorisations
+  in chat; it went in once Bill turned auto mode off. The race check refused the first attempt
+  because Bill had added 3 allow rules since the snapshot. The file was rebuilt from the live copy and
+  re-tested, so those rules are kept. Against the installed file, FAILS: 0 [M, n=12 comparisons].
+  `docs/claude-code-enforcement.md` gains a "One hook launcher" section, and its two older launcher
+  passages are marked superseded.
+
 ## [2026.10.16] - 2026-10-16
 
 ### SDR antenna ledger row (2026-09-17, W5012 at its moved spot) scored: FALSIFIED on water, but the timing does not put it on the antenna (analysis only, nothing deployed)
