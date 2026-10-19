@@ -69,6 +69,7 @@ mmw_dropout_candidate_alert            state:binary_sensor.mmw_family_dropout_ca
 mmw_family_alarm_rearm                 state:binary_sensor.mmw_family_quiet_hours                            single     mmwave_presence.yaml
 mmw_family_cal_label_autoclear         state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_family_cal_label_changed           state:input_select.mmw_family_label                                   single     mmwave_presence.yaml
+mmw_family_daylight_off                template                                                              single     mmwave_presence.yaml
 mmw_family_dusk_on                     numeric_state, event                                                  single     mmwave_presence.yaml
 mmw_family_lit_empty_off               state:switch.family_room,switch.family_room_2 +1 more +1 more         single     mmwave_presence.yaml
 mmw_family_override_detect             state:switch.family_room,switch.family_room_2 +1 more                 single     mmwave_presence.yaml
@@ -147,4 +148,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
 ```
 
-138 automations.
+139 automations.
