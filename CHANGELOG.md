@@ -217,7 +217,20 @@ Bill, 2026-10-18: "dashboard has been updated." `export_dashboards.py` changed t
   (`sensor.site_eui_estimate`) that kept the UA gauge's min 550, max 700 and bands while the
   sensor reads 41.3 kBTU/ft2-yr [M], below the dial's minimum.
 - The source view was not changed, so pasting it again would revert those three gauges.
-  Left for Bill, with the EUI range.
+  Left for Bill, with the EUI range. Both settled the same evening, next entry.
+
+### Site EUI gauge range set by Bill; Monthly source view level with live (`dashboards/views/energy-performance-monthly.yaml`)
+
+Bill, 2026-10-18, pasted the corrected gauge: Site EUI min 35, max 50, bands 35 / 44 / 46
+(green / yellow / red). It is live: `export_dashboards.py` changed only that card in
+`dashboards/lovelace/energy_performance.yaml` (+5 / -5 lines), and the live card equals his
+paste as parsed YAML [M]. `sensor.site_eui_estimate` reads 41.3 kBTU/ft2-yr [M], inside the
+dial and in the green band.
+- The source view now carries all three of his gauges (Heating Efficiency and Building UA
+  ranges, the Site EUI card) and a header line saying so, via
+  `ha-data-repairs/2026-10-18-dhw-ccf-basis/sync_monthly_view.py`. Parsed, it equals the live
+  Monthly view (the old file did not), and reversing the two spans gives the original bytes
+  [M]. A re-paste of the source view no longer reverts anything.
 
 ## [2026.10.16] - 2026-10-16
 

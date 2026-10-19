@@ -4,6 +4,8 @@
 # sensor.hvac_heating_efficiency_12m, which would have made it a duplicate of the
 # gauge already on that sensor (my design error, R13). Bill deleted the gauge
 # instead; the editor also added `cards: []`. This file is what he pasted.
+# 2026-10-18: Bill's UI edits copied in from the live view - the Heating Efficiency
+# and Building UA gauge ranges, and his Site EUI gauge (min 35, max 50).
 # Paste: dashboard > pencil > Monthly tab > view menu > Edit in YAML > replace all.
 title: Monthly
 path: monthly
@@ -281,15 +283,15 @@ sections:
       - type: gauge
         entity: sensor.hvac_heating_efficiency_12m
         name: Heating Efficiency (CCF/1k HDD)
-        min: 80
+        min: 95
         max: 120
         needle: true
         segments:
           - from: 0
             color: '#43a047'
-          - from: 99
+          - from: 105
             color: '#ffeb3b'
-          - from: 108
+          - from: 110
             color: '#db4437'
         grid_options:
           columns: 8
@@ -297,15 +299,31 @@ sections:
       - type: gauge
         entity: sensor.hvac_building_load_ua_12m
         name: Building UA (BTU/hr-°F)
-        min: 400
+        min: 550
         max: 700
         needle: true
         segments:
           - from: 100
             color: '#43a047'
-          - from: 530
+          - from: 620
             color: '#ffeb3b'
-          - from: 580
+          - from: 650
+            color: '#db4437'
+        grid_options:
+          columns: 8
+          rows: 4
+      - type: gauge
+        entity: sensor.site_eui_estimate
+        name: Site EUI (kBTU/ft²-yr)
+        min: 35
+        max: 50
+        needle: true
+        segments:
+          - from: 35
+            color: '#43a047'
+          - from: 44
+            color: '#ffeb3b'
+          - from: 46
             color: '#db4437'
         grid_options:
           columns: 8
