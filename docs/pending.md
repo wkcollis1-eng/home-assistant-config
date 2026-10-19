@@ -18,7 +18,7 @@ runs retention policy autogen with duration 0s = INFINITE, verified by
 SHOW RETENTION POLICIES. Full-resolution history is available back to
 2026-07 and earlier. The 15-day figure is the RECORDER purge_keep_days,
 which bounds the SQLite DB and the HA history UI only (it is 14, not 15 —
-configuration.yaml:174). Verified: dehumidifier_power_when_on_steady has
+configuration.yaml, under recorder:). Verified: dehumidifier_power_when_on_steady has
 per-day means in InfluxDB from 2026-08-07, and the raw plug series back to
 2026-07-23, at full ~5 s cadence.
 ```

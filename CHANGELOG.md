@@ -95,6 +95,26 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Package split Stage 2: CLAUDE.md EDIT ORDER and the file map follow the split; 2 stale anchors re-pointed (docs only)
+
+The five moves below left `configuration.yaml` at 391 lines and `automations.yaml` at 616 lines /
+10 automations [M, git `HEAD`; 7,486 lines and 4,656 lines / 84 automations at `6bacc08`]. So the
+EDIT ORDER's "configuration.yaml - sensors, helpers" and "automations.yaml - logic" now sent a new
+sensor or automation to the wrong file.
+- `CLAUDE.md` EDIT ORDER steps 1-4: the impact grep names the owning package. A new entity goes in
+  its subsystem's package. `configuration.yaml` keeps the core blocks, `shell_command` / `rest` /
+  `command_line` and the housekeeping helpers. `automations.yaml` keeps the housekeeping
+  automations, and `new_pipeline.py --apply` still appends there.
+- `docs/file-map.md`: the same two rows.
+- `docs/influx-grafana.md` and `docs/pending.md` cited `purge_keep_days` as `configuration.yaml:119`
+  and `:174`; it is line 121 today [M]. Both now name the key (`recorder:`) rather than a line
+  number, so the next edit cannot strand them again.
+- The plan and runbook (`C:\sandbox\package_split\PLAN.md`, `RUNBOOK.md`; not in git) are marked
+  RETIRED.
+- Gate (H:): `1. SYNTAX n/a - no YAML edited` / `2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+  pipelines` / 2b n/a. Nothing HA loads changed; live check_config
+  `{"result":"valid","errors":null,"warnings":null}`.
+
 ### Package split 5/5: `hvac_performance` moved into `packages/hvac_performance.yaml` (pure move, live 2026-10-19 13:35)
 
 Moved verbatim by `pkg_move.py` from manifest `hvac_performance.txt` (Stage 1 of the package split; plan and

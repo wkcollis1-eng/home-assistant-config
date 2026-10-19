@@ -433,10 +433,14 @@ Kept from the old "output only" rule:
 
 ## EDIT ORDER (never deviate)
 
-1. `grep -rnw . -e 'ENTITY_ID' --include="*.yaml" --include="*.json" --include="*.py"` — impact scan
-2. `packages/*.yaml` — if SPC/SEM/energy-related
-3. `configuration.yaml` — sensors, helpers, shell_commands
-4. `automations.yaml` — logic
+1. `grep -rnw . -e 'ENTITY_ID' --include="*.yaml" --include="*.json" --include="*.py"` — impact scan; it names the owning package
+2. `packages/<subsystem>.yaml` — the package that owns it (`PACKAGES.md` lists them). Since the
+   2026-10-19 package split every subsystem's sensors, helpers and automations live in its package,
+   and a new one goes there too
+3. `configuration.yaml` — core blocks, `shell_command`, `rest`, `command_line` and the housekeeping
+   helpers only
+4. `automations.yaml` — housekeeping automations only (database, startup check, failure tracking,
+   UPS); `new_pipeline.py --apply` still appends here
 5. `entity_notes.yaml` + `gen_reference.py`; `docs/pending.md`; §KNOWN ISSUES
 6. `CHANGELOG.md` — behavior changes only
 7. Validate with `homeassistant-config-validator --strict`

@@ -122,7 +122,7 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
 - **InfluxDB "Home Assistant" db is 2.1 GB; the recorder's
   `home-assistant_v2.db` is 4.4 GB** [M, both 2026-09-12] — smaller despite
   InfluxDB's infinite retention against the recorder's 14-day
-  `purge_keep_days` (`configuration.yaml:119`). The instinct that InfluxDB
+  `purge_keep_days` (`configuration.yaml`, under `recorder:`). The instinct that InfluxDB
   should therefore be as big or bigger is reasonable and wrong, for two
   measured reasons:
   1. **`purge_keep_days` does not bound the recorder's own long-term store.**

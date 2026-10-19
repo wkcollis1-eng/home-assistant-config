@@ -28,8 +28,13 @@ open_questions.yaml             R14 made mechanical: every question asked of
                                 against. NEW findings exit non-zero; a FAIL always
                                 does, even an unchanged one - a baseline shows the
                                 delta, it never blesses a failure.
-configuration.yaml              sensors, helpers, shell_commands
-automations.yaml                automation logic
+configuration.yaml              core and housekeeping only since the 2026-10-19
+                                package split: recorder, lovelace, the includes,
+                                shell_command, rest, command_line, and the
+                                maintenance / failure-tracking helpers
+automations.yaml                housekeeping automations only (database, startup
+                                check, failure tracking, UPS); every subsystem's
+                                automations live in its package
 scripts.yaml                    weather_update_script only - the archive seed
                                 scripts were retired 2026-09-16 (CHANGELOG)
 
