@@ -74,8 +74,8 @@ house is not a thing to do quietly.
 Run the DEFINITION OF DONE gate below: `gen_reference.py` if entities,
 automations or packages moved, then `gate.py <edited files>`, then
 `python scripts/check_provenance.py --all <edited files>` (R17, git-free mode;
-gate.py does not run it), then the deployed gate (`check_config` -> "valid";
-only it certifies HA will load it).
+gate.py does not run it), then the deployed gate (`check_config` -> "valid" with
+warnings null; only it certifies HA will load it).
 
 Then, in the final message:
 - state the three verdicts verbatim — do not upgrade them (see below)
@@ -91,7 +91,7 @@ Aligned with the `homeassistant-config-validator` skill, which is where
 |---|---|---|
 | **FAIL** | a blocking finding, or any WARN under `--strict` | no — fix and re-run |
 | **PASS (parse-clean)** | YAML + Jinja parse, no blocking findings. Entity refs, integration schemas and runtime template eval are **unverified** | **no** |
-| **PASS (HA-certified)** | `check_config` / `hass --script check_config` ran clean | yes |
+| **PASS (HA-certified)** | `check_config` / `hass --script check_config` ran clean: no errors AND no warnings | yes |
 
 "Parse-clean" is a real result and not a promise. The same distinction governs
 firmware: ESPHome codegen text-substitutes `id(...)` and does not compile
@@ -399,7 +399,9 @@ Run every step that applies to what you touched. Record the result inline.
               "SUITE PASSED". Not optional: a rule that cannot fire looks exactly
               like one with nothing to report. UI: script.ha_audit_tests
               (RESTART after changing it - shell_command is not reloadable).
-3.  DEPLOYED  POST /api/config/core/check_config -> "valid", BEFORE any reload.
+3.  DEPLOYED  POST /api/config/core/check_config -> "valid" AND warnings null,
+              BEFORE any reload. A package that fails to merge drops its whole
+              block as a WARNING under "valid" (rules-history.md).
 4.  RELOAD    template/automation/script.reload; shell_command and statistics
               need a RESTART.
 5.  OBSERVE   re-read the affected entities and say what they read. A guard is

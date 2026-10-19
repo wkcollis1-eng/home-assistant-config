@@ -213,6 +213,18 @@ the other.
                the whole tree be finding-free - so a genuine WARN in the house
                no longer fails the suite, which contradicted step 2 above.
 
+### DEFINITION OF DONE - step 3 needs warnings null (2026-10-19)
+
+Step 3 read `-> "valid"` until 2026-10-19. Stage 0 of the package split found that a
+package that fails to merge (a duplicate key, e.g. a copy that should have been a
+move) has its whole domain block DROPPED, reported only as a warning. `check_config`
+still answers "valid" [S: core 2026.10.2 `homeassistant/components/config/core.py`
+line 38, `"invalid" if res.errors else "valid"`; warnings are returned separately,
+line 44]. On a sandbox copy with that copy-not-move fault injected, check_config gave
+errors=0 warnings=6 [M, n=1, `host_check.py`, 2026-10-19]. The split's runbook already
+required warnings null for all five moves; Bill asked for the same in step 3 on
+2026-10-19.
+
 ### DEFINITION OF DONE - rules that carry over; STEP 0 (merged into OUTPUT FORMAT)
 
 ### Rules that carry over from 2026-08-22

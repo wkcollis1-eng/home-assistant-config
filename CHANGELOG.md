@@ -95,6 +95,23 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### DoD step 3: check_config must read "valid" AND warnings null (`CLAUDE.md`, `scripts/gate.py`, `docs/rules-history.md`)
+
+A package that fails to merge (a duplicate key, e.g. a copy that should have been a move) has its
+whole domain block DROPPED and reported only as a warning, while the API still says "valid" [S: core
+2026.10.2 `homeassistant/components/config/core.py` line 38, `"invalid" if res.errors else
+"valid"`; warnings returned separately, line 44]. The copy-not-move fault on a sandbox copy gave
+errors=0 warnings=6 [M, n=1, `host_check.py`, 2026-10-19]. The split runbook already required
+warnings null; Bill asked for the same in the DoD.
+- `CLAUDE.md`: DoD step 3, the session-end protocol line and the verdict table's PASS
+  (HA-certified) row now require warnings null.
+- `scripts/gate.py`: the generated verdict block's step 3 line and its closing note say the same
+  (printed text only; py_compile clean).
+- `docs/rules-history.md`: the scar, under "DEFINITION OF DONE - step 3 needs warnings null".
+- Gate (H:): `1. SYNTAX n/a - no YAML edited` (py_compile gate.py clean) / `2. SEMANTIC 0 FAIL,
+  1 WARN, 2 INFO across 18 pipelines` / 2b n/a; the run printed the new step 3 line. Live
+  check_config `{"result":"valid","errors":null,"warnings":null}`.
+
 ### Package split Stage 2: CLAUDE.md EDIT ORDER and the file map follow the split; 2 stale anchors re-pointed (docs only)
 
 The five moves below left `configuration.yaml` at 391 lines and `automations.yaml` at 616 lines /

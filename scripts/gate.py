@@ -110,7 +110,8 @@ def main():
     print("  1. SYNTAX    %s" % verdicts[0])
     print("  2. SEMANTIC  %s" % verdicts[-2])
     print("  2b. RULES    %s" % verdicts[-1])
-    print("  3. DEPLOYED  NOT RUN - POST /api/config/core/check_config yourself")
+    print("  3. DEPLOYED  NOT RUN - POST /api/config/core/check_config yourself;")
+    print("              it must read \"valid\" AND warnings null")
     print("  4. RELOAD    NOT RUN")
     print("  5. OBSERVE   NOT RUN")
     print()
@@ -119,7 +120,8 @@ def main():
     else:
         print("PASS (parse-clean) + audit delta clean.")
         print("This is NOT 'ready to restart'. Only step 3 returning \"valid\"")
-        print("makes it PASS (HA-certified) - see CLAUDE.md's verdict table.")
+        print("with warnings null makes it PASS (HA-certified) - see CLAUDE.md's")
+        print("verdict table.")
     return 1 if failed else 0
 
 
