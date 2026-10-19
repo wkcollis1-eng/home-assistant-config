@@ -122,7 +122,7 @@ reset_yearly_dehumidifier_cost         00:04:00, homeassistant                  
 reset_yearly_hdd                       00:02:00, homeassistant                                               single     automations.yaml
 rotate_setback_log_yearly              00:05:00                                                              single     automations.yaml
 save_dhw_button                        state:input_button.save_dhw                                           single     gas_dhw.yaml
-save_electric_bill_button              state:input_button.save_electric_bill                                 single     automations.yaml
+save_electric_bill_button              state:input_button.save_electric_bill                                 single     electricity.yaml
 save_gas_bill_button                   state:input_button.save_gas_bill                                      single     gas_dhw.yaml
 sdr_meter_stale_alert                  state:binary_sensor.gas_meter_stale +2 more                           queued     utility_meters.yaml
 sdr_water_leak_flag                    numeric_state                                                         single     utility_meters.yaml

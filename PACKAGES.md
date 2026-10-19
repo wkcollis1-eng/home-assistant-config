@@ -8,11 +8,12 @@ comment, where the code is - not in a summary that has to be kept in
 step with it.
 
 ```
-configuration.yaml                     4225 lines   command_line:3, counter:1, frontend:1, input_boolean:5, input_button:2 +9 more
+configuration.yaml                     3856 lines   command_line:3, counter:1, frontend:1, input_boolean:5, input_button:1 +9 more
 packages/audit.yaml                     820 lines   automation:1, input_datetime:1, input_number:3, script:8 +2 more
 packages/backup_sizing.yaml             577 lines   input_button:1, sensor:3, template:13
 packages/billing_overview.yaml          646 lines   automation:1, input_datetime:2, input_number:50, input_text:2 +1 more
 packages/dehumidifier.yaml             2728 lines   automation:18, counter:1, input_boolean:1, input_datetime:7 +5 more
+packages/electricity.yaml               474 lines   automation:1, input_button:1, input_datetime:1, input_number:34 +1 more
 packages/energy_export_package.yaml      32 lines   automation:1, shell_command:1
 packages/gas_dhw.yaml                  1207 lines   automation:4, input_button:2, input_datetime:3, input_number:110 +1 more
 packages/grafana.yaml                   105 lines   automation:1, shell_command:1

@@ -95,6 +95,17 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Package split 4/5: `electricity` moved into `packages/electricity.yaml` (pure move, live 2026-10-19 13:27)
+
+Moved verbatim by `pkg_move.py` from manifest `electricity.txt` (Stage 1 of the package split; plan and
+tools in `C:\sandbox\package_split`). 49 keys, 49 entities; no entity id,
+unique_id, value or comment changed.
+- config_equiv: `EQUIVALENT items=1241 lines=22910 files_before=15 files_after=16`
+- host_check: `CHECK_CONFIG VALID errors=0 warnings=0 components=22 ...`; check_config: valid, warnings null
+- restart_check: `RESTART CHECK OK automations=139 fresh=139 states=1884 unavailable=120->162 restored=9->9 moved=49`; audit `0 FAIL, 1 WARN`
+- restart_check NOTE lines (42, all `loaded, own state now unavailable/unknown`, none in the moved set): the electric, gas and water SDR meter sensors (`sensor.electric_meter_*`, `sensor.gas_meter_*`, `sensor.water_meter_*`), `sensor.utility_electric_power*`, `sensor.sem_vs_utility_*`, `sensor.electric_billing_period_kwh`, `sensor.gas_billing_period_ccf`, `sensor.dehumidifier_dp_ingress_rate` and three `sensor.system_monitor_*`. Cause not investigated (no [M] either way).
+- Undo (before any later edit): `python C:\sandbox\package_split\tools\pkg_move.py --undo C:\sandbox\package_split\undo_H\electricity-20261019T132618`
+
 ### Package split 3/5: `gas_dhw` moved into `packages/gas_dhw.yaml` (pure move, live 2026-10-19 13:09)
 
 Moved verbatim by `pkg_move.py` from manifest `gas_dhw.txt` (Stage 1 of the package split; plan and
