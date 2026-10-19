@@ -931,6 +931,14 @@
         entity_id: input_number.expected_runtime_sum_month
       data:
         value: 0
+    # Keep last month's furnace hours before they are zeroed below:
+    # archive_monthly_gas_heat_cost needs them to prove a bill period had no
+    # heating (2026-10-18). Unreadable -> 1000 (the max), never a false 0.
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.furnace_runtime_last_month
+      data:
+        value: "{{ states('input_number.furnace_runtime_month_acc') | float(1000) }}"
     # Reset furnace/zone monthly accumulators
     - service: input_number.set_value
       target:
@@ -4441,7 +4449,31 @@
         arr: >
           {% set d = (cur_season | int(0)) - (bill_season | int(0)) %}
           {{ 'cs' if d == 0 else 'ls' if d == 1 else 'ls2' if d == 2 else 'none' }}
-        cost: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
+        # 2026-10-18: Jul and Sep 2026 archived $5.00 and $11.14 of heating with
+        # 0 furnace minutes Jun 1..Oct 5 [M: reports/hvac_daily_2026.csv]. Bill
+        # minus prior-month Navien DHW leaves a residual (range gas, and a bill
+        # period that is not the Navien's calendar month) that is not heat.
+        # Archive 0 only when runtime is PROVEN 0 over the whole bill period:
+        # last month + month to date covers [1st of last month, now], so the
+        # period (gas_bill_date minus gas_bill_days .. gas_bill_date) must lie
+        # inside it. Anything unreadable, or a thermostat dark now, keeps the
+        # residual. A thermostat dark for the whole window also reads 0 runtime
+        # (the call-for-heat sensors read false when unavailable);
+        # notify_thermostat_offline raises that after 15 min.
+        furn_last: "{{ states('input_number.furnace_runtime_last_month') }}"
+        furn_mtd: "{{ states('sensor.hvac_furnace_runtime_month_2') }}"
+        bill_days: "{{ states('input_number.gas_bill_days') }}"
+        no_furnace: >
+          {% set end = bill_dt | as_datetime if bill_dt not in ['unknown', 'unavailable', 'none', ''] else none %}
+          {% set win = (now().replace(day=1) - timedelta(days=1)).replace(day=1).date() %}
+          {{ end is not none and bill_days | is_number and furn_last | is_number and furn_mtd | is_number
+             and states('climate.main_floor') not in ['unknown', 'unavailable']
+             and states('climate.upstairs') not in ['unknown', 'unavailable']
+             and end.date() <= now().date()
+             and end.date() - timedelta(days=bill_days | int(0)) >= win
+             and (furn_last | float(0)) + (furn_mtd | float(0)) == 0 }}
+        residual: "{{ states('sensor.gas_heating_cost_month') | float(0) | round(2) }}"
+        cost: "{{ 0 if no_furnace else residual }}"
         # Months as y*12 + (m-1), so Dec -> Jan crosses the year correctly.
         # save_dhw_button files a press under the month BEFORE it (entered on
         # the 1st for the prior month); the button state is the press time, UTC.
@@ -4467,7 +4499,7 @@
             - service: system_log.write
               data:
                 level: info
-                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}, DHW {{ dhw_label }}, trigger: {{ trigger.id }}) = ${{ cost }}"
+                message: "Gas heating cost archived: {{ arr }} slot {{ slot }} (bill {{ bill_year }}-{{ '%02d' | format(bill_month | int(0)) }}, DHW {{ dhw_label }}, trigger: {{ trigger.id }}) = ${{ cost }}{{ ' (0 furnace h over the bill period; residual $' ~ residual ~ ' not archived)' if no_furnace else '' }}"
             - service: input_datetime.set_datetime
               target:
                 entity_id: input_datetime.gas_heat_cost_archive_last_ok

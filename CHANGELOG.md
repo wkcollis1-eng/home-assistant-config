@@ -91,6 +91,70 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.18] - 2026-10-18
+
+### Gas heating cost archives $0 when the furnace provably did not run in the bill period (live 2026-10-18 21:01 EDT)
+
+Bill: "season graph shows $5 for july/august and $16 for sept. heating did not start till oct."
+
+**The charts were right; the archived values were not heat.** Both Gas Heating Cost
+cards, re-run under apexcharts-card's window rules on the live config, reproduce their
+sensors exactly (This season 35.04, This year 839.48; 0 points outside the window)
+[M, 2026-10-18]. The season store held cs_1..4 = 5.0 / 0 / 11.14 / 18.9 [M], cumulative
+5.00 / 5.00 / 16.14 / 35.04: what Bill saw. Each slot is bill $ x max(CCF - prior-month
+Navien DHW CCF, 0) / CCF and reproduces within $0.01 [D: Jul 44.30 x (13 - 11.53) / 13 =
+5.01; Sep 37.02 x (8 - 5.59) / 8 = 11.15]. The furnace ran 0 min on every recorded day
+Jun 1 .. Oct 5 2026 [M: reports/hvac_daily_2026.csv, 125 of 127 days; the 2 missing July
+days are inside hvac_monthly.csv 2026-07 = 0.0 h]; first run 2026-10-06. So the residual is
+not heating gas. What it is (range gas; a mid-month bill period set against the Navien's
+calendar month) is not established.
+
+**Change**
+- `input_number.furnace_runtime_last_month` (new, configuration.yaml): `reset_monthly_hdd`
+  copies `furnace_runtime_month_acc` into it just before zeroing the accumulator; an
+  unreadable accumulator copies 1000 (the max), never a false 0. No `initial:`, so it starts
+  at min 0 [S: input_number/__init__.py:280, HA 2026.10.2], the true Sep 2026 value [M].
+- `archive_monthly_gas_heat_cost`: new `no_furnace`. It archives 0 only when last month +
+  month-to-date furnace hours (`sensor.hvac_furnace_runtime_month_2`) sum to 0, the bill
+  period (`gas_bill_date` - `gas_bill_days` .. `gas_bill_date`) lies inside [1st of last
+  month, today], and both thermostats are available at the save. Otherwise it archives the
+  residual exactly as before. The log line names the residual it did not archive. DHW gate
+  unchanged; `sensor.gas_heating_cost_month` unchanged (this automation is its only consumer).
+
+**Proven before H: (R2/R7)** in C:\sandbox\gasheat_1018, templates rendered by live HA
+2026.10.2 through /api/template (render only): 22 of 22 [M]. Fire: Jul and Sep 2026 saves,
+a Jan year-wrap, a period starting on the window's first day. Silent: the real 2026-10-15
+save (4.3 h MTD), a Jun save after 11.8 h of May runtime, 0.01 h, a period one day outside
+the window, a save in the month after the bill, a future bill date, a 35-day period, each
+of five unreadable inputs, each thermostat dark. Cost and log both branches; the reset copy
+reads the live 4.3 and 1000 for a missing entity. Harness, edit scripts and repair:
+C:\Users\wkcol\ha-data-repairs\2026-10-18-gas-heat-zero-runtime\.
+
+**Limits (R11).** (1) A thermostat dark for the whole window also reads 0 runtime: the
+call-for-heat templates read false when `climate.*` is unavailable. `notify_thermostat_offline`
+raises that after 15 min; the rule itself checks availability only at the save. (2) The
+accumulator misses runtime after the 23:56:30 capture each day (existing behaviour). (3)
+`gas_bill_date` is the meter-read date, the period end (Bill, 2026-10-18), so the computed
+period is the billed one.
+
+**Installed and repaired (Bill: "do 1 and 2", 2026-10-18).** Each H: file was rebuilt from
+its own bytes, required equal to the sandbox file, installed and read back equal.
+`check_config` valid: PASS (HA-certified). Reloaded input_number then automation:
+input_number 453 -> 454 entities, the only addition `furnace_runtime_last_month` = 0.0, no
+existing value changed; automations 138 -> 138, no state changed; both edited automations'
+loaded configs carry the new templates; no system_log warning or error since [M]. On the
+live Oct bill `no_furnace` renders False (6.65 h month-to-date) [M]. `repair.py --apply`
+at 21:01:29 set cs_1 5.0, cs_3 11.14, ls_1 0.82, ls_2 1.24 -> 0 and verified all 36 slots
+(4 zeroed, 32 unchanged); snapshots `before-`/`after-20261018-210129.json`, and
+`restore.py` puts the before values back. Now [M]: This season 18.9 (Jul, Aug, Sep 0; Oct
+18.9), last season 1044.04, calendar this year 823.34, last year to Oct 723.54; the chart
+harness on the live cards agrees, 0 points outside the window.
+
+**Disproven on the way:** a chart window or axis bug (harness above); cs slots left stale by
+the 2026-10-15 therms fix (`gas_dhw_usage_month` has applied x 0.9643 since bb7eb28,
+2026-08-24); Jul = Sep DHW 8.39 CCF as a copy error (the Navien reads in 1 m3 steps of about
+0.3624 thm, and 8.39 is 24 of them [D]).
+
 ## [2026.10.16] - 2026-10-16
 
 ### SDR antenna ledger row (2026-09-17, W5012 at its moved spot) scored: FALSIFIED on water, but the timing does not put it on the antenna (analysis only, nothing deployed)

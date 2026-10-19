@@ -1103,6 +1103,21 @@ input_number:
     mode: box
     icon: mdi:fire
 
+  # Last month's furnace_runtime_month_acc, copied by reset_monthly_hdd just
+  # before it zeroes the accumulator. archive_monthly_gas_heat_cost reads it to
+  # prove a bill period had no furnace runtime (2026-10-18). No initial: a new
+  # helper starts at min 0 [S: input_number/__init__.py:280, HA 2026.10.2],
+  # which is the true Sep 2026 value [M: reports/hvac_monthly.csv 2026-09,
+  # furnace_runtime_hours 0.0; hvac_daily_2026.csv, 30 days, 0 min].
+  furnace_runtime_last_month:
+    name: "Furnace Runtime Last Month"
+    min: 0
+    max: 1000
+    step: 0.01
+    unit_of_measurement: "h"
+    mode: box
+    icon: mdi:fire
+
   furnace_cycles_month_acc:
     name: "Furnace Cycles Month Accumulated"
     min: 0

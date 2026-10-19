@@ -279,6 +279,9 @@ input_number.fridge_power_threshold:
 input_number.furnace_power_threshold:
   group: SPC — FURNACE (packages/spc.yaml)
   note: default 300W
+input_number.furnace_runtime_last_month:
+  group: FURNACE CYCLE TRACKING
+  note: last month's furnace_runtime_month_acc, copied by reset_monthly_hdd before it zeroes; 0 with 0 MTD lets archive_monthly_gas_heat_cost archive $0 heating
 input_number.gas_period_start_ft3:
   group: BILLING OVERVIEW (packages/billing_overview.yaml)
   note: SDR ft3 at 12:00 on the read date; 0 = no valid start

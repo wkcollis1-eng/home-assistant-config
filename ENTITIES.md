@@ -184,6 +184,7 @@ sensor.hvac_filter_hours_remaining
 ```
 binary_sensor.hvac_furnace_running
 binary_sensor.hvac_furnace_short_cycling_alert  suppressed during recovery
+input_number.furnace_runtime_last_month         last month's furnace_runtime_month_acc, copied by reset_monthly_hdd before it zeroes; 0 with 0 MTD lets archive_monthly_gas_heat_cost archive $0 heating
 sensor.hvac_chaining_index
 sensor.hvac_chaining_index_month
 sensor.hvac_chaining_index_week
