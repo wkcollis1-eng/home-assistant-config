@@ -8,7 +8,7 @@ held nothing the config did not already state.
 
 ```
 accumulate_filter_runtime              23:58:00                                                              single     automations.yaml
-archive_monthly_gas_heat_cost          state:input_button.save_gas_bill +1 more                              single     automations.yaml  [pipeline]
+archive_monthly_gas_heat_cost          state:input_button.save_gas_bill +1 more                              single     gas_dhw.yaml  [pipeline]
 basement_th_node_offline               state:binary_sensor.basement_th_node_node_status +1 more              single     watchdog.yaml
 basement_th_node_sensor_fault          state:binary_sensor.basement_th_node_basement_sensor_fault +1 more    single     watchdog.yaml
 billing_period_start_lookup            state:input_datetime.electricity_meter_read_date +3 more              queued     billing_overview.yaml
@@ -116,14 +116,14 @@ reset_automation_failure_counter       00:00:00                                 
 reset_filter_runtime_button            state:input_button.reset_filter_runtime                               single     automations.yaml
 reset_monthly_hdd                      00:01:00, homeassistant                                               single     automations.yaml
 reset_outdoor_temp_daily_high_low      00:00:30, homeassistant                                               single     weather.yaml
-reset_season_gas_heat_cost             00:08:00, homeassistant                                               single     automations.yaml
+reset_season_gas_heat_cost             00:08:00, homeassistant                                               single     gas_dhw.yaml
 reset_yearly_ac_cost                   00:06:00, homeassistant                                               single     automations.yaml
 reset_yearly_dehumidifier_cost         00:04:00, homeassistant                                               single     dehumidifier.yaml
 reset_yearly_hdd                       00:02:00, homeassistant                                               single     automations.yaml
 rotate_setback_log_yearly              00:05:00                                                              single     automations.yaml
-save_dhw_button                        state:input_button.save_dhw                                           single     automations.yaml
+save_dhw_button                        state:input_button.save_dhw                                           single     gas_dhw.yaml
 save_electric_bill_button              state:input_button.save_electric_bill                                 single     automations.yaml
-save_gas_bill_button                   state:input_button.save_gas_bill                                      single     automations.yaml
+save_gas_bill_button                   state:input_button.save_gas_bill                                      single     gas_dhw.yaml
 sdr_meter_stale_alert                  state:binary_sensor.gas_meter_stale +2 more                           queued     utility_meters.yaml
 sdr_water_leak_flag                    numeric_state                                                         single     utility_meters.yaml
 sdr_water_leak_now                     numeric_state                                                         single     utility_meters.yaml

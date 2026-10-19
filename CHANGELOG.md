@@ -95,6 +95,17 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Package split 3/5: `gas_dhw` moved into `packages/gas_dhw.yaml` (pure move, live 2026-10-19 13:09)
+
+Moved verbatim by `pkg_move.py` from manifest `gas_dhw.txt` (Stage 1 of the package split; plan and
+tools in `C:\sandbox\package_split`). 141 keys, 141 entities; no entity id,
+unique_id, value or comment changed.
+- config_equiv: `EQUIVALENT items=1241 lines=22910 files_before=14 files_after=15`
+- host_check: `CHECK_CONFIG VALID errors=0 warnings=0 components=22 ...`; check_config: valid, warnings null
+- restart_check: `RESTART CHECK OK automations=139 fresh=139 states=1884 unavailable=122->159 restored=9->9 moved=141`; audit `0 FAIL, 1 WARN`
+- restart_check NOTE lines (39, all `loaded, own state now unavailable/unknown`, none in the moved set): the electric, gas and water SDR meter sensors (`sensor.electric_meter_*`, `sensor.gas_meter_*`, `sensor.water_meter_*`), `sensor.utility_electric_power*`, `sensor.sem_vs_utility_*`, `sensor.gas_billing_period_ccf`, `sensor.electric_billing_period_kwh`, `sensor.dehumidifier_dp_ingress_rate`. Re-read ~2 min later [M, n=7 spot checks, the others not re-read]: 6 of 7 had recovered; `sensor.dehumidifier_dp_ingress_rate` was still unavailable (a subsystem-1 entity).
+- Undo (before any later edit): `python C:\sandbox\package_split\tools\pkg_move.py --undo C:\sandbox\package_split\undo_H\gas_dhw-20261019T130739`
+
 ### Package split 2/5: `weather` moved into `packages/weather.yaml` (pure move, live 2026-10-19 12:16)
 
 Moved verbatim by `pkg_move.py` from manifest `weather.txt` (Stage 1 of the package split; plan and
