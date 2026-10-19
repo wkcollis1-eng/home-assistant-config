@@ -6,141 +6,6 @@
 # ===============================================================
 
 # ===============================================================
-# OUTDOOR TEMP DAILY HIGH/LOW TRACKING
-# ===============================================================
-- id: update_outdoor_temp_daily_high_low
-  alias: "Update Outdoor Temp Daily High/Low"
-  description: "Updates daily high/low every 10 minutes based on actual observed temps"
-  mode: single
-  trigger:
-    - platform: time_pattern
-      minutes: "/10"
-    - platform: homeassistant
-      event: start
-  action:
-    - variables:
-        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
-        current_high: "{{ states('input_number.outdoor_temp_daily_high') | float(-50) }}"
-        current_low: "{{ states('input_number.outdoor_temp_daily_low') | float(150) }}"
-        # Detect corrupt/uninitialized values (at initial extremes)
-        high_is_corrupt: "{{ current_high <= -49 }}"
-        low_is_corrupt: "{{ current_low >= 149 }}"
-    - choose:
-        # Update high if: new high OR high was corrupt/uninitialized
-        - conditions:
-            - condition: template
-              value_template: "{{ current_temp is not none and (current_temp > current_high or high_is_corrupt) }}"
-          sequence:
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.outdoor_temp_daily_high
-              data:
-                value: "{{ current_temp | round(1) }}"
-            - if:
-                - condition: template
-                  value_template: "{{ high_is_corrupt }}"
-              then:
-                - service: system_log.write
-                  data:
-                    message: "Outdoor temp daily high was corrupt (-50), initialized to {{ current_temp | round(1) }}°F"
-                    level: warning
-      default: []
-    - choose:
-        # Update low if: new low OR low was corrupt/uninitialized
-        - conditions:
-            - condition: template
-              value_template: "{{ current_temp is not none and (current_temp < current_low or low_is_corrupt) }}"
-          sequence:
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.outdoor_temp_daily_low
-              data:
-                value: "{{ current_temp | round(1) }}"
-            - if:
-                - condition: template
-                  value_template: "{{ low_is_corrupt }}"
-              then:
-                - service: system_log.write
-                  data:
-                    message: "Outdoor temp daily low was corrupt (150), initialized to {{ current_temp | round(1) }}°F"
-                    level: warning
-      default: []
-
-- id: reset_outdoor_temp_daily_high_low
-  alias: "Reset Outdoor Temp Daily High/Low"
-  description: "Resets daily high/low at midnight, with startup catch-up if HA was down over midnight"
-  mode: single
-  trigger:
-    - platform: time
-      at: "00:00:30"
-      id: scheduled
-    # Startup catch-up (2026-07-03): initial: was removed from the daily
-    # high/low input_numbers so mid-day restarts RESTORE the day's extremes.
-    # That leaves the restart-over-midnight case to this trigger: reset only
-    # if the last-reset stamp is from a previous day.
-    - platform: homeassistant
-      event: start
-      id: startup
-  condition:
-    - condition: template
-      value_template: >
-        {% if trigger.id == 'scheduled' %}
-          true
-        {% else %}
-          {% set last = states('input_datetime.outdoor_temp_last_reset') %}
-          {% if last in ['unknown', 'unavailable'] or last[:4] == '1970' %}
-            true
-          {% else %}
-            {{ last[:10] != now().strftime('%Y-%m-%d') }}
-          {% endif %}
-        {% endif %}
-  action:
-    - service: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.outdoor_temp_last_reset
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-    - variables:
-        current_temp: "{{ states('sensor.hvac_outdoor_temp_hartford_proxy') | float(none) }}"
-        sensor_valid: "{{ current_temp is not none and current_temp > -40 and current_temp < 120 }}"
-    - choose:
-        # Sensor available and valid - reset to current temp
-        - conditions:
-            - condition: template
-              value_template: "{{ sensor_valid }}"
-          sequence:
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.outdoor_temp_daily_high
-              data:
-                value: "{{ current_temp | round(1) }}"
-            - service: input_number.set_value
-              target:
-                entity_id: input_number.outdoor_temp_daily_low
-              data:
-                value: "{{ current_temp | round(1) }}"
-            - service: system_log.write
-              data:
-                message: "Daily outdoor temp high/low reset to {{ current_temp }}°F"
-                level: info
-      # Sensor unavailable - reset to initial values (update automation will fix when sensor returns)
-      default:
-        - service: input_number.set_value
-          target:
-            entity_id: input_number.outdoor_temp_daily_high
-          data:
-            value: -50
-        - service: input_number.set_value
-          target:
-            entity_id: input_number.outdoor_temp_daily_low
-          data:
-            value: 150
-        - service: system_log.write
-          data:
-            message: "Outdoor temp sensor unavailable at midnight reset - using initial values (will auto-correct when sensor available)"
-            level: warning
-
-# ===============================================================
 # AUTO HDD TRACKING - Daily capture at 11:55 PM (HARDENED)
 # ===============================================================
 - id: capture_daily_hdd
@@ -2442,31 +2307,6 @@
           Check reports/hvac_monthly.csv for the expected row.
           If missing, data must be manually reconstructed from daily CSV.
 
-# WATCHDOG: Climate Norms Staleness Monitor
-- id: notify_climate_norms_stale
-  alias: "Notify Climate Norms Stale"
-  description: "Alert if climate norms data doesn't match today"
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.climate_norms_stale
-      to: "on"
-      for:
-        hours: 2
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ Climate Norms Data Stale"
-        message: >
-          Climate norms day_of_year doesn't match today, or sensor is unavailable.
-
-          Sensor status: {{ states('sensor.climate_norms_today') }}
-          Sensor DOY: {{ state_attr('sensor.climate_norms_today', 'day_of_year') }}
-          Actual DOY: {{ now().timetuple().tm_yday }}
-
-          Check:
-          - Python script /config/scripts/climate_norms_today.py
-          - CSV file /config/climate_daily_norms_bdl.csv
-
 # STARTUP VALIDATION: Check for corrupt cumulative values
 - id: validate_input_numbers_startup
   alias: "Validate Input Numbers on Startup"
@@ -2637,31 +2477,6 @@
                   and cdd_day_1 through cdd_day_7.
       default: []
 
-# CLIMATE NORMS SCRIPT FAILURE HANDLER
-- id: notify_climate_norms_failure
-  alias: "Notify Climate Norms Script Failure"
-  description: "Alert if climate norms script returns error"
-  trigger:
-    - platform: state
-      entity_id: sensor.climate_norms_today
-      to: "error"
-      for:
-        hours: 2
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ Climate Norms Script Error"
-        message: >
-          The climate_norms_today.py script has been returning errors for 2+ hours.
-
-          Check:
-          - /config/scripts/climate_norms_today.py exists
-          - /config/climate_daily_norms_bdl.csv exists
-          - Python dependencies are installed
-
-          You can test manually with:
-          python3 /config/scripts/climate_norms_today.py
-
 # WEATHER SOURCE FAILOVER MONITOR
 # Alert if outdoor temp proxy becomes unavailable (all sources failed)
 - id: notify_weather_sources_down
@@ -2800,26 +2615,6 @@
           data:
             message: "Setback log rotated for new year"
             level: info
-
-# ===============================================================
-# PIRATE WEATHER DATA FRESHNESS CHECK
-# ===============================================================
-- id: notify_pirate_weather_stale
-  alias: "Notify Pirate Weather Stale"
-  description: "Alert if Pirate Weather data hasn't updated in 2+ hours"
-  trigger:
-    - platform: template
-      value_template: >
-        {{ states('sensor.pirate_weather_data_age') | float(0) > 120 }}
-      for:
-        minutes: 30
-  action:
-    - service: persistent_notification.create
-      data:
-        title: "⚠️ Pirate Weather Stale"
-        message: >
-          Pirate Weather data is {{ states('sensor.pirate_weather_data_age') | int(0) }} minutes old.
-          Check API key and integration status.
 
 # ===============================================================
 # AUTOMATION FAILURE TRACKING

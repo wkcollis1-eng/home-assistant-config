@@ -95,6 +95,29 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Package split 2/5: `weather` moved into `packages/weather.yaml` (pure move, live 2026-10-19 12:16)
+
+Moved verbatim by `pkg_move.py` from manifest `weather.txt` (Stage 1 of the package split; plan and
+tools in `C:\sandbox\package_split`). 35 keys, 47 entities; no entity id,
+unique_id, value or comment changed.
+- config_equiv: `EQUIVALENT items=1241 lines=22910 files_before=13 files_after=14`
+- host_check: `CHECK_CONFIG VALID errors=0 warnings=0 components=22 ...`; check_config: valid, warnings null
+- restart_check: `RESTART CHECK OK automations=139 fresh=139 states=1884 unavailable=120->120 restored=?->9 moved=47`; audit `0 FAIL, 1 WARN`
+- Undo (before any later edit): `python C:\sandbox\package_split\tools\pkg_move.py --undo C:\sandbox\package_split\undo_H\weather-20261019T124704`
+- **The first attempt false-FAILed and was undone (R13: a defect in `restart_check.py`, written by Opus).**
+  HA restarted on this exact move at 16:16:06 UTC. The old rule, "the house-wide unavailable count
+  must not rise", read `120 -> 122`. The cause was the fridge compressor stopping on its own cycle
+  at 16:21:10. That took `sensor.fridge_power_when_on` (availability-gated on power > threshold) and
+  `sensor.fridge_running_watts_24h` unavailable with it. Both are in `packages/spc.yaml`, neither was
+  moved, and both were loaded. That gate is closed 5422 of 9600 s [M, 14:00-16:40 UTC, n=1508 rows].
+  The rule now compares HA's own `restored: true` marker [S: core 2026.10.2
+  `helpers/entity_registry.py` 476-478, 2827-2837] and prints a loaded-but-unavailable entity as a
+  NOTE. Its suite passes 10 cases [M]; against the old tool, 4 of the 10 fail [M].
+- **No second restart was needed.** The undo left HA running the moved files while H: held the old
+  ones. The move was then re-applied the same day, and the sha256 of all three files equals the bytes
+  HA loaded at 16:16:06 UTC, so HA is already running what H: holds. The restart_check line above
+  is that restart's own snapshot, re-evaluated by the fixed tool.
+
 ### Package split 1/5: `dehumidifier` moved into `packages/dehumidifier.yaml` (pure move, live 2026-10-19 11:56)
 
 Moved verbatim by `pkg_move.py` from manifest `dehumidifier.txt` (Stage 1 of the package split; plan and

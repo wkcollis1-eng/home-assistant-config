@@ -95,13 +95,13 @@ nightly_ha_audit                       00:30:00                                 
 nightly_spc_verify                     00:25:00                                                              single     spc.yaml
 notify_ac_short_cycling                state:binary_sensor.hvac_ac_short_cycling_alert                       single     automations.yaml
 notify_cdd_capture_stale               state:binary_sensor.cdd_capture_stale                                 single     automations.yaml
-notify_climate_norms_failure           state:sensor.climate_norms_today                                      single     automations.yaml
-notify_climate_norms_stale             state:binary_sensor.climate_norms_stale                               single     automations.yaml
+notify_climate_norms_failure           state:sensor.climate_norms_today                                      single     weather.yaml
+notify_climate_norms_stale             state:binary_sensor.climate_norms_stale                               single     weather.yaml
 notify_filter_change_due               state:binary_sensor.hvac_filter_change_alert                          single     automations.yaml
 notify_furnace_cycle_capture_stale     state:binary_sensor.furnace_cycle_capture_stale +1 more               single     automations.yaml
 notify_hdd_capture_stale               state:binary_sensor.hdd_capture_stale                                 single     automations.yaml
 notify_monthly_report_stale            state:binary_sensor.monthly_report_stale                              single     automations.yaml
-notify_pirate_weather_stale            template                                                              single     automations.yaml
+notify_pirate_weather_stale            template                                                              single     weather.yaml
 notify_runtime_per_cdd_capture_stale   state:binary_sensor.runtime_per_cdd_capture_stale                     single     automations.yaml
 notify_runtime_per_cdd_high            state:binary_sensor.hvac_runtime_per_cdd_high_alert                   single     automations.yaml
 notify_runtime_per_cdd_low             state:binary_sensor.hvac_runtime_per_cdd_low_alert                    single     automations.yaml
@@ -115,7 +115,7 @@ notify_weather_sources_down            state:sensor.hvac_outdoor_temp_hartford_p
 reset_automation_failure_counter       00:00:00                                                              single     automations.yaml
 reset_filter_runtime_button            state:input_button.reset_filter_runtime                               single     automations.yaml
 reset_monthly_hdd                      00:01:00, homeassistant                                               single     automations.yaml
-reset_outdoor_temp_daily_high_low      00:00:30, homeassistant                                               single     automations.yaml
+reset_outdoor_temp_daily_high_low      00:00:30, homeassistant                                               single     weather.yaml
 reset_season_gas_heat_cost             00:08:00, homeassistant                                               single     automations.yaml
 reset_yearly_ac_cost                   00:06:00, homeassistant                                               single     automations.yaml
 reset_yearly_dehumidifier_cost         00:04:00, homeassistant                                               single     dehumidifier.yaml
@@ -132,7 +132,7 @@ sdr_water_leak_now_high                numeric_state                            
 spc_seed_on_startup                    homeassistant                                                         single     spc.yaml
 spc_seed_slots_manual                  -                                                                     single     spc.yaml
 track_automation_failures              event                                                                 queued     automations.yaml
-update_outdoor_temp_daily_high_low     time_pattern, homeassistant                                           single     automations.yaml
+update_outdoor_temp_daily_high_low     time_pattern, homeassistant                                           single     weather.yaml
 ups_ac_restored_v3                     state:binary_sensor.ups_monitor_on_battery                            single     automations.yaml
 ups_critical_shutdown_v3               state:binary_sensor.ups_monitor_voltage_critical                      single     automations.yaml
 ups_graceful_shutdown_v3               state:binary_sensor.ups_monitor_voltage_warning +3 more               single     automations.yaml

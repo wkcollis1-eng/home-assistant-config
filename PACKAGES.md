@@ -8,7 +8,7 @@ comment, where the code is - not in a summary that has to be kept in
 step with it.
 
 ```
-configuration.yaml                     5784 lines   command_line:3, counter:1, frontend:1, input_boolean:5, input_button:4 +9 more
+configuration.yaml                     5143 lines   command_line:3, counter:1, frontend:1, input_boolean:5, input_button:4 +9 more
 packages/audit.yaml                     820 lines   automation:1, input_datetime:1, input_number:3, script:8 +2 more
 packages/backup_sizing.yaml             577 lines   input_button:1, sensor:3, template:13
 packages/billing_overview.yaml          646 lines   automation:1, input_datetime:2, input_number:50, input_text:2 +1 more
@@ -21,4 +21,5 @@ packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_me
 packages/spc.yaml                      3848 lines   automation:11, input_datetime:12, input_number:49, script:3, sensor:12 +3 more
 packages/utility_meters.yaml           1537 lines   automation:6, input_boolean:1, input_datetime:2, input_number:25 +3 more
 packages/watchdog.yaml                  725 lines   automation:8, input_boolean:5, input_datetime:5, input_number:6 +2 more
+packages/weather.yaml                   826 lines   automation:5, input_datetime:1, input_number:4, template:3
 ```
