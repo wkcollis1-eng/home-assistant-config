@@ -7,33 +7,33 @@ held nothing the config did not already state.
 `[pipeline]` marks an automation declared in `pipelines.yaml`.
 
 ```
-accumulate_filter_runtime              23:58:00                                                              single     automations.yaml
+accumulate_filter_runtime              23:58:00                                                              single     hvac_performance.yaml
 archive_monthly_gas_heat_cost          state:input_button.save_gas_bill +1 more                              single     gas_dhw.yaml  [pipeline]
 basement_th_node_offline               state:binary_sensor.basement_th_node_node_status +1 more              single     watchdog.yaml
 basement_th_node_sensor_fault          state:binary_sensor.basement_th_node_basement_sensor_fault +1 more    single     watchdog.yaml
 billing_period_start_lookup            state:input_datetime.electricity_meter_read_date +3 more              queued     billing_overview.yaml
-capture_daily_ac_cost                  23:59:45                                                              single     automations.yaml  [pipeline]
-capture_daily_ac_min_per_cycle         23:55:30                                                              single     automations.yaml  [pipeline]
+capture_daily_ac_cost                  23:59:45                                                              single     hvac_performance.yaml  [pipeline]
+capture_daily_ac_min_per_cycle         23:55:30                                                              single     hvac_performance.yaml  [pipeline]
 capture_daily_ac_watts                 23:59:00                                                              single     spc.yaml  [pipeline]
-capture_daily_cdd                      23:55:15                                                              single     automations.yaml  [pipeline]
+capture_daily_cdd                      23:55:15                                                              single     hvac_performance.yaml  [pipeline]
 capture_daily_cooling_kwh_cdd          23:59:00                                                              single     spc.yaml  [pipeline]
 capture_daily_dehumidifier_cost        23:59:30                                                              single     dehumidifier.yaml  [pipeline]
 capture_daily_dehumidifier_duty_kwh    23:59:30                                                              single     dehumidifier.yaml  [pipeline]
 capture_daily_dehumidifier_watts       23:59:00                                                              single     spc.yaml  [pipeline]
 capture_daily_fridge_watts             23:59:00                                                              single     spc.yaml  [pipeline]
-capture_daily_furnace_min_per_cycle    23:56:15                                                              single     automations.yaml  [pipeline]
+capture_daily_furnace_min_per_cycle    23:56:15                                                              single     hvac_performance.yaml  [pipeline]
 capture_daily_furnace_watts            23:59:00                                                              single     spc.yaml  [pipeline]
-capture_daily_hdd                      23:55:00                                                              single     automations.yaml  [pipeline]
+capture_daily_hdd                      23:55:00                                                              single     hvac_performance.yaml  [pipeline]
 capture_daily_hwh_recirc_watts         23:59:00                                                              single     spc.yaml  [pipeline]
-capture_daily_monthly_tracking         23:56:30                                                              single     automations.yaml  [pipeline]
-capture_daily_runtime_per_cdd          23:56:45                                                              single     automations.yaml  [pipeline]
-capture_daily_runtime_per_hdd          23:56:00                                                              single     automations.yaml  [pipeline]
+capture_daily_monthly_tracking         23:56:30                                                              single     hvac_performance.yaml  [pipeline]
+capture_daily_runtime_per_cdd          23:56:45                                                              single     hvac_performance.yaml  [pipeline]
+capture_daily_runtime_per_hdd          23:56:00                                                              single     hvac_performance.yaml  [pipeline]
 capture_daily_water_overnight          00:00:45, 01:00:45, 02:00:45, 03:00:45 +2 more                        single     utility_meters.yaml  [pipeline]
-csv_daily_report                       23:57:00                                                              single     automations.yaml
-csv_monthly_report                     23:58:45                                                              single     automations.yaml
-csv_yearly_rotation                    00:03:00                                                              single     automations.yaml
+csv_daily_report                       23:57:00                                                              single     hvac_performance.yaml
+csv_monthly_report                     23:58:45                                                              single     hvac_performance.yaml
+csv_yearly_rotation                    00:03:00                                                              single     hvac_performance.yaml
 daily_energy_csv_export                00:15:00                                                              single     energy_export_package.yaml
-daily_hvac_summary                     22:00:00                                                              single     automations.yaml
+daily_hvac_summary                     22:00:00                                                              single     hvac_performance.yaml
 database_maintenance_weekly            03:00:00                                                              single     automations.yaml
 database_size_monitor                  numeric_state                                                         single     automations.yaml
 dehumidifier_auto_off                  time_pattern, template                                                single     dehumidifier.yaml
@@ -52,19 +52,19 @@ dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_hu
 dehumidifier_stamp_last_off            state:switch.dehumidifier                                             single     dehumidifier.yaml
 dehumidifier_stamp_last_on             state:switch.dehumidifier                                             single     dehumidifier.yaml
 grafana_snapshot_scheduled             time_pattern                                                          single     grafana.yaml
-hvac_1f_recovery_end                   template                                                              single     automations.yaml
-hvac_1f_recovery_start                 template                                                              single     automations.yaml
-hvac_1f_recovery_stuck_clear           state:input_boolean.hvac_1f_recovering                                single     automations.yaml
-hvac_1f_setback_lowered                state:climate.main_floor                                              single     automations.yaml
-hvac_1f_setback_start                  state:climate.main_floor                                              single     automations.yaml
-hvac_1f_setback_stuck_clear            state:input_boolean.hvac_1f_setback_active                            single     automations.yaml
-hvac_2f_recovery_end                   template                                                              single     automations.yaml
-hvac_2f_recovery_start                 template                                                              single     automations.yaml
-hvac_2f_recovery_stuck_clear           state:input_boolean.hvac_2f_recovering                                single     automations.yaml
-hvac_2f_setback_lowered                state:climate.upstairs                                                single     automations.yaml
-hvac_2f_setback_start                  state:climate.upstairs                                                single     automations.yaml
-hvac_2f_setback_stuck_clear            state:input_boolean.hvac_2f_setback_active                            single     automations.yaml
-hvac_setback_midnight_audit            01:00:00                                                              single     automations.yaml
+hvac_1f_recovery_end                   template                                                              single     hvac_performance.yaml
+hvac_1f_recovery_start                 template                                                              single     hvac_performance.yaml
+hvac_1f_recovery_stuck_clear           state:input_boolean.hvac_1f_recovering                                single     hvac_performance.yaml
+hvac_1f_setback_lowered                state:climate.main_floor                                              single     hvac_performance.yaml
+hvac_1f_setback_start                  state:climate.main_floor                                              single     hvac_performance.yaml
+hvac_1f_setback_stuck_clear            state:input_boolean.hvac_1f_setback_active                            single     hvac_performance.yaml
+hvac_2f_recovery_end                   template                                                              single     hvac_performance.yaml
+hvac_2f_recovery_start                 template                                                              single     hvac_performance.yaml
+hvac_2f_recovery_stuck_clear           state:input_boolean.hvac_2f_recovering                                single     hvac_performance.yaml
+hvac_2f_setback_lowered                state:climate.upstairs                                                single     hvac_performance.yaml
+hvac_2f_setback_start                  state:climate.upstairs                                                single     hvac_performance.yaml
+hvac_2f_setback_stuck_clear            state:input_boolean.hvac_2f_setback_active                            single     hvac_performance.yaml
+hvac_setback_midnight_audit            01:00:00                                                              single     hvac_performance.yaml
 mmw_dropout_candidate_alert            state:binary_sensor.mmw_family_dropout_candidate                      single     mmwave_presence.yaml
 mmw_family_alarm_rearm                 state:binary_sensor.mmw_family_quiet_hours                            single     mmwave_presence.yaml
 mmw_family_cal_label_autoclear         state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
@@ -93,34 +93,34 @@ mmw_seed_uncommissioned_helpers        homeassistant, template                  
 nightly_buffer_backup                  00:20:00                                                              single     spc.yaml
 nightly_ha_audit                       00:30:00                                                              single     audit.yaml
 nightly_spc_verify                     00:25:00                                                              single     spc.yaml
-notify_ac_short_cycling                state:binary_sensor.hvac_ac_short_cycling_alert                       single     automations.yaml
-notify_cdd_capture_stale               state:binary_sensor.cdd_capture_stale                                 single     automations.yaml
+notify_ac_short_cycling                state:binary_sensor.hvac_ac_short_cycling_alert                       single     hvac_performance.yaml
+notify_cdd_capture_stale               state:binary_sensor.cdd_capture_stale                                 single     hvac_performance.yaml
 notify_climate_norms_failure           state:sensor.climate_norms_today                                      single     weather.yaml
 notify_climate_norms_stale             state:binary_sensor.climate_norms_stale                               single     weather.yaml
-notify_filter_change_due               state:binary_sensor.hvac_filter_change_alert                          single     automations.yaml
-notify_furnace_cycle_capture_stale     state:binary_sensor.furnace_cycle_capture_stale +1 more               single     automations.yaml
-notify_hdd_capture_stale               state:binary_sensor.hdd_capture_stale                                 single     automations.yaml
-notify_monthly_report_stale            state:binary_sensor.monthly_report_stale                              single     automations.yaml
+notify_filter_change_due               state:binary_sensor.hvac_filter_change_alert                          single     hvac_performance.yaml
+notify_furnace_cycle_capture_stale     state:binary_sensor.furnace_cycle_capture_stale +1 more               single     hvac_performance.yaml
+notify_hdd_capture_stale               state:binary_sensor.hdd_capture_stale                                 single     hvac_performance.yaml
+notify_monthly_report_stale            state:binary_sensor.monthly_report_stale                              single     hvac_performance.yaml
 notify_pirate_weather_stale            template                                                              single     weather.yaml
-notify_runtime_per_cdd_capture_stale   state:binary_sensor.runtime_per_cdd_capture_stale                     single     automations.yaml
-notify_runtime_per_cdd_high            state:binary_sensor.hvac_runtime_per_cdd_high_alert                   single     automations.yaml
-notify_runtime_per_cdd_low             state:binary_sensor.hvac_runtime_per_cdd_low_alert                    single     automations.yaml
-notify_runtime_per_hdd_capture_stale   state:binary_sensor.runtime_per_hdd_capture_stale                     single     automations.yaml
-notify_runtime_per_hdd_high            state:binary_sensor.hvac_runtime_per_hdd_high_alert                   single     automations.yaml
-notify_runtime_per_hdd_low             state:binary_sensor.hvac_runtime_per_hdd_low_alert                    single     automations.yaml
-notify_short_cycling_furnace           state:binary_sensor.hvac_furnace_short_cycling_alert                  single     automations.yaml
+notify_runtime_per_cdd_capture_stale   state:binary_sensor.runtime_per_cdd_capture_stale                     single     hvac_performance.yaml
+notify_runtime_per_cdd_high            state:binary_sensor.hvac_runtime_per_cdd_high_alert                   single     hvac_performance.yaml
+notify_runtime_per_cdd_low             state:binary_sensor.hvac_runtime_per_cdd_low_alert                    single     hvac_performance.yaml
+notify_runtime_per_hdd_capture_stale   state:binary_sensor.runtime_per_hdd_capture_stale                     single     hvac_performance.yaml
+notify_runtime_per_hdd_high            state:binary_sensor.hvac_runtime_per_hdd_high_alert                   single     hvac_performance.yaml
+notify_runtime_per_hdd_low             state:binary_sensor.hvac_runtime_per_hdd_low_alert                    single     hvac_performance.yaml
+notify_short_cycling_furnace           state:binary_sensor.hvac_furnace_short_cycling_alert                  single     hvac_performance.yaml
 notify_spc_capture_stale               state:binary_sensor.spc_capture_stale_any                             single     spc.yaml
-notify_thermostat_offline              state:climate.main_floor +1 more                                      single     automations.yaml
-notify_weather_sources_down            state:sensor.hvac_outdoor_temp_hartford_proxy                         single     automations.yaml
+notify_thermostat_offline              state:climate.main_floor +1 more                                      single     hvac_performance.yaml
+notify_weather_sources_down            state:sensor.hvac_outdoor_temp_hartford_proxy                         single     hvac_performance.yaml
 reset_automation_failure_counter       00:00:00                                                              single     automations.yaml
-reset_filter_runtime_button            state:input_button.reset_filter_runtime                               single     automations.yaml
-reset_monthly_hdd                      00:01:00, homeassistant                                               single     automations.yaml
+reset_filter_runtime_button            state:input_button.reset_filter_runtime                               single     hvac_performance.yaml
+reset_monthly_hdd                      00:01:00, homeassistant                                               single     hvac_performance.yaml
 reset_outdoor_temp_daily_high_low      00:00:30, homeassistant                                               single     weather.yaml
 reset_season_gas_heat_cost             00:08:00, homeassistant                                               single     gas_dhw.yaml
-reset_yearly_ac_cost                   00:06:00, homeassistant                                               single     automations.yaml
+reset_yearly_ac_cost                   00:06:00, homeassistant                                               single     hvac_performance.yaml
 reset_yearly_dehumidifier_cost         00:04:00, homeassistant                                               single     dehumidifier.yaml
-reset_yearly_hdd                       00:02:00, homeassistant                                               single     automations.yaml
-rotate_setback_log_yearly              00:05:00                                                              single     automations.yaml
+reset_yearly_hdd                       00:02:00, homeassistant                                               single     hvac_performance.yaml
+rotate_setback_log_yearly              00:05:00                                                              single     hvac_performance.yaml
 save_dhw_button                        state:input_button.save_dhw                                           single     gas_dhw.yaml
 save_electric_bill_button              state:input_button.save_electric_bill                                 single     electricity.yaml
 save_gas_bill_button                   state:input_button.save_gas_bill                                      single     gas_dhw.yaml
