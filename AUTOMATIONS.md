@@ -17,8 +17,8 @@ capture_daily_ac_min_per_cycle         23:55:30                                 
 capture_daily_ac_watts                 23:59:00                                                              single     spc.yaml  [pipeline]
 capture_daily_cdd                      23:55:15                                                              single     automations.yaml  [pipeline]
 capture_daily_cooling_kwh_cdd          23:59:00                                                              single     spc.yaml  [pipeline]
-capture_daily_dehumidifier_cost        23:59:30                                                              single     automations.yaml  [pipeline]
-capture_daily_dehumidifier_duty_kwh    23:59:30                                                              single     automations.yaml  [pipeline]
+capture_daily_dehumidifier_cost        23:59:30                                                              single     dehumidifier.yaml  [pipeline]
+capture_daily_dehumidifier_duty_kwh    23:59:30                                                              single     dehumidifier.yaml  [pipeline]
 capture_daily_dehumidifier_watts       23:59:00                                                              single     spc.yaml  [pipeline]
 capture_daily_fridge_watts             23:59:00                                                              single     spc.yaml  [pipeline]
 capture_daily_furnace_min_per_cycle    23:56:15                                                              single     automations.yaml  [pipeline]
@@ -36,21 +36,21 @@ daily_energy_csv_export                00:15:00                                 
 daily_hvac_summary                     22:00:00                                                              single     automations.yaml
 database_maintenance_weekly            03:00:00                                                              single     automations.yaml
 database_size_monitor                  numeric_state                                                         single     automations.yaml
-dehumidifier_auto_off                  time_pattern, template                                                single     automations.yaml
-dehumidifier_auto_on                   state:binary_sensor.dehumidifier_should_run +1 more                   single     automations.yaml
-dehumidifier_cycle_counter_reset       00:00:00                                                              single     automations.yaml
-dehumidifier_cycle_end_capture         state:binary_sensor.dehumidifier_compressor_active                    single     automations.yaml
-dehumidifier_cycle_start_capture       state:binary_sensor.dehumidifier_compressor_active                    single     automations.yaml
-dehumidifier_force_on_backstop         numeric_state, numeric_state, time_pattern                            single     automations.yaml
-dehumidifier_local_control_enter       state:input_boolean.dehumidifier_local_control                        single     automations.yaml
-dehumidifier_local_control_exit        state:input_boolean.dehumidifier_local_control                        single     automations.yaml
-dehumidifier_local_control_power_hold  state:input_boolean.dehumidifier_local_control +1 more                single     automations.yaml
-dehumidifier_local_control_reminder    time_pattern                                                          single     automations.yaml
-dehumidifier_max_runtime_backstop      time_pattern                                                          single     automations.yaml
-dehumidifier_rh_stall_shutdown         time_pattern                                                          single     automations.yaml
-dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_humidity +1 more               single     automations.yaml
-dehumidifier_stamp_last_off            state:switch.dehumidifier                                             single     automations.yaml
-dehumidifier_stamp_last_on             state:switch.dehumidifier                                             single     automations.yaml
+dehumidifier_auto_off                  time_pattern, template                                                single     dehumidifier.yaml
+dehumidifier_auto_on                   state:binary_sensor.dehumidifier_should_run +1 more                   single     dehumidifier.yaml
+dehumidifier_cycle_counter_reset       00:00:00                                                              single     dehumidifier.yaml
+dehumidifier_cycle_end_capture         state:binary_sensor.dehumidifier_compressor_active                    single     dehumidifier.yaml
+dehumidifier_cycle_start_capture       state:binary_sensor.dehumidifier_compressor_active                    single     dehumidifier.yaml
+dehumidifier_force_on_backstop         numeric_state, numeric_state, time_pattern                            single     dehumidifier.yaml
+dehumidifier_local_control_enter       state:input_boolean.dehumidifier_local_control                        single     dehumidifier.yaml
+dehumidifier_local_control_exit        state:input_boolean.dehumidifier_local_control                        single     dehumidifier.yaml
+dehumidifier_local_control_power_hold  state:input_boolean.dehumidifier_local_control +1 more                single     dehumidifier.yaml
+dehumidifier_local_control_reminder    time_pattern                                                          single     dehumidifier.yaml
+dehumidifier_max_runtime_backstop      time_pattern                                                          single     dehumidifier.yaml
+dehumidifier_rh_stall_shutdown         time_pattern                                                          single     dehumidifier.yaml
+dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_humidity +1 more               single     dehumidifier.yaml
+dehumidifier_stamp_last_off            state:switch.dehumidifier                                             single     dehumidifier.yaml
+dehumidifier_stamp_last_on             state:switch.dehumidifier                                             single     dehumidifier.yaml
 grafana_snapshot_scheduled             time_pattern                                                          single     grafana.yaml
 hvac_1f_recovery_end                   template                                                              single     automations.yaml
 hvac_1f_recovery_start                 template                                                              single     automations.yaml
@@ -118,7 +118,7 @@ reset_monthly_hdd                      00:01:00, homeassistant                  
 reset_outdoor_temp_daily_high_low      00:00:30, homeassistant                                               single     automations.yaml
 reset_season_gas_heat_cost             00:08:00, homeassistant                                               single     automations.yaml
 reset_yearly_ac_cost                   00:06:00, homeassistant                                               single     automations.yaml
-reset_yearly_dehumidifier_cost         00:04:00, homeassistant                                               single     automations.yaml
+reset_yearly_dehumidifier_cost         00:04:00, homeassistant                                               single     dehumidifier.yaml
 reset_yearly_hdd                       00:02:00, homeassistant                                               single     automations.yaml
 rotate_setback_log_yearly              00:05:00                                                              single     automations.yaml
 save_dhw_button                        state:input_button.save_dhw                                           single     automations.yaml

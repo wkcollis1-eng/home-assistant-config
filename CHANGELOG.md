@@ -95,6 +95,16 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Package split 1/5: `dehumidifier` moved into `packages/dehumidifier.yaml` (pure move, live 2026-10-19 11:56)
+
+Moved verbatim by `pkg_move.py` from manifest `dehumidifier.txt` (Stage 1 of the package split; plan and
+tools in `C:\sandbox\package_split`). 110 keys, 112 entities; no entity id,
+unique_id, value or comment changed.
+- config_equiv: `EQUIVALENT items=1241 lines=22910 files_before=12 files_after=13`
+- host_check: `CHECK_CONFIG VALID errors=0 warnings=0 components=22 ...`; check_config: valid, warnings null
+- restart_check: `RESTART CHECK OK automations=139 fresh=139 states=1884 unavailable=126->120 moved=112`; audit `0 FAIL, 1 WARN`
+- Undo (before any later edit): `python C:\sandbox\package_split\tools\pkg_move.py --undo C:\sandbox\package_split\undo_H\dehumidifier-20261019T115436`
+
 ### Audit: `duplicate-automation-id` counts ids across automations.yaml AND every package (2026-10-19 10:50 EDT)
 
 **Why** - Stage 0 of the package split (`C:\sandbox\package_split\PLAN.md`, Bill's go
