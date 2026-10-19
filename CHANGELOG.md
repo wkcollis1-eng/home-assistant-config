@@ -203,6 +203,22 @@ R13, HVAC repo f490b63 (2026-10-15): its message calls the Navien therms "intege
 0.36245". 18 of the 19 months in the old CSV are; 2025-06 (16.723 thm) is 46.139 m3 [M]. Its
 CCF is still therms x 0.9643, and it feeds only ls_1, which is 0, so no stored value moves.
 
+### Dashboard mirror re-exported after Bill's paste (`dashboards/lovelace/energy_performance.yaml`)
+
+Bill, 2026-10-18: "dashboard has been updated." `export_dashboards.py` changed this file only
+(+46 / -16 lines). Compared as parsed YAML [M]:
+- Weekly: both Gas Heating Cost cards equal their snippets,
+  `dashboards/cards/apexcharts/gas-heating-cost-season.yaml` and `...-calendar-year.yaml`, with
+  0 differences. The [2026.09.23] chart fix is live there.
+- Analysis equals `dashboards/views/energy-performance-analysis.yaml`, 0 differences.
+- Monthly equals `dashboards/views/energy-performance-monthly.yaml` except three gauges Bill
+  edited in the UI: Heating Efficiency min 80 -> 95, bands 99 / 108 -> 105 / 110; Building UA
+  min 400 -> 550, bands 530 / 580 -> 620 / 650; and a new Site EUI gauge
+  (`sensor.site_eui_estimate`) that kept the UA gauge's min 550, max 700 and bands while the
+  sensor reads 41.3 kBTU/ft2-yr [M], below the dial's minimum.
+- The source view was not changed, so pasting it again would revert those three gauges.
+  Left for Bill, with the EUI range.
+
 ## [2026.10.16] - 2026-10-16
 
 ### SDR antenna ledger row (2026-09-17, W5012 at its moved spot) scored: FALSIFIED on water, but the timing does not put it on the antenna (analysis only, nothing deployed)
@@ -4003,7 +4019,7 @@ open questions word for word, and a stale checkpoint says so.
 **Left open:** the re-injection has not yet run on a real compaction; the first one
 is the live test (check `compactions.log`).
 
-### Gas Heating Cost charts: two chart defects, one data defect (charts NOT yet live)
+### Gas Heating Cost charts: two chart defects, one data defect (charts NOT yet live; Energy Performance > Weekly copy live 2026-10-18, see [2026.10.18])
 
 Bill: the Gas Heating Cost charts on Heating HVAC Diagnostics "do not seem to be
 working correctly". Both cards also exist, identical, on Energy Performance >
