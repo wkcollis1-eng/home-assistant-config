@@ -804,6 +804,36 @@ def f_duplicate_automation_id(root):
     )
 
 
+def f_duplicate_automation_id_cross_file(root):
+    """The same `id:` in automations.yaml AND in a package.
+
+    The rule read automations.yaml alone until 2026-10-19, so this - the exact
+    shape of a copy-not-move during the package split - was invisible, and so
+    were the ~55 automations already under packages/. SOLO because the batch
+    already holds f_duplicate_automation_id under the same rule id: in a shared
+    tree that one would fire and this one would pass without proving anything.
+    """
+    block = """
+- id: audit_test_xfile_dup_id
+  alias: Audit Test Cross File Dup
+  trigger:
+    - platform: time
+      at: "04:03:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.audit_test_dup
+      data:
+        value: 3
+  mode: single
+"""
+    _add_automation(root, block)
+    pkg = "automation:\n" + "".join(
+        ("  " + ln if ln else ln) + "\n" for ln in block.strip("\n").split("\n")
+    )
+    _write(root, "packages/zz_audit_test_xfile.yaml", pkg)
+
+
 def f_duplicate_pipeline_key(root):
     """The same key twice under `pipelines:`.
 
@@ -900,6 +930,7 @@ SOLO_FAULTS = [
     ("eod-doc-uncheckable", f_eod_doc_uncheckable),
     ("open-questions-malformed", f_open_questions_malformed),
     ("entity-missing", f_entity_missing_excused),
+    ("duplicate-automation-id", f_duplicate_automation_id_cross_file),
 ]
 
 
@@ -1608,7 +1639,10 @@ def main():
 
         for rid, fn in solo:
             say("\nDIRECTION 1  %s (isolated)" % rid)
-            tree = build_tree(os.path.join(work, "solo_" + rid))
+            # Named by injector, not rule id: two SOLO faults may share a rule
+            # id (duplicate-automation-id has a same-file and a cross-file one),
+            # and build_tree reuses an existing dir without clearing it.
+            tree = build_tree(os.path.join(work, "solo_" + fn.__name__))
             fn(tree)
             got = {r for r, _m in findings(run_audit(tree)) - clean_findings}
             ok = rid in got

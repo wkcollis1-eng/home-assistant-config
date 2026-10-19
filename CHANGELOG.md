@@ -95,6 +95,53 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### Audit: `duplicate-automation-id` counts ids across automations.yaml AND every package (2026-10-19 10:50 EDT)
+
+**Why** - Stage 0 of the package split (`C:\sandbox\package_split\PLAN.md`, Bill's go
+2026-10-19). Stage 1 moves automations out of `automations.yaml` into new packages, and HA
+merges every package's `automation:` list with `automations.yaml` into one id space.
+`rule_duplicate_ids` read `automations.yaml` alone. So an automation copied into a package
+instead of moved would have passed every night, with HA keeping one copy and the other
+silently inert. The rule was already blind to the 55 automations under `packages/` [M, audit
+loader on H:: 84 in automations.yaml + 55 in 9 package files = 139, the live automation
+entity count].
+
+**Change** - `scripts/ha_audit.py`, `scripts/test_ha_audit.py`
+- `rule_duplicate_ids` collects ids from `automations.yaml` plus the list-valued `automation`
+  / `automation <label>` keys of every `config_files()` file. The FAIL now names the files.
+  configuration.yaml's `automation: !include` is not a list, so it is skipped and the file it
+  includes is read directly.
+- New SOLO injector `f_duplicate_automation_id_cross_file`: the same id in `automations.yaml`
+  and `packages/zz_audit_test_xfile.yaml`. Solo trees are now named by injector, not rule id.
+  Two SOLO faults now share a rule id, and `build_tree` reuses an existing dir without
+  clearing it.
+
+**Proven (R2/R7)**
+- In `C:\sandbox\pkg_split_tree`, the old rule stayed silent on the cross-file duplicate and
+  the new one FIRES. The full suite passes in both directions.
+- Gate on H: (`gate.py scripts/ha_audit.py scripts/test_ha_audit.py`, verbatim):
+
+  ```
+  1. SYNTAX    n/a - no YAML edited
+  2. SEMANTIC  0 FAIL, 1 WARN, 2 INFO across 18 pipelines
+  2b. RULES    SUITE PASSED - 36 rule(s) proven in both directions
+  3. DEPLOYED  NOT RUN - POST /api/config/core/check_config yourself
+  4. RELOAD    NOT RUN
+  5. OBSERVE   NOT RUN
+  ```
+  Audit delta: 0 NEW, 0 FIXED, 1 UNCHANGED. The rule count stays at 36 because the new case
+  is a second injector for a rule id that was already covered.
+- `check_provenance.py --all` on both files gives 0 WARN. The pinned pre-commit hooks were run
+  on a throwaway clone of H: carrying the two files. All passed (exit 0; "check yaml" Skipped,
+  no YAML in the set), and both files are byte-identical afterwards, so no hook rewrote anything.
+- Steps 3-5 do not apply. No HA config changed, and the nightly 00:30 run reads the script
+  from disk, so the change takes effect at that run with no restart or reload.
+
+**Limits**
+- The rule catches the same id declared twice. It cannot see a copy that was given a NEW id
+  (two live automations, different ids). In the split, that case belongs to `config_equiv.py`,
+  which compares item bodies.
+
 ### Family lamps go off on a bright morning (live 2026-10-19 09:27:54 EDT)
 
 Bill: "for the family mmWave would like to turn lights off while occupied when the lux

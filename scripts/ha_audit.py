@@ -1900,19 +1900,39 @@ def rule_duplicate_ids():
     # list needs no indentation guessing, and automations.yaml being a LIST is
     # what makes it safe: PyYAML preserves duplicate list entries. Caught by
     # direction 2 of test_ha_audit.py, 2026-08-25, before it ever ran on H:.
-    cfg = load("automations.yaml")
-    seq = cfg if isinstance(cfg, list) else []
-    seen = {}
-    for a in seq:
-        if isinstance(a, dict) and isinstance(a.get("id"), (str, int)):
-            k = str(a["id"])
-            seen[k] = seen.get(k, 0) + 1
-    for aid, n in sorted(seen.items()):
-        if n > 1:
+    #
+    # ACROSS FILES, NOT automations.yaml ALONE (2026-10-19). Until then this
+    # read automations.yaml only, so the ~55 automations under packages/ were
+    # never counted, and an id shared between a package and automations.yaml
+    # was invisible - which is exactly what a copy-not-move looks like during
+    # the package split (C:\sandbox\package_split\PLAN.md). HA merges every
+    # package's `automation:` list with automations.yaml, so the id space is
+    # their union. configuration.yaml's `automation: !include` parses to a tag
+    # dict under Tolerant, not a list, and is skipped by the isinstance test.
+    where = {}
+    for rel in ["automations.yaml"] + config_files():
+        cfg = load(rel)
+        if isinstance(cfg, list):
+            seqs = [cfg]
+        elif isinstance(cfg, dict):
+            seqs = [
+                v
+                for k, v in cfg.items()
+                if (k == "automation" or str(k).startswith("automation "))
+                and isinstance(v, list)
+            ]
+        else:
+            seqs = []
+        for seq in seqs:
+            for a in seq:
+                if isinstance(a, dict) and isinstance(a.get("id"), (str, int)):
+                    where.setdefault(str(a["id"]), []).append(rel)
+    for aid, files in sorted(where.items()):
+        if len(files) > 1:
             fail(
                 "duplicate-automation-id",
-                "automations.yaml declares id: %s %d times - HA keeps one and "
-                "the others are silently inert" % (aid, n),
+                "id: %s is declared %d times (%s) - HA keeps one and "
+                "the others are silently inert" % (aid, len(files), ", ".join(files)),
                 fix="delete the duplicate block; the one you edited may not be "
                 "the one HA loads",
             )
