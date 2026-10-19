@@ -13,7 +13,7 @@ automation.nightly_ha_audit:
   group: AUDIT (packages/audit.yaml)
   note: 00:30, guarded
 automation.nightly_rolling_buffer_backup:
-  group: SYSTEM (configuration.yaml / packages/spc.yaml)
+  group: SYSTEM
   note: 00:20, guarded
 automation.notify_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
@@ -55,7 +55,7 @@ binary_sensor.cooling_kwh_cdd_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: gated on sensor.hvac_cdd65_today
 binary_sensor.dehumidifier_should_run:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 binary_sensor.dehumidifier_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
@@ -163,7 +163,7 @@ climate.upstairs:
   group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
   note: 2F Ecobee
 counter.dehumidifier_cycles_today:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_boolean.ha_maintenance_mode:
   group: GUARDS / MODES
@@ -193,10 +193,10 @@ input_datetime.cooling_kwh_cdd_spc_last_capture:
   group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
   note: ''
 input_datetime.dehumidifier_cycle_start_time:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_datetime.dehumidifier_last_cycle_end_time:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_datetime.dehumidifier_spc_last_capture:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
@@ -214,7 +214,7 @@ input_datetime.fridge_spc_last_seed:
   group: SPC — FRIDGE (packages/spc.yaml)
   note: startup seed, never a capture
 input_datetime.furnace_cycle_capture_last_run:
-  group: FURNACE MIN/CYCLE (configuration.yaml)
+  group: FURNACE MIN/CYCLE
   note: every run of the min/cycle capture, skip or success - liveness, not success
 input_datetime.furnace_spc_last_capture:
   group: SPC — FURNACE (packages/spc.yaml)
@@ -250,22 +250,22 @@ input_number.ac_power_threshold:
   group: SPC — AC (packages/spc.yaml)
   note: default 300W
 input_number.dehumidifier_cycle_start_dp:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_number.dehumidifier_last_cycle_minutes:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_number.dehumidifier_last_hold_hours:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_number.dehumidifier_last_pull_down_rate:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 input_number.dehumidifier_rh_off_threshold:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: default 46%
 input_number.dehumidifier_rh_on_threshold:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: default 49%
 input_number.dhw_bill_thm:
   group: DHW ARCHIVES
@@ -335,7 +335,7 @@ input_number.water_regen_threshold_gal:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: default 15
 input_select.dehumidifier_last_stop_reason:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: conditions_cleared|max_runtime
 input_text.electric_archive_years:
   group: BILLING OVERVIEW (packages/billing_overview.yaml)
@@ -458,7 +458,7 @@ sensor.basement_battery_bank_monitor_wifi_tx_power_driver:
   group: BATTERY BANK MONITOR (esphome/battery-bank-monitor.yaml)
   note: V1.28 - WiFi TX power as the driver reports it, dBm; re-read every 300 s
 sensor.basement_dew_point:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.basement_router_peak_watts:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
@@ -491,28 +491,28 @@ sensor.cooling_kwh_cdd_upper:
   group: SPC — COOLING EFFICIENCY (packages/spc.yaml)
   note: ''
 sensor.dehumidifier_avg_cycle_minutes:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_current:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_dew_point_margin:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_duty_cycle_24h:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_energy:
   group: KASA PLUGS
   note: ''
 sensor.dehumidifier_energy_daily:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: utility_meter on sensor.dehumidifier_energy, daily cycle
 sensor.dehumidifier_energy_monthly:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: utility_meter on sensor.dehumidifier_energy, monthly cycle
 sensor.dehumidifier_hold_time:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: only valid for conditions_cleared stops
 sensor.dehumidifier_power_when_on:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
@@ -521,7 +521,7 @@ sensor.dehumidifier_power_when_on_steady:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: raw watts, gated to minutes 10-14 of a run
 sensor.dehumidifier_pull_down_rate:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_run_elapsed:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
@@ -551,10 +551,10 @@ sensor.dehumidifier_running_watts_upper:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: ''
 sensor.dehumidifier_runtime_today:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_runtime_week:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.dehumidifier_startup_deficit:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
@@ -990,10 +990,10 @@ sensor.sem_whole_home_power_10min:
   group: SEM METER (packages/sem_meter.yaml)
   note: matched partner for utility_electric_power_clean
 sensor.shelly_temperature_humidity_humidity:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.shelly_temperature_humidity_temperature:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''
 sensor.site_eui_estimate:
   group: ENERGY METRICS
@@ -1050,5 +1050,5 @@ sensor.water_overnight_min_mean_7d:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: the TREND - this is the instrument
 switch.dehumidifier:
-  group: DEHUMIDIFIER (configuration.yaml)
+  group: DEHUMIDIFIER
   note: ''

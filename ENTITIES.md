@@ -110,7 +110,7 @@ sensor.hvac_daily_gas_cost_estimate
 sensor.hvac_daily_total_cost_estimate
 ```
 
-## DEHUMIDIFIER (configuration.yaml)
+## DEHUMIDIFIER
 
 ```
 binary_sensor.dehumidifier_should_run
@@ -212,7 +212,7 @@ sensor.hvac_zone_overlap_today
 sensor.hvac_zone_overlap_week
 ```
 
-## FURNACE MIN/CYCLE (configuration.yaml)
+## FURNACE MIN/CYCLE
 
 ```
 input_datetime.furnace_cycle_capture_last_run  every run of the min/cycle capture, skip or success - liveness, not success
@@ -477,7 +477,7 @@ sensor.hwh_recirc_running_watts_upper          [pipeline: capture_daily_hwh_reci
 sensor.hwh_recirc_runtime_today                [pipeline: capture_daily_hwh_recirc_watts]
 ```
 
-## SYSTEM (configuration.yaml / packages/spc.yaml)
+## SYSTEM
 
 ```
 automation.nightly_rolling_buffer_backup  00:20, guarded

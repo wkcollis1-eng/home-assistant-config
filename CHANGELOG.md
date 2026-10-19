@@ -95,6 +95,26 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.19] - 2026-10-19
 
+### R10: stale location labels deleted - `defined_in` x11 (`pipelines.yaml`), group labels x27 (`entity_notes.yaml`)
+
+The package split moved these automations and entities out of `automations.yaml` and
+`configuration.yaml`, and the labels still named those files.
+- `pipelines.yaml`: the 11 `defined_in: "automations.yaml"` lines are deleted, not updated [M: each
+  pipeline's automation id is now in `packages/gas_dhw.yaml` (1), `dehumidifier.yaml` (2) or
+  `hvac_performance.yaml` (8)]. No script reads the field [M, grep of `scripts/`,
+  `~/.claude/hooks`, `~/.claude/tools`]: only `new_pipeline.py` writes it, and test fixtures
+  carry it. The 7 that name `packages/spc.yaml` or `packages/utility_meters.yaml` are still
+  accurate and were left.
+- `entity_notes.yaml`: `DEHUMIDIFIER (configuration.yaml)` x25, `FURNACE MIN/CYCLE
+  (configuration.yaml)` x1 and `SYSTEM (configuration.yaml / packages/spc.yaml)` x1 lose the
+  parenthetical. Every other group label was left.
+- `ENTITIES.md` (generated): exactly those 3 section headings change; `AUTOMATIONS.md` and
+  `PACKAGES.md` byte-identical.
+- R3: each line-wise edit, reversed, gives back the original bytes; counts asserted 11 and 25+1+1.
+- Gate (H:): `1. SYNTAX PASS (parse-clean)` / `2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18
+  pipelines` / 2b n/a. Nothing HA loads changed; live check_config
+  `{"result":"valid","errors":null,"warnings":null}`.
+
 ### DoD step 3: check_config must read "valid" AND warnings null (`CLAUDE.md`, `scripts/gate.py`, `docs/rules-history.md`)
 
 A package that fails to merge (a duplicate key, e.g. a copy that should have been a move) has its

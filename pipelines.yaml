@@ -39,7 +39,6 @@ pipelines:
   archive_monthly_gas_heat_cost:
     label: "gas heat cost"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: null
     stamp: "input_datetime.gas_heat_cost_archive_last_ok"
     season: "heating"
@@ -49,7 +48,6 @@ pipelines:
   capture_daily_ac_cost:
     label: "ac cost"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:59:45"
     stamp: "input_datetime.ac_cost_capture_last_ok"
     season: "cooling"
@@ -60,7 +58,6 @@ pipelines:
   capture_daily_ac_min_per_cycle:
     label: "ac min per cycle"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:55:30"
     stamp: "input_datetime.ac_min_per_cycle_capture_last_ok"
     season: "cooling"
@@ -107,7 +104,6 @@ pipelines:
   capture_daily_cdd:
     label: "cdd"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:55:15"
     stamp: "input_datetime.cdd_capture_last_ok"
     season: "cooling"
@@ -152,7 +148,6 @@ pipelines:
   capture_daily_dehumidifier_cost:
     label: "dehumidifier cost"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:59:30"
     stamp: "input_datetime.dehumidifier_cost_capture_last_ok"
     season: "none"
@@ -163,7 +158,6 @@ pipelines:
   capture_daily_dehumidifier_duty_kwh:
     label: "dehumidifier duty kwh"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:59:30"
     stamp: "input_datetime.dehumidifier_duty_kwh_capture_last_ok"
     season: "none"
@@ -284,7 +278,6 @@ pipelines:
   capture_daily_furnace_min_per_cycle:
     label: "furnace min per cycle"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:56:15"
     stamp: "input_datetime.furnace_cycle_capture_last_ok"
     season: "heating"
@@ -339,7 +332,6 @@ pipelines:
   capture_daily_hdd:
     label: "hdd"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:55:00"
     stamp: "input_datetime.hdd_capture_last_ok"
     season: "heating"
@@ -386,7 +378,6 @@ pipelines:
   capture_daily_monthly_tracking:
     label: "monthly tracking"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:56:30"
     stamp: "input_datetime.monthly_tracking_capture_last_ok"
     season: "none"
@@ -417,7 +408,6 @@ pipelines:
   capture_daily_runtime_per_cdd:
     label: "runtime per cdd"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:56:45"
     stamp: "input_datetime.runtime_per_cdd_capture_last_ok"
     season: "cooling"
@@ -434,7 +424,6 @@ pipelines:
   capture_daily_runtime_per_hdd:
     label: "runtime per hdd"
     kind: accumulator
-    defined_in: "automations.yaml"
     at: "23:56:00"
     stamp: "input_datetime.runtime_per_hdd_capture_last_ok"
     season: "heating"
