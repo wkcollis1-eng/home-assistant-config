@@ -155,6 +155,54 @@ the 2026-10-15 therms fix (`gas_dhw_usage_month` has applied x 0.9643 since bb7e
 2026-08-24); Jul = Sep DHW 8.39 CCF as a copy error (the Navien reads in 1 m3 steps of about
 0.3624 thm, and 8.39 is 24 of them [D]).
 
+### Found, then repaired the same evening: the 2026-09-23 season-store repair read Navien therms as CCF (R13)
+
+`ha-data-repairs/2026-09-23-gas-heat-season/repair_prev_month.py` (a Claude session,
+2026-09-23) took DHW for Dec 2024 .. Sep 2025 from `baseline-repo/data/monthly_dhw_navien.csv`,
+whose `Gas_CCF` column holds therms, and for Oct 2025 .. Jan 2026 from `dhw_archive_oct..jan`,
+seeded with raw therms (17.4 / 19.21 / 21.75 / 17.76). The 2026-10-15 therms fix did not reach
+these slots. Check: ls_5 (Nov 2025) stored 79.82 [M] = 114.03 x (58 - 17.4) / 58 [D], 17.4
+being Oct 2025 DHW in therms; in CCF (17.4 x 0.9643 = 16.78) it is 81.04 [D]. Recomputed with
+the `ccf` column of the baseline repo (fe97a2c): ls 1046.10 -> 1056.40 (+10.30) and ls2_7..12
+716.45 -> 724.86 (+8.41) [D]; Feb 2026 onward is already CCF. Not repaired at first: a live helper write,
+waiting on Bill. If both this and the zeroing above go in, ls_1..3 take 0 and ls = 1050.26 [D:
+1046.10 - 0.82 - 1.24 + 1.65 + 1.22 + 1.16 + 1.20 + 0.99]. Side effects, same cause:
+`dhw_archive_oct..jan` still hold therms and feed the 12-month sums (configuration.yaml
+gas 12-month sensors); they self-heal as the Nov 1 .. Feb 1 Save DHW presses overwrite them.
+`H:/baseline-repo/data/monthly_dhw_navien.csv` is a stale therms copy ending 2026-01.
+
+**Repaired 2026-10-18 21:14:51** (Bill: "fix Item 4, last season's hot-water correction: and
+Therms still on file"). `ha-data-repairs/2026-10-18-dhw-ccf-basis/repair.py` first reproduces
+all 18 values the 09-23 repair stored, from the therms it used, then recomputes with the
+HVAC repo's `ccf` column (f490b63: CCF = Thm x 0.9643). Feb 2026 onward was already CCF in
+HA: 13.63 and 8.74 are 39.00 and 25.01 m3 as CCF, 37.6 and 24.1 as therms [D: / 0.9643 /
+0.36245 thm per m3]. It refuses unless the bills equal the live `gas_archive_*` helpers, the
+therms equal the old CSV and the CCF equal therms x 0.9643; 4 injected faults each refused
+and the clean state did not [M]. All 15 writes read back equal; 0 other input_numbers changed [M].
+- ls_4..8 (Oct 2025 .. Feb 2026 bills) +1.65 / +1.22 / +1.16 / +1.20 / +0.99 [D]; ls2_7..12
+  (Jan .. Jun 2025) +1.17 / +1.31 / +1.14 / +1.42 / +1.59 / +1.78 [D]. ls_1..3 stay 0 under
+  the zero-runtime rule above: 0 heating h, both zones, Jun .. Sep 2025 [M: HVAC repo
+  `data/monthly_hvac_runtime.csv`].
+- `dhw_archive_oct/nov/dec/jan` 17.4 / 19.21 / 21.75 / 17.76 thm -> 16.78 / 18.52 / 20.97 /
+  17.13 CCF [D: HVAC repo `ccf` column, 2 dp].
+- Sensors, before -> after [M, /api/states 21:14:51 and +5 s]: last season 1044.04 -> 1050.26;
+  season before 716.45 -> 724.86; calendar this year 823.34 -> 825.53; last year to Oct
+  723.54 -> 733.60; `dhw_gas_12m` 160.0 -> 157.3 (the 12 archives sum 157.28 [D]).
+- Also [M, same reads]: `hvac_heating_efficiency_12m` 102.2 -> 102.6; `hvac_building_load_ua_12m`
+  591 -> 594; `hvac_performance_vs_baseline` 0.2 -> 0.6 [M]; `ua_performance_vs_baseline` -0.3
+  -> 0.2 [M]; `hvac_ua_degradation_alert` off -> off. The 12-month figures now subtract DHW in
+  CCF, the basis of the 2026-10-15 baselines.
+- Snapshots `before-`/`after-20261018-211451.json` (full /api/states); `restore.py` writes the
+  store and the four archives back.
+- `H:/baseline-repo`, a clone of the HVAC repo that H:'s `.gitignore` excludes and nothing on H:
+  reads, was fast-forwarded 9b710be -> 7ab9c6c (43 commits, clean tree). Its
+  `monthly_dhw_navien.csv` is now `month,ccf`, byte-identical to the C:\repos clone. Put-back:
+  `git -C H:/baseline-repo reset --hard 9b710be`.
+
+R13, HVAC repo f490b63 (2026-10-15): its message calls the Navien therms "integer m3 x
+0.36245". 18 of the 19 months in the old CSV are; 2025-06 (16.723 thm) is 46.139 m3 [M]. Its
+CCF is still therms x 0.9643, and it feeds only ls_1, which is 0, so no stored value moves.
+
 ## [2026.10.16] - 2026-10-16
 
 ### SDR antenna ledger row (2026-09-17, W5012 at its moved spot) scored: FALSIFIED on water, but the timing does not put it on the antenna (analysis only, nothing deployed)
