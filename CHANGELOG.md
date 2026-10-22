@@ -93,6 +93,24 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.21] - 2026-10-21
+
+### Correction (R13): the water heater is an NPE-240A2, not an NPE-240S2
+
+- Bill, 2026-10-21: NPE-240A2. Navien's warranty registration agrees: "NPE-240A2 NG",
+  installed 2021-11-17
+  (`OneDrive\Documents\East Hampton Home\Navien_Warranty_NPE240A2_NG.pdf`).
+- `CLAUDE.md` Home section corrected. Where "NPE-240S2" came from is not known. It was copied
+  forward without anyone reading the rating plate.
+- Not rewritten: the entry "Navien September total checked against the SDR gas meter" below
+  ("NPE-240S2's own control panel") and the answered
+  Kasa-plug entry in `open_questions.yaml`. Both are dated records; read "S2" in them as A2.
+  The 7 monthly reports in `baseline-repo/` (MARCH..SEPTEMBER_2026_UPDATE.md) also say S2.
+  They are published in the HVAC baseline repo, so they are left for Bill.
+- Why it matters: community RS-485 configs are split by model. htumanyan/navien
+  `hardware-guide.md`: the A and A2 "use different byte values for power state", and the A2
+  ships with the hot-button kit pre-installed.
+
 ## [2026.10.19] - 2026-10-19
 
 ### R10: stale location labels deleted - `defined_in` x11 (`pipelines.yaml`), group labels x27 (`entity_notes.yaml`)
