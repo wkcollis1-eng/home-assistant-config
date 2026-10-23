@@ -222,6 +222,10 @@ pipelines:
     at: "23:59:00"
     stamp: "input_datetime.dehumidifier_spc_last_capture"
     seed_stamp: "input_datetime.dehumidifier_spc_last_seed"
+    # 2026-10-23: written on an idle or one-cycle in-band night and by
+    # script.spc_reset_dehumidifier; the stale detector's grace counts from
+    # it. Never a capture. See packages/spc.yaml SPC CAPTURE WATCHDOG.
+    excused_stamp: "input_datetime.dehumidifier_spc_last_excused"
     season: "none"
     stale_detector: "binary_sensor.dehumidifier_spc_capture_stale"
     buffer_slots: 7

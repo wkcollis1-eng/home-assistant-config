@@ -210,6 +210,9 @@ input_datetime.dehumidifier_last_cycle_end_time:
 input_datetime.dehumidifier_spc_last_capture:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: measured captures only
+input_datetime.dehumidifier_spc_last_excused:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: idle or one-cycle in-band night, or reset; stale grace counts from it, never a capture
 input_datetime.dehumidifier_spc_last_seed:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: startup seed, never a capture

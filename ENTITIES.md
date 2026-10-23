@@ -408,6 +408,7 @@ sensor.cooling_kwh_cdd_upper                     [pipeline: capture_daily_coolin
 ```
 binary_sensor.dehumidifier_watts_out_of_control
 input_datetime.dehumidifier_spc_last_capture     measured captures only  [pipeline: capture_daily_dehumidifier_watts]
+input_datetime.dehumidifier_spc_last_excused     idle or one-cycle in-band night, or reset; stale grace counts from it, never a capture
 input_datetime.dehumidifier_spc_last_seed        startup seed, never a capture  [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_power_when_on                raw watts, gated on > power_threshold
 sensor.dehumidifier_power_when_on_steady         raw watts, gated to minutes 10-14 of a run

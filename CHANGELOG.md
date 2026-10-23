@@ -97,6 +97,44 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.23] - 2026-10-23
 
+### Dehumidifier SPC: a thin night is excused, not missed - the false "SPC Capture Stale" bell (`packages/spc.yaml`, `pipelines.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `PACKAGES.md`, `CLAUDE.md`)
+
+- **Bill:** "dehumidifier run time is not being caotured?" with the 10-23 SPC Capture Stale bell (Dehumidifier, last capture 2026-10-20). Then: "build the excused time stamp and update claude.md but keep claude.md short and to the point."
+- **Run time is captured; the subgroup was skipped by design** [M: recorder history 10-15..10-23].
+  - Cycles per day, 10-15 to 10-22: 5, 5, 2, 0, 1, 3, 1, 1. Captures landed on 10-15, 10-16, 10-17 and 10-20.
+  - 10-21 and 10-22 had one cycle each. Latched steady watts at 23:59 were 434.5 W and 432.4 W, inside the 150-800 W band, so the only limb that failed was `cycles >= 2`.
+  - The control loop is healthy: 19 `should_run` calls, 19 switch-ons, 19 compressor starts. The RH band is 55.5/52.0 % and max runtime 2.0 h [M: helpers].
+- **Why it belled.** `binary_sensor.dehumidifier_spc_capture_stale` treated any cycle today as an opportunity and counted its 2-day grace from the last capture only: 10-23 minus 10-20 is 3 days, over 2 [D]. A low-demand night looked like a broken capture.
+- **Change: the furnace's 2026-10-10 excused stamp, for the dehumidifier.**
+  - New `input_datetime.dehumidifier_spc_last_excused`. Only `capture_daily_dehumidifier_watts` writes it, on a skip with 0 cycles, or with 1 cycle and latched watts in (150, 800]. `script.spc_reset_dehumidifier` also stamps it today. It is never a capture: no buffer, limit, chart or seeder reads it.
+  - The stale sensor is now the furnace template: the grace counts from the later of capture and excused. An unknown or unparseable excused stamp is ignored, which is the louder answer. New attribute `last_excused`.
+  - A watts-band miss is never excused, at any cycle count, so a latched-watts fault still bells after 2 days.
+  - `pipelines.yaml` declares it as `excused_stamp`, so `ha_audit.py` WARNs `entity-missing` if it stops resolving.
+  - `CLAUDE.md`: the dehumidifier line held 49/46 % and 150 min, stale copies of helper values (R10). It now names the Aprilaire E080 and points to the `packages/dehumidifier.yaml` helpers.
+- **Verified.**
+  - R2/R7: the old (H:) and new (sandbox) templates rendered on the live engine via `/api/template` (scratchpad `excused_test.py`): **42 checks, 0 failed** [M].
+    - The old template bells on one-cycle nights, an idle gap and a fresh reset. The new one is quiet on all three.
+    - The new one still fires on a 2+-cycle miss, a watts-band miss, a reset with no capture after 3 days, an unparseable stamp and the 3-day boundary. It is quiet at 2 days.
+    - 12 cycles/watts pairs take the intended branch, e.g. (1, 434.5 W) excuse; (1, 150 W), (1, 140 W) and (1, unavailable) skip; (2, 140 W) skip; (2, 434.5 W) capture.
+  - Audit fault, both directions: a misspelt `excused_stamp` gives `WARN entity-missing` (0 FAIL, 3 WARN). Restored (cmp identical): 0 FAIL, 2 WARN, 2 INFO.
+  - R3: untouched lines byte-identical, sandbox vs H: [M: difflib]. `spc.yaml` 3844, `pipelines.yaml` 478, `entity_notes.yaml` 1064, `CLAUDE.md` 573. Installed by compare-and-swap. `ENTITIES.md`, `AUTOMATIONS.md` and `PACKAGES.md` regenerated on H: are byte-identical to the sandbox output.
+- **Gate (verbatim):**
+  - 1. SYNTAX PASS (parse-clean)
+  - 2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines. Its one NEW finding against the 10-16 baseline is the live `fetch-health` WARN on `sensor.kbdl_degree_days_24h` ('insufficient'). It was present at session start and is reproduced on the unchanged tree. Not re-baselined, on purpose. gate.py therefore prints NOT READY.
+  - 2b. RULES n/a - none of ha_audit.py, gen_reference.py, test_ha_audit.py edited
+  - 3. DEPLOYED `{"result":"valid","errors":null,"warnings":null}`
+  - 4. RELOAD NOT RUN. 5. OBSERVE NOT RUN.
+  - `check_provenance.py --all` on the four edited files: 8 WARN, all on lines that predate this change.
+- **Live since Bill reloaded at 17:01:34 UTC** [M: `/api/states`, websocket `automation/config` and `script/config`].
+  - `input_datetime.dehumidifier_spc_last_excused` reads 2026-10-23, its first-creation date: the one-time 2-day grace, as for the furnace.
+  - `binary_sensor.dehumidifier_spc_capture_stale` and `binary_sensor.spc_capture_stale_any` read off. The stale sensor's attributes read `last_excused` 2026-10-23 and `last_capture` 2026-10-20.
+  - The loaded `automation.capture_daily_dehumidifier_running_watts` and `script.spc_reset_dehumidifier` each carry the excused-stamp write.
+- **Left open.**
+  - Tonight's 23:59 run is the first real observation of the excuse branch.
+  - The fridge, AC, HWH recirc and cooling kWh/CDD detectors keep the idle-gap behaviour (open since 2026-10-10).
+  - A compressor below the 150 W threshold counts 0 cycles, and the watchdog stays silent, as it did before this change.
+  - P3's re-fit trigger, "once the basement has dropped ~5 degF", is met: 8.7 degF [D: 71.2 degF summer 30-day mean (P3) minus 62.50 degF, the 10-22 daily mean on the SHT45 node]. Not done here.
+
 ### Ecobee watchdog: a frozen HomeKit temperature is caught and only that thermostat reloaded; recovery start ignores an unavailable sensor (`packages/watchdog.yaml`, `packages/hvac_performance.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `AUTOMATIONS.md`, `PACKAGES.md`)
 
 - **Bill:** "sensor.upstairs_current_temperature went stale for around 6 hours. why didn't the watchdog pick this up and reload the HomeKit." Then: "build both now and include the main floor thermostat".

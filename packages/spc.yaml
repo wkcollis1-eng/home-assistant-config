@@ -673,6 +673,21 @@ input_datetime:
     name: "Furnace SPC Last Excused"
     has_date: true
     has_time: false
+  # --- Dehumidifier SPC excused stamp (2026-10-23) ------------------------
+  # The furnace stamp above, for the dehumidifier. Written ONLY by
+  # capture_daily_dehumidifier_watts, on a night it skips with no cycle, or
+  # with one cycle whose latched steady watts sat inside the 150-800 W band,
+  # and by script.spc_reset_dehumidifier.
+  # binary_sensor.dehumidifier_spc_capture_stale counts its 2-day grace from
+  # the later of this and the capture stamp. NOT a capture: no buffer, limit,
+  # chart or seeder reads it. Only the capture automation writes it, so a
+  # capture automation that stops running cannot excuse itself.
+  # On first creation HA dates it today, as for the furnace: a one-time
+  # 2-day grace.
+  dehumidifier_spc_last_excused:
+    name: "Dehumidifier SPC Last Excused"
+    has_date: true
+    has_time: false
   cooling_kwh_cdd_spc_last_capture:
     name: "Cooling kWh/CDD SPC Last Capture"
     has_date: true
@@ -845,6 +860,16 @@ template:
       # reports stale if the first capture has not landed 2 days later with
       # the blower running. The other five detectors are unchanged and keep
       # the idle-gap behaviour (left open, CHANGELOG 2026-10-10).
+      #
+      # DEHUMIDIFIER, 2026-10-23: the same excused grace, plus one case. Its
+      # guard has a subgroup-SIZE limb (cycles >= 2) beside the watts band.
+      # Missing a size limb means low demand, not a guard that no longer fits
+      # the machine; the "activity > 0" paragraph above is about value bands.
+      # So a night is excused when it was idle, or had one cycle with latched
+      # steady watts inside 150-800. A watts-band miss at any cycle count is
+      # not excused. [M] 10-21 and 10-22 ran one cycle each (latched 434.5 /
+      # 432.4 W) and this read stale on 10-23 with the machine and its control
+      # loop healthy. Fridge, AC, HWH recirc and cooling kWh/CDD unchanged.
       # =================================================================
       - name: "Fridge SPC Capture Stale"
         unique_id: fridge_spc_capture_stale
@@ -963,10 +988,15 @@ template:
         state: >
           {% set last = states('input_datetime.dehumidifier_spc_last_capture') %}
           {% set act = states('counter.dehumidifier_cycles_today') | int(0) %}
+          {# 2026-10-23: grace counts from the later of capture and excused,
+             as for the furnace (see the note above). An unknown or
+             unparseable excused stamp is ignored, which falls back to the
+             old, louder answer - never a quieter one. #}
+          {% set exc = states('input_datetime.dehumidifier_spc_last_excused') | as_datetime %}
           {% if act <= 0 %}
             false
           {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
-            true
+            {{ exc is none or (now().date() - exc.date()).days > 2 }}
           {% else %}
             {% set dt = last | as_datetime %}
             {% if dt is none %}
@@ -975,11 +1005,13 @@ template:
                  fault it exists to catch. #}
               true
             {% else %}
-              {{ (now().date() - dt.date()).days > 2 }}
+              {% set ref = dt.date() if exc is none else [dt.date(), exc.date()] | max %}
+              {{ (now().date() - ref).days > 2 }}
             {% endif %}
           {% endif %}
         attributes:
           last_capture: "{{ states('input_datetime.dehumidifier_spc_last_capture') }}"
+          last_excused: "{{ states('input_datetime.dehumidifier_spc_last_excused') }}"
           activity_today: "{{ states('counter.dehumidifier_cycles_today') }}"
           capture_guard: "cycles >= 2"
 
@@ -3016,6 +3048,27 @@ automation:
                 steady_samples={{ states('sensor.dehumidifier_steady_sample_count_24h') }},
                 threshold={{ states('input_number.dehumidifier_power_threshold') }} W
                 (needs cycles >= 2 and 150 < steady_watts_24h <= 800).
+          # 2026-10-23: EXCUSED, not missed, when subgroup SIZE was the only
+          # limb that failed - an idle night, or one cycle with latched steady
+          # watts inside 150-800. Same mechanism as capture_daily_furnace_watts.
+          # A watts-band miss at any cycle count is NOT excused: that is the
+          # fault the watchdog is for. Values snapshotted at branch start,
+          # same reason as capture_date.
+          - variables:
+              skip_date: "{{ now().date() }}"
+              skip_n: "{{ states('counter.dehumidifier_cycles_today') | int(0) }}"
+              skip_w: "{{ states('sensor.dehumidifier_running_watts_latched') | float(-1) }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >
+                      {{ skip_n | int(0) <= 0
+                         or (skip_n | int(0) < 2 and 150 < skip_w | float(-1) <= 800) }}
+                sequence:
+                  - service: input_datetime.set_datetime
+                    target: {entity_id: input_datetime.dehumidifier_spc_last_excused}
+                    data: {date: "{{ skip_date }}"}
+            default: []
 
   # ===============================================================
   # COOLING EFFICIENCY (kWh/CDD) SPC — EOD capture
@@ -3740,12 +3793,21 @@ script:
           entity_id: input_datetime.dehumidifier_spc_last_capture
         data:
           date: "1970-01-01"
+      # 2026-10-23: excused today, as spc_reset_furnace does, so the first
+      # capture after a reset gets the usual 2-day grace instead of reading
+      # stale at the next cycle. Still stale 2 days later if none lands.
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.dehumidifier_spc_last_excused
+        data:
+          date: "{{ now().date() }}"
       - service: system_log.write
         data:
           level: warning
           message: >-
-            SPC reset: dehumidifier 7-day buffer cleared to 0 and capture stamp
-            set to 1970-01-01. Updated 2026-08-21: mean_7d, sigma_7d, upper and
+            SPC reset: dehumidifier 7-day buffer cleared to 0, capture stamp
+            set to 1970-01-01, excused stamp set to today (2026-10-23 change).
+            Updated 2026-08-21: mean_7d, sigma_7d, upper and
             lower now go UNAVAILABLE rather than falling back to 459/2.1 W, so
             no control band is drawn around a number nobody measured. The chart
             shows 7 gaps until real captures accumulate, which is correct.
