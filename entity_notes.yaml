@@ -532,6 +532,9 @@ sensor.dehumidifier_power_when_on:
 sensor.dehumidifier_power_when_on_steady:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: raw watts, gated to minutes 10-14 of a run
+sensor.dehumidifier_power_when_on_steady_68f:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: steady watts normalised to a 68 degF inlet (quadratic, P3); unavailable outside the fit
 sensor.dehumidifier_pull_down_rate:
   group: DEHUMIDIFIER
   note: ''
@@ -541,12 +544,18 @@ sensor.dehumidifier_run_elapsed:
 sensor.dehumidifier_running_watts_24h:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: statistics, full-run (diagnostic only)
+sensor.dehumidifier_running_watts_68f_24h:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: statistics, 24 h mean of the 68F steady sensor (in-fit samples only); feeds the 68F latch
+sensor.dehumidifier_running_watts_68f_latched:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: last numeric 68F 24 h mean; capture guard, OOC sensor and slots use this
 sensor.dehumidifier_running_watts_daily:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: ''
 sensor.dehumidifier_running_watts_latched:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
-  note: last numeric steady-window mean; capture guard reads this.
+  note: last numeric RAW steady-window mean; since 2026-10-23 (P3) only the excused-skip watts check reads it
 sensor.dehumidifier_running_watts_lower:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: ''
@@ -558,7 +567,7 @@ sensor.dehumidifier_running_watts_sigma_7d:
   note: ''
 sensor.dehumidifier_running_watts_steady_24h:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
-  note: statistics on the steady gate; feeds the latch
+  note: statistics on the steady gate (raw); feeds the raw latch and startup_deficit
 sensor.dehumidifier_running_watts_upper:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: ''
@@ -571,6 +580,15 @@ sensor.dehumidifier_runtime_week:
 sensor.dehumidifier_startup_deficit:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: steady_24h minus 24h; control-mode signature, not a fault
+sensor.dehumidifier_steady_inlet_temperature:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: SHT45 minus the window offset, steady window only; the re-fit series
+sensor.dehumidifier_steady_outside_fit:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: 1 if the steady sample's inlet is outside the fit, 0 inside, unknown between windows
+sensor.dehumidifier_steady_outside_fit_24h:
+  group: SPC — DEHUMIDIFIER (packages/spc.yaml)
+  note: statistics, 24 h max of the outside-fit flag; capture needs 0, 1 is an excused skip
 sensor.dehumidifier_steady_sample_count_24h:
   group: SPC — DEHUMIDIFIER (packages/spc.yaml)
   note: samples behind the steady mean

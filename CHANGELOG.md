@@ -97,6 +97,115 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.23] - 2026-10-23
 
+### Dehumidifier SPC 68 °F basis live: restart, reseed, two notes; P3 stays open for the spring re-fit (`entity_notes.yaml`, `ENTITIES.md`, `docs/pending.md`)
+
+- **Bill** (2026-10-23): "dashboard is live, restart HA and re-seed." That authorised one restart and the reseed writes, nothing more (R12).
+- **Dashboard mirror:** `export_dashboards.py` re-mirrored the pasted P2 view. `dashboards/lovelace/lovelace.yaml` gained 6 lines and lost 33: the DP-stall threshold row, the stall button and the threshold read in the rate-chart note. The capture-stale card was not pasted, so its live footer still shows the raw latch, not the 68 °F series the limits now hold (snippet: `dashboards/cards/conditional/spc-capture-stale.yaml`). The same run dropped the `platinum-weather-card` resource from `_resources.yaml`; that was changed in HA, not in this work.
+- **Restart** at 14:13:36. The API answered and the new latch existed by 14:14:27 [M: poll]. check_config just before: `{"result":"valid","errors":null,"warnings":null}`. System log since the restart: one entry, a `pychromecast.dial` WARNING (a cast box unreachable). Nothing from template, statistics or the packages.
+- **Reseed** at 14:14:46 [D: slot + (norm68 - raw24h), scratchpad `reseed.py`]: day_1..day_7 = 456.2, 455.8, 455.8, 455.3, 454.6, 456.4, 457.5, and `input_datetime.dehumidifier_spc_last_seed` = 2026-10-23. Each read back equal. Prior values, for a rollback: 434.5, 438.0, 437.5, 436.9, 435.7, 437.1, 439.3; last_seed 2026-08-21.
+- **Observed** [M: `/api/states`, 2026-10-23 14:14-14:20]:
+  - mean_7d 455.9 W, upper 457.7, lower 454.1; before, 437.0 / 440.2 / 433.8. sigma_7d 0.9 W [D: (457.7 - 455.9) / 2], was 1.6 [D: (440.2 - 437.0) / 2].
+  - `binary_sensor.dehumidifier_watts_out_of_control` off. It read on from 13:01:35 until the restart, on the raw latch at 433.1 W, below the raw lower limit of 433.8 W: the basement-cooling artefact P3 removes. Nothing automates on it.
+  - Between steady windows the new chain reads as designed: the inlet, the 68 °F sensor and `_68f_24h` unavailable; the flag, `_outside_fit_24h` and the 68 °F latch unknown. Basement 62.07 °F at 14:14, under the fit.
+  - Tonight's 23:59 run cannot capture: no in-fit sample exists. With one cycle so far it is excused by the 1-cycle limb if no second cycle runs, or by the out-of-fit limb if a second cycle's steady window lands. A second cycle with no steady window is an unexcused skip, inside the 2-day grace that `last_excused` 2026-10-23 gives.
+  - P2, after the same restart: `automation.dehumidifier_rh_stall_shutdown` and `input_number.dehumidifier_dp_stall_threshold` read unavailable, registry rows with no YAML behind them.
+- **Notes:** the registry now holds `sensor.dehumidifier_running_watts_68f_24h` and `sensor.dehumidifier_steady_outside_fit_24h` (platform statistics), so both are annotated and `gen_reference.py` re-run: 358 annotated.
+- **Verified:** R3, the two note inserts reversed give `entity_notes.yaml` byte for byte, and `ENTITIES.md` differs from H: by those two lines only. Gate (sandbox, `entity_notes.yaml` and `ENTITIES.md`): `1. SYNTAX PASS (parse-clean)`, `2. SEMANTIC 0 FAIL, 3 WARN, 2 INFO across 18 pipelines`, `NOT READY`. Of the two NEW findings, fetch-health was already NEW at session start; `automation-unavailable` is the P2 orphan row, which the restart made visible and which clears when the row is deleted. WARN 2 -> 3.
+- **Registry rows deleted** (Bill: "delete automation.dehumidifier_rh_stall_shutdown and input_number.dehumidifier_dp_stall_threshold, commit and push."): both removed at about 14:28 through the registry API (`config/entity_registry/remove`, the call the Settings > Entities delete makes), never through `.storage`. Each entry was snapshotted first (scratchpad `reg_removed.json`). After: absent from the registry, `/api/states` 404 for both, `gen_reference.py` output unchanged, and the live audit `0 FAIL, 2 WARN, 2 INFO across 18 pipelines`: `automation-unavailable` cleared, WARN back to 2.
+- **Left open:** the spring re-fit (`docs/pending.md` P3).
+
+### Dehumidifier SPC normalised to a 68 °F inlet, P3 built (`packages/spc.yaml`, `pipelines.yaml`, `entity_notes.yaml`, `dashboards/cards/conditional/spc-capture-stale.yaml`, `docs/pending.md`, `ENTITIES.md`, `PACKAGES.md`)
+
+- **Bill** (2026-10-23, asked with the findings below): P3 = "Quadratic, build now". Normalise each steady sample to 68 °F with the full-season curve, valid only 62.4-71.9 °F, re-fit after the spring warm-up; sandbox, gate, then reseed the 7 day slots.
+- **The confound, shown directly** [M: InfluxDB, scratchpad `reseed.py`]. Rebuilding each capture night from `sensor.dehumidifier_power_when_on_steady` reproduces the slot it wrote within -0.46..+0.99 W (12 nights, 10-05..10-20). The raw slots fell from 447.0 W (10-05) to 434.5 W (10-20); the same samples normalised to 68 °F held 452.0-457.1 W. The chart was charting the basement cooling.
+- **The fit** [M: n=435 runs 2026-08-08..10-23; W = mean of minutes 10-14; T = SHT45 at run start, 62.41-71.91 °F]:
+  - W = 455.07 + 4.920·dT + 0.154·dT², dT = T - 68. T² term t=7.1; residual sd 2.51 W.
+  - The window-mean T sits +0.188 ± 0.125 °F above the start T (n=435), so the live sensor uses SHT45 - 0.190 °F. On that: residual sd 2.50 W, weekly mean residual -0.66..+0.78 W over 10 weeks; without the offset, a -1.00 W bias.
+  - Linear slope 4.809 ± 0.050 W/°F. That refutes the ~10.7 W/°F in the old project notes. The 2026-08-07 "Basement temperature is NOT the explanation" paragraph in `packages/spc.yaml` was right for its 0.78 °F span and now carries a dated note.
+- **Built** (each constant has one home, R10):
+  - `sensor.dehumidifier_steady_inlet_temperature`: SHT45 - 0.190 °F, steady window only. It is the series the spring re-fit needs.
+  - `sensor.dehumidifier_steady_outside_fit`: 1 outside 62.41-71.91 °F, 0 inside, unknown between windows. It stays available whenever the SHT45 reads, so its 24 h statistic is still there at 23:59 [S: HA core 2026.10.2 `components/statistics/sensor.py` `_add_state_to_queue` - an `unknown` source adds no sample and keeps the sensor available; `unavailable` makes it unavailable].
+  - `sensor.dehumidifier_power_when_on_steady_68f`: W - (4.920·dT + 0.154·dT²). Only the temperature term comes off, not the intercept, so a capacity loss still shows. Unavailable unless the flag reads 0.
+  - Statistics `sensor.dehumidifier_running_watts_68f_24h` (mean) and `sensor.dehumidifier_steady_outside_fit_24h` (max), both `sampling_size: 3000` against a measured maximum of 395 steady samples per 24 h [M: InfluxDB `dehumidifier_steady_sample_count_24h`, 60 days, n=12938 points]; and the latch `sensor.dehumidifier_running_watts_68f_latched`.
+  - Repointed to the 68 °F chain: the capture guard and `today_w`, `binary_sensor.dehumidifier_watts_out_of_control`, the dehumidifier seed block in `spc_seed_slots_manual`, the skip log line, `pipelines.yaml` `guard.source` / `live_source`, and the capture-stale card footer (snippet only; the live card still graphs the raw latch until Bill pastes it).
+  - Unchanged on purpose: `sensor.dehumidifier_running_watts_steady_24h`, the raw latch, and `sensor.dehumidifier_startup_deficit`, which is a difference of two raw means from the same runs. `scripts/spc_seed.py` follows `live_source` and needed no edit.
+- **The unattended moment is the 23:59:00 capture**, with nobody watching:
+  - Every steady sample of the last 24 h inside the fit, 2 or more cycles, 68 °F latch in 150-800 W: it captures the 68 °F value.
+  - Any sample outside the fit, 2 or more cycles, and the RAW latch in 150-800 W: an excused skip.
+  - Raw watts below 150 W are never excused, at any basement temperature. A missing flag (no steady window in 24 h, or the SHT45 down) fails closed and is not excused.
+- **What the range costs** [M: HA long-term statistics, `sensor.shelly_temperature_humidity_temperature`]. The Dec 2025-Mar 2026 monthly means were 52.38-54.76 °F, under the 60 °F `dehumidifier_min_temp`, so the unit is off all winter anyway. The 60-62.4 °F band is shoulder weeks. On 2026-10-23 the basement read 62.14 °F [M], under the fit, so captures will be excused until the spring warm-up.
+- **Measured, not fixed:** a day of 2 or more cycles whose runs all end before the steady window would capture the previous day's latch. Days like that, 2026-08-05..10-23: 0 of 72 [M: InfluxDB plug series, runs over 10.5 min]. The raw chain had the same exposure.
+- **Not checked:** `spc_seed.py` does not read the outside-fit flag. The 68 °F mean it seeds from holds only in-fit samples.
+- **Verified:**
+  - R2: 35 of 35 render cases on the live template engine (POST `/api/template`, nothing written). Each injected fault fires and each clean state stays silent. The 68 °F output equals the `reseed.py` normalisation at 68.0, 64.0, 62.41 and 71.91 °F.
+  - R3: all 21 spans reversed give the four originals byte for byte. Re-parsed package: 6 entities added, 3 changed (`capture_daily_dehumidifier_watts`, `spc_seed_slots_manual`, `binary_sensor.dehumidifier_watts_out_of_control`), 149 unchanged, 0 removed.
+  - Gate (sandbox): `1. SYNTAX PASS (parse-clean)`, `2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines`, `NOT READY` on the fetch-health WARN that was already NEW at session start (WARN 2 -> 2). A first run with notes for the two statistics sensors gave 4 WARN (2 NEW `entity-note-orphan`); the notes wait for the restart.
+  - check_provenance: no new hits. Deployed: `{"result":"valid","errors":null,"warnings":null}`. RELOAD and OBSERVE not run.
+- **Left open** (`docs/pending.md` P3): RESTART; reseed the 7 slots [D: slot + (norm68 - raw24h)] to 456.2, 455.8, 455.8, 455.3, 454.6, 456.4, 457.5 and stamp `input_datetime.dehumidifier_spc_last_seed`. The current raw slots are 434.5, 438.0, 437.5, 436.9, 435.7, 437.1, 439.3 (mean 437.00, sd 1.55); the reseeded mean is 455.94 (sd 0.91), a step of +18.94 W [D, n=7]. Then annotate the two statistics sensors and run `gen_reference.py`. Re-fit in spring. Falsifier [I]: the normalised weekly mean tracks basement temperature by more than ~2 W across the range; then the curve is wrong, not the machine.
+- **P3 as it stood in `docs/pending.md`, verbatim:**
+
+### P3 — Dehumidifier SPC is measuring basement temperature [HIGH]
+```
+Steady-window watts vs basement temp, 2026-08-08..21 (n=14):
+  r2 = 0.922, slope +7.64 +/- 0.64 W/degF, t = 11.9
+  raw daily sd 4.60 W -> residual sd 1.29 W after T-normalisation
+
+DOES THE 60 degF CUTOFF MAKE THIS MOOT? No - asked 2026-08-23, answered with
+data. Both on-paths do gate on temp >= min_temp (dehumidifier_should_run and
+the force-on backstop, verified), but the gate never binds:
+  sensor.shelly_temperature_humidity_temperature, 2026-05-31..08-23, n=3230
+     range 61.3 .. 72.9 degF     samples below 60 degF: 0 of 3230
+     30-day means: 62.7 -> 67.3 -> 70.0 -> 71.2 degF
+  (the two basement sensors agree to 0.06 degF, so this is directly
+   comparable to the SHT45 node the SPC series uses)
+The cutoff truncates the COLD end - deep winter, when the unit stops and the
+chart simply has no points. It leaves the entire 61-73 degF shoulder-to-summer
+band intact: 11.5 degF of operating range, and the MEAN alone moved 8.5 degF
+across those 84 days.
+
+WHY THAT MATTERS MORE THAN A WIDE BAND. At 7.64 W/degF an 8.5 degF seasonal
+rise is +65 W. A refrigerant loss of -50 W over the same months nets to +15 W
+on the chart - a gentle rise, no alarm, machine failing, instrument says fine.
+The confound moves on the SAME TIMESCALE and in the OPPOSITE DIRECTION to the
+fault the chart exists to catch. Autumn reverses it: a healthy machine looks
+like it is dying. A 7-day rolling window does not help - the limits follow the
+drift, which is precisely how the drift hides.
+
+WHAT IS NOT YET EARNED: the 7.64 W/degF slope was fitted over a 1.5 degF span.
+Applying it across 11.5 degF is an 8x extrapolation - the same error the
+2026-08-07 note on dehumidifier_power_when_on_steady made in the other
+direction when it dismissed temperature on a 0.78 degF lever arm. At half the
+slope the seasonal drift is still 32 W against a 2-3 W sigma, so the CONCLUSION
+is robust; the MAGNITUDE is not.
+
+NO CONFIG CHANGE NEEDED TO DECIDE. Basement temperature and steady watts are
+both already in InfluxDB continuously, so the correlation can be re-run at any
+time - capturing temperature alongside the subgroup would be redundant.
+The autumn cool-down measures the slope over a real lever arm for free. Re-run
+the regression once the basement has dropped ~5 degF and compensate then, on
+measurement rather than extrapolation.
+
+UPDATE 2026-09-23 - re-run on a wider lever arm (4.0 degF, not yet ~5):
+  daily means 2026-08-08..09-22 (n=46), basement 67.84 .. 71.85 degF:
+    slope +5.20 +/- 0.35 W/degF, t = 14.7, r2 = 0.831
+    raw daily sd 5.26 W -> residual sd 2.18 W after T-normalisation
+  per run (n=340), inlet 67.5 .. 72.0 degF: +5.14 +/- 0.25 W/degF, t = 20.8
+  [M: steady window = minutes 10-14 of each run; inlet = basement SHT45
+   temperature at run start; run = plug power > 150 W]
+  Same method on the original 08-08..21 window: +6.55 +/- 1.04 (n=14),
+  consistent with the 7.64 +/- 0.64 above (z = 0.89 [D]). The narrow-span
+  slope was imprecise, not wrong; the wider span brings it down.
+  CAVEAT: runs start at a fixed RH, so inlet temperature and humidity move
+  together (r = 1.00 per run). This is the combined inlet effect; the two
+  cannot be separated from these data. That does not matter for
+  compensating the chart; it does for explaining the machine.
+  THE CONCLUSION STANDS: at 5.20 W/degF the 8.5 degF seasonal move above is
+  44 W [D: 5.20 x 8.5] against a 2.18 W residual sd.
+  STILL NOT EARNED: the 61.3 degF low of the n=3230 series above is 6.5 degF
+  below the fitted minimum [D: 67.84 - 61.3]. Re-fit when the basement
+  reaches ~63 degF; no compensation is built yet.
+```
+
 ### Dehumidifier: the DP stall cut-out is retired, P2 closed (`packages/dehumidifier.yaml`, `dashboards/views/dehumidifier.yaml`, `docs/README_HA_Dehumidifier_Integration.md`, `docs/pending.md`, `AUTOMATIONS.md`, `PACKAGES.md`)
 
 - **Bill** (2026-10-23, asked with the findings below): P2 = "Retire it, close P2". Remove `automation.dehumidifier_rh_stall_shutdown` and `input_number.dehumidifier_dp_stall_threshold`, move the comment history here, and keep the 2 h max-runtime cap as the run limit.

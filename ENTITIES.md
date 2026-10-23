@@ -412,16 +412,22 @@ input_datetime.dehumidifier_spc_last_excused     idle or one-cycle in-band night
 input_datetime.dehumidifier_spc_last_seed        startup seed, never a capture  [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_power_when_on                raw watts, gated on > power_threshold
 sensor.dehumidifier_power_when_on_steady         raw watts, gated to minutes 10-14 of a run
+sensor.dehumidifier_power_when_on_steady_68f     steady watts normalised to a 68 degF inlet (quadratic, P3); unavailable outside the fit
 sensor.dehumidifier_run_elapsed                  minutes into current run; 0 when compressor off
 sensor.dehumidifier_running_watts_24h            statistics, full-run (diagnostic only)
+sensor.dehumidifier_running_watts_68f_24h        statistics, 24 h mean of the 68F steady sensor (in-fit samples only); feeds the 68F latch  [pipeline: capture_daily_dehumidifier_watts]
+sensor.dehumidifier_running_watts_68f_latched    last numeric 68F 24 h mean; capture guard, OOC sensor and slots use this  [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_running_watts_daily
-sensor.dehumidifier_running_watts_latched        last numeric steady-window mean; capture guard reads this.  [pipeline: capture_daily_dehumidifier_watts]
+sensor.dehumidifier_running_watts_latched        last numeric RAW steady-window mean; since 2026-10-23 (P3) only the excused-skip watts check reads it
 sensor.dehumidifier_running_watts_lower          [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_running_watts_mean_7d        [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_running_watts_sigma_7d       [pipeline: capture_daily_dehumidifier_watts]
-sensor.dehumidifier_running_watts_steady_24h     statistics on the steady gate; feeds the latch  [pipeline: capture_daily_dehumidifier_watts]
+sensor.dehumidifier_running_watts_steady_24h     statistics on the steady gate (raw); feeds the raw latch and startup_deficit
 sensor.dehumidifier_running_watts_upper          [pipeline: capture_daily_dehumidifier_watts]
 sensor.dehumidifier_startup_deficit              steady_24h minus 24h; control-mode signature, not a fault
+sensor.dehumidifier_steady_inlet_temperature     SHT45 minus the window offset, steady window only; the re-fit series
+sensor.dehumidifier_steady_outside_fit           1 if the steady sample's inlet is outside the fit, 0 inside, unknown between windows
+sensor.dehumidifier_steady_outside_fit_24h       statistics, 24 h max of the outside-fit flag; capture needs 0, 1 is an excused skip
 sensor.dehumidifier_steady_sample_count_24h      samples behind the steady mean
 ```
 

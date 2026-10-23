@@ -9,67 +9,20 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
 
 ## PENDING (address in next update)
 
-### P3 — Dehumidifier SPC is measuring basement temperature [HIGH]
-```
-Steady-window watts vs basement temp, 2026-08-08..21 (n=14):
-  r2 = 0.922, slope +7.64 +/- 0.64 W/degF, t = 11.9
-  raw daily sd 4.60 W -> residual sd 1.29 W after T-normalisation
-
-DOES THE 60 degF CUTOFF MAKE THIS MOOT? No - asked 2026-08-23, answered with
-data. Both on-paths do gate on temp >= min_temp (dehumidifier_should_run and
-the force-on backstop, verified), but the gate never binds:
-  sensor.shelly_temperature_humidity_temperature, 2026-05-31..08-23, n=3230
-     range 61.3 .. 72.9 degF     samples below 60 degF: 0 of 3230
-     30-day means: 62.7 -> 67.3 -> 70.0 -> 71.2 degF
-  (the two basement sensors agree to 0.06 degF, so this is directly
-   comparable to the SHT45 node the SPC series uses)
-The cutoff truncates the COLD end - deep winter, when the unit stops and the
-chart simply has no points. It leaves the entire 61-73 degF shoulder-to-summer
-band intact: 11.5 degF of operating range, and the MEAN alone moved 8.5 degF
-across those 84 days.
-
-WHY THAT MATTERS MORE THAN A WIDE BAND. At 7.64 W/degF an 8.5 degF seasonal
-rise is +65 W. A refrigerant loss of -50 W over the same months nets to +15 W
-on the chart - a gentle rise, no alarm, machine failing, instrument says fine.
-The confound moves on the SAME TIMESCALE and in the OPPOSITE DIRECTION to the
-fault the chart exists to catch. Autumn reverses it: a healthy machine looks
-like it is dying. A 7-day rolling window does not help - the limits follow the
-drift, which is precisely how the drift hides.
-
-WHAT IS NOT YET EARNED: the 7.64 W/degF slope was fitted over a 1.5 degF span.
-Applying it across 11.5 degF is an 8x extrapolation - the same error the
-2026-08-07 note on dehumidifier_power_when_on_steady made in the other
-direction when it dismissed temperature on a 0.78 degF lever arm. At half the
-slope the seasonal drift is still 32 W against a 2-3 W sigma, so the CONCLUSION
-is robust; the MAGNITUDE is not.
-
-NO CONFIG CHANGE NEEDED TO DECIDE. Basement temperature and steady watts are
-both already in InfluxDB continuously, so the correlation can be re-run at any
-time - capturing temperature alongside the subgroup would be redundant.
-The autumn cool-down measures the slope over a real lever arm for free. Re-run
-the regression once the basement has dropped ~5 degF and compensate then, on
-measurement rather than extrapolation.
-
-UPDATE 2026-09-23 - re-run on a wider lever arm (4.0 degF, not yet ~5):
-  daily means 2026-08-08..09-22 (n=46), basement 67.84 .. 71.85 degF:
-    slope +5.20 +/- 0.35 W/degF, t = 14.7, r2 = 0.831
-    raw daily sd 5.26 W -> residual sd 2.18 W after T-normalisation
-  per run (n=340), inlet 67.5 .. 72.0 degF: +5.14 +/- 0.25 W/degF, t = 20.8
-  [M: steady window = minutes 10-14 of each run; inlet = basement SHT45
-   temperature at run start; run = plug power > 150 W]
-  Same method on the original 08-08..21 window: +6.55 +/- 1.04 (n=14),
-  consistent with the 7.64 +/- 0.64 above (z = 0.89 [D]). The narrow-span
-  slope was imprecise, not wrong; the wider span brings it down.
-  CAVEAT: runs start at a fixed RH, so inlet temperature and humidity move
-  together (r = 1.00 per run). This is the combined inlet effect; the two
-  cannot be separated from these data. That does not matter for
-  compensating the chart; it does for explaining the machine.
-  THE CONCLUSION STANDS: at 5.20 W/degF the 8.5 degF seasonal move above is
-  44 W [D: 5.20 x 8.5] against a 2.18 W residual sd.
-  STILL NOT EARNED: the 61.3 degF low of the n=3230 series above is 6.5 degF
-  below the fitted minimum [D: 67.84 - 61.3]. Re-fit when the basement
-  reaches ~63 degF; no compensation is built yet.
-```
+### P3 — Dehumidifier SPC 68 °F curve: re-fit after the spring warm-up [MEDIUM]
+Live since 2026-10-23 14:14 (restart, reseed). The fit, the build and the reseed
+are in CHANGELOG.md [2026.10.23]. What is left is the curve's own test:
+1. Until the basement warms back above 62.4 °F, a night of 2 or more cycles is an
+   EXCUSED skip, never a capture: it read 62.07 °F at 14:14 on 2026-10-23 [M].
+   The slots keep the October 68 °F seed until then (mean 455.9 W, limits
+   454.1-457.7 W [M, live, 2026-10-23]), so the first spring capture is judged
+   against October limits. Nothing automates on the out-of-control binary.
+2. Re-fit once `sensor.dehumidifier_steady_inlet_temperature` has covered
+   62.4-72 °F again. Widen the range in `sensor.dehumidifier_steady_outside_fit`
+   only on a new fit, never by moving the bounds alone.
+3. Falsifier [I]: the normalised weekly mean tracks basement temperature by more
+   than ~2 W across the range. Then the curve is wrong, not the machine, and an
+   out-of-control on the 68 °F series is read as the curve until shown otherwise.
 
 ### P9 — the leak alarm watches the wrong field, and it already missed one [HIGH]
 ```

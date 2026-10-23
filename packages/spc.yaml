@@ -781,8 +781,10 @@ template:
       - name: "Dehumidifier Watts Out Of Control"
         unique_id: dehumidifier_watts_out_of_control
         device_class: problem
+        # 2026-10-23 (P3): today's value is the 68 degF-normalised latch, the
+        # series the slots and limits hold since the P3 reseed.
         state: >
-          {% set w = states('sensor.dehumidifier_running_watts_latched') | float(-1) %}
+          {% set w = states('sensor.dehumidifier_running_watts_68f_latched') | float(-1) %}
           {% set u = states('sensor.dehumidifier_running_watts_upper') | float(0) %}
           {% set l = states('sensor.dehumidifier_running_watts_lower') | float(0) %}
           {% set n = states('input_number.dehumidifier_running_watts_day_3') | float(-1) %}
@@ -1843,6 +1845,11 @@ template:
       # for -0.27 W of a -12.1 W move. NB this does NOT confirm or refute the
       # ~10.7 W/degF figure in the project notes — mean T across runs spans
       # only 0.78 degF, far too narrow a lever arm to fit a slope.
+      # (2026-10-23, P3: the season has since supplied the lever arm. Over
+      # 62.41..71.91 degF, n=435 runs 08-08..10-23, the linear slope is
+      # 4.809 +/- 0.050 W/degF [M], so the ~10.7 figure is refuted and
+      # temperature IS a driver of steady watts. The paragraph above was right
+      # for its 0.78 degF span. See the 68F sensors below.)
       #
       # RESIDUAL, honest: steady-state still shows non-trend structure (~10 W
       # spread, 451.96-464.06) which may be entering-air condition. Node RH IS
@@ -1872,6 +1879,92 @@ template:
              and cs not in ['unknown', 'unavailable'] and cs[:4] != '1970'
              and el > (wu * 60) and el <= (we * 60) }}
         state: "{{ states('sensor.dehumidifier_current_consumption') | float(0) }}"
+
+      # 68 degF-NORMALISED STEADY WATTS (P3, 2026-10-23; Bill chose "Quadratic,
+      # build now"). The steady watts above track BASEMENT TEMPERATURE, so the
+      # chart was charting the season: the raw slots fell 447.0 (10-05) ->
+      # 434.5 (10-20) while the same samples normalised to 68 degF held
+      # 454.6-457.1 [M, InfluxDB, 7 capture nights 10-12..10-20; the
+      # reconstruction lands within -0.46..+0.99 W of the slots it rebuilds].
+      #
+      # THE FIT [M]: n=435 runs 2026-08-08..10-23, W = mean of minutes 10-14,
+      # T = SHT45 at run start, T spanning 62.41..71.91 degF:
+      #   W = 455.07 + 4.920 dT + 0.154 dT^2,   dT = T - 68
+      # T^2 term t=7.1, residual sd 2.51 W. Applied to the LIVE SHT45 minus
+      # 0.190 degF (the window-mean T sits +0.188 +/- 0.125 degF above the
+      # start T, n=435): residual sd 2.50 W, weekly mean residual -0.66..+0.78
+      # W over 10 weeks; without the offset, a -1.00 W bias [M].
+      # Only the temperature TERM is subtracted - the 455.07 intercept is not
+      # used - so a unit that loses capacity still shows it, at 68 degF.
+      #
+      # ONE HOME PER CONSTANT (R10): the 0.190 offset lives only in
+      # dehumidifier_steady_inlet_temperature, the 62.41..71.91 range only in
+      # dehumidifier_steady_outside_fit, the two coefficients only in
+      # dehumidifier_power_when_on_steady_68f.
+      #
+      # VALID ONLY 62.41..71.91 degF - the curve is never extrapolated. Outside
+      # it the 68F sensor is unavailable, the outside-fit flag reads 1 and the
+      # 23:59 capture skips EXCUSED (capture_daily_dehumidifier_watts). That
+      # costs shoulder weeks, not winters: Dec 2025-Mar 2026 monthly means
+      # were 52.38-54.76 degF [M, HA long-term statistics,
+      # sensor.shelly_temperature_humidity_temperature], under the 60 degF
+      # dehumidifier_min_temp, so the unit is gated off all winter.
+      #
+      # RE-FIT after the spring warm-up (a second season, more lever arm).
+      # Falsifier [I]: the normalised weekly mean tracks basement temperature
+      # by more than ~2 W across the range - then the curve is wrong, not the
+      # machine. Startup Deficit below stays on the RAW steady_24h on purpose:
+      # it is a difference of two raw means from the same runs.
+      - name: "Dehumidifier Steady Inlet Temperature"
+        unique_id: dehumidifier_steady_inlet_temperature
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer
+        # Gated to the steady window, so its recorded series is the inlet
+        # temperature of exactly the samples the 68F sensor normalises - the
+        # data the spring re-fit needs.
+        availability: >
+          {{ is_number(states('sensor.dehumidifier_power_when_on_steady'))
+             and is_number(states('sensor.basement_th_node_basement_temperature')) }}
+        state: >
+          {{ (states('sensor.basement_th_node_basement_temperature') | float(0) - 0.190) | round(2) }}
+
+      - name: "Dehumidifier Steady Outside Fit"
+        unique_id: dehumidifier_steady_outside_fit
+        icon: mdi:thermometer-alert
+        # Available whenever the SHT45 reads - NOT gated to the window - because
+        # a statistics sensor goes unavailable with its source, and the 23:59
+        # capture must read the 24 h max. Between windows this renders none ->
+        # state unknown, which adds no sample and leaves the buffer standing
+        # [S: HA core 2026.10.2 components/statistics/sensor.py
+        # _add_state_to_queue; helpers/template render -> literal_eval].
+        availability: "{{ is_number(states('sensor.basement_th_node_basement_temperature')) }}"
+        state: >
+          {% set ti = states('sensor.dehumidifier_steady_inlet_temperature') %}
+          {{ (0 if 62.41 <= ti | float(0) <= 71.91 else 1)
+             if is_number(states('sensor.dehumidifier_power_when_on_steady')) and is_number(ti)
+             else none }}
+
+      - name: "Dehumidifier Power When On Steady 68F"
+        unique_id: dehumidifier_power_when_on_steady_68f
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:heart-pulse
+        # Available only while the outside-fit flag reads exactly 0. The three
+        # sensors re-render in no guaranteed order: an unknown flag reads -1
+        # and drops the sample (fails closed); a flag one render behind at the
+        # range edge admits one sample a few hundredths of a degree outside,
+        # and the flag's own 1 then skips that whole day.
+        availability: >
+          {{ is_number(states('sensor.dehumidifier_power_when_on_steady'))
+             and is_number(states('sensor.dehumidifier_steady_inlet_temperature'))
+             and states('sensor.dehumidifier_steady_outside_fit') | int(-1) == 0 }}
+        state: >
+          {% set w = states('sensor.dehumidifier_power_when_on_steady') | float(0) %}
+          {% set d = states('sensor.dehumidifier_steady_inlet_temperature') | float(0) - 68 %}
+          {{ (w - (4.920 * d + 0.154 * d * d)) | round(2) }}
 
       # ALWAYS-AVAILABLE companion (added 2026-08-08). The gated sensor above
       # is unavailable whenever the compressor is off OR the run is outside the
@@ -2397,6 +2490,28 @@ template:
         availability: "{{ is_number(trigger.to_state.state) }}"
         state: "{{ trigger.to_state.state | float(0) | round(1) }}"
 
+
+  # 68 degF LATCH (P3, 2026-10-23). Same pattern and same reason as the raw
+  # latch above: the 24 h statistic goes unavailable between windows and the
+  # 23:59 capture needs the last numeric mean. The raw latch stays - the
+  # excused-skip branch reads it as the physical watts-band check.
+  - trigger:
+      - platform: state
+        entity_id: sensor.dehumidifier_running_watts_68f_24h
+    condition:
+      - condition: template
+        value_template: "{{ is_number(trigger.to_state.state) }}"
+    sensor:
+      - name: "Dehumidifier Running Watts 68F Latched"
+        unique_id: dehumidifier_running_watts_68f_latched
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:content-save-outline
+        # Belt-and-braces: the condition above already guarantees a number.
+        availability: "{{ is_number(trigger.to_state.state) }}"
+        state: "{{ trigger.to_state.state | float(0) | round(1) }}"
+
 sensor:
   # Calendar-day runtime tracker — resets naturally at midnight because the
   # window start is anchored to today_at('00:00'), not a trailing duration.
@@ -2571,6 +2686,35 @@ sensor:
     unique_id: dehumidifier_steady_sample_count_24h
     entity_id: sensor.dehumidifier_power_when_on_steady
     state_characteristic: count
+    max_age:
+      hours: 24
+    sampling_size: 3000
+
+  # 68 degF-NORMALISED SPC SERIES (P3, 2026-10-23). Same construction as the
+  # steady mean above, on sensor.dehumidifier_power_when_on_steady_68f; the
+  # capture reads its latch. Both re-render on steady-watts and SHT45
+  # changes, so samples track the steady count: max 395 per 24 h over 60
+  # days [M, InfluxDB dehumidifier_steady_sample_count_24h, n=12938 points].
+  # 3000 keeps max_age governing.
+  - platform: statistics
+    name: "Dehumidifier Running Watts 68F 24h"
+    unique_id: dehumidifier_running_watts_68f_24h
+    entity_id: sensor.dehumidifier_power_when_on_steady_68f
+    state_characteristic: mean
+    max_age:
+      hours: 24
+    sampling_size: 3000
+    precision: 1
+
+  # 1 if ANY steady sample in the last 24 h had its inlet outside the fit, 0
+  # if all were inside, unknown if there were none. The capture needs 0; a 1
+  # is an excused skip. Stays available between windows because its source
+  # does (see sensor.dehumidifier_steady_outside_fit).
+  - platform: statistics
+    name: "Dehumidifier Steady Outside Fit 24h"
+    unique_id: dehumidifier_steady_outside_fit_24h
+    entity_id: sensor.dehumidifier_steady_outside_fit
+    state_characteristic: value_max
     max_age:
       hours: 24
     sampling_size: 3000
@@ -2935,6 +3079,10 @@ automation:
   # DEHUMIDIFIER RUNNING-WATTS SPC — EOD capture
   # Uses sensor.dehumidifier_running_watts_24h — statistics on power > 250W.
   # Matches Grafana CQ.
+  # (2026-10-23, P3: the two lines above were already stale - the guard read
+  # the steady latch from 2026-08-07. It now reads the 68 degF-normalised
+  # latch, sensor.dehumidifier_running_watts_68f_latched, and needs every
+  # steady sample of the day inside the fitted temperature range.)
   # ===============================================================
   - id: capture_daily_dehumidifier_watts
     alias: "Capture Daily Dehumidifier Running Watts"
@@ -2984,9 +3132,18 @@ automation:
                      The counter is incremented by dehumidifier_cycle_start_capture
                      on each compressor start and reset at 00:00:00, so it is intact
                      at this 23:59 capture. A skipped day is a gap, not a bad point. #}
-                  {% set w = states('sensor.dehumidifier_running_watts_latched') | float(-1) %}
+                  {# 2026-10-23 (P3): reads the 68 degF-NORMALISED latch, and needs
+                     every steady sample of the last 24 h inside the fitted range
+                     (outside-fit 24 h max == 0). Unknown (no steady sample in
+                     24 h) or unavailable (SHT45 down) fails closed; a 1 is an
+                     excused skip below. 0 of 72 days with >= 2 cycles
+                     2026-08-05..10-23 lacked a run reaching the window [M,
+                     InfluxDB plug series], so the latch holds today's runs. #}
+                  {% set w = states('sensor.dehumidifier_running_watts_68f_latched') | float(-1) %}
                   {% set n = states('counter.dehumidifier_cycles_today') | int(0) %}
-                  {{ w > 0 and n >= 2 and 150 < w <= 800 }}
+                  {% set f = states('sensor.dehumidifier_steady_outside_fit_24h') %}
+                  {{ w > 0 and n >= 2 and 150 < w <= 800
+                     and is_number(f) and f | float(1) == 0 }}
             sequence:
               - variables:
                   # Snapshot the calendar date alongside the values.
@@ -2997,7 +3154,7 @@ automation:
                   # ever slipped past midnight it would stamp TOMORROW against data
                   # from today, and the staleness detectors read that stamp.
                   capture_date: "{{ now().date() }}"
-                  today_w: "{{ states('sensor.dehumidifier_running_watts_latched') | float(0) | round(1) }}"
+                  today_w: "{{ states('sensor.dehumidifier_running_watts_68f_latched') | float(0) | round(1) }}"
                   d1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
                   d2: "{{ states('input_number.dehumidifier_running_watts_day_2') | float(0) }}"
                   d3: "{{ states('input_number.dehumidifier_running_watts_day_3') | float(0) }}"
@@ -3042,28 +3199,39 @@ automation:
                 {% set rt = states('sensor.dehumidifier_runtime_today') | float(0) %}
                 {% set n = states('counter.dehumidifier_cycles_today') | int(0) %}
                 Dehumidifier SPC skipped — cycles={{ n }}, runtime={{ rt }} h,
-                steady_watts_latched={{ lw }} (what the guard reads),
+                steady_watts_68f_latched={{ states('sensor.dehumidifier_running_watts_68f_latched') }}
+                (what the guard reads; live 68F 24h statistic
+                {{ states('sensor.dehumidifier_running_watts_68f_24h') }}),
+                outside_fit_24h={{ states('sensor.dehumidifier_steady_outside_fit_24h') }},
+                raw steady_watts_latched={{ lw }},
                 live steady 24h statistic={{ w }} (full-run
                 {{ states('sensor.dehumidifier_running_watts_24h') }}),
                 steady_samples={{ states('sensor.dehumidifier_steady_sample_count_24h') }},
                 threshold={{ states('input_number.dehumidifier_power_threshold') }} W
-                (needs cycles >= 2 and 150 < steady_watts_24h <= 800).
+                (needs cycles >= 2, outside_fit_24h 0 and 150 < 68F latched <= 800).
           # 2026-10-23: EXCUSED, not missed, when subgroup SIZE was the only
           # limb that failed - an idle night, or one cycle with latched steady
           # watts inside 150-800. Same mechanism as capture_daily_furnace_watts.
           # A watts-band miss at any cycle count is NOT excused: that is the
           # fault the watchdog is for. Values snapshotted at branch start,
           # same reason as capture_date.
+          # 2026-10-23 (P3): ALSO excused on a >= 2-cycle night whose inlet left
+          # the fitted range (outside-fit 24 h max > 0) while the RAW latch is
+          # in band. skip_w stays RAW on purpose: real watts below 150 W are
+          # never excused, at any basement temperature.
           - variables:
               skip_date: "{{ now().date() }}"
               skip_n: "{{ states('counter.dehumidifier_cycles_today') | int(0) }}"
               skip_w: "{{ states('sensor.dehumidifier_running_watts_latched') | float(-1) }}"
+              skip_f: "{{ states('sensor.dehumidifier_steady_outside_fit_24h') }}"
           - choose:
               - conditions:
                   - condition: template
                     value_template: >
                       {{ skip_n | int(0) <= 0
-                         or (skip_n | int(0) < 2 and 150 < skip_w | float(-1) <= 800) }}
+                         or (skip_n | int(0) < 2 and 150 < skip_w | float(-1) <= 800)
+                         or (skip_n | int(0) >= 2 and is_number(skip_f) and skip_f | float(0) > 0
+                             and 150 < skip_w | float(-1) <= 800) }}
                 sequence:
                   - service: input_datetime.set_datetime
                     target: {entity_id: input_datetime.dehumidifier_spc_last_excused}
@@ -3518,8 +3686,10 @@ automation:
               message: "SPC seed: HWH Recirc already has data ({{ hwh_day1 }}), skipping"
 
       # --- Dehumidifier: seed day_1 from a measured mean, or not at all ---
+      # (2026-10-23, P3: from the 68 degF-normalised mean, the series the
+      # slots hold. Unavailable between windows, as the raw one was.)
       - variables:
-          dehum_24h: "{{ states('sensor.dehumidifier_running_watts_steady_24h') | float(0) }}"
+          dehum_24h: "{{ states('sensor.dehumidifier_running_watts_68f_24h') | float(0) }}"
           dehum_ok: "{{ dehum_24h > 150 and dehum_24h < 800 }}"
           dehum_day1: "{{ states('input_number.dehumidifier_running_watts_day_1') | float(0) }}"
       - choose:
@@ -3545,7 +3715,7 @@ automation:
                   level: info
                   message: >-
                     SPC seed: Dehumidifier NOT seeded — no measured mean in band
-                    (sensor.dehumidifier_running_watts_steady_24h = {{ states('sensor.dehumidifier_running_watts_steady_24h') }}, needs 150 < w < 800).
+                    (sensor.dehumidifier_running_watts_68f_24h = {{ states('sensor.dehumidifier_running_watts_68f_24h') }}, needs 150 < w < 800).
                     Slots stay 0; the chart shows a gap and the limits stay
                     unavailable. Nothing is invented.
         default:

@@ -225,6 +225,8 @@ pipelines:
     # 2026-10-23: written on an idle or one-cycle in-band night and by
     # script.spc_reset_dehumidifier; the stale detector's grace counts from
     # it. Never a capture. See packages/spc.yaml SPC CAPTURE WATCHDOG.
+    # 2026-10-23 (P3): also on a >= 2-cycle night whose inlet left the fitted
+    # temperature range while the raw latch was in band.
     excused_stamp: "input_datetime.dehumidifier_spc_last_excused"
     season: "none"
     stale_detector: "binary_sensor.dehumidifier_spc_capture_stale"
@@ -238,8 +240,10 @@ pipelines:
       - input_number.dehumidifier_running_watts_day_6
       - input_number.dehumidifier_running_watts_day_7
     guard:
-      source: "sensor.dehumidifier_running_watts_latched"
-      live_source: "sensor.dehumidifier_running_watts_steady_24h"
+      # 2026-10-23 (P3): the 68 degF-normalised chain; the raw one measured
+      # basement temperature (packages/spc.yaml, the 68F sensors).
+      source: "sensor.dehumidifier_running_watts_68f_latched"
+      live_source: "sensor.dehumidifier_running_watts_68f_24h"
       band: [150, 800]
       activity: "counter.dehumidifier_cycles_today"
       activity_min: 2
