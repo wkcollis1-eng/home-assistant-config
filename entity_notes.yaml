@@ -123,6 +123,9 @@ binary_sensor.mmw_family_kitchen_lights_in_use:
 binary_sensor.mmw_family_seen_recently:
   group: MMWAVE FAMILY LAMP (packages/mmwave_presence.yaml)
   note: kitchen witness cap, 2026-10-16; family radar or Ecobee motion on, and 15 min after (delay_off). Lights left on cannot hold the lamps past it
+binary_sensor.mmw_family_tv_on:
+  group: MMWAVE FAMILY LAMP (packages/mmwave_presence.yaml)
+  note: TV witness, 2026-10-23; Living Rm TV/Sonos/Homatics plug at or above 50 W, off 60 s after it drops below (delay_off). Holds the family lamps while on, with no seen_recently cap; the morning lux-off still turns them off
 binary_sensor.mmw_office_occupied:
   group: MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
   note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 82 in (70 until 2026-10-16) while radar presence is on, holds while it is on; fails open to raw presence

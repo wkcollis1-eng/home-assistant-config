@@ -68,6 +68,7 @@ is calibrated against.
 | 2026-10-18 | **RE-REGISTRATION of the 2026-10-11 `bash_guard.py` row: kept for safety, not for a habit change** (Bill, 10-18). Its purpose is that no Bash command holding a doubled backslash runs, because the Bash tool turns every doubled backslash into one, in any quoting. Prediction: `bash_guard.log` holds fewer than 100 `deny` lines dated 2026-10-19..11-01 [D: 1% of two weeks at 70.4M units [M, gates week 10-04..10-11] / 13.7K units per re-issued call [M, 2026-10-11 entry]]. Falsified at 100 or more: the guard then costs over 1% of spend, so move the code that needs the doubled backslash into files rather than lean on the deny. Also falsified if any Bash command holding a doubled backslash RAN in that window (main thread, a result other than the guard's deny): the guard was not loaded. Baseline: 27 deny lines dated 10-12..10-18 [M] | yes - written 10-18, before the window | pending - 2026-11-02 |
 | 2026-10-19 | **mmWave family: morning daylight lamps-off** (`automation.mmw_family_morning_daylight_lights_off`). Each of its lamp-offs steps the family lux down by 6.7-11.3 lx (the measured lamp-lift range [M, n=33 on-steps after dark, n=16 morning off-steps]), and none is followed by `mmw_family_dusk_on` within 15 min unless daylight alone had fallen below 24 lx. Falsified by a step outside 6.7-11.3 lx; the loop margin itself fails only at a step of 17 lx or more [D: 12 + 5] | yes - written before the automation was installed | pending, due 2026-11-02 |
 | 2026-10-22 | **Navien panel, October**, read by `scripts/navien_xcheck.py --month 2026-10` after Save DHW (Navien) on 11-01. (a) The panel's gas (archive therm x 100,000 / 1030) lies inside the Navien range the script reports at default pads (Navien-only .. Navien-only + shared). (b) The panel's recirc hours are below the plug's time above the threshold, and its operating hours are below the plug's time from 20 W to the threshold. Basis [I, n=1]: September, where the panel's 844.7 ft3 sat inside 814-932, and its 17 h recirc and 11 h op were below the plug's 19.41 h and 12.48 h [M]. Falsified by (a) outside the range, or by either plug - panel difference at or below 0 in (b). Void if the slots are refused and no panel figures are given on the command line | yes - written 10-22, before October's panel figures exist; October's gas to 10-22 had been seen | pending - 2026-11-02 |
+| 2026-10-23 | **mmWave family: the lamps hold while the TV is on** (`binary_sensor.mmw_family_tv_on`, the `tv_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-11-06: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) while `binary_sensor.mmw_family_tv_on` reads `on`, leaving out any run by `mmw_family_daylight_off` (its logbook entry). Baseline: 16 in the 14.2 days before, 11 of them re-lit within 120 s [D: replay of the 50 W line over the recorder, 10-09..10-23]. (b) [I: the TV's background wake never reaches 50 W] no `mmw_family_tv_on` on-span that starts 3.5-4.5 h after the previous TV-off and lasts under 10 min, the wake's signature (24 spans, 7.7-8.8 min, peak 40.7-45.7 W [M]); on one, read the plug's peak inside it. (c) Every `mmw_family_tv_on` off-edge that finds a family lamp lit, the latch on, and every other condition of `&mmw_family_empty_conds` true is followed by a package lamp-off within 5 s (the `tv_quiet` release). Falsified by one (a), one (b) or one (c). Score from the recorder and the logbook | yes - written before the reloads | pending, due 2026-11-06 |
 
 **Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -93,6 +94,71 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.23] - 2026-10-23
+
+### mmWave family: the lamps hold while the TV is on - the TV witness (`packages/mmwave_presence.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `AUTOMATIONS.md`, `PACKAGES.md`; source repo `mmwave-presence-node` 31c2993: `packages/mmwave_presence.yaml`, `docs/mmwave-presence-node-design.md` Rev 1.11, `README.md`)
+
+- **Bill:** "om the family mmWave had the light go off last night unexpectly. should add another check to use sensor.living_room_tv_sonos_homatics_current_consumption. ie if TV on (above 75w?) do not turn off lights. still need to keep the light off if lux increases."
+- **Last night, 10-22 EDT** [M: logbook and recorder]. There were package lamp-offs at 18:37:18, 22:29:14, 22:57:42, 23:16:00 and 23:34:02. The off at 22:01:41 was by hand, and the lamp was re-lit by hand at 22:02:27.
+  - 22:29, 22:57 and 23:16 were 2-3 s blinks with the TV on, each re-lit by `mmw_family_presence_on`.
+  - 23:34:02 was the final off. The radar had been off since 23:25:00 and the Ecobee since 23:29:25, and the kitchen witness had lapsed. The TV had gone to standby at 23:24:25 (69.9 -> 29.4 -> ~8.5 W), 9.6 min before [D: 23:34:02 - 23:24:25].
+  - 18:37:18 also came with the TV off.
+  - **So this change removes the three blinks. It would not have stopped 23:34:02.**
+- **Why the blinks.** The off wait is 0 s [D: max(idle 30 - radar hold 30, 0); both read 30 live, M]. So when the radar drops a still viewer for 3 s and the Ecobee is quiet, the lamps release. Bill set the idle timeout to 30 s around 10-02 (see that date's entry). This change does not touch it.
+- **Change. Not live until `template.reload` and `automation.reload`, Bill's call (R12).**
+  - `binary_sensor.mmw_family_tv_on` is a state-based template. It is on while the plug reads at or above 50 W, has a 60 s `delay_off`, and is available only while the plug reads a number.
+  - `&mmw_family_empty_conds` gains "TV witness not on" (anchor `&mmw_family_tv_quiet`). The release, the override release and the lit-into-empty rule all read that one definition (R10), so all three hold while the TV is on.
+  - `mmw_family_presence_off` gains the same text as a template trigger, `tv_quiet`. A held lamp is then released when the witness lets go, 60 s after the TV goes off, rather than at the next radar or Ecobee edge.
+  - **No cap.** The kitchen witness has its 15 min `seen_recently` cap; this one has none. That follows Bill's words, and a cap would bring back the release of a still viewer. A TV left on in an empty room holds the lamps until it goes off.
+  - `mmw_family_daylight_off` is untouched and does not read `empty_conds`, so the morning lux-off still switches the lamps off with the TV on. The overnight alarm reads only the radar's off->on edge and is unaffected.
+- **Why 50 W, not 75** [M: the plug at 5 s, 10-09 08:13Z..10-23 12:33Z, n=116,810 samples, 2 of them non-numeric].
+  - Standby is 5-10 W (75,219 samples).
+  - About 4 h after each TV-off there is a background wake: 24 spans of 7.7-8.8 min, p50 40.7-43.1 W, peak 45.7 W.
+  - Viewing: 29 spans of 30.6-279.8 min. No sample inside a span is below 58.4 W, and the p1 is 61.0 W or higher.
+  - At a 75 W line the TV dips under it 2,754 times while watched, the longest 1,255 s. At 50 W it dips 14 times, the longest 7 s; at 55 W, 32 times, the longest also 7 s.
+  - 50 W sits 4.3 W above the wake peak and 8.4 W below the viewing minimum [D].
+  - The 60 s `delay_off` is a choice. A 7 s dip read at 5 s sampling lasts under 12 s, well inside it.
+- **Replay** [D: scratchpad `replay.py` over the recorder, the same 14.2 days, a 50 W line and a 60 s `delay_off`].
+  - There were 88 package lamp-offs, and the TV was on at 16 of them.
+  - 11 of those 16 were re-lit within 120 s: 9 by the package after 1.7-99.3 s, and 2 by hand after 15.0 and 45.0 s. With the TV hold, those offs would not have happened.
+  - 5 were not re-lit: 10-11 19:18; 10-15 19:21, 19:40 and 19:50; and 10-20 20:45. In each, the radar and the Ecobee were both quiet for 5.0-48.4 min and then both came on within 0.2 min of each other. The TV went off 6.5-112.6 min later. Holding those 5 costs 71.6 lamp-min [D: 48.4 + 7.4 + 5.1 + 5.0 + 5.7].
+  - Limits (R11). The replay covers 14.2 days and one household, with n=16 offs with the TV on. "TV on" is the plug's draw, not a person watching, so a TV playing to an empty room holds the lamps. The plug also feeds the Sonos and the Homatics box. Their draw sits inside the 5-10 W standby [M], but this does not establish what music on the Sonos with the TV off draws. If that crosses 50 W, it holds the lamps too.
+- **R13 correction.** Earlier this session I told Bill the TV was on at 18 of the 88 lamp-offs. The replay says 16. The figure here and in the source repo is 16.
+- **Failure = the behaviour before this change.** The condition reads "not on", never "off". A sensor that is unknown, unavailable or missing therefore holds nothing. A dead plug reads `unavailable`, the witness goes unavailable with it, and the lamps release as they did before.
+- **Verified.**
+  - **Repo.** 3 spans were added: +71 package lines and none removed. Deleting the 71 added lines gives a file byte-identical to the pre-edit copy, so the other 2,827 lines are unchanged (R3, scratchpad `r3.py`).
+  - **Parse.** The `mmw_family_presence_off` trigger ids are [None, ecobee_quiet, ecobee_lost, kitchen_quiet, tv_quiet]. `empty_conds` holds 8 conditions, and `mmw_family_override_release` and `mmw_family_lit_empty_off` share that same list. `mmw_family_daylight_off` does not mention the TV.
+  - **Other repo files.** The design doc changed by +6/-1 (header Rev 1.11, a section 4.2 note, a section 8 verification row) and `README.md` by +2/-2. `pre-commit` exited 0. Committed as 31c2993; not pushed.
+  - **Sandbox** `C:\sandbox\ha_1023_mmw`, a fresh mirror of H:.
+    - 1. SYNTAX PASS (parse-clean).
+    - 2. SEMANTIC first gave 2 FAIL, both `generated-doc-stale` (`AUTOMATIONS.md`, `PACKAGES.md`). That is the fault the regeneration fixes, and the check fired on it. After `gen_reference.py` it gave 0 FAIL, 2 WARN, 2 INFO across 18 pipelines, the session-start counts.
+  - **Behaviour in HA's own renderer** (`POST /api/template`, read-only, template text read out of the package; scratchpad `inject.py`).
+    - Plug readings: 49.9, 8.5 and 45.7 give off. 50, 50.0, 58.4 and 212.9 give on. 'unavailable', 'unknown' and '' give unavailable.
+    - The condition renders True (holds nothing) with the sensor not yet created. With the sensor stubbed it is False only for `on`, and True for off, unavailable and unknown.
+    - 15 of 15 cases came out as expected.
+  - **H:.**
+    - The package was installed from the committed blob through a temp file and `os.replace`. Read-back is equal, and it differs from the sandbox copy only in the header's commit line.
+    - `entity_notes.yaml` gained 3 lines and is byte-identical to the sandbox copy.
+    - `gen_reference.py` was re-run, and the three generated docs are byte-identical to the sandbox's. `ENTITIES.md` gains 1 line; `AUTOMATIONS.md` changes `mmw_family_presence_off` from "+3 more" to "+4 more"; `PACKAGES.md` goes from 2,839 to 2,910 lines.
+  - **R5.** `binary_sensor.mmw_family_tv_on` and `_2` both return 404 live and have 0 hits in the entity registry, so the reload will not create a `_2`.
+  - **H: gate over the two YAML files, verbatim:** "1. SYNTAX PASS (parse-clean)", "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines", "1 NEW, 0 FIXED, 1 UNCHANGED", "NOT READY. A step above failed". The NEW finding is `fetch-health` on `sensor.kbdl_degree_days_24h`, and it is not this change.
+    - The session-start audit (08:28) already had it, before any edit.
+    - The sensor has read 'insufficient' since 2026-10-22 18:56Z: 9 obs, max gap 11.0 h, last obs 11:51Z [M]. That is an upstream METAR gap.
+    - It was not re-baselined.
+  - **3. DEPLOYED `check_config`:** `{"result":"valid","errors":null,"warnings":null}`.
+  - **`check_provenance.py --all`** over the package, `entity_notes.yaml` and this file printed "27 WARN [R17 - no naked ratios; an R15 tag satisfies it]". None of the 27 is on a changed line. 26 are in older entries of `CHANGELOG.md`, and the 27th is the inrush note at `entity_notes.yaml` 613, which the 2026-10-16 entry also met. The package itself has 0.
+- **Left open.**
+  - **Live, 2026-10-23: Bill ran `template.reload` and `automation.reload`.** The sensor appeared at 12:51:45Z. OBSERVE [M]:
+    - `binary_sensor.mmw_family_tv_on` read `unknown` from 12:51:45Z and `off` from 12:52:45Z, 60 s later, so its `delay_off` also applies to the first render. The plug was at 8.5 W. An unknown witness holds nothing.
+    - 139 automations, 0 unavailable. No `_2`, and the id is in the entity registry.
+    - `system_log` since the reload has 2 new entries, both from the reload itself: `utility_meter` "received an invalid new state ... unknown" (x30, the SEM template sensors being re-created) and "Trigger Update Coordinator: Already running" (x2). Neither names this package.
+    - `gen_reference.py` was re-run, and `ENTITIES.md` is unchanged.
+    - The hold is unproven live until the next TV session (ledger row 2026-10-23).
+  - **Bill, after the reload:** "the blinks. waved my arms to turn the lights on. the 23:34 was correct. had left the room by then." So what he noticed were the 22:29-23:16 blinks, the case this change removes, and the final off was right.
+  - **Still not fixed: blinks while the TV is off.** A still person missed for 3 s with the Ecobee quiet still loses the lamps. That comes from the 0 s off wait, which is Bill's setting.
+  - **The 2026-10-16 ledger row is now confounded.** Its part (a) predicts 0 hand re-lights within 120 s up to 10-30. From these reloads on, a hand re-light avoided with the TV on may be credited to this change, not the kitchen witness. In the replay, 2 of the hand re-lights came with the TV on. The row is not edited; whoever scores it must say this in the outcome.
+  - **Committed and pushed on Bill's word ("commit and push"):** `mmwave-presence-node` 31c2993 and this H: change. `.HA_VERSION`, the pirateweather manifest, the report CSVs and the platinum-weather-card svgs are modified on H: by something other than this change, and are not part of it.
 
 ## [2026.10.22] - 2026-10-22
 

@@ -259,6 +259,7 @@ sensor.furnace_running_watts_daily  was unavailable — fixed 2026-07-20 (thresh
 ```
 binary_sensor.mmw_family_kitchen_lights_in_use  kitchen witness, 2026-10-16; on at each rise of SEM Dining/Kitchen Lights Energy, off 10 min after the last (auto_off). With mmw_family_seen_recently on, holds the family lamps
 binary_sensor.mmw_family_seen_recently          kitchen witness cap, 2026-10-16; family radar or Ecobee motion on, and 15 min after (delay_off). Lights left on cannot hold the lamps past it
+binary_sensor.mmw_family_tv_on                  TV witness, 2026-10-23; Living Rm TV/Sonos/Homatics plug at or above 50 W, off 60 s after it drops below (delay_off). Holds the family lamps while on, with no seen_recently cap; the morning lux-off still turns them off
 ```
 
 ## MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
