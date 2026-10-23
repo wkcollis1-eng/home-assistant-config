@@ -311,7 +311,8 @@ every compaction, and WARNs (R8) when it was stale or missing.
 - **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 102.0 CCF/1k HDD65 efficiency
   (ACIS BDL 2025, rebased 2026-10-10, Navien therms->CCF 2026-10-15; was 100.6, and 90.3 on
   NOAA 6,270 HDD - see `docs/baselines.md`)
-- **Dehumidifier Control**: RH-band (49%/46%), 150min max runtime, stall detection
+- **Dehumidifier Control**: Aprilaire E080; RH band, max-runtime cap, stall detection. Setpoints
+  live in the `packages/dehumidifier.yaml` helpers, not here (R10; this line said 49/46 %, 150 min)
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
 
 ---
