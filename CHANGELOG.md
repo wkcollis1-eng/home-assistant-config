@@ -67,6 +67,7 @@ is calibrated against.
 | 2026-10-16 | **mmWave family: the kitchen witness** (`binary_sensor.mmw_family_kitchen_lights_in_use`, `binary_sensor.mmw_family_seen_recently`, the `kitchen_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-10-30 [I: whoever is in the kitchen in the evening has the dining/kitchen lights on and is seen by the radar or the Ecobee at least every 15 min]: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) are re-lit by hand or app within 120 s. Baseline: 4 in the 14 days before, 10-05, 10-06, 10-09 and 10-16 [M, recorder, 10-02..10-16]. On a miss, read whether the circuit had risen in the 10 min before the off (the window was too short), whether `mmw_family_seen_recently` had lapsed (the cap was too short), or neither (not a kitchen re-light). (b) Outside a restart, `mmw_family_seen_recently` never reads `on` more than 15 min 10 s after the radar and the Ecobee both last left `on` (the cap holds). Falsified by one (a) or one (b). Score from the recorder (the `measure_cap.py` pattern) and the logbook. | yes - written before the reloads | pending, due 2026-10-30 |
 | 2026-10-18 | **RE-REGISTRATION of the 2026-10-11 `bash_guard.py` row: kept for safety, not for a habit change** (Bill, 10-18). Its purpose is that no Bash command holding a doubled backslash runs, because the Bash tool turns every doubled backslash into one, in any quoting. Prediction: `bash_guard.log` holds fewer than 100 `deny` lines dated 2026-10-19..11-01 [D: 1% of two weeks at 70.4M units [M, gates week 10-04..10-11] / 13.7K units per re-issued call [M, 2026-10-11 entry]]. Falsified at 100 or more: the guard then costs over 1% of spend, so move the code that needs the doubled backslash into files rather than lean on the deny. Also falsified if any Bash command holding a doubled backslash RAN in that window (main thread, a result other than the guard's deny): the guard was not loaded. Baseline: 27 deny lines dated 10-12..10-18 [M] | yes - written 10-18, before the window | pending - 2026-11-02 |
 | 2026-10-19 | **mmWave family: morning daylight lamps-off** (`automation.mmw_family_morning_daylight_lights_off`). Each of its lamp-offs steps the family lux down by 6.7-11.3 lx (the measured lamp-lift range [M, n=33 on-steps after dark, n=16 morning off-steps]), and none is followed by `mmw_family_dusk_on` within 15 min unless daylight alone had fallen below 24 lx. Falsified by a step outside 6.7-11.3 lx; the loop margin itself fails only at a step of 17 lx or more [D: 12 + 5] | yes - written before the automation was installed | pending, due 2026-11-02 |
+| 2026-10-22 | **Navien panel, October**, read by `scripts/navien_xcheck.py --month 2026-10` after Save DHW (Navien) on 11-01. (a) The panel's gas (archive therm x 100,000 / 1030) lies inside the Navien range the script reports at default pads (Navien-only .. Navien-only + shared). (b) The panel's recirc hours are below the plug's time above the threshold, and its operating hours are below the plug's time from 20 W to the threshold. Basis [I, n=1]: September, where the panel's 844.7 ft3 sat inside 814-932, and its 17 h recirc and 11 h op were below the plug's 19.41 h and 12.48 h [M]. Falsified by (a) outside the range, or by either plug - panel difference at or below 0 in (b). Void if the slots are refused and no panel figures are given on the command line | yes - written 10-22, before October's panel figures exist; October's gas to 10-22 had been seen | pending - 2026-11-02 |
 
 **Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -94,6 +95,70 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.22] - 2026-10-22
+
+### `scripts/navien_xcheck.py`: the monthly Navien cross-check as a script (new, read-only)
+
+Bill asked for it after the September cross-check below. It compares the Navien panel's
+archived month (`input_number.dhw_archive_<mon>`, `dhw_op_hrs_archive_<mon>`,
+`dhw_recirc_hrs_archive_<mon>`) with the Kasa plug's hours and the SDR's gas. It reads InfluxDB
+and one HA state, and stores nothing (R10: a derived view). Its InfluxDB and series helpers are
+imported from `furnace_gas_cycles.py`, not copied.
+
+**What it does:**
+- **Gas:** every interval between SDR decodes is labelled by the gas loads running in it:
+  - Navien: plug > 20 W.
+  - Furnace: `sem_furnace_power` > 300 W, with cooling runs dropped by `ac_compressor_running`.
+  - Oven: `sem_counter_1_power` > 300 W.
+
+  Navien gas is reported as a range, from Navien-only to Navien-only plus shared. It also gets an
+  estimate [D] that splits each shared interval by rate x on-time. The estimate is printed at
+  three pad settings, so the effect of the [I] pads shows.
+- **Hours:** plug time above HA's recirc threshold, and from 20 W up to the threshold, compared
+  with the panel and with HA's own `hwh_recirc_runtime_today`. The threshold is read live from
+  `input_number.hwh_recirc_power_threshold`.
+- **Archive gate:** the archive is a 12-slot ring, so a slot holds last year's figure until
+  Save DHW (Navien) runs. A slot not saved within 62 days after its month ended is refused with
+  a WARN, never compared.
+- **R8:** every comparison that cannot run is a WARN, and any WARN makes the exit 2.
+
+**Verified** in `C:\sandbox\navien_xcheck`, then copied byte-identical:
+- `--selftest` passes 16/16, including four fault cases. R13: two of its expectations were wrong
+  in the first draft. They assumed a whole heat cycle with a Navien fire inside it lands in
+  'shared', but only the overlapping intervals do. They were corrected before the file reached H:.
+- **September reproduces** 1054 ft3, 19.41 h and 12.48 h [M]:
+  - HA's runtime sums to 19.41 h, and the furnace class holds 0 ft3.
+  - Navien range 814-932 ft3 [M]. Estimate 884 ft3 [D], and 876 / 884 / 877 across the pads.
+  - Panel 844.7 +/- 0.5 ft3 [D: 8.39 CCF / 0.9643 x 100,000 / 1030; +/- the archive's 0.01 CCF
+    rounding]. That is inside the range, 40 ft3 below the estimate [D].
+- **October 1-22, partial:**
+  - All three slots refused: `dhw_archive_oct` 16.78 was saved 10-18; op 9 h and recirc 56 h
+    were last written 09-16.
+  - The furnace class holds 732 ft3. Its single-load rate is 64.0 ft3 per padded on-hour [M].
+    Expected 59.6 [D: 80.4 x (13.8 - 2.09) / (13.8 + 2.0)]. The inputs come from
+    `furnace_gas_cycles.py --start 2026-10-01`: a fit of 1.340 +/- 0.285 ft3/min with 2.09
+    non-burning min per run [M, n=6 clean cycles], and 53 heat runs averaging 13.8 min [D].
+  - Navien range 506-772 ft3 [M], estimate 571 ft3 [D].
+- **Fault injections on live data,** each giving a WARN and exit 2:
+  - **No furnace CT,** Oct 1-14: the Navien-only class goes from 318 to 406 ft3 and the
+    estimate from 360 to 440 [M]. That is what the furnace exclusion is worth over those two weeks.
+  - **No compressor data,** September: the range widens from 814-932 to 772-940 ft3, and the
+    estimate is unchanged.
+  - **Recirc threshold unread.**
+  - **Threshold forced to 25 W:** plug 23.38 h against HA's 19.41 h.
+
+  Forcing 50 W did NOT fire the mismatch. Plug time above 50 W is 19.60 h [M], inside the
+  0.25 h tolerance: the plug spends almost no time between 50 and 70 W.
+- ruff format and check are clean under pre-commit's pinned ruff 0.15.9 and under local 0.16.4.
+
+**Not established:**
+- the panel's hour definitions [I];
+- the condensate pump, which shares the plug;
+- cooktop gas, which lands in 'none' (16 ft3 in September, 32 ft3 over Oct 1-22 [M]);
+- the 30/90 s pads and the 0.25 h runtime tolerance [I];
+- anything beyond one compared month (n=1).
+
+First real use is after Save DHW (Navien) on 11-01: `HA_CONFIG='H:/' python
+scripts/navien_xcheck.py`. The prediction for it is in the ledger above.
 
 ### Navien panel cross-check, September: the Kasa plug's hours point the same way as the gas; October needs a furnace state
 

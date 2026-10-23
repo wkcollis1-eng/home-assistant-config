@@ -107,6 +107,13 @@ scripts/
 ├── spc_continuous_queries.sql  InfluxDB CQs for daily SPC aggregation
 ├── csv_manager.py              CSV utilities
 ├── fetch_bdl_degree_days.py    BDL degree day fetcher
+├── navien_xcheck.py            MONTHLY, READ-ONLY. The Navien panel's archived
+│                               figures (dhw_*archive_<mon>) against the Kasa
+│                               plug's hours and the SDR's gas, furnace and oven
+│                               gas told apart by their CTs. Run after Save DHW
+│                               (Navien). Refuses a slot not saved after its
+│                               month ended: the ring holds LAST year's figure
+│                               until then. Exit 0 compared / 2 WARN. --selftest.
 └── influx_sandbox/             Two InfluxDB versions side by side on a COPY of the
                                 add-on's data, on Windows, off-host. Selftest
                                 proves each check fires and stays silent (R7).
