@@ -1128,6 +1128,17 @@ automation:
   # counts day bins over 35 days, so this means "this meter has seen a leak
   # recently", not "water is running now". sensor.water_meter_leak_now is the
   # past-24h field; CLAUDE.md P7 carries the recommendation.
+  #
+  # DISABLED IN THE UI BY BILL, ON PURPOSE (2026-10-23: "I disabled. too
+  # many warnings"). Off since some point between its last trigger,
+  # 2026-09-11 15:45Z, and the start of recorder history, 2026-09-18 15:10Z
+  # [M]. Do NOT re-enable it, or ask again, without a new reason: a
+  # 2026-10-02 session found it off and asked, and this is the answer.
+  # "ENABLED 2026-08-22" above is history, not state. Cost, accepted: there
+  # is no outage backstop. A leak the meter flags while HA or the SDR is
+  # down raises nothing afterwards unless LeakNow still reads non-zero when
+  # reception returns (sdr_water_leak_now, below). docs/pending.md P9,
+  # CHANGELOG [2026.10.23].
   - id: sdr_water_leak_flag
     alias: "SDR water meter - leak flag set"
     description: >

@@ -97,6 +97,24 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.23] - 2026-10-23
 
+### pending.md review: P9 and P21 closed, P17's status corrected, the INFO HYGIENE copy removed (`docs/pending.md`, `docs/sdr-signal-level.md`, `packages/utility_meters.yaml` comment only)
+
+- **Bill** (2026-10-23): "yes automation.sdr_water_meter_leak_flag_set I disabled. too many warnings. i agree with your proposed edits." That answers the question the [2026.10.02] entry asked ("Seen, not touched"), which was never filed in `open_questions.yaml` and so was never re-asked.
+- **P9 closed.** The LeakNow path was built 2026-08-22 ("LeakNow wired to the phone, and the Leak path kept", [2026.08.22]) and level 1 went bell-only on 2026-10-04. Live [M: `/api/states`, 2026-10-23]: `automation.sdr_water_meter_leak_now` on, last triggered 06:54:05Z today; `automation.sdr_water_meter_leak_now_high` on, never triggered; `automation.sdr_water_meter_leak_now_cleared` on.
+  - The Leak-field backstop P9 said to keep, `automation.sdr_water_meter_leak_flag_set`, is off by Bill's choice: last triggered 2026-09-11 15:45:36Z, off from the start of recorder history, 2026-09-18 15:10Z [M].
+  - **Cost, accepted:** no outage backstop. A leak the meter flags while HA or the SDR is down raises nothing afterwards unless LeakNow still reads non-zero when reception returns.
+  - The reason is now a comment above `- id: sdr_water_leak_flag` in `packages/utility_meters.yaml` (11 comment lines inserted, all 1,536 original lines unchanged [M: diff]), so a later session neither asks a third time nor re-enables it.
+  - **Audit gap, not built:** `ha_audit.py` checks that an alarm's references resolve, not that its automation is enabled, so this alarm has been unable to fire since at least 2026-09-18 with no finding.
+- **P21 closed** on its own condition: the two rows it named are scored, the 09-25 3-day idle row FALSIFIED and the 09-25 first-full-recharge row VOID (ledger). Live [M: `/api/states`, 2026-10-23]: `sensor.basement_battery_bank_monitor_soc_source` "INA228 CHARGE - anchored at a full charge", `sensor.battery_bank_monitor_state_of_charge` 96.33 %, `sensor.basement_battery_bank_monitor_last_anchor_closure` 0.5966 Ah, the 09-30 anchor's value, so there has been no full-charge anchor since. Not checked: whether the fall from 100 % at that anchor to 96.33 % is all idle drain. The INA228 gain question stays open in `open_questions.yaml` (2026-09-30).
+- **INFO HYGIENE block removed from `docs/pending.md`:** finished work from 2026-08-23, already recorded as "INFO hygiene — 5 INFO down to 1, and two of them were misfiled" in [2026.08.23]. It was a second copy (R10) in a file of open items.
+- **P17 status corrected; it stays open.** P17 and `docs/sdr-signal-level.md` said "nothing deployed, nothing run". The dump route ran 2026-09-17/18 for the gain sweep ("SDR gain sweep closed", [2026.09.18]). Against the doc's section 6 gate:
+  - step 1 met: rtl_433 decoded all three meters from the dump, so [I1] survives;
+  - step 4 met: median rssi -2.42 / -3.17 / -1.30 dB [M, n = 594 / 273 / 343];
+  - step 2 not recorded: whether any other id decoded;
+  - step 3 not scored: rtl_433 re-decoded 2.324/min against 5.573/min delivered on the evening AGC blocks [M], and the per-block decode anomaly is open.
+  - Next action: steps 2 and 3 on a fresh dump, which needs `-samplefile` back on (R12, Bill). The placement survey waits for them.
+- **Gate:** `validate_ha.py --strict packages/utility_meters.yaml` PASS (parse-clean). `ha_audit.py --baseline`: 0 FAIL, 2 WARN, 2 INFO across 18 pipelines, with 1 NEW against `.audit_baseline.json` (`fetch-health`, `sensor.kbdl_degree_days_24h`). That is the WARN the session-start audit already named, unrelated to these files, so `gate.py` printed NOT READY and the baseline was not re-written. `check_provenance.py --all`: 1 WARN at `utility_meters.yaml:985`, present in the original too; 0 on the new CHANGELOG lines. `check_config`: `{"result": "valid", "errors": null, "warnings": null}`. No reload: the YAML change is comments only. `gen_reference.py` changed one PACKAGES.md line, the utility_meters line count 1537 -> 1548.
+
 ### Dehumidifier SPC 68 °F basis live: restart, reseed, two notes; P3 stays open for the spring re-fit (`entity_notes.yaml`, `ENTITIES.md`, `docs/pending.md`)
 
 - **Bill** (2026-10-23): "dashboard is live, restart HA and re-seed." That authorised one restart and the reseed writes, nothing more (R12).

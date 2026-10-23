@@ -24,52 +24,6 @@ are in CHANGELOG.md [2026.10.23]. What is left is the curve's own test:
    than ~2 W across the range. Then the curve is wrong, not the machine, and an
    out-of-control on the 68 °F series is read as the curve until shown otherwise.
 
-### P9 — the leak alarm watches the wrong field, and it already missed one [HIGH]
-```
-NOT theoretical any more. From InfluxDB (the decode fields are historised as
-fields on the "gal" measurement, so this history predates the sensors):
-
-  LeakNow  0 -> 1  at 2026-08-21 14:43
-  LeakNow  1 -> 0  at 2026-08-22 11:28      ~20.7 h continuous-flow flag
-  Leak     0 throughout                     <-- the alarm's trigger NEVER MOVED
-
-So automation.sdr_water_leak_flag, which triggers on Leak > 0, would not have
-fired for a 21-hour event its own meter detected.
-
-Consumption during the flag window, from the count deltas:
-  deep night 23:00-05:00   1.6 gal / 5.00 h = 0.32 gal/h  (7.7 gal/day)
-  overnight  22:00-06:30   4.6 gal / 7.97 h = 0.58 gal/h  (13.8 gal/day)
-Roughly hourly +0.1 gal ticks through the night with the house asleep - the
-signature a register reads as continuous low flow. Small: a flapper seep, a
-dripping fixture, or a softener/humidifier bleed, not a burst pipe.
-
-HONEST LIMITS: decode history starts 2026-08-21 13:28, so ~24 h total - this
-may be chronic or a one-off, and there is no way to tell yet. InfluxDB writes
-are ~15 min apart, so sub-interval continuity cannot be confirmed from this
-data; the meter's own register has finer resolution than the samples here.
-
-ACTION: add a second trigger path on sensor.water_meter_leak_now > 0. Keep the
-Leak trigger - it is the OUTAGE BACKSTOP (see the ENTITIES note: detection is
-in the meter, so the 35-day day-bin count still tells you about a leak that
-happened while HA or the SDR was down). LeakNow is the immediate signal;
-Leak is the one that survives your stack being off.
-```
-
-### INFO HYGIENE (2026-08-23)
-
-**An INFO that fires every run and cannot be actioned is noise, and noise
-trains you to skim.** Applied to all five that were being emitted:
-
-| was | now | why |
-|---|---|---|
-| `eod: no fixed trigger time` | silent | `at: null` is already an explicit declaration; re-reporting it is the checker narrating itself. Only a *missing* `at` key warns now (`eod-undeclared`). |
-| `eod-concurrent` x2 | one summary line | CLAUDE.md says sharing a second is not a problem. "Checked, found nothing" is worth one line, not one per group that reads like a finding. |
-| `legacy-backup-drift` | WARN, then actioned | An open decision, not information. Criterion was met, so the command was retired and the rule now returns early when it is absent. |
-| `live-check-skipped` | WARN | A check that did not run is a coverage gap. See P13. |
-
-The remaining INFO is a single line proving the EOD contention check executed.
-If a line cannot change what you do, it does not belong at INFO either.
-
 ### P11 — SCM tamper baselines need history before they can alarm [LOW]
 ```
 gas       TamperPhy 3 on all 61 frames ever received; TamperEnc 0
@@ -122,12 +76,21 @@ The route: rtlamr's own -samplefile dump, which it writes only around packets
 it decoded, read offline by rtl_433 -M level on Windows off the H: share. The
 pipeline keeps running - no need to stop rtlamr2mqtt.
 
-STATE: nothing deployed, nothing run. Verified only at the source level (R6).
-
-FIRST ACTION is the gate in that doc's section 6, not the survey. The whole
-route rests on [I1] "rtl_433 decodes SCM/R900 from spliced 2.62 MS/s cu8
-windows", which is UNTESTED. If it produces zero decodes, the route is dead and
-the fallback needs Bill's authorisation (it takes the meter alarms blind).
+STATE, corrected 2026-10-23 (this said "nothing deployed, nothing run" from
+09-17 on). The route RAN 2026-09-17/18 for the gain sweep (CHANGELOG
+[2026.09.18], "SDR gain sweep closed"): `-samplefile` on, rtl_433 -M level
+over the dump, then `-samplefile` removed again by scripts/sdr_gain_set.py.
+Gate (doc section 6), as far as that run shows:
+- step 1 MET: rtl_433 decoded all three meters from the dump, so [I1]
+  survives;
+- step 4 MET: median rssi -2.42 / -3.17 / -1.30 dB for water / gas /
+  electric [M, n = 594 / 273 / 343, overnight 09-17/18];
+- step 2 NOT RECORDED: whether any id besides the three meters decoded;
+- step 3 NOT SCORED: rtl_433 re-decoded 2.324/min against 5.573/min
+  delivered on the evening AGC blocks [M], and decoding each 65,536 B block
+  alone recovers different packets from decoding the whole file (open, same
+  entry).
+FIRST ACTION: steps 2 and 3 on a fresh dump. The survey waits for them.
 
 NEEDS BILL (R12): one add-on config change plus a restart - see that doc's
 section 3, including why fixed gain takes BOTH rtltcp -g 40 and rtlamr
@@ -190,25 +153,6 @@ Found 2026-09-22 building the Cost Overview (CHANGELOG [2026.09.22]).
 FIX (not built): point the six sensors at the _ly_ slot for the latest statement
 month, then retire the four helpers and their eight save-automation steps.
 Touches the existing Billing view's YoY cards, so it needs its own session.
-```
-
-### P21 — battery-bank SOC reads high: build V1.28 (SOC from the INA228 CHARGE register) [MEDIUM]
-```
-Opened 2026-09-24. Everything is in docs/soc-accuracy-turnover.md - read it
-before touching battery-bank-monitor.yaml or the router. SOC shows 99.96 %,
-true ~96.7 % +/-1.1 % [D, doc s2]. The SW ledger's +/-50 mA deadband drops the
-7.3-8.2 mA drain [M]. V1.28 design, gates, and the tests awaiting Bill's go
-are in the doc. The router stopgap (20/40 MHz coexistence OFF) makes the
-trace quiet AND freezes the SOC display (doc s2).
-2026-09-25: V1.28 BUILT, reviewed (3 fixes), real-compiled, merged (Lifepo4
-main 9737b61) and copied to esphome/ (blob b5e6f3e). NOT FLASHED: Bill flashes
-via Device Builder > Install. Close P21 when the at-flash ledger rows
-(CHANGELOG, 2026-09-25) are scored.
-2026-09-25 19:38 EDT: FLASHED (config hash 0xb8426c87 = the validated build);
-both at-flash ledger rows HIT. STAYS OPEN - the close condition above was
-premature (mine, R13): SOC still reads high on the provisional anchor until
-the first full recharge. Close when the 3-day idle row (window ends 09-28)
-and the first-full-recharge row are scored.
 ```
 
 ### P23 — `ha_audit.py` entity-ref rule is blind to bare list items and flow lists [MEDIUM]
@@ -541,6 +485,9 @@ P6    statistics sampling_size                                   RESOLVED
 P7    R900 leak sensors                                          RESOLVED
 P8    hvac_ac_blower_* chain retired — it existed, was not
       "never created"; deliberately removed, see CHANGELOG      RESOLVED
+P9    LeakNow alarm path built 2026-08-22, level 1 bell-only
+      2026-10-04; the Leak-field backstop disabled by Bill on
+      purpose ("too many warnings"); CHANGELOG [2026.10.23]     RESOLVED
 P10   rtlamr2mqtt duty cycle                                     DEPLOYED
 P12   InfluxDB CQs retired, Grafana SPC re-sourced               RESOLVED
 P13   statistics-buffer check                                    RESOLVED
@@ -549,6 +496,9 @@ P15   backup essentials: coffee maker -> SEM Family Room,
 P20   gas heating season store: rollover catch-up, archive
       stamp, Jan-Jun 2025 fill, previous-month DHW pairing
       (Bill, 2026-09-23); CHANGELOG [2026.09.23]                DEPLOYED
+P21   battery-bank SOC from the INA228 CHARGE register: V1.28
+      flashed 09-25, anchored at a full charge 09-30; both close
+      rows scored (FALSIFIED, VOID); CHANGELOG [2026.10.23]     RESOLVED
 P22   battery-bank diag2 test run: 7 tests run, V1.27
       reinstalled, H: diag copy deleted; CHANGELOG [2026.09.25] RESOLVED
 P25   office mmWave G0 move 70 made durable: firmware 0.4

@@ -8,9 +8,13 @@ question is "is this link strong?" rather than "how many packets arrived?".
 Capture rate answers the second question and is measured a different way -
 InfluxDB `sensor.*_meter_last_seen`, see CHANGELOG 2026-09-17.
 
-**STATUS: NOT DEPLOYED.** Written 2026-09-17 from the source of every component
-(citations inline, R6). Nothing here has been run. Section 6 is the gate that
-must pass before any number this produces is believed (R7).
+**STATUS: RUN ONCE, GATE PART-MET** (corrected 2026-10-23; this said "NOT
+DEPLOYED ... Nothing here has been run"). Written 2026-09-17 from the source of
+every component (citations inline, R6). The route ran 2026-09-17/18 for the gain
+sweep (CHANGELOG [2026.09.18], "SDR gain sweep closed"), and the dump is off
+again. On that run section 6 steps 1 and 4 were met, step 2 was not recorded and
+step 3 was not scored (`docs/pending.md` P17). Section 6 is still the gate that
+must pass before any level number is believed (R7).
 
 ---
 
@@ -262,7 +266,9 @@ from as-found, and it is the pair, never `-g` on its own.
 ## 10. Open [I], each with its falsifier
 
 - **[I1]** rtl_433 decodes SCM and R900 from spliced 2.62 MS/s `cu8` windows.
-  *Falsified by* zero decodes in section 6 step 1.
+  *Falsified by* zero decodes in section 6 step 1. **Survived** 2026-09-17/18:
+  rtl_433 decoded all three meters from rtlamr's dump (CHANGELOG [2026.09.18]).
+  How completely is section 6 step 3, not yet scored.
 - **[I2]** the dumped window contains each whole frame. *Falsified by* rtl_433
   finding preambles but failing CRC on most packets.
 - **[I3]** the Pulse W5012 is a half-wave dipole needing no ground plane -
