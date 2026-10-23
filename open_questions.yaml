@@ -2508,3 +2508,45 @@
     the antenna. The meter-side [I] in that entry survives this falsifier
     but is not proven; an IQ capture is its remaining test. The placement
     survey and new SDR ledger rows are no longer blocked by this question.
+
+- asked: 2026-10-22
+  question: >-
+    Is the condensate pump the Navien shares (the 2026-09-23 E080 answer) plugged
+    into the Navien's own "Hot Water Heater" Kasa plug (sensor.hwh_*), or into a
+    different outlet?
+  blocks: >-
+    The operating-hours half of the monthly Navien panel cross-check (CHANGELOG
+    2026.10.22). Over September the plug spent 12.48 h at 20-70 W against the
+    panel's 11 h operating [M, sensor.hwh_current_consumption, 2026-09-01..30
+    local], but 3.28 h of it is 821 episodes shorter than 60 s that never reach
+    the 70 W pump band [M]. Those are either the condensate pump (15 s median
+    cycle, packages/spc.yaml:362) or short burner fires, and the 2 ft3 gas step
+    cannot tell them apart: a 12 s burn at 29.9 ft3/h is 0.1 ft3 [D: 29.9 x 12
+    / 3600]. "It is on the HWH recirc Kasa plug" in the 2026-09-23 E080 answer
+    and at packages/spc.yaml:1558 is Claude's inference from the band, never
+    Bill's word.
+  answered: >-
+    2026-10-22, Bill: "condensate pump is on a shared kasa plug with the unit."
+    So the plug carries the Navien and the condensate pump, which also takes
+    the E080's condensate.
+
+    Tested the same day, September [M, InfluxDB, gas between the decodes
+    around each episode]. Positive control first: isolated 20-70 W episodes of
+    60 s or more carried 52 ft3 against 56.6 burner-like [D: 29.92 ft3/h x
+    on-time + 0.19 ft3/h x window] (n=29, 300 s isolation), so the test sees
+    firing. Isolated episodes under 60 s carried 24 ft3 (12 steps, ~95% 10-38)
+    against 27.9 burner-like and 0.9 pump-only (n=179); at 600 s isolation,
+    8 ft3 against 9.1 and 0.4 (n=82). The dehumidifier was on within 30 min of
+    18-20 % of them [M, n=179 / n=82], against 19.5 % by chance [M, 585 of
+    3000 random 30-min windows]. They are burner fires, not the pump: the 9.20 h "if they
+    are the pump" figure is refuted, and the operating comparison stands at
+    plug 12.48 h against panel 11 h.
+
+    Where the pump does show: short isolated >=70 W bursts outside recirc
+    hours sit near dehumidifier runs 39 of 60 times against 22 % by chance at
+    those hours [M, 670 of 3000] [D: z = (39 - 13.4) / 3.23 = 7.9], but they carry 18 ft3 against 0.3
+    pump-only, so they are not pump-only either. Pump time is not separable
+    from burner or recirc time on this plug. >=70 W time outside 05:00-08:59
+    and 13:00-19:59 is 0.65 h for the month [M], which bounds it there only;
+    the pump's draw is not known, so its share inside the recirc windows is
+    unmeasured.

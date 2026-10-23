@@ -93,6 +93,67 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.22] - 2026-10-22
+
+### Navien panel cross-check, September: the Kasa plug's hours point the same way as the gas; October needs a furnace state
+
+Bill asked whether the monthly figure he reads off the Navien panel can be validated against the
+Navien's Kasa plug and the SDR gas meter. Read-only analysis; no config changed.
+
+- **Months available: September only.** `dhw_archive_oct`..`dec` still hold last year's figures,
+  from before the SDR existed; October's panel reading arrives about Nov 1.
+- **Gas: unchanged from 2026.10.02.** Panel 843.7-845.3 ft3 at EIA 1,029-1,031 Btu/ft3 [D], against
+  860-912 ft3 of Navien-firing gas net of the oven and cooktop [D]. The panel reads 14-68 ft3 low,
+  n=1 month.
+- **Hours (new)** [M, `sensor.hwh_current_consumption`, InfluxDB, 2026-09-01..30 local, 248,940 points]:
+  - Recirc: the plug sat above 70 W (the `packages/spc.yaml` pump threshold) for 19.41 h. HA's own
+    `sensor.hwh_recirc_runtime_today`, summed over the 30 days, reads the same 19.41 h. Panel: 17 h,
+    so the plug is 2.41 h above [D].
+  - Operating: the plug sat at 20-70 W for 12.48 h, 10.66 h of it at 20-30 W. Panel: 11 h, so the
+    plug is 1.48 h above [D].
+  - Neither panel definition is verified [I]. The NPE-A2 Quick Installation Guide covers the
+    NPE-240A2 but does not say what the hours count. Falsified if "operating" means all burner time:
+    the plug's total at 20 W and above is 31.89 h [M].
+  - 3.28 h of the 20-70 W time is 821 episodes shorter than 60 s that never reach 70 W [M]. If those
+    are the condensate pump, burner-without-pump time is 9.20 h [D: 12.48 - 3.28], below the panel.
+    R14 question filed (`open_questions.yaml`, 2026-10-22).
+- **Gas rate by plug band**, from decode intervals that stayed inside one band [M, 600 s interval
+  cap; a 180 s cap moves no band by more than 9 ft3]:
+  - 70 W and above: 24.72 ft3/h (6.88 h, n=654).
+  - 20-70 W: 29.92 ft3/h (4.95 h, n=391).
+  - 12-20 W: 0.76 ft3/h (31.59 h, n=2619).
+  - Below 12 W: 0.19 ft3/h (599.54 h, n=39725).
+  - So the burner fires during most pump time, and the 20-70 W band is mostly burner firing. The
+    `packages/spc.yaml:358-363` note calls the 15-50 W cluster the "condensate-pump cluster"; on
+    September's gas that label is at best partial. The 70 W threshold is unaffected. The comment is
+    left as it stands until the R14 answer.
+  - Splitting each interval's gas by time-in-band instead puts 152 ft3 in 12-20 W, the post-firing
+    band. The method dependence recorded 2026-09-23 still holds.
+- **October onward:** the furnace CT read above 300 W for 12.15 h on 14 days, Oct 1-22 [M,
+  `sensor.sem_furnace_power`; heat and cool not separated]. Whole-house gas minus the panel no
+  longer isolates the Navien, so furnace runs have to be excluded first.
+- Scratch scripts only (session scratchpad), reusing `scripts/furnace_gas_cycles.py`'s InfluxDB
+  helpers. Nothing on H: changed but this entry and the open question.
+- **Answered the same day (Bill): the condensate pump shares the Navien's Kasa plug.** Tested at
+  once [M, September, gas between the decodes around each episode]:
+  - Positive control: isolated 20-70 W episodes of 60 s or more carried 52 ft3 against 56.6
+    burner-like (n=29), so the test sees firing.
+  - Isolated episodes under 60 s carried 24 ft3 (~95% 10-38 [D: 2 ft3 x (12 +/- 1.96 sqrt 12)])
+    against 27.9 burner-like and 0.9 pump-only (n=179). At 600 s isolation: 8 ft3 against 9.1 and 0.4 (n=82). The dehumidifier was on
+    near 18-20 % of them [M, n=179 / n=82], against 19.5 % by chance [M, 585 of 3000 random windows].
+  - So they are burner fires. The 9.20 h "if they are the pump" alternative above is refuted, and
+    operating stands at plug 12.48 h against panel 11 h.
+  - Short isolated bursts at 70 W and above, outside recirc hours, sit near dehumidifier runs 39 of
+    60 times against 22 % by chance at those hours [M, 670 of 3000] [D: z = (39 - 13.4) / 3.23 = 7.9].
+    But they carry 18 ft3 against 0.3 pump-only, so
+    they are not pump-only either.
+  - The pump is not separable on this plug. Time at 70 W and above outside 05:00-08:59 and
+    13:00-19:59 is 0.65 h [M], which bounds it there only; its share inside the recirc windows is
+    unmeasured.
+  - Side observation: the evening recirc block runs 17:00-18:59, not 18:00-19:59 as Bill gave it.
+    Time at 70 W and above is 2.59 h in the 17:00 hour and 0.01 h in the 19:00 hour [M]. The morning
+    and afternoon blocks match. Not asked; nothing depends on it yet.
+
 ## [2026.10.21] - 2026-10-21
 
 ### Correction (R13): the water heater is an NPE-240A2, not an NPE-240S2
