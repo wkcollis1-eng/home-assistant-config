@@ -9,20 +9,6 @@ needed. "Above"/"below" in this text may point into CLAUDE.md.
 
 ## PENDING (address in next update)
 
-### P2 — Shoulder-season dehumidifier validation [MEDIUM]
-```
-High-res RH data beyond 15-day retention cliff — need to validate
-stall threshold (0.30%/hr) behavior when AC not dominating
-NOTE 2026-08-22: there is no retention cliff. InfluxDB "Home Assistant"
-runs retention policy autogen with duration 0s = INFINITE, verified by
-SHOW RETENTION POLICIES. Full-resolution history is available back to
-2026-07 and earlier. The 15-day figure is the RECORDER purge_keep_days,
-which bounds the SQLite DB and the HA history UI only (it is 14, not 15 —
-configuration.yaml, under recorder:). Verified: dehumidifier_power_when_on_steady has
-per-day means in InfluxDB from 2026-08-07, and the raw plug series back to
-2026-07-23, at full ~5 s cadence.
-```
-
 ### P3 — Dehumidifier SPC is measuring basement temperature [HIGH]
 ```
 Steady-window watts vs basement temp, 2026-08-08..21 (n=14):
@@ -594,6 +580,8 @@ CLOSE WHEN, after Install:
 
 ```
 P1    `default: []` on every choose:                             RESOLVED
+P2    shoulder-season stall validation: the stall cut-out was
+      retired instead (Bill, 2026-10-23); CHANGELOG [2026.10.23] RESOLVED
 P4    phantom entity references                                  RESOLVED
 P5    fabricated limit constants                                 RESOLVED
 P6    statistics sampling_size                                   RESOLVED

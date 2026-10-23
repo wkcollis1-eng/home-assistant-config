@@ -392,8 +392,6 @@ sections:
           - entity: input_number.dehumidifier_local_control_max_hours
             name: Local control nag limit (h)
           - type: divider
-          - entity: input_number.dehumidifier_dp_stall_threshold
-            name: DP stall threshold (°F/h — positive MAGNITUDE)
           - entity: input_number.dehumidifier_power_threshold
             name: Compressor power gate (W)
           - type: divider
@@ -444,8 +442,8 @@ sections:
           | Mold ceiling force-on | Shelly cross-check |
           | Condensation guard | Compressor + power capture |
           | Max-runtime backstop | Duty, kWh, cost, SPC |
-          | DP stall cut-out | Watchdog |
-          | Dead-sensor cut-out | Every chart on this page |
+          | Dead-sensor cut-out | Watchdog |
+          | | Every chart on this page |
 
           {# 2026-08-24: this paragraph asserted a flat 250 W and the ratios that go
              with it, while the helper had moved to 150. The two MEASUREMENTS are
@@ -484,20 +482,7 @@ sections:
           action: toggle
           confirmation:
             text: Hand the dehumidifier to its OWN humidistat? ON suspends every HA-side stop — mold ceiling,
-              condensation guard, runtime cap, stall and dead-sensor cut-outs — and holds the plug powered.
-        hold_action:
-          action: more-info
-      - type: button
-        entity: automation.dehumidifier_rh_stall_shutdown
-        name: DP Stall Shutdown
-        show_state: true
-        state_color: true
-        icon: mdi:fan-alert
-        tap_action:
-          action: toggle
-          confirmation:
-            text: Toggle the stall safety? OFF = disabled for a full-pulldown test. Remember to re-enable
-              it.
+              condensation guard, runtime cap and dead-sensor cut-out — and holds the plug powered.
         hold_action:
           action: more-info
       - type: custom:mushroom-entity-card
@@ -519,9 +504,6 @@ sections:
       - type: markdown
         title: Reading the rate charts — one sign rule
         content: |
-          {% set thr_raw = states('input_number.dehumidifier_dp_stall_threshold') %}
-          {% set thr_ok = is_number(thr_raw) %}
-          {% set thr = thr_raw | float(0) %}
           Every rate sensor below is a **signed derivative** in units per hour: `platform: derivative`, `unit_time: h`. One formula, one convention.
 
           | | Means |
@@ -534,15 +516,9 @@ sections:
           ---
           *Before 2026-08-07 four different conventions coexisted here and two of them were sign-flipped, so "removal" and "ingress" both read positive while meaning opposite things. The old `*_drop_rate_60min` pair also used a different formula — `2 × (60-min mean − current)` — whose window (60 min) is longer than a whole run (15.6–30.3 min measured), so it straddled the off period and netted falling against rising. Retired.*
 
-          **Two windows, one formula.** The window is chosen per job, and the choice is forced by arithmetic rather than taste. **30 min** for trend and for the stall detector: slope noise runs about σ√2/T, so at the SHT45's ~0.05 °F dew-point scatter that is ~0.14 °F/h. **10 min** for within-cycle work: measured runs are 15.0–30.4 min (daily longest, 2026-08-05..24, n=20, median 16.0), so a 30-min window can never fill inside a run — it always carries off-period data where dew point is *rising*, which nets against the run. At 10 min the noise is ~0.42 °F/h, which is 8–11 % of the −3.9 to −5.4 °F/h productive signal and 3× the 30-min figure — that ratio, not any threshold, is why the stall detector stays on 30 min.
+          **Two windows, one formula.** The window is chosen per job, and the choice is forced by arithmetic rather than taste. **30 min** for trend: slope noise runs about σ√2/T, so at the SHT45's ~0.05 °F dew-point scatter that is ~0.14 °F/h. **10 min** for within-cycle work: measured runs are 15.0–30.4 min (daily longest, 2026-08-05..24, n=20, median 16.0), so a 30-min window can never fill inside a run — it always carries off-period data where dew point is *rising*, which nets against the run. At 10 min the noise is ~0.42 °F/h, which is 8–11 % of the −3.9 to −5.4 °F/h productive signal and 3× the 30-min figure — that ratio, not any threshold, is why trend work stays on 30 min.
 
-          {% if thr_ok -%}
-          **Against the live stall threshold of {{ thr }} °F/h**, the 30-min noise floor is {{ (0.14 / thr) | round(1) }}× the threshold and the 10-min floor is {{ (0.42 / thr) | round(1) }}×. *This card used to assert a 0.15 °F/h threshold and claim the 30-min noise sat "just under" it — true at 0.15, false once the helper moved. The detector's immunity does not come from that margin anyway: it comes from the size of the real signal, −3.9 to −5.4 °F/h, which is more than an order of magnitude clear of both.*
-          {%- else -%}
-          ⚠️ *`dehumidifier_dp_stall_threshold` is unreadable. The stall condition gates on that helper being numeric, so in this state no stall shutdown can fire — the max-runtime backstop is the only thing still capping a run.*
-          {%- endif %}
-
-          ⚠️ **The stall detector cannot currently fire.** It requires more than 90 min of continuous runtime; the E080's longest cycle since 2026-08-05 is 30.4 min. That gate was sized for the Santa Fe. Stated here because a listed safety that cannot reach its trigger reads as protection you do not have.
+          *The DP stall cut-out that used the 30-min rate was retired 2026-10-23 (P2). It had been off since 2026-06-29, and its 40-min runtime gate was never reached: 0 of 493 cycles 2026-08-05..10-23 ran 40 min, longest 34.4 min [M, InfluxDB plug series]. The 2 h max-runtime backstop caps a run.*
 
           *The SHT45 is not the constraint — τ63 is seconds for both RH and temperature. The constraints are the smoothing window and the ~1–2 min transport lag from the machine end to the node alcove.*
 

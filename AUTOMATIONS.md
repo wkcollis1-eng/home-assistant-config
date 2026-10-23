@@ -47,7 +47,6 @@ dehumidifier_local_control_exit        state:input_boolean.dehumidifier_local_co
 dehumidifier_local_control_power_hold  state:input_boolean.dehumidifier_local_control +1 more                single     dehumidifier.yaml
 dehumidifier_local_control_reminder    time_pattern                                                          single     dehumidifier.yaml
 dehumidifier_max_runtime_backstop      time_pattern                                                          single     dehumidifier.yaml
-dehumidifier_rh_stall_shutdown         time_pattern                                                          single     dehumidifier.yaml
 dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_humidity +1 more               single     dehumidifier.yaml
 dehumidifier_stamp_last_off            state:switch.dehumidifier                                             single     dehumidifier.yaml
 dehumidifier_stamp_last_on             state:switch.dehumidifier                                             single     dehumidifier.yaml
@@ -148,4 +147,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +6 more               parallel   watchdog.yaml
 ```
 
-139 automations.
+138 automations.

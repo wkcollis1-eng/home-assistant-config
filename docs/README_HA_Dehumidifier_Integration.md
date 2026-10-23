@@ -25,7 +25,7 @@ Measured on the E080: compressor 465.8 +/- 6.5 W steady [M, n=340 runs, 2026-08-
 | `automation.dehumidifier_max_runtime_backstop` | Stops it after `dehumidifier_max_runtime_hours` of switch-on wall-clock time, which no power dip resets. |
 | `automation.dehumidifier_force_on_backstop` | Runs it, bypassing min-off, when RH exceeds the mold ceiling (`dehumidifier_rh_force_on`) or the basement dew point closes on the coldest measured surface. |
 | `automation.dehumidifier_control_sensor_loss_shutdown` | Stops it when the SHT45 RH has been unreadable for 10 min. |
-| `automation.dehumidifier_rh_stall_shutdown` | Stops it when dew-point improvement stalls below `dehumidifier_dp_stall_threshold`. **Disabled** - the automation was `off` on 2026-09-23. |
+| `automation.dehumidifier_rh_stall_shutdown` | **Retired 2026-10-23 (P2)**, with its threshold helper `dehumidifier_dp_stall_threshold`. It had been `off` since 2026-06-29, and its 40-min runtime gate was never reached (longest cycle 2026-08-05..10-23: 34.4 min [M]). The max-runtime backstop above caps a run. |
 | `input_boolean.dehumidifier_local_control` | Hands control to the E080's own humidistat for commissioning runs. HA holds the plug on, and reminds hourly once `dehumidifier_local_control_max_hours` is passed. |
 
 ## Performance analytics

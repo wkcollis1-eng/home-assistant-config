@@ -97,6 +97,202 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.23] - 2026-10-23
 
+### Dehumidifier: the DP stall cut-out is retired, P2 closed (`packages/dehumidifier.yaml`, `dashboards/views/dehumidifier.yaml`, `docs/README_HA_Dehumidifier_Integration.md`, `docs/pending.md`, `AUTOMATIONS.md`, `PACKAGES.md`)
+
+- **Bill** (2026-10-23, asked with the findings below): P2 = "Retire it, close P2". Remove `automation.dehumidifier_rh_stall_shutdown` and `input_number.dehumidifier_dp_stall_threshold`, move the comment history here, and keep the 2 h max-runtime cap as the run limit.
+- **P2's question was stale.** It asked for shoulder-season validation of a 0.30 %/hr RH stall threshold. The detector was retargeted to dew point on 2026-07-30. The "15-day retention cliff" that blocked the check was disproven on 2026-08-22: InfluxDB keeps everything.
+- **Findings** [M: InfluxDB "Home Assistant", `W` series `dehumidifier_current_consumption` and `g/m³` series `basement_th_node_basement_absolute_humidity`, 2026-08-05 to 10-23 14:00Z]. A run is plug power > 150 W. It ends at the first point at or below 150 W, or at the last point before a hold longer than 120 s; 17 runs ended that way.
+  - Cycles: Aug 212, Sep 198, Oct 83 (n=493). Median duration 15.2 / 15.8 / 18.0 min; longest 30.2 / 34.4 / 20.8 min. **Runs of 40 min or more: 0 / 0 / 0.**
+  - Absolute-humidity removal rate per cycle, g/m³/h (runs of 10 min or more): median -2.76 / -2.46 / -1.88; least negative -1.59 / -0.97 / -1.29. Only one cycle was above -1.0: 2026-09-30 17:48Z, -0.97, 17.1 min.
+  - The slower October rate tracks drier air, not a slower machine. Mean AH at run start was 10.59 / 9.88 / 8.71 g/m³, and the median fractional rate was -26.19 / -24.49 / -21.25 %/h [M, n 211/198/83].
+  - `automation.dehumidifier_rh_stall_shutdown` read `off`, last triggered 2026-06-29 [M: /api/states 2026-10-23]. Its 40-min runtime gate was unreachable: 0 of 493 cycles got there. `input_number.dehumidifier_dp_stall_threshold` read 0.05 °F/h.
+  - `input_select.dehumidifier_last_stop_reason` transitions since 08-05: conditions_cleared 21, max_runtime 1, dp_stall 0 [M: InfluxDB]. `dehumidifier_max_runtime_backstop` is on, last fired 2026-08-06 06:30, `max_runtime_hours` 2.0 [M: /api/states].
+- **The unattended moment is a runaway overnight cycle.** The 2 h `dehumidifier_max_runtime_backstop` stops it: a /15 check against switch-on wall-clock time, which no power dip resets. That backstop has been the only active cap since 2026-06-29, so retiring the stall cut-out changes nothing the house was relying on.
+- **Change.**
+  - Removed the automation and its only input, the threshold helper. Each site now carries a tombstone.
+  - Comments elsewhere that described the stall detector as live are annotated in place, not deleted.
+  - Three user-facing strings no longer list a stall cut-out: the `dehumidifier_auto_off` description, the `dehumidifier_local_control_enter` message and the `dehumidifier_local_control_reminder` message.
+  - Kept: the `rh_stall` / `dp_stall` options of `input_select.dehumidifier_last_stop_reason`, so historical states still render. Also kept: `sensor.basement_dp_rate`, which the trend charts read.
+- **Dashboard** (`dashboards/views/dehumidifier.yaml`, source only): removed the helper row, the stall button, and the markdown card's threshold Jinja.
+  - That card's warning said the gate needed "more than 90 min". It had been wrong since the 2026-08-24 rebase to 40 min; this edit removes it rather than correcting it.
+  - **Not live until Bill pastes the view**, then `export_dashboards.py` is re-run.
+- **R13, my own error during the analysis.** The first pass reported 16 runs of 40 min or more, including 218 to 293 min on 10-15, with the stall condition met.
+  - Each was one > 150 W point the plug writes at switch-off, followed by silence, and my forward-fill held it. HA history shows the switch on for about 22 min each time.
+  - Fixed by ending a run at a hold longer than 120 s. The P3 fit was unaffected, because it already rejected those runs as holds.
+- **R3:** reversing the 12 package spans gives back the H: original byte for byte (133,913 bytes). Re-parsed: 18 -> 17 automations, 40 -> 39 input_numbers. 14 automations are unchanged; 3 have only their description or message text changed. 14 of 14 sensors and 4 of 4 template blocks are identical.
+  - Dashboard view: re-applying the 8 spans to the H: original gives the sandbox file byte for byte. One card was removed: the stall button.
+- **P2 as it stood in `docs/pending.md`, verbatim:**
+
+### P2 — Shoulder-season dehumidifier validation [MEDIUM]
+```
+High-res RH data beyond 15-day retention cliff — need to validate
+stall threshold (0.30%/hr) behavior when AC not dominating
+NOTE 2026-08-22: there is no retention cliff. InfluxDB "Home Assistant"
+runs retention policy autogen with duration 0s = INFINITE, verified by
+SHOW RETENTION POLICIES. Full-resolution history is available back to
+2026-07 and earlier. The 15-day figure is the RECORDER purge_keep_days,
+which bounds the SQLite DB and the HA history UI only (it is 14, not 15 —
+configuration.yaml, under recorder:). Verified: dehumidifier_power_when_on_steady has
+per-day means in InfluxDB from 2026-08-07, and the raw plug series back to
+2026-07-23, at full ~5 s cadence.
+```
+
+- **Removed from `packages/dehumidifier.yaml`, verbatim: the helper (13 lines), then the automation (135 lines).**
+
+```yaml
+  # Stall threshold in degF/hr of dew-point improvement. 0.15 is the DP
+  # equivalent of the old 0.30 %/hr RH threshold: near 70 degF the local
+  # slope is about 0.47 degF of dew point per point of RH, so
+  # 0.30 x 0.47 = 0.14. min is 0.05 so an uninitialised value fires the
+  # stall LESS often, never more - a wasted cycle beats a killed one.
+  dehumidifier_dp_stall_threshold:
+    name: "Dehumidifier DP Stall Threshold"
+    min: 0.05
+    max: 1.0
+    step: 0.05
+    unit_of_measurement: "°F/h"
+    mode: box
+    icon: mdi:fan-alert
+```
+
+```yaml
+  # ===============================================================
+  # DEHUMIDIFIER STALL DETECTION (RH-based, tuned from 2026 data)
+  # ---------------------------------------------------------------
+  # Fires every 30 min while compressor is active and runtime > 90 min.
+  # Stops the unit early when RH has improved < 0.3 %/hr over the
+  # prior 60 min — the measured stall signature (5 of 8 cycles stall
+  # at hr 3-4).  Uses RH directly (6-min median updates, 7.5× better
+  # SNR than DP at 0.051°F/step).
+  #
+  # 2026-08-07: reads sensor.basement_dp_rate (platform: derivative,
+  # 30-min time_window, unit_time h). NEGATIVE = dew point falling.
+  # input_number.dehumidifier_dp_stall_threshold stays a POSITIVE
+  # magnitude; the test is rate > -threshold.
+  #
+  # KNOWN INERT: the 5400 s (90 min) runtime gate below cannot be reached
+  # — measured E080 runs are 15.6 to 30.3 min. This automation therefore
+  # never fires today. Lowering the gate alone is NOT enough: a 30-min
+  # rolling window is comparable to a whole run and would straddle the
+  # preceding off period. The structurally correct replacement is a
+  # per-cycle check at compressor-off, (AH_start - AH_end)/run_hours
+  # against about -1.0 g/m3/h vs -1.74 to -2.23 measured healthy.
+  #
+  # SEASONAL NOTE: In July–Aug the unit pulls hard all cycle; this
+  # automation will not fire (drop rate stays > 0.3%/hr). In June and
+  # September it captures the stall pattern observed in the data.
+  # ===============================================================
+  - id: dehumidifier_rh_stall_shutdown
+    alias: "Dehumidifier Stall Shutdown (dew point)"
+    description: "Stop the unit early when DEW-POINT improvement has stalled. Retargeted from RH 2026-07-30: RH falls whenever the compressor heats the room, so an RH-based stall detector reported healthy progress exactly when no water was being removed. Automation id kept so history and the last_triggered guards stay continuous."
+    mode: single
+    trigger:
+      - platform: time_pattern
+        minutes: "/30"
+    condition:
+      # LOCAL-CONTROL GATE - see dehumidifier_auto_on for the rationale.
+      # False only when the boolean is explicitly "on"; anything unreadable
+      # degrades back to normal HA control.
+      - condition: template
+        value_template: "{{ not is_state('input_boolean.dehumidifier_local_control', 'on') }}"
+      # Compressor must be actively running
+      - condition: state
+        entity_id: binary_sensor.dehumidifier_compressor_active
+        state: "on"
+      # Must have been running > 40 min (skip compressor warmup and early-cycle noise)
+      #
+      # Gate rebased 2026-07-03: last_changed of compressor_active resets on any
+      # >10 s power dip AND on every HA restart, delaying stall detection each
+      # time. The switch-ON stamp is immune to both.
+      #
+      # REBASED AGAIN 2026-08-24, 90 -> 40 min. The 90 min was sized for the Santa
+      # Fe, which ran ~6.9 h/day. The E080 does not run that long: over 151
+      # completed cycles from 2026-08-05 (first settled day after install) to
+      # 2026-08-24 the distribution is p50 15.2, p95 21.1, p99 30.0, max 30.4 min.
+      # A 90-min gate is therefore UNREACHABLE in this regime - the detector had
+      # been structurally incapable of firing since the changeover, which is the
+      # R7 failure mode: a rule that cannot fire looks exactly like a rule with
+      # nothing to report.
+      #
+      # 40 min: 0 of 151 healthy cycles reach it, 32 % clear of the observed max
+      # and 1.3x the p99, and well past the 10-14 min steady window the SPC
+      # capture uses. It is a WARMUP SKIP, not the discriminator - the DP-rate
+      # test below is what separates stalled from drying, and a healthy run at
+      # -3.9 to -5.4 degF/h stays two orders clear of the 0.05 threshold even if
+      # it did reach the gate.
+      #
+      # DETECTION LATENCY. The trigger is a /30 time pattern, so the first
+      # eligible evaluation lands 40-70 min into a run depending on where the
+      # start falls relative to :00 and :30. Against the 120 min max-runtime
+      # backstop that buys 50-80 min of earlier detection, where the old gate
+      # bought none. Tighten the trigger to /10 if that is not enough.
+      - condition: template
+        value_template: >
+          {% set lo = states('input_datetime.dehumidifier_last_on_time') %}
+          {{ lo not in ['unknown', 'unavailable'] and lo[:4] != '1970'
+             and (as_timestamp(now()) - as_timestamp(lo, 0)) > 2400 }}
+      # DP must not be falling fast enough.
+      #
+      # 2026-08-07 SIGN CONVENTION CHANGE. Source moved from
+      # sensor.dehumidifier_dp_drop_rate_60min (RETIRED; positive meant
+      # "DP falling") to sensor.basement_dp_rate, which is a signed
+      # derivative where NEGATIVE means "DP falling".
+      #
+      # The threshold input_number is UNCHANGED and stays a positive
+      # MAGNITUDE, so its 0.05-1.0 range is still valid and no value
+      # needs re-entering. The comparison is what flips:
+      #
+      #   old:  drop_rate <  thr     e.g.  +0.03 <  +0.05  -> stalled
+      #   new:  rate      > -thr     e.g.  -0.03 >  -0.05  -> stalled
+      #
+      # Both say the same thing: DP is improving by less than `thr` degF
+      # per hour. A healthy run measures -3.9 to -5.4 degF/h, comfortably
+      # below the threshold, so it does not trip.
+      #
+      # THE THRESHOLD IS THE HELPER'S, NOT A NUMBER WRITTEN HERE. It reads
+      # 0.05 as of 2026-08-24; the examples above are illustrative and go
+      # stale the moment you retune it, which is why nothing downstream
+      # keys on the literal. The old comment quoted 0.15 against a helper
+      # that had already moved to 0.05.
+      #
+      # FAIL-SAFE DIRECTION PRESERVED, BOTH INPUTS. is_number() now gates
+      # the THRESHOLD as well as the rate. Until 2026-08-24 an unreadable
+      # helper fell through to `| float(0.15)` and silently ran a 3x
+      # threshold; now it makes the condition FALSE and no shutdown occurs.
+      # Both float(-99) defaults are unreachable behind those gates: the
+      # rate default reads "drying hard", and the threshold default makes
+      # the test `rate > 99`, i.e. never stalled. Not stopping is the safe
+      # direction here because dehumidifier_max_runtime_backstop still
+      # caps the run independently.
+      #
+      # mode: single prevents re-entry so one stall reading won't double-fire.
+      - condition: template
+        value_template: >
+          {% set rate = states('sensor.basement_dp_rate') %}
+          {% set thr = states('input_number.dehumidifier_dp_stall_threshold') %}
+          {{ is_number(rate) and is_number(thr)
+             and (rate | float(-99)) > (0 - (thr | float(-99))) }}
+    action:
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.dehumidifier_last_stop_reason
+        data:
+          option: "dp_stall"
+      - service: switch.turn_off
+        target:
+          entity_id: switch.dehumidifier
+      - service: system_log.write
+        data:
+          level: info
+          message: >
+            Dehumidifier stall shutdown: DP rate {{ states('sensor.basement_dp_rate') | float(0) | round(3) }} degF/hr
+            (needed <= -{{ states('input_number.dehumidifier_dp_stall_threshold') }} degF/hr,
+            runtime {{ ((now() - states.binary_sensor.dehumidifier_compressor_active.last_changed).total_seconds() / 60) | round(0) | int(0) }} min).
+            DP {{ states('sensor.basement_dew_point') }}F,
+            AH rate {{ states('sensor.basement_ah_rate') }} g/m3/h,
+            RH {{ states('sensor.basement_th_node_basement_humidity') }}%.
+```
+
 ### Dehumidifier SPC: a thin night is excused, not missed - the false "SPC Capture Stale" bell (`packages/spc.yaml`, `pipelines.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `PACKAGES.md`, `CLAUDE.md`)
 
 - **Bill:** "dehumidifier run time is not being caotured?" with the 10-23 SPC Capture Stale bell (Dehumidifier, last capture 2026-10-20). Then: "build the excused time stamp and update claude.md but keep claude.md short and to the point."
