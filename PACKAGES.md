@@ -17,12 +17,12 @@ packages/electricity.yaml               474 lines   automation:1, input_button:1
 packages/energy_export_package.yaml      32 lines   automation:1, shell_command:1
 packages/gas_dhw.yaml                  1207 lines   automation:4, input_button:2, input_datetime:3, input_number:110 +1 more
 packages/grafana.yaml                   105 lines   automation:1, shell_command:1
-packages/hvac_performance.yaml         5709 lines   automation:46, input_boolean:4, input_button:1, input_datetime:15 +3 more
+packages/hvac_performance.yaml         5719 lines   automation:46, input_boolean:4, input_button:1, input_datetime:15 +3 more
 packages/influx_watchdog.yaml           167 lines   automation:1, rest:1, template:1
 packages/mmwave_presence.yaml          2910 lines   automation:25, input_boolean:9, input_datetime:5, input_number:9 +5 more
 packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_meter:34
 packages/spc.yaml                      3848 lines   automation:11, input_datetime:12, input_number:49, script:3, sensor:12 +3 more
 packages/utility_meters.yaml           1537 lines   automation:6, input_boolean:1, input_datetime:2, input_number:25 +3 more
-packages/watchdog.yaml                  725 lines   automation:8, input_boolean:5, input_datetime:5, input_number:6 +2 more
+packages/watchdog.yaml                  866 lines   automation:8, input_boolean:5, input_datetime:5, input_number:6 +2 more
 packages/weather.yaml                   826 lines   automation:5, input_datetime:1, input_number:4, template:3
 ```

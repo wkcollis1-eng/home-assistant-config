@@ -97,6 +97,59 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.23] - 2026-10-23
 
+### Ecobee watchdog: a frozen HomeKit temperature is caught and only that thermostat reloaded; recovery start ignores an unavailable sensor (`packages/watchdog.yaml`, `packages/hvac_performance.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `AUTOMATIONS.md`, `PACKAGES.md`)
+
+- **Bill:** "sensor.upstairs_current_temperature went stale for around 6 hours. why didn't the watchdog pick this up and reload the HomeKit." Then: "build both now and include the main floor thermostat".
+- **What happened** [M: HA history and logbook].
+  - The sensor held 67.82 F from 01:50:37 to 12:20:14 UTC, 629.6 min [D], and never went unavailable.
+  - Meanwhile `climate.upstairs` kept reading the room at 64-68 F, so the largest error was 3.82 F [M].
+  - The humidity sensor on the same accessory froze too.
+  - A reload of the upstairs entry alone ended it. That was not the watchdog, whose last reload was 2026-10-04 17:56.
+- **Why the watchdog missed it.** Since 2026-10-04, `binary_sensor.watchdog_ecobee_stale` fires only on unavailable/unknown. Its comment listed a frozen value as NOT CAUGHT and said frozen could not be told from steady. That was wrong for this failure; an R13 note now sits beside it.
+- **Cause** [S: core 2026.10.2 `homekit_controller/entity.py` `_async_config_changed`, `sensor.py` `SimpleSensor.native_value`; aiohomekit 4.0.1 `controller/ip/pairing.py` `_process_config_changed`].
+  - After the accessory's config number changes, a HomeKit sensor entity keeps reading its OLD Characteristic object. The climate entity re-reads its service.
+  - Fixed upstream by core PR #177696 (commit `e5342592df`, merged to dev 2026-10-15). It is not in 2026.10.2.
+  - That a config change happened at 01:50 is [I]. Falsifier: the same freeze on a release that contains #177696.
+- **(a) Frozen-value watchdog, both thermostats. Live since Bill reloaded all YAML at 13:53:59 UTC.**
+  - Observed after the reload [M: `/api/states`, `automation/config`, `system_log/list`]: both new sensors are available and off, and the stale count reads 0. `watchdog_reload_ecobee`, `watchdog_reset_failed` and both recovery-start automations carry the new triggers. The system log has no template or watchdog entry, only the usual reload noise.
+  - New `binary_sensor.watchdog_upstairs_frozen` and `binary_sensor.watchdog_main_floor_frozen`. Each is on when `|sensor - climate current_temperature| > 1.0 F` holds for 15 min (`delay_on`). Each is unavailable while either input is not a number; that case stays with `watchdog_ecobee_stale`.
+  - `watchdog_reload_ecobee` gains triggers `upstairs_frozen` and `main_floor_frozen`. Each reloads that thermostat's entry only. The unavailable path (`id: stale`) still reloads both, and its lines are unchanged.
+  - Both thermostats share one switch and one 15-min backoff. A second thermostat freezing inside the backoff gets the reset-failed notice instead of a reload.
+  - `watchdog_reset_failed` gains both sensors (10 min, `id: ecobee`), so there is still one notice per system. That notice now adds "Frozen, not offline: <sensor> reads X F, <climate> reads Y F".
+    - Its "reset ran" test now allows 60 s. A frozen sensor's reload blips it unavailable and back on, so its onset lands a few seconds after the reset.
+    - The last line names `{{ trigger.entity_id }}`, which is the same text for the five existing triggers.
+  - `script.watchdog_reload_all_stale` reloads a frozen thermostat alone.
+  - `sensor.watchdog_stale_sensor_count` counts Ecobee while either thermostat is frozen.
+- **Why 1.0 F and 15 min** [M: HA history 10-09 13:05 to 10-23 12:55 UTC, both thermostats].
+  - The climate attribute is the same reading rounded to whole F, so a healthy pair differs by about 0.5 F at most.
+  - Every interval over 1.0 F lies inside the 10-23 freeze; there are none outside it on either thermostat.
+  - The test would have turned on at 03:21:40 UTC, 91 min [D] after the freeze began, once the room had drifted more than 1 F from 67.82.
+- **R2 proof** [D: scratchpad `harness.py` renders the exact template text from the files in jinja2; `primitives.py` checks its mocks against the live engine].
+  - **Matrix: 105 checks, 0 failed.**
+    - Frozen test: clean, the 0.5 F healthy edge, exactly 1.0 and the 1.0 F edge are silent; 67.82 vs 64 fires; unavailable, unknown, empty or a missing climate makes it unavailable.
+    - Recovery start, old vs new: unavailable, unknown and empty fire in the old trigger and not in the new; real cold starts fire in both.
+    - All 20 combinations of the five existing triggers and four message branches render byte-identical.
+  - **Mocks:** 24 primitive renders (`is_number`, `float(0)`, `is number`, `abs`) match the live HA engine [M].
+  - **Replay of the sandbox text** over 14 days, with `delay_on` and availability semantics [M: recorder].
+    - Upstairs turned on 3 times, all inside the freeze, at 03:21:40, 11:36:51 and 12:08:09 UTC.
+    - Each later on followed an off, when the morning warm-up brought the room back within 1 F of 67.82.
+    - It went off at 12:20:15, 1 s after the reload.
+    - Main floor turned on 0 times.
+  - **Live render now:** both new sensors are available and off, and both new recovery triggers render False.
+- **A reload that fails cannot loop** [S: core 2026.10.2 `helpers/event.py` `_refresh` and `_render_template_if_ready`, `template/template_entity.py`].
+  - A false availability blocks the state render, and an unchanged result is not re-applied, so `delay_on` does not restart.
+  - The sensor comes straight back on, the backoff blocks a second reload, and the notice follows 10 min later.
+- **(b) Recovery start ignores a sensor that is not a number** (`hvac_1f_recovery_start`, `hvac_2f_recovery_start`).
+  - Both read `states(sensor) | float(0)`, so an unavailable sensor read as 0 F: "still cold".
+  - Today the 2F setpoint rose 64 -> 66 at 06:00 EDT, and the frozen 67.82 hid it.
+  - The 08:20:14 EDT reload blip then started a false recovery. It ended at 08:25:15 with 0.0 recovery minutes, and the 2F row was skipped [M: logbook and system log]. **Today's 2F recovery is not recorded.**
+  - Both triggers now also require `cs | is_number`. The watchdog above now reloads at any hour, so this guard ships with it.
+- **Limits (R11).**
+  - The detection rests on n = 1 real freeze.
+  - A freeze while the room stays within about 1 F of the frozen value is not seen until the room moves.
+  - Every value on an accessory freezing at once is not seen at all.
+  - The "2F setback latch stuck 14h" warnings seen since 10-20 were not investigated.
+
 ### mmWave family: the lamps hold while the TV is on - the TV witness (`packages/mmwave_presence.yaml`, `entity_notes.yaml`, `ENTITIES.md`, `AUTOMATIONS.md`, `PACKAGES.md`; source repo `mmwave-presence-node` 31c2993: `packages/mmwave_presence.yaml`, `docs/mmwave-presence-node-design.md` Rev 1.11, `README.md`)
 
 - **Bill:** "om the family mmWave had the light go off last night unexpectly. should add another check to use sensor.living_room_tv_sonos_homatics_current_consumption. ie if TV on (above 75w?) do not turn off lights. still need to keep the light off if lux increases."

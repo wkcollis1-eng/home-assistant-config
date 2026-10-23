@@ -141,12 +141,18 @@ binary_sensor.watchdog_ecobee_stale:
 binary_sensor.watchdog_influxdb_writes_stale:
   group: WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)
   note: on unless the points count is a positive number; no availability guard, by design
+binary_sensor.watchdog_main_floor_frozen:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: HomeKit temperature frozen while available - |sensor - climate.main_floor current_temperature| > 1.0 F for 15 min; reloads the main floor thermostat only; since 2026-10-23
 binary_sensor.watchdog_sem_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: SEM Meter stale detection
 binary_sensor.watchdog_ups_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: UPS monitor stale detection
+binary_sensor.watchdog_upstairs_frozen:
+  group: WATCHDOG (packages/watchdog.yaml)
+  note: HomeKit temperature frozen while available - |sensor - climate.upstairs current_temperature| > 1.0 F for 15 min; reloads the upstairs thermostat only; since 2026-10-23
 binary_sensor.water_meter_stale:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: no decode in > sdr_water_stale_minutes
@@ -1018,7 +1024,7 @@ sensor.utility_electric_power_rate:
   note: statistics change_second, kWh/s; precision 9 or it reads 0.0
 sensor.watchdog_stale_sensor_count:
   group: WATCHDOG (packages/watchdog.yaml)
-  note: Count of stale systems
+  note: Count of stale systems; Ecobee also counts while either thermostat reads frozen (since 2026-10-23)
 sensor.water_meter_age:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: minutes since last decode

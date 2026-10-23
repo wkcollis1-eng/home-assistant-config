@@ -499,8 +499,10 @@ sensor.upstairs_current_temperature    2F current temp (watchdog monitored)
 automation.watchdog_reset_failed                 failure-only notice; still stale 10 min after onset
 binary_sensor.watchdog_battery_bank_stale        Battery Bank monitor stale detection
 binary_sensor.watchdog_ecobee_stale              Ecobee temperature unavailable or unknown (either sensor); no age test since 2026-10-04
+binary_sensor.watchdog_main_floor_frozen         HomeKit temperature frozen while available - |sensor - climate.main_floor current_temperature| > 1.0 F for 15 min; reloads the main floor thermostat only; since 2026-10-23
 binary_sensor.watchdog_sem_stale                 SEM Meter stale detection
 binary_sensor.watchdog_ups_stale                 UPS monitor stale detection
+binary_sensor.watchdog_upstairs_frozen           HomeKit temperature frozen while available - |sensor - climate.upstairs current_temperature| > 1.0 F for 15 min; reloads the upstairs thermostat only; since 2026-10-23
 input_boolean.watchdog_auto_reload_battery_bank  Enable auto-reload
 input_boolean.watchdog_auto_reload_ecobee
 input_boolean.watchdog_auto_reload_sem
@@ -512,7 +514,7 @@ input_number.watchdog_threshold_sem
 input_number.watchdog_threshold_ups
 script.spc_force_seed_all                        Force seed all SPC day slots from 24h stats
 script.watchdog_reload_all_stale                 Manual reload all stale integrations
-sensor.watchdog_stale_sensor_count               Count of stale systems
+sensor.watchdog_stale_sensor_count               Count of stale systems; Ecobee also counts while either thermostat reads frozen (since 2026-10-23)
 ```
 
 ## WATCHDOG — INFLUXDB (packages/influx_watchdog.yaml)

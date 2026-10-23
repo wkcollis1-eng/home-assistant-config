@@ -4648,14 +4648,22 @@ automation:
     alias: "1F Recovery Start"
     mode: single
     trigger:
+      # A temperature that is not a number starts nothing (2026-10-23). Until
+      # then float(0) read an unavailable sensor as 0 F, i.e. "still cold": on
+      # 10-23 a HomeKit reload blip at 08:20:14 EDT started a false 2F
+      # recovery, which ended at 08:25:15 with 0.0 recovery minutes, so the
+      # day's 2F row was skipped [M, logbook + system log]. The frozen-value
+      # watchdog (packages/watchdog.yaml) now reloads a single thermostat, so
+      # the same blip can come at any hour. Same guard on 1F and 2F.
       - platform: template
         value_template: >
           {% set active = is_state('input_boolean.hvac_1f_setback_active', 'on') %}
           {% set not_rec = is_state('input_boolean.hvac_1f_recovering', 'off') %}
           {% set live = state_attr('climate.main_floor', 'temperature') | float(0) %}
           {% set hold = states('input_number.hvac_1f_hold_setpoint') | float(0) %}
-          {% set current = states('sensor.main_floor_current_temperature') | float(0) %}
-          {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
+          {% set cs = states('sensor.main_floor_current_temperature') %}
+          {% set current = cs | float(0) %}
+          {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and cs | is_number and current < (hold - 0.5) }}
     action:
       - service: input_boolean.turn_on
         target:
@@ -4683,8 +4691,10 @@ automation:
           {% set not_rec = is_state('input_boolean.hvac_2f_recovering', 'off') %}
           {% set live = state_attr('climate.upstairs', 'temperature') | float(0) %}
           {% set hold = states('input_number.hvac_2f_hold_setpoint') | float(0) %}
-          {% set current = states('sensor.upstairs_current_temperature') | float(0) %}
-          {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and current < (hold - 0.5) }}
+          {# Not-a-number guard (2026-10-23): see hvac_1f_recovery_start. #}
+          {% set cs = states('sensor.upstairs_current_temperature') %}
+          {% set current = cs | float(0) %}
+          {{ active and not_rec and hold > 50 and live >= (hold - 0.5) and cs | is_number and current < (hold - 0.5) }}
     action:
       - service: input_boolean.turn_on
         target:

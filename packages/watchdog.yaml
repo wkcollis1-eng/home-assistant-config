@@ -15,6 +15,8 @@
 # Features:
 #   - Configurable stale thresholds per sensor type
 #     (except Ecobee since 2026-10-04: unavailable/unknown only, no age test)
+#   - Ecobee frozen-value test since 2026-10-23: each HomeKit temperature
+#     sensor against its climate entity, reloading only that thermostat
 #   - Auto-reload with 15-minute backoff
 #   - Persistent notifications on stale/recovery  [RETIRED 2026-09-10]
 #   - Notification ONLY when a reset fails (watchdog_reset_failed), 2026-09-10
@@ -192,6 +194,12 @@ template:
       # NOT CAUGHT, now or before: an accessory that answers polls with a frozen
       # value. The age test could not catch that either; it could not tell
       # frozen from steady.
+      # R13, 2026-10-23: wrong for the freeze that actually happened. From
+      # 10-23 01:50:37 to 12:20:14 UTC (629.6 min [D]) the upstairs HomeKit
+      # temperature sensor held 67.82 F while climate.upstairs, reading the
+      # same accessory, kept moving 64-68 F [M, HA history]. Comparing the two
+      # tells frozen from steady: see Watchdog: Upstairs / Main Floor Frozen
+      # below. Still not caught: every value on an accessory freezing at once.
       - name: "Watchdog: Ecobee Stale"
         unique_id: watchdog_ecobee_stale
         icon: "{{ 'mdi:thermostat-alert' if is_state('binary_sensor.watchdog_ecobee_stale', 'on') else 'mdi:thermostat' }}"
@@ -209,6 +217,57 @@ template:
           main_floor_stale: >
             {% set sensor = states.sensor.main_floor_current_temperature %}
             {{ sensor is none or sensor.state in ['unavailable', 'unknown'] }}
+
+      # --- Ecobee frozen value, one per thermostat (2026-10-23) ---
+      # Catches what Watchdog: Ecobee Stale cannot: a HomeKit temperature
+      # sensor that stays AVAILABLE and stops changing. 10-23 01:50:37 to
+      # 12:20:14 UTC (629.6 min [D]) sensor.upstairs_current_temperature held
+      # 67.82 F, up to 3.82 F off the room [M, HA history], while
+      # climate.upstairs kept reading it; a reload of that thermostat ended it.
+      # Cause [S: core 2026.10.2 homekit_controller entity.py
+      # _async_config_changed, sensor.py SimpleSensor.native_value]: after the
+      # accessory's config number changes, a sensor keeps reading its OLD
+      # Characteristic object while the climate entity re-reads its service.
+      # Fixed upstream by core PR #177696 (merged to dev 2026-10-15, not in
+      # 2026.10.2). That a config change happened at 01:50 is [I]; falsifier:
+      # the same freeze on a release that contains #177696.
+      #
+      # Test: |sensor - climate current_temperature| > 1.0 F for 15 min. The
+      # attribute is the same reading rounded to whole F, so a healthy pair
+      # differs by about 0.5 F at most. Replay 10-09 13:05 to 10-23 12:55 UTC
+      # [M, HA history, both thermostats]: every interval over 1.0 F lies
+      # inside the 10-23 freeze, none outside it on either; this test would
+      # have turned on at 03:21:40 UTC, 91 min [D] after the freeze began,
+      # once the room had drifted more than 1 F from 67.82.
+      # Limits: n = 1 real freeze. A freeze while the room stays within about
+      # 1 F of the frozen value is not seen until the room moves.
+      # Unavailable, not off, while either input is - that case is Watchdog:
+      # Ecobee Stale's. An unavailable spell does not restart delay_on: a
+      # false availability blocks the state render, and an unchanged result
+      # is not re-applied [S: core 2026.10.2 helpers/event.py
+      # _refresh/_render_template_if_ready]. So a reload that does not cure
+      # the freeze brings this straight back on, the backoff blocks a second
+      # reload, and watchdog_reset_failed reports it 10 min later.
+      - name: "Watchdog: Upstairs Frozen"
+        unique_id: watchdog_upstairs_frozen
+        device_class: problem
+        delay_on: "00:15:00"
+        availability: >
+          {{ states('sensor.upstairs_current_temperature') | is_number
+             and state_attr('climate.upstairs', 'current_temperature') is number }}
+        state: >
+          {{ (states('sensor.upstairs_current_temperature') | float(0)
+              - state_attr('climate.upstairs', 'current_temperature') | float(0)) | abs > 1.0 }}
+      - name: "Watchdog: Main Floor Frozen"
+        unique_id: watchdog_main_floor_frozen
+        device_class: problem
+        delay_on: "00:15:00"
+        availability: >
+          {{ states('sensor.main_floor_current_temperature') | is_number
+             and state_attr('climate.main_floor', 'current_temperature') is number }}
+        state: >
+          {{ (states('sensor.main_floor_current_temperature') | float(0)
+              - state_attr('climate.main_floor', 'current_temperature') | float(0)) | abs > 1.0 }}
 
       # --- UPS Monitor ---
       - name: "Watchdog: UPS Stale"
@@ -272,7 +331,9 @@ template:
         state: >
           {{ [
             is_state('binary_sensor.watchdog_battery_bank_stale', 'on'),
-            is_state('binary_sensor.watchdog_ecobee_stale', 'on'),
+            is_state('binary_sensor.watchdog_ecobee_stale', 'on')
+              or is_state('binary_sensor.watchdog_upstairs_frozen', 'on')
+              or is_state('binary_sensor.watchdog_main_floor_frozen', 'on'),
             is_state('binary_sensor.watchdog_ups_stale', 'on'),
             is_state('binary_sensor.watchdog_sem_stale', 'on'),
             is_state('binary_sensor.watchdog_basement_th_stale', 'on')
@@ -283,7 +344,9 @@ template:
             {% if is_state('binary_sensor.watchdog_battery_bank_stale', 'on') %}
               {% set stale = stale + ['Battery Bank'] %}
             {% endif %}
-            {% if is_state('binary_sensor.watchdog_ecobee_stale', 'on') %}
+            {% if is_state('binary_sensor.watchdog_ecobee_stale', 'on')
+                  or is_state('binary_sensor.watchdog_upstairs_frozen', 'on')
+                  or is_state('binary_sensor.watchdog_main_floor_frozen', 'on') %}
               {% set stale = stale + ['Ecobee'] %}
             {% endif %}
             {% if is_state('binary_sensor.watchdog_ups_stale', 'on') %}
@@ -344,6 +407,18 @@ automation:
         to: "on"
         for:
           minutes: 1
+        id: stale
+      # Frozen (2026-10-23): the binary sensors carry a 15-min delay_on, so
+      # no for: here. One backoff for both thermostats: a second one freezing
+      # inside it gets watchdog_reset_failed's notice, not a reload.
+      - platform: state
+        entity_id: binary_sensor.watchdog_upstairs_frozen
+        to: "on"
+        id: upstairs_frozen
+      - platform: state
+        entity_id: binary_sensor.watchdog_main_floor_frozen
+        to: "on"
+        id: main_floor_frozen
     condition:
       - condition: state
         entity_id: input_boolean.watchdog_auto_reload_ecobee
@@ -363,6 +438,29 @@ automation:
           entity_id: input_datetime.watchdog_last_reload_ecobee
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # Frozen (2026-10-23): reload ONLY the thermostat whose sensor froze; a
+      # reload drops that accessory's entities to unavailable for a moment
+      # (see binary_sensor.watchdog_ecobee_stale), so the healthy one is left
+      # alone.
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: upstairs_frozen
+            sequence:
+              - service: homeassistant.reload_config_entry
+                target:
+                  entity_id: sensor.upstairs_current_temperature
+          - conditions:
+              - condition: trigger
+                id: main_floor_frozen
+            sequence:
+              - service: homeassistant.reload_config_entry
+                target:
+                  entity_id: sensor.main_floor_current_temperature
+        default: []
+      # Everything below is the unavailable/unknown path only.
+      - condition: trigger
+        id: stale
       # BOTH thermostats (2026-09-10). They are separate homekit_controller
       # config entries, and this used to target upstairs alone - so every
       # main-floor stale episode reloaded the wrong thermostat and stayed
@@ -617,6 +715,20 @@ automation:
         for:
           minutes: 10
         id: ecobee
+      # Frozen (2026-10-23): same id, so the same notice, helpers and reload
+      # automation as Ecobee stale.
+      - platform: state
+        entity_id: binary_sensor.watchdog_upstairs_frozen
+        to: "on"
+        for:
+          minutes: 10
+        id: ecobee
+      - platform: state
+        entity_id: binary_sensor.watchdog_main_floor_frozen
+        to: "on"
+        for:
+          minutes: 10
+        id: ecobee
       - platform: state
         entity_id: binary_sensor.watchdog_ups_stale
         to: "on"
@@ -652,7 +764,10 @@ automation:
             stale 10 min later.
             {% if is_state('input_boolean.watchdog_auto_reload_' ~ trigger.id, 'off') -%}
             Auto-reload is OFF for it, so no reset was attempted.
-            {%- elif last_dt is not none and as_local(last_dt) >= onset -%}
+            {#- 60 s slack (2026-10-23): a frozen sensor's reload blips it
+                unavailable and back to on, so its onset is a few seconds
+                AFTER the reset that failed to clear it. -#}
+            {%- elif last_dt is not none and (onset - as_local(last_dt)).total_seconds() <= 60 -%}
             The reset at {{ as_local(last_dt).strftime('%H:%M:%S') }} did not clear it.
             {%- else -%}
             No reset ran during this episode - the previous one ({{ last }}) was
@@ -663,7 +778,16 @@ automation:
             This is the dehumidifier's control sensor, so the unit will have
             stopped with reason `sensor_loss`.
             {%- endif %}
-            This notice stays until dismissed; binary_sensor.watchdog_{{ trigger.id }}_stale
+            {%- if trigger.entity_id == 'binary_sensor.watchdog_upstairs_frozen' %}
+            Frozen, not offline: sensor.upstairs_current_temperature reads
+            {{ states('sensor.upstairs_current_temperature') }} F, climate.upstairs
+            reads {{ state_attr('climate.upstairs', 'current_temperature') }} F.
+            {%- elif trigger.entity_id == 'binary_sensor.watchdog_main_floor_frozen' %}
+            Frozen, not offline: sensor.main_floor_current_temperature reads
+            {{ states('sensor.main_floor_current_temperature') }} F, climate.main_floor
+            reads {{ state_attr('climate.main_floor', 'current_temperature') }} F.
+            {%- endif %}
+            This notice stays until dismissed; {{ trigger.entity_id }}
             shows the current state.
 
 # -----------------------------------------------------------------------------
@@ -694,6 +818,23 @@ script:
               entity_id:
                 - sensor.upstairs_current_temperature
                 - sensor.main_floor_current_temperature
+      # Frozen (2026-10-23): that thermostat only - see watchdog_reload_ecobee.
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_upstairs_frozen
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.upstairs_current_temperature
+      - if:
+          - condition: state
+            entity_id: binary_sensor.watchdog_main_floor_frozen
+            state: "on"
+        then:
+          - service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.main_floor_current_temperature
       - if:
           - condition: state
             entity_id: binary_sensor.watchdog_ups_stale

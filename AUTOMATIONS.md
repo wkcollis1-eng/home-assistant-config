@@ -142,10 +142,10 @@ validate_input_numbers_startup         homeassistant                            
 watchdog_influxdb_writes_stale         state:binary_sensor.watchdog_influxdb_writes_stale +1 more            single     influx_watchdog.yaml
 watchdog_reload_basement_th            state:binary_sensor.watchdog_basement_th_stale                        single     watchdog.yaml
 watchdog_reload_battery_bank           state:binary_sensor.watchdog_battery_bank_stale                       single     watchdog.yaml
-watchdog_reload_ecobee                 state:binary_sensor.watchdog_ecobee_stale                             single     watchdog.yaml
+watchdog_reload_ecobee                 state:binary_sensor.watchdog_ecobee_stale +2 more                     single     watchdog.yaml
 watchdog_reload_sem                    state:binary_sensor.watchdog_sem_stale                                single     watchdog.yaml
 watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale                                single     watchdog.yaml
-watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +4 more               parallel   watchdog.yaml
+watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +6 more               parallel   watchdog.yaml
 ```
 
 139 automations.
