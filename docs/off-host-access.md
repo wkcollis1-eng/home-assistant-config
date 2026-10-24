@@ -40,6 +40,26 @@ Off-host gotchas, each of which has cost a session:
   "the UPS monitor never dropped" were all read off data that ended before the
   events. Always pass `end_time`, and check each returned series' first and last
   timestamp against the window you asked for.
+- **A `period: day` max of a resetting sensor repeats the previous day.** The
+  hourly compile reads history from one microsecond before each hour, so the
+  state in effect at 00:00 - yesterday's final total, not yet reset - is inside
+  the 00:00 bucket's `max` [S: home-assistant/core 2026.10.2,
+  `homeassistant/components/sensor/recorder.py` lines 569-574, max at 710]. A
+  `*_today` sensor's day max therefore reads as the day before whenever today's
+  total is smaller, and a `*_month` sensor does the same on the 1st:
+  `sensor.hvac_ac_runtime_month` reads 20.82 for 10-01, September's total, though
+  its hourly rows are 0.0 from 01:00 [M]. That one is a template sensor, so the
+  cause is any `state_class: measurement` sensor that resets, not history_stats.
+  Cost a wrong first pass on 2026-10-24 (R13): `recorder/statistics_during_period`
+  with `period: day`, `types: [max]` gave 10-18 and 10-19 both 2.35 h / 10 cycles
+  on `sensor.hvac_furnace_runtime_today` and `_cycles_today`. Against the 23:59
+  capture slots (`input_number.furnace_min_per_cycle_day_1..7`, 10-17 to 10-23)
+  the day max matched 4 of 7 days and the read below 7 of 7 [M, 0.15 min
+  tolerance]. The stored rows are right; the read is wrong. Read daily totals at
+  `period: hour`, bucket in local time (America/New_York), drop the 00:00 bucket,
+  and take the max of hours 01-23. Do not "fix" the sensor with `state_class:
+  total_increasing`: the series would then hold two regimes, and the Jan-May 2026
+  T6 Pro cycle record exists only in these rows.
 - **`/api/states` freezes `last_reported` while a state is unchanged.** An
   unchanged write moves `State.last_reported` in place, but `/api/states` serves
   `State.as_dict_json`, a cached property that move never invalidates [S: core

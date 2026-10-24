@@ -95,6 +95,18 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.10.24] - 2026-10-24
+
+### Off-host trap documented: a `period: day` max of a resetting sensor repeats the previous day (`docs/off-host-access.md`)
+
+- **Bill** (2026-10-24): "add A note in docs/off-host-access.md, next to its sibling trap (/api/history/period silently returning one day)."
+- **`docs/off-host-access.md`:** one bullet, placed straight after the `/api/history/period` one-day bullet. The hourly compile includes the state in effect at each hour's start [S: core 2026.10.2 `homeassistant/components/sensor/recorder.py` 569-574], so the 00:00 bucket carries yesterday's final total into today's day max. The bullet gives the read that works (hourly, local time, drop 00:00, max of 01-23) and says not to change `state_class`.
+- **Found while writing it:** `_month` sensors have the same trap on the 1st, and history_stats is not the cause. `sensor.hvac_ac_runtime_month` is a template sensor, and its day max for 10-01 reads 20.82 (September's total) while its hourly rows read 0.0 from 01:00 [M].
+- **Error recorded (R13):** this session's first pass at the T6 Pro vs Ecobee cycle comparison used the day-period max, and 10-18 and 10-19 both came out 2.35 h / 10 cycles. Against the 23:59 capture slots for 10-17 to 10-23, the day max matched 4 of 7 days and the hourly read 7 of 7 [M, 0.15 min tolerance]. The comparison was redone on hourly rows.
+- **No config change:** the live dashboards show these sensors' current value through template cards, so nothing Bill sees was affected.
+- **Gate** (`docs/off-host-access.md`, `CHANGELOG.md`): see the verdicts in the session's final message; 1. SYNTAX n/a, no YAML edited; 2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines (0 NEW, 0 FIXED, 1 UNCHANGED); `check_provenance.py --all` 0 WARN; 3. DEPLOYED not run, since HA never loads `docs/`.
+- **Left open:** no reader script (`daily_totals.py`), as it was not asked for. The 68 mean-type statistic ids with a `_today`/`_daily`/`_month[ly]` suffix [M] are not yet sorted into resetting accumulators and ratios, so it is not known how many share the trap.
+
 ## [2026.10.23] - 2026-10-23
 
 ### Fireplace results written into the reference docs: the Family Room CT's note, a baselines note, the fireplace in CLAUDE.md's Home list
