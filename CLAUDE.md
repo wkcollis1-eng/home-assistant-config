@@ -298,6 +298,8 @@ every compaction, and WARNs (R8) when it was stale or missing.
   until 2026-10-15, which read the Navien therms as CCF)
 - Navien NPE-240A2 NG DHW (Bill, 2026-10-21; warranty registration, installed 2021-11-17;
   was "NPE-240S2" here until then), gas range, 120V washer
+- Heat & Glo SL-7X-IFT-TG 36" direct-vent NG fireplace, great room, automatic blower (Bill,
+  2026-10-23; order S3004842 of 2021-04-19, rating plate not read). Burns: `open_questions.yaml`
 - Dehumidifier and computer on Kasa plugs
 - 16-CT SEM (Fusion Energy/Sense) whole-home monitor installed June 2026
 - Ecobee thermostats (replaced Honeywell T6 Pro, June 2026)

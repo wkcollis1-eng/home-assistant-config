@@ -1413,6 +1413,20 @@
     0 steps 23:00-04:59 on 14 nights, against 8 at 21:00, 3 at 22:00 and 4 at
     05:00 [M, same span]. The 21:00-06:00 above is superseded.
 
+    Rate clocked 2026-10-23 (Bill: "used the fireplace from about 7:15pm to
+    9:30 pm"): 21 consecutive +2 ft3 steps 19:16:56-21:26:25 EDT, furnace CT
+    at 14 W and Navien plug under 12 W throughout bar one 182 s 38 W episode
+    that did not shift the step phase. 40 ft3 in 7,769 s [M,
+    sensor.gas_meter_volume; decode gap median 31 s, max 152 s, n=305] is
+    18.5 ft3/h [D: 40 / 7769 x 3600], 0.185 CCF/h, about 19,200 BTU/h input
+    [D: x 1,037 BTU/ft3, docs/baselines.md 103,700 BTU/CCF]. One burn, flame
+    setting not recorded, so the baseline's 0.5 CCF/h (52 CCF at ~100 h,
+    baseline-repo/CLAUDE_Monthly_Report.md) is not changed on it. The
+    signature for the winter split: one +2 ft3 step every 6.47 min [M: sd
+    0.68, n=20 intervals] with every other gas load idle. Whether the +41 W
+    on sensor.sem_family_room_power that matched the burn is the blower is
+    asked in the 2026-10-23 entry below.
+
 - asked: 2026-09-23
   question: >-
     Does the furnace's condensate drain to the same condensate pump as the
@@ -2550,3 +2564,113 @@
     and 13:00-19:59 is 0.65 h for the month [M], which bounds it there only;
     the pump's draw is not known, so its share inside the recirc windows is
     unmeasured.
+
+- asked: 2026-10-23
+  question: >-
+    Is the ~40 W that came on with the fireplace on 10-23 the fireplace
+    blower, on the Family Room circuit (switch the blower on and off with the
+    flame out and tell me the times)? What are the fireplace's make/model and
+    rating-plate input BTU/h, high and low, and which setting did it burn at?
+    Is the main-floor Ecobee in the fireplace room?
+  blocks: >-
+    (1) sensor.sem_family_room_power as a fireplace-on signal for the winter
+    four-state gas split: "nothing is built on it" (2026-09-23 entry above)
+    until the circuit is tested. On 10-23 it stepped +41 W at 19:13 and
+    -37 W at 21:42 EDT [M, 60 s medians each side]; medians 110 W before and
+    after, 152 W during [M, n=634 / 3,321 / 587 samples]; a +30 W step
+    21:37:36-21:39:06 is unexplained. (2) Any change to the fireplace's
+    0.5 CCF/h or 3.6 MMBTU terms (docs/baselines.md, Building UA) on the
+    clocked 18.5 ft3/h [D, entry above]: the plate says which setting that
+    was, and the 65-70 % efficiency [I: no model named, R16] in
+    baseline-repo/BASELINE_REPORT.md cannot be checked without it. (3) Reading
+    the main floor's +1.44 F on 10-23 (HomeKit 67.28 F at 19:13 to 68.72 F at
+    21:13 [M]) as a floor-wide figure rather than one room's: there are no
+    Ecobee remote sensors, so it is the thermostat's own.
+  answered: >-
+    2026-10-23, Bill: "should see blower on flame out about 9:30pm and after
+    for ~10 minutes.Low setting tonight which is what we typically use, blower
+    on low as well. we have a great room; famil room with fireplace, eating
+    area then kiten. layout is in a pdf A101." He attached the 2021-04-19 order
+    acknowledgement (Superior Hearth S3004842: "SL-7X-IFT-TG HEAT-N-GLO 36" D/V
+    NG FIREPLACE", variable speed blower, IFT touch remote) and sent A101
+    (OneDrive/Documents/East Hampton Home/20210216121002066.pdf).
+
+    PARTIAL - re-asked below (R14). (1) The circuit: the 10-23 trace has four
+    edges, not two [M, sensor.sem_family_room_power, 2 s samples, 30 s
+    medians]: +6 W at ~19:10:30 (flame on); the fan 3 min later at 19:13:30,
+    the "three minute delay timer before the fan is turned ON" [S: Heat & Glo
+    2472-981 Rev. B 9/17, p.21]; -7 W at ~21:30:30 (flame out, Bill's "about
+    9:30pm"); fan off at 21:42:30, 12 min later (Bill's "~10 minutes") [M].
+    Blower on low, two independent segment estimates [D: segment medians]:
+    +34.9 W with the flame [D: bootstrap 95% CI +33.0..+36.4, n=3,226 vs 57]
+    and +33.6 W after it [D: 95% CI +32.5..+35.5, n=221 vs 287]. The CIs treat
+    serially correlated samples as independent, so they are too narrow; the
+    two segments agreeing is the evidence. A further +6.0 / +8.1 W [D] rides
+    with the flame, not the fan: what draws it is [I] (IFT control, electric
+    embers; falsified if it stays with the remote's ember light off). So the
+    "~41 W" in the blocks above is blower plus flame-on. The +30 W at
+    21:37:36-21:39:06 coincides with a Navien fire (plug 117-128 W, gas step
+    at 21:39 [M]); the CT rose ~24 W [D] against the plug's ~112 W [D], so it
+    is not the Navien's own load; cause open, not chased.
+
+    (2) The setting: low, the usual, so the clocked 18.5 ft3/h (2026-09-23
+    entry above) is the typical-use rate [D]. The model is the order's, not
+    the plate's: owner's manual 2472-981 Rev. B 9/17, section 2.C "BTU
+    Specifications", p.6, rates SL-7X-IFT (NG, 0-2000 ft) at 30,500 BTU/h
+    maximum and 16,500 minimum, orifice #51 [S]; it lists SL-7X-IFT without
+    the -TG suffix, so for this house the figures are [I] until the plate is
+    read (R16). The clocked ~19,200 BTU/h [D] is 2,700 BTU/h above that
+    minimum [D]; whether "low" is the remote's lowest step is not known. The
+    manual gives no efficiency, so BASELINE_REPORT.md's 65-70 % stays [I].
+
+    (3) The room: A101's 1st floor shows the kitchen open to the living room
+    (Bill's great room), with a dining room, powder room, foyer and stair
+    beside them. No thermostat is drawn, so where the Ecobee hangs is
+    re-asked below.
+
+- asked: 2026-10-23
+  question: >-
+    Re-asked from the entry above (R14). Where is the main-floor Ecobee
+    mounted - on a wall of the great room (which wall), or in the foyer,
+    stair hall or dining room? And is the fireplace blower always on when the
+    fire is lit, or only some of the time?
+  blocks: >-
+    (1) Reading the main floor's +1.44 F on 10-23 [M, entry above] as the
+    great room's or the whole floor's, and any fireplace-displaces-furnace
+    reading of the main floor's heat calls. (2) Using the blower's ~34 W step
+    on sensor.sem_family_room_power [D, entry above] as a fireplace-hours
+    counter, for the winter four-state gas split and for the baseline's
+    ~100 h a year: if the blower is sometimes off, fan-hours undercount burns.
+  answered: >-
+    2026-10-23, Bill: "1. south wall (facing the great room) just before the
+    hall way to the front door. 2. blower is autom comes on based on unit
+    reaching temp.  low is lowest setting."
+
+    (1) The thermostat faces the great room, the room the fireplace heats, so
+    the +1.44 F on 10-23 [M, entry above] is that room's reading at the
+    thermostat, not a floor-wide figure; the dining room and foyer are not
+    measured. That a burn suppresses the main floor's heat calls is [I],
+    falsified if a winter burn leaves the main floor's heat-call rate
+    unchanged against unburned evenings at matched outdoor temperature.
+    Nothing is built on it.
+
+    (2) The blower is automatic. Bill describes it as coming on once the unit
+    is hot; the manual does that with two timers: "A built-in delay timer
+    will turn the fan on three minutes after your appliance has been running
+    ... If the flame is turned off with the fan ON, the fan will continue to
+    run for 12 minutes then shutdown as long as the flame stays off" [S:
+    2472-981 Rev. B 9/17, "Fan Speed", PDF p.32; for this house [I], R16,
+    entry above]. The 10-23 edges match both at 30 s resolution: fan on
+    3 min after the flame, off 12 min after it [M, n=1 burn]. So every burn
+    longer than 3 min runs the fan, and fan time is burn time plus about
+    9 min per burn [D: 12 - 3]; the flame's own +6-8 W edge [D, entry above]
+    marks the burn directly. The ~34 W step can therefore count fireplace
+    hours for the winter four-state split and the baseline's ~100 h a year.
+    Not built.
+
+    (3) Low is the lowest flame, so the clocked ~19,200 BTU/h [D, 2026-09-23
+    entry above] is the minimum flame, 2,700 BTU/h above the manual's
+    16,500 BTU/h minimum [D; that minimum is [I] for this house, R16]. The
+    gap is not explained; the rating plate's model line and input would say
+    whether the -TG's minimum differs. Nothing waits on it: the gas split
+    uses the clocked rate, not the rating.

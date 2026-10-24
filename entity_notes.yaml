@@ -1010,6 +1010,9 @@ sensor.recommended_setback_depth:
 sensor.sem_ac_current:
   group: SEM METER (packages/sem_meter.yaml)
   note: ''
+sensor.sem_family_room_power:
+  group: SEM METER (packages/sem_meter.yaml)
+  note: Family Room circuit; carries the fireplace blower, ~34 W on low [D], on 3 min after ignition and off 12 min after flame-out, plus 6-8 W [D] while lit (2026-10-23, open_questions.yaml); the ~110 W [M] base is other loads, unidentified
 sensor.sem_line_voltage:
   group: SEM METER (packages/sem_meter.yaml)
   note: ''

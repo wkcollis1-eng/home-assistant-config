@@ -349,6 +349,7 @@ sensor.water_overnight_min_mean_7d              the TREND - this is the instrume
 
 ```
 sensor.sem_ac_current
+sensor.sem_family_room_power       Family Room circuit; carries the fireplace blower, ~34 W on low [D], on 3 min after ignition and off 12 min after flame-out, plus 6-8 W [D] while lit (2026-10-23, open_questions.yaml); the ~110 W [M] base is other loads, unidentified
 sensor.sem_line_voltage
 sensor.sem_other_power             whole_home minus branch sum
 sensor.sem_whole_home_power_10min  matched partner for utility_electric_power_clean

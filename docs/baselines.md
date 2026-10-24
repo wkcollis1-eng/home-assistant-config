@@ -17,6 +17,17 @@ THERMS. As CCF it is 212.9 [D: 220.7775 x 0.9643], so 2025 space heat is
 DHW/heating ratio 28.1/71.9% -> 27.1/72.9% [D]. The helpers and `initial:`
 again hold the same numbers; CHANGELOG [2026.10.15] has the derivation.
 
+2026-10-23 (measured, NOT a rebase; no value below changed): the "3.6 MMBTU
+fireplace" in the UA line rests on an estimate of 52 CCF a year, 0.5 CCF/h
+for ~100 h [I: baseline-repo/CLAUDE_Monthly_Report.md calls it an estimate].
+One burn clocked 2026-10-23 at the lowest flame, Bill's usual setting, ran
+0.185 CCF/h [D: 40 ft3 in 7,769 s, sensor.gas_meter_volume]; 0.5 CCF/h is
+also above the manual's maximum input, 0.294 CCF/h [D: 30,500 BTU/h /
+103,700; the rating is [I] for this house, R16]. The hours a year are
+unmeasured; the blower's step on sensor.sem_family_room_power can now count
+them (open_questions.yaml, 2026-10-23). The term stands until they are
+counted, and changing it is Bill's call.
+
 ```
 Building UA:          593 BTU/hr-°F (the ua_12m formula on 2025: 574.1 CCF,
                       3.6 MMBTU fireplace, BDL HDD59 4,230 [D]; was 585 on
