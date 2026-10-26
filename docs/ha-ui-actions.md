@@ -17,7 +17,7 @@ response pane AND as a notification, and each carries the
 |---|---|
 | **Run ALL HA Config Checks** (`script.ha_run_all_checks`) | audit + self-tests + coverage, in order, reporting each separately |
 | Run HA Audit (`script.ha_audit`) | `ha_audit.py --json` |
-| Run Config Gate (`script.ha_gate`) | `gate.py` — steps 1/1b/2/2b |
+| Run Config Gate (`script.ha_gate`) | `gate.py` — runs steps 1/2/2b; names 1b, 2c and 3-5 NOT RUN |
 | Run HA Audit Self-Tests (`script.ha_audit_tests`) | `test_ha_audit.py` both directions |
 | HA Audit — Rule Coverage (`script.ha_audit_log_stats`) | which rules have never fired AND have no injector |
 | Run Provenance Check (`script.ha_provenance`) | R17, git-free mode |

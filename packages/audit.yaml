@@ -106,8 +106,8 @@ shell_command:
 
   # --- the rest of the toolchain, runnable from the UI (2026-08-25) -------
   # Each is plain text out, surfaced in the Actions response pane and in a
-  # notification. None of them writes to the config: gate.py runs steps 1/1b/
-  # 2/2b only, and check_provenance.py --all is read-only by construction.
+  # notification. None of them writes to the config: gate.py runs steps 1/2/2b
+  # only, and check_provenance.py --all is read-only by construction.
   #
   # new_pipeline.py is deliberately ABSENT. It is the one script that mutates
   # automations.yaml and pipelines.yaml, and a one-click button for that in a

@@ -236,6 +236,12 @@ does not run either) was numbered into the list as step 2c. As it stood:
     (corrected 2026-10-04 - this said "1, 1b, 2 and 2b"; gate.py's 1b is
     py_compile)
 
+On 2026-10-26 gate.py's py_compile stage was relabelled `1. SYNTAX   py_compile`, so
+1b means ENTITIES in gate.py too, and its verdict block names 1b and 2c NOT RUN. The
+same day the gate paragraph's "stops at the first failure" was corrected: gate.py
+has no early exit and runs every step after one fails [M: n=1 sandbox run, validate_ha
+and py_compile both failing - step 2 still ran].
+
 ### DEFINITION OF DONE - rules that carry over; STEP 0 (merged into OUTPUT FORMAT)
 
 ### Rules that carry over from 2026-08-22

@@ -20,6 +20,13 @@ STEPS 3-5 ARE NOT HERE ON PURPOSE. check_config, reload and observe all touch
 the live instance, and R12 says confirm before acting outward. This script is
 safe to run at any time against any tree; it never writes to Home Assistant.
 
+1b AND 2c ARE NOT RUN EITHER, BUT THE BLOCK NAMES THEM (R8). gen_reference.py
+writes files, and check_provenance.py --all is the separate R17 verdict CLAUDE.md
+asks for. Until 2026-10-26 the block was silent on both, its step-1 line read
+"n/a - no YAML edited" when py_compile had run (pass or fail), a misspelled
+file was dropped without a word, and py_compile was labelled "1b" - the number
+CLAUDE.md gives ENTITIES.
+
   python3 scripts/gate.py configuration.yaml packages/spc.yaml
   python3 scripts/gate.py --baseline .audit_baseline.json <files>
 
@@ -58,6 +65,7 @@ def main():
     a = ap.parse_args()
 
     files = [f for f in a.files if os.path.exists(f) or os.path.exists(P(f))]
+    missing = [f for f in a.files if f not in files]
     yamls = [f for f in files if f.endswith(YAML_EXT)]
     pys = [f for f in files if f.endswith(".py")]
     # test_ha_audit.py added 2026-08-25, found by this gate reporting
@@ -82,8 +90,9 @@ def main():
         verdicts.append("n/a - no YAML edited")
 
     if pys:
-        rc, _ = run([sys.executable, "-m", "py_compile"] + pys, "1b. SYNTAX  py_compile")
+        rc, _ = run([sys.executable, "-m", "py_compile"] + pys, "1. SYNTAX   py_compile")
         failed |= rc != 0
+        verdicts[0] += "; py_compile %s (%d .py)" % ("ok" if rc == 0 else "FAILED", len(pys))
 
     # ---- 2. SEMANTIC ----------------------------------------------------
     rc, out = run([sys.executable, P("scripts", "ha_audit.py"),
@@ -107,9 +116,16 @@ def main():
     # ---- the block, generated -------------------------------------------
     print("\n" + "=" * 66)
     print("Gate:")
+    if missing:
+        print("  NOT CHECKED  %s - not found (deleted, or a typo?)" % ", ".join(missing))
     print("  1. SYNTAX    %s" % verdicts[0])
+    print("  1b. ENTITIES NOT RUN - scripts/gen_reference.py if an entity, automation")
+    print("              or package moved; step 2 FAILs a stale generated doc")
     print("  2. SEMANTIC  %s" % verdicts[-2])
     print("  2b. RULES    %s" % verdicts[-1])
+    print("  2c. RATIOS   NOT RUN - scripts/check_provenance.py --all %s"
+          % (" ".join(files) or "<the files you edited>"))
+    print("              it must read 0 WARN (R17)")
     print("  3. DEPLOYED  NOT RUN - POST /api/config/core/check_config yourself;")
     print("              it must read \"valid\" AND warnings null")
     print("  4. RELOAD    NOT RUN")

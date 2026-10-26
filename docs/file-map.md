@@ -53,9 +53,9 @@ scripts/
 ├── setback_csv.py              Setback recovery CSV logging
 ├── daily_energy_export.py      Energy CSV export to www/energy/
 ├── gate.py                     THE DEFINITION OF DONE GATE, as one command.
-│                               Runs steps 1/1b/2/2b in order, stops at the
-│                               first failure, and GENERATES the verdict block.
-│                               Steps 3-5 stay manual - they touch the live
+│                               Runs steps 1/2/2b in order - all of them, even
+│                               past a failure - and GENERATES the verdict block,
+│                               naming 1b, 2c and 3-5 NOT RUN. 3-5 touch the live
 │                               instance (R12). Use this, not the four separate
 │                               invocations; the sequence used to be written out
 │                               in three places here and had already drifted.

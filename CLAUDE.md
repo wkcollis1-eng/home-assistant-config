@@ -311,7 +311,7 @@ from the HA UI with no terminal: `docs/ha-ui-actions.md`.
 ### The gate
 
 **Run `python3 scripts/gate.py <edited files>`.** It runs steps 1 (with
-py_compile), 2 and 2b in order, stops at the first failure, and PRINTS THE
+py_compile), 2 and 2b in order - every one, even after a failure - and PRINTS THE
 VERDICT BLOCK - generated, not typed, which is the only reliable defence against
 the assurance-upgrade failure the verdict table exists to prevent. Steps 1b, 2c
 and 3-5 stay manual: gate.py never runs gen_reference.py or check_provenance.py,

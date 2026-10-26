@@ -100,6 +100,38 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### gate.py's verdict block names every step it does not run: 1b and 2c as NOT RUN, py_compile on step 1, a missing file (`scripts/gate.py`; step numbers in `docs/ha-ui-actions.md`, `docs/file-map.md`, `packages/audit.yaml` comment; `CLAUDE.md` and `docs/rules-history.md` corrected)
+
+- **Bill** (2026-10-26): "commit and fix gate.py's report", after tier B left the block silent on 1b and
+  the new 2c (R8).
+- **Defects in the generated block** [M, sandbox stubs]: (1) no line for 1b (gen_reference.py) or 2c
+  (check_provenance.py), so a session reading only the block saw no trace of either; (2) the step-1 line read
+  "n/a - no YAML edited" when py_compile had run, pass or fail, so a .py syntax error showed only as NOT READY
+  with no step named; (3) a named file that did not exist was dropped without a word, so a typo passed
+  vacuously; (4) py_compile ran under the label "1b. SYNTAX", the number CLAUDE.md gives ENTITIES.
+- **Change:** the block prints `NOT CHECKED <files>` when one is missing, `; py_compile ok|FAILED (N .py)` on
+  step 1, `1b. ENTITIES NOT RUN` naming gen_reference.py (step 2's `generated-doc-stale` FAILs a stale doc),
+  and `2c. RATIOS NOT RUN` with the exact `check_provenance.py --all <files>` line. The py_compile run label is
+  now `1. SYNTAX`. Exit codes and every other line unchanged; gate.py still runs nothing it did not run before.
+- **Docs naming gate.py's old step numbers** now read 1/2/2b: `docs/ha-ui-actions.md`, `docs/file-map.md`, the
+  `packages/audit.yaml` comment above `ha_gate`. **Corrected:** CLAUDE.md's gate paragraph and file-map said
+  gate.py "stops at the first failure"; it has no early exit and runs every step [M: n=1 stub run with
+  validate_ha and py_compile both failing - step 2 still ran]. Recorded in `docs/rules-history.md` beside the
+  10-04 note. CLAUDE.md +7 B, inside the tier B ledger row's band [D: 7 B x 0.47 tok/B = 3 tokens].
+- **R2/R7/R3 [M]:** `C:/sandbox/gate_1026/test_gate.py` runs the old and the new gate.py over 12 cases (clean
+  and failing YAML, .py, audit and suite, a missing file, no files, mixed) against stub scripts: 94 checks pass.
+  Exit codes are equal in all 12; the new lines appear in all 12 and in none of the old; NOT CHECKED appears
+  only when a file is missing and FAILED only when py_compile fails; with the new lines taken out the output
+  equals the old byte for byte; undoing the source edits gives the old gate.py byte for byte. R13: the first
+  run FAILed the source-undo check on the harness's own off-by-one (one newline kept), not on gate.py. Each doc
+  span occurs once and undoes to the original.
+- **Gate:** the new gate.py "PASS (parse-clean) + audit delta clean." (0 NEW, 0 FIXED, 1 UNCHANGED; 0 FAIL,
+  1 WARN, 2 INFO across 18 pipelines); check_provenance changed lines 0 WARN, `--all` 1 WARN =
+  `docs/rules-history.md:63`, which predates this change; check_config `"valid"`, errors null, warnings null.
+  No reload: the YAML change is a comment, and `shell_command.ha_gate` reads gate.py on each run.
+- **Open:** step 6 (ESPHome) has no line in the block, and gate.py hands any `.yaml` to validate_ha,
+  ESPHome firmware included.
+
 ### CLAUDE.md tier B: six rewordings, 26,916 -> 25,530 B; the 10-04 gate correction moved to `docs/rules-history.md` (no HA config change)
 
 - **Bill** (2026-10-26): "all six", after the per-candidate table and the diff
