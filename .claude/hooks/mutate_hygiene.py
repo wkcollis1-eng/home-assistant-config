@@ -95,6 +95,14 @@ MUT = [
         "",
     ),
     ("handler failure silent", 'if mode == "sessionstart":  # R8', "if False:  # R8"),
+    # 2026-10-26: task-end nudge on commit too, from NUDGE_MIN, text "new conversation"
+    ("nudge line 1K late", "NUDGE_MIN = 80_000", "NUDGE_MIN = 81_000"),
+    ("nudge line 1K early", "NUDGE_MIN = 80_000", "NUDGE_MIN = 79_000"),
+    ("stop nudge on MIN_CONTEXT", "ctx[0] < NUDGE_MIN", "ctx[0] < MIN_CONTEXT"),
+    ("commit not a task end", "(?:commit|push)", "(?:push)"),
+    ("commit-graph counted", "(?:commit|push)(?![\\w-])", "(?:commit|push)\\b"),
+    ("stop nudge says /clear", "start a new conversation", "/clear first"),
+    ("pause says /clear", "Send it in a new conversation", "/clear, then send it"),
 ]
 bad = 0
 for name, old, new in MUT:

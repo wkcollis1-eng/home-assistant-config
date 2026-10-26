@@ -103,6 +103,28 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### context_hygiene's task-end nudge fires on a commit too, from 80K, and says "new conversation", not "/clear" (`.claude/hooks/context_hygiene.py`, `test_hygiene.py`, `mutate_hygiene.py`; `docs/claude-code-enforcement.md`)
+
+- **Bill** (2026-10-26): "and the nudge change" - the item in `C:\sandbox\memory_check\DESIGN.md` that was
+  awaiting his pick.
+- **Defects:** (1) both of the hook's messages said `/clear`, but `/clear` skips the session-start audit (its
+  matcher is `startup|resume`), and Bill starts a new conversation; (2) the Stop nudge fired only after a
+  `git push`, which happened in 6 of 62 sessions over 14 d [M, DESIGN.md]. Most tasks end on a commit.
+- **Change:** the Stop nudge fires after a successful `git commit` or `git push` in the turn (`TASK_END`; not
+  `commit-graph`, `commit-tree` or `pushd`), from a new `NUDGE_MIN = 80_000`. `MIN_CONTEXT` (150K) is unchanged:
+  statusline.py imports it, and the idle pause still uses it. Both texts now say new conversation. The idle-pause
+  text is beyond DESIGN.md's literal "task-end nudge", changed because it carried the same defect.
+- **Basis for 80K [D, DESIGN.md]:** continuing costs 0.1 x C_irrelevant per call; a fresh start ~2 x (40K floor
+  + re-read R) once, so break-even N* = 20(F+R)/C. At 80K context C ~ 40K, N* ~ 20-25 calls, about a median
+  task (calls/session median 41 [M]).
+- **R2/R7 [M]:** `test_hygiene.py` 111 checks, FAILS: 0 (105 before): commit only at 482K fires; a failed commit,
+  `git commit-graph write`, 79,999 tokens and a push at 79K stay silent; exactly 80K fires; a push at 100K fires
+  (silent before today); both texts contain "new conversation" and not "/clear". `mutate_hygiene.py` 35 mutants
+  (28 before), MUTATIONS MISSED: 0. R3: 671 of 685 hook lines untouched [M: diff]. R13: my first commit-graph
+  mutant matched its anchor twice (the regex comment quotes it); the harness's count assert stopped it.
+- **Open:** the 80K line is arithmetic, not a measurement. Check in 14 d how often it fired and whether a new
+  conversation followed.
+
 ### Session start sizes MEMORY.md: over the 6,500 B budget, a line over 170 chars, or near the loader's 200-line / 25 KB cut prints one line (`.claude/hooks/ha_audit_gate.py`; new `test_memory_index_size.py`, `mutate_memory_index.py`; `docs/claude-code-enforcement.md`)
 
 - **Bill** (2026-10-26): "Build the memory size check per C:\sandbox\memory_check\DESIGN.md."

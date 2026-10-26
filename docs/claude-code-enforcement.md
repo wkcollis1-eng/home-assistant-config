@@ -127,9 +127,11 @@ in CHANGELOG.md under 2026.09.16.
 **A prompt that comes back "Paused once (context_hygiene)"** was stopped by this
 hook, not by a deny rule and not by the audit gate. The session sat idle past the
 prompt-cache TTL while carrying a large context. Send the same prompt again to
-continue, or `/clear` first if it is a new task. It pauses once per idle spell.
-After a turn with a successful `git push` it may also print a one-line `/clear`
-suggestion. That one never blocks.
+continue, or send it in a new conversation if it is a new task (not `/clear`,
+which skips the `startup|resume` audit hook). It pauses once per idle spell.
+After a turn with a successful `git commit` or `git push`, at 80K tokens or more,
+it may also print a one-line new-conversation suggestion. That one never blocks.
+(Until 2026-10-26 it fired on a push only, from 150K, and said `/clear`.)
 
 **It fails open, except in one case: python cannot open the script at all.**
 Any error inside the script exits 0 silently. A missing or renamed file makes
@@ -146,7 +148,7 @@ launcher that exits 0 when the file is missing; the four older ones do not. 2026
 now do, with every other hook entry - see "One hook launcher" below. A missing file now prints
 `HOOK MISSING` on each event instead of blocking it.)
 
-**Test:** `python .claude/hooks/test_hygiene.py` (105 checks since 2026-10-04, prints `FAILS: 0`), then
+**Test:** `python .claude/hooks/test_hygiene.py` (111 checks since 2026-10-26, prints `FAILS: 0`), then
 `python .claude/hooks/mutate_hygiene.py` (prints `MUTATIONS MISSED: 0`).
 Live: create `~/.claude/hooks/.state/arm_test`, and the next prompt pauses once.
 

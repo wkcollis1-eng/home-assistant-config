@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Say /clear at the two moments it saves the most. Only Bill can run it.
+"""Suggest a new conversation at the two moments it saves the most. Only Bill can start one.
 
 WHY THIS EXISTS. Measured 2026-09-16 over 7,685 API calls (Aug 21 - Sep 16):
 median context 330K tokens, 83% of calls over 150K. Re-reading the
@@ -12,9 +12,17 @@ the harness rather than the model.
                     MIN_CONTEXT: block the prompt ONCE. The prompt cache has
                     expired (1 h on a subscription), so sending it re-caches
                     the whole context. Send it again to continue anyway.
-  stop              The turn ran a successful `git push` AND context >=
-                    MIN_CONTEXT: print a one-line /clear suggestion. Never
-                    blocks - a push is where Bill's tasks end.
+  stop              The turn ran a successful `git commit` or `git push` AND
+                    context >= NUDGE_MIN: print a one-line new-conversation
+                    suggestion. Never blocks - a commit or push is where
+                    Bill's tasks end.
+
+CHANGED 2026-10-26. Both messages said "/clear". Bill's SOP is a new
+conversation: /clear skips the session-start audit (its matcher is
+startup|resume), so the Stop gate has no baseline and blocks on every WARN.
+The task-end nudge fired on a push at >= 150K only - in 6 of 62 sessions over
+14 d [M, scratchpad nudge_scan.py] - so it now fires on a commit too, from its
+own NUDGE_MIN (MIN_CONTEXT is unchanged: statusline.py imports it).
 
 FAILS OPEN. Any error -> exit 0, no output. This is a cost nudge, not a safety
 gate; it must never be the reason a prompt cannot be sent.
@@ -76,13 +84,19 @@ from datetime import datetime
 
 IDLE_MIN = 60
 MIN_CONTEXT = 150_000
+# The task-end nudge line, not MIN_CONTEXT. Basis [D]: carrying on costs ~0.1 x
+# C_irrelevant per call (cache reads); a fresh start [D] ~2 x (40K floor + re-read R)
+# once, so break-even N* = 20(F+R)/C. At 80K, C ~ 40K and N* ~ 20-25 calls, about
+# one median task (calls/session median 41 [M, 14 d]). Not measured on a task.
+NUDGE_MIN = 80_000
 TAIL_BYTES = 4 << 20
 STATE_DIR = os.environ.get("CONTEXT_HYGIENE_STATE") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), ".state"
 )
 STATE = os.path.join(STATE_DIR, "context_hygiene.json")
 ARM = os.path.join(STATE_DIR, "arm_test")
-PUSH = re.compile(r"\bgit\b[^\n|;&]*\bpush\b")
+# (?![\w-]): not `git commit-graph`, `git commit-tree`, `pushd`.
+TASK_END = re.compile(r"\bgit\b[^\n|;&]*\b(?:commit|push)(?![\w-])")
 # Auto-compaction fires at the window minus TRIGGER_GAP. Smallest preTokens of an
 # auto compaction [M]: 166,234 at a 200K window (n=101, 09-23..10-04) and 367,328
 # at 400K (n=4, 09-16..09-23) - a fixed gap of 32.7-33.8K, not a ratio.
@@ -208,15 +222,15 @@ def on_prompt(inp):
         "reason": (
             "Paused once (context_hygiene): idle %s%d min, carrying %dK tokens. "
             "The prompt cache has expired, so this prompt would re-cache all %dK. "
-            "New task? /clear, then send it - the work is in the commits, "
-            "CHANGELOG and memory. Same task? Send it again to continue here."
+            "New task? Send it in a new conversation - the work is in the "
+            "commits, CHANGELOG and memory. Same task? Send it again to continue here."
             % ("%d h " % h if h else "", m, tokens // 1000, tokens // 1000)
         ),
     }
 
 
-def pushed_this_turn(recs):
-    """True if a git push succeeded after the newest real user prompt."""
+def task_end_this_turn(recs):
+    """True if a git commit or push succeeded after the newest real user prompt."""
     start = 0
     for i in range(len(recs) - 1, -1, -1):
         r = recs[i]
@@ -239,7 +253,7 @@ def pushed_this_turn(recs):
             if (
                 b.get("type") == "tool_use"
                 and b.get("name") in ("Bash", "PowerShell")
-                and PUSH.search(str((b.get("input") or {}).get("command", "")))
+                and TASK_END.search(str((b.get("input") or {}).get("command", "")))
             ):
                 pushes.add(b["id"])
             elif (
@@ -264,13 +278,13 @@ def on_stop(inp):
         }
     recs = tail_records(inp["transcript_path"])
     ctx = last_context(recs)
-    if not ctx or ctx[0] < MIN_CONTEXT or not pushed_this_turn(recs):
+    if not ctx or ctx[0] < NUDGE_MIN or not task_end_this_turn(recs):
         return None
     return {
         "systemMessage": (
-            "Pushed, and this session carries %dK tokens. If the next request is "
-            "a new task, /clear first - the work is in the commits. (context_hygiene)"
-            % (ctx[0] // 1000)
+            "Committed or pushed, and this session carries %dK tokens. If the next "
+            "request is a new task, start a new conversation - the work is in the "
+            "commits. (context_hygiene)" % (ctx[0] // 1000)
         )
     }
 

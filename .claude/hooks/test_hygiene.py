@@ -122,6 +122,7 @@ def text(got):
         h.get("additionalContext")
         or h.get("permissionDecisionReason")
         or (got or {}).get("reason")
+        or (got or {}).get("systemMessage")
         or ""
     )
 
@@ -191,6 +192,8 @@ check(
     "idle 2h, exactly 150K -> block",
     run("userpromptsubmit", [asst(2 * H, 150_000)], sid="s3b"),
     "block",
+    has=("new conversation",),
+    lacks=("/clear",),
 )
 check(
     "idle 59 min, 480K -> allow",
@@ -282,7 +285,68 @@ turn = [
     result("t1"),
     asst(0, 482_000),
 ]
-check("pushed OK this turn, 482K -> message", run("stop", turn), "message")
+check(
+    "pushed OK this turn, 482K -> message",
+    run("stop", turn),
+    "message",
+    has=("new conversation",),
+    lacks=("/clear",),
+)
+check(
+    "committed, no push, 482K -> message",
+    run(
+        "stop",
+        [
+            user("go"),
+            push_call("c1", "git commit -m x"),
+            result("c1"),
+            asst(0, 482_000),
+        ],
+    ),
+    "message",
+)
+check(
+    "commit failed (is_error) -> silent",
+    run(
+        "stop",
+        [
+            user("go"),
+            push_call("c2", "git commit -m x"),
+            result("c2", err=True),
+            asst(0, 482_000),
+        ],
+    ),
+    None,
+)
+check(
+    "'git commit-graph write' not a commit -> silent",
+    run(
+        "stop",
+        [
+            user("go"),
+            push_call("c3", "git commit-graph write"),
+            result("c3"),
+            asst(0, 482_000),
+        ],
+    ),
+    None,
+)
+check(
+    "committed, exactly 80K -> message",
+    run(
+        "stop",
+        [user("go"), push_call("c4", "git commit -m x"), result("c4"), asst(0, 80_000)],
+    ),
+    "message",
+)
+check(
+    "committed, 79,999 -> silent",
+    run(
+        "stop",
+        [user("go"), push_call("c5", "git commit -m x"), result("c5"), asst(0, 79_999)],
+    ),
+    None,
+)
 check(
     "PowerShell git -C push -> message",
     run(
@@ -332,12 +396,20 @@ check(
     None,
 )
 check(
-    "pushed, 100K -> silent",
+    "pushed, 79K -> silent",
     run(
         "stop",
-        [user("go"), push_call("t7", ctx=100_000), result("t7"), asst(0, 100_000)],
+        [user("go"), push_call("t7", ctx=79_000), result("t7"), asst(0, 79_000)],
     ),
     None,
+)
+check(
+    "pushed, 100K -> message (was silent below 150K until 2026-10-26)",
+    run(
+        "stop",
+        [user("go"), push_call("t7b", ctx=100_000), result("t7b"), asst(0, 100_000)],
+    ),
+    "message",
 )
 check(
     "stop_hook_active -> silent",
@@ -994,9 +1066,9 @@ for p in (files[-1], max(files, key=os.path.getmtime)):
     t0 = time.time()
     recs = ch.tail_records(p)
     ctx = ch.last_context(recs)
-    pushed = ch.pushed_this_turn(recs)
+    pushed = ch.task_end_this_turn(recs)
     print(
-        f"  {os.path.getsize(p) / 1e6:5.1f} MB  {os.path.basename(p)[:8]}  ctx={ctx and ctx[0] // 1000}K  idle={ctx and int((time.time() - ctx[1]) // 60)} min  pushed_this_turn={pushed}  parse {1000 * (time.time() - t0):.0f} ms"
+        f"  {os.path.getsize(p) / 1e6:5.1f} MB  {os.path.basename(p)[:8]}  ctx={ctx and ctx[0] // 1000}K  idle={ctx and int((time.time() - ctx[1]) // 60)} min  task_end_this_turn={pushed}  parse {1000 * (time.time() - t0):.0f} ms"
     )
     t0 = time.time()
     b, rsp, au = ch.scan(p)
