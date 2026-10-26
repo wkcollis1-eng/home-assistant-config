@@ -40,8 +40,10 @@ def validate(val, name, lo, hi):
 
 def main():
     if len(sys.argv) != 7:
-        print(f"Usage: {sys.argv[0]} <zone> <hold> <setback> <start_temp> <recovery_min> <outdoor>",
-              file=sys.stderr)
+        print(
+            f"Usage: {sys.argv[0]} <zone> <hold> <setback> <start_temp> <recovery_min> <outdoor>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     zone = sys.argv[1].upper()
@@ -63,10 +65,15 @@ def main():
     degrees_to_recover = round(hold - start_temp, 1)
 
     if setback_degrees < 0.5:
-        print(f"Rejected {zone}: setback_degrees={setback_degrees} < 0.5", file=sys.stderr)
+        print(
+            f"Rejected {zone}: setback_degrees={setback_degrees} < 0.5", file=sys.stderr
+        )
         sys.exit(2)
     if degrees_to_recover < 0.1:
-        print(f"Rejected {zone}: degrees_to_recover={degrees_to_recover} < 0.1", file=sys.stderr)
+        print(
+            f"Rejected {zone}: degrees_to_recover={degrees_to_recover} < 0.1",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     min_per_degree = round(recovery_min / max(degrees_to_recover, 0.1), 1)
@@ -98,8 +105,11 @@ def main():
         print(f"Write failed for {zone}: {e}", file=sys.stderr)
         sys.exit(3)
 
-    print(f"OK {zone}: {setback_degrees}°F setback, {recovery_min} min recovery, "
-          f"{min_per_degree} min/°F", file=sys.stderr)
+    print(
+        f"OK {zone}: {setback_degrees}°F setback, {recovery_min} min recovery, "
+        f"{min_per_degree} min/°F",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":
