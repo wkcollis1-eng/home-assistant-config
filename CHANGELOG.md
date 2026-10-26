@@ -103,6 +103,49 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### Setback CSVs backfilled for the 10-05..10-26 nights: 8 rows 1F, 13 rows 2F (`reports/hvac_setback_1f.csv`, `reports/hvac_setback_2f.csv`)
+
+- **Bill** (2026-10-26, "3 yes"): backfill the 10-05..10-26 rows from history.
+- **Method:** `C:\sandbox\setback_1026_test\bf.py` (output `bf.out` beside it) works through every `setback_active`
+  on -> off interval in InfluxDB, change-only series at ms resolution.
+  - Nights that recovered: start, start_temp, hold and setback come from the live helpers' own history, and the end is
+    the first `recovering` off. Only E1's gate differs.
+  - E3 nights: it replays the hold re-baseline on the climate setpoint steps, then Recovery Start's template, then
+    Recovery End's 5 min band on the room sensor.
+  - Every row is written by the deployed `setback_csv.py` `main()` with its clock pinned to the end time (R10), so
+    the rounding and format are the live writer's.
+- **Validated before any write (R7) [M]:**
+  - Old gate: under `> 0`, the same code reproduces every existing row since the helper series begin (2F 07-12,
+    1F 07-18) byte for byte, outdoor value included. That is 1F 4 of 4 and 2F 15 of 15.
+  - Start replay, heating span: every actual recovery start is predicted within 3 s with the same start_temp, 1F 17
+    of 17 and 2F 17 of 18. The miss is the 10-23 08:20:14 HomeKit blip, which the 10-23 not-a-number guard now blocks.
+  - End replay, heating span: every actual Recovery End is predicted within 5 s, 1F 17 of 17 and 2F 18 of 18. The
+    worst error is 0.1 s.
+  - **Not established:** the start replay misses 2 of 24 (1F) and 8 of 51 (2F) summer cooling starts, unexplained,
+    several on whole minutes. It is not claimed for cooling, and no cooling night is backfilled.
+- **Appended** (append-only: each file's old bytes are an unchanged prefix [M, sha1]; CRLF kept, 9 columns):
+  - 1F, 8 rows, all 0.0 min: 10-06 06:05 (E3, hold 72 -> 67), 10-07, 10-09, 10-12, 10-16, 10-17, 10-19 and 10-24.
+  - 2F, 13 rows: 10-08, 10-09, 10-10, 10-11, 10-12, 10-16, 10-17 08:25, 10-19, 10-20 (E3), 10-21, 10-22 (E3),
+    10-25 and 10-26. 10-25 06:18 is E3 and the one real recovery: start 63 F, 3 F to recover, 13.4 min,
+    4.5 min/F [D: 13.4 / 3.0]. The other 12 are 0.0 min.
+  - 1F's rows land after its 10-26 06:07 row, so that file is now out of date order. 2F's follow 09-18 in order.
+    Nothing reads the tail: there is no `pipelines.yaml` entry and no audit rule [M, grep].
+- **No row, by the unchanged deployed gates [M]:**
+  - 1F 10-18, 10-20, 10-21, 10-22, 10-23, 10-25 and 2F 10-06 (E3), 10-07, 10-18, 10-24 mornings: start_temp equals the
+    hold, so `degrees_to_recover` < 0.5. Recovery Start reads the climate's whole-degree `current_temperature`, which
+    already read the hold while the fine sensor was below hold - 0.5.
+  - 2F 10-23: the only start was the 08:20:14 blip. With the 10-23 guard nothing starts.
+  - 10-12..10-14: no setback interval in either zone. The 2F setpoint sat at 60 from 10-12 22:18, and the room sensor
+    logged all three days.
+- **Withheld, 3 rows:** same-evening setbacks that the deployed logic would log at 0.0 min. These are the evening
+  jiggles left open in the entry below. An append-only file cannot take a row back. If Bill rules they are rows,
+  they can be appended as they stand:
+  `2026-10-11 21:14,66.0,64.0,2.0,65.0,1.0,0.0,0.0,49.9`, `2026-10-21 19:20,66.0,64.0,2.0,65.0,1.0,0.0,0.0,51.6`,
+  `2026-10-22 20:20,66.0,64.0,2.0,65.0,1.0,0.0,0.0,56.0` (2F).
+- **Limits (R11):**
+  - A 0.0 row means the room never left its end band, not that the setback cost nothing.
+  - The column stops at the first call, so it does not see the tail.
+
 ### A morning return below the captured hold now starts a recovery (`packages/hvac_performance.yaml`; `PACKAGES.md`, `AUTOMATIONS.md` regenerated)
 
 - **Bill** (2026-10-26, "2 yes"): when the morning return setpoint is below the evening's captured hold, start a
