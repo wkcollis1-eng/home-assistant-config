@@ -502,4 +502,3 @@ omission visible - except R14, which became a file on 2026-08-25 (see below).
 **resolve**, that alarms **can fire**, and that the manifest and the config still
 agree. A validator answers "is this well-formed"; the audit answers "does this
 mean what it claims".
-
