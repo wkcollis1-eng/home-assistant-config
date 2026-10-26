@@ -70,6 +70,7 @@ is calibrated against.
 | 2026-10-22 | **Navien panel, October**, read by `scripts/navien_xcheck.py --month 2026-10` after Save DHW (Navien) on 11-01. (a) The panel's gas (archive therm x 100,000 / 1030) lies inside the Navien range the script reports at default pads (Navien-only .. Navien-only + shared). (b) The panel's recirc hours are below the plug's time above the threshold, and its operating hours are below the plug's time from 20 W to the threshold. Basis [I, n=1]: September, where the panel's 844.7 ft3 sat inside 814-932, and its 17 h recirc and 11 h op were below the plug's 19.41 h and 12.48 h [M]. Falsified by (a) outside the range, or by either plug - panel difference at or below 0 in (b). Void if the slots are refused and no panel figures are given on the command line | yes - written 10-22, before October's panel figures exist; October's gas to 10-22 had been seen | pending - 2026-11-02 |
 | 2026-10-23 | **mmWave family: the lamps hold while the TV is on** (`binary_sensor.mmw_family_tv_on`, the `tv_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-11-06: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) while `binary_sensor.mmw_family_tv_on` reads `on`, leaving out any run by `mmw_family_daylight_off` (its logbook entry). Baseline: 16 in the 14.2 days before, 11 of them re-lit within 120 s [D: replay of the 50 W line over the recorder, 10-09..10-23]. (b) [I: the TV's background wake never reaches 50 W] no `mmw_family_tv_on` on-span that starts 3.5-4.5 h after the previous TV-off and lasts under 10 min, the wake's signature (24 spans, 7.7-8.8 min, peak 40.7-45.7 W [M]); on one, read the plug's peak inside it. (c) Every `mmw_family_tv_on` off-edge that finds a family lamp lit, the latch on, and every other condition of `&mmw_family_empty_conds` true is followed by a package lamp-off within 5 s (the `tv_quiet` release). Falsified by one (a), one (b) or one (c). Score from the recorder and the logbook | yes - written before the reloads | pending, due 2026-11-06 |
 | 2026-10-25 | **CLAUDE.md re-cut** (-3,196 B, applied 2026-10-25 ~22:35 EDT). From 2026-10-26 to 2026-11-01 the median first-call context of a fresh main-thread session falls by **1.0-2.0K tokens** from 40.2K (the 2026-10-25 rescore) [D: 3,196 B x 0.47 tok/B = 1.5K], after subtracting any MEMORY.md growth at the same rate. Falsified by a fall under 0.5K. Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-01 |
+| 2026-10-25 | **`doc_guard.py`** (PreToolUse: the first edit in `H:/dashboards/` or the hooks/settings is denied once until that area's doc is read; this rule live 2026-10-25 22:52 EDT). From 2026-10-26 to 2026-11-25, `doc_guard.log` holds **0** `error` lines and **1-8** `deny` + `deny-no-transcript` lines [D: 3 would-denies in 108 main-thread sessions 2026-08-01..10-25 [M, `C:/sandbox/doc_guard/replay.py`] x 130 sessions in 30 days at the 65-in-15-days pace since 10-11 [M] = 3.6], and after more of the denies than not, the same session's next line for that area is `allow-read`, not `allow-repeat` [I: the deny names the doc and says Grep it]. Falsified by any `error` line (fail-open is hiding a fault), by more than 8 denies (the trigger is wider than the replay: narrow it), or by `allow-repeat` >= `allow-read` after denies (a speed bump: retire it). Void at 0 denies. | yes | pending, due 2026-11-25 |
 
 **Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -97,6 +98,40 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.25] - 2026-10-25
+
+### Claude Code: `doc_guard.py` denies the first edit in `H:/dashboards/` or the hooks/settings until that area's doc is read (`~/.claude/settings.json`, `.claude/hooks/doc_guard.py` + `test_doc_guard.py` + `mutate_doc_guard.py` new, `.claude/hooks/test_hook_launcher.py`, `docs/claude-code-enforcement.md`)
+
+- **Bill** (2026-10-25): "apply all 3 recommendations". This is the second: a read-the-doc-first
+  hook for the two path triggers the CLAUDE.md re-cut (entry below) created.
+- **Change:** PreToolUse on Write/Edit/NotebookEdit. `H:/dashboards/` (not `lovelace/`) needs
+  `docs/dashboards.md`; `.claude/hooks/` and `.claude/settings[.local].json` under `~` or `H:` need
+  `docs/claude-code-enforcement.md`. The first edit in an area is denied once per session and
+  compaction unless the transcript since the last compaction holds a read of the doc; the repeat
+  runs. Fail-open; every outcome logged. Rules, limits and tests: the new `doc_guard.py` section of
+  `docs/claude-code-enforcement.md`.
+- **R13, three false accepts, each found by a test and fixed before this commit [M, n=1 each]:**
+  (1) the bare name in my own `python -c` counted as a read; (2) the first live probe Write to
+  `H:/dashboards/views/` RAN, because a checkpoint heredoc had quoted the doc's path - a shell
+  command now counts only when a read verb precedes the doc in the same segment, heredoc bodies cut;
+  on that transcript prefix the old hook runs the Write and the new one denies it; (3) the mutation
+  harness reran a cached `.pyc` for two mutants of equal length written in the same second, so a
+  mutant could read "caught" without having run - it now runs the suite with `-B`.
+- **Tests [M]:** `test_doc_guard.py` "ALL PASSED"; `mutate_doc_guard.py` "27/27 caught", each by
+  its intended check. `test_hook_launcher.py` gained a third Write payload for doc_guard (it is
+  silent on the other two, so its comparison was vacuous) and a fresh `DOC_GUARD_STATE` per run:
+  bare vs installed settings "16 real-hook comparisons; FAILS: 0"; pointing the new payload at an
+  unguarded path makes it FAIL as vacuous. pre-commit in the clone: ruff-format rewrote
+  `test_doc_guard.py` while printing Passed with exit 0 (the known trap); AST identical, formatted
+  text adopted, and a second run left all three files unchanged.
+- **Live [M, n=1 each]:** a Write to `H:/dashboards/views/doc_guard_probe.yaml` was denied; a Write
+  under `~/.claude/hooks/` after the enforcement doc was Read ran (`allow-read`). Both probe files
+  removed.
+- **Replay [M, 108 main-thread sessions 2026-08-01..10-25]:** 0 dashboards edits; 7 hooks/settings
+  edits in 3 sessions, 3 of which would have been denied. A backstop that rarely fires, and a Bash
+  write bypasses it.
+- **Cost [M]:** median 35 ms per edit outside the areas (n=15).
+- **Rollback:** `C:/sandbox/doc_guard/settings.orig.json`, the settings before the 13th entry. No HA
+  config change; check_config n/a.
 
 ### CLAUDE.md re-cut: three rarely-needed blocks moved verbatim into docs/ (no HA config change)
 

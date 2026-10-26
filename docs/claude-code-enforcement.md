@@ -305,7 +305,7 @@ script -> exit 0).
 
 ### One hook launcher for every entry (added 2026-10-18)
 
-All 12 hook entries in `~/.claude/settings.json` run `python -c <launcher> <mode>`,
+All 13 hook entries in `~/.claude/settings.json` run `python -c <launcher> <mode>`,
 not `python <script> <mode>`. Source: `H:/.claude/hooks/hook_launcher.py`. Its `CODE`
 is the launcher, and `python hook_launcher.py <in> <out>` rewrites a settings file
 after checking that the file round-trips.
@@ -332,12 +332,65 @@ after checking that the file round-trips.
   mutants, each of which must fail part 1. Part 3 runs every real hook under the old
   and new argv with the same payload, in a temp home. `ha_audit_gate.py` is skipped
   because it runs the live audit; the probe covers how its argv is passed.
+  Since 2026-10-25 `doc_guard.py` gets a third Write payload, a dashboards path:
+  it is silent on the other two, which made its comparison vacuous. Each run
+  gets its own `DOC_GUARD_STATE`, or the old argv's deny would turn the new
+  argv's run into an `allow-repeat`.
 - **Install, 2026-10-18 [M, n=12 comparisons]:** FAILS: 0 against the installed file.
   Only the 12 `args` lists changed, and reversing them gives the 7,420-byte file from
   before the install. That file is the rollback:
   `C:/sandbox/hook_launcher/settings.orig.json`. The auto-mode classifier blocked
   the install as Self-Modification despite Bill's authorisations in chat. It went
   in once Bill turned auto mode off.
+
+### `doc_guard.py` - read the area's doc before its first edit (added 2026-10-25)
+
+PreToolUse, matcher `Write|Edit|NotebookEdit`, the entry after `ha_guard.py`, launcher form.
+- **Why:** the 2026-10-25 re-cut moved two CLAUDE.md blocks into docs that are read
+  on a path trigger. A hook can check a path; a session after a compaction has to
+  remember one.
+- **Areas:** `H:/dashboards/` except `lovelace/` (`ha_guard.py` walls that) ->
+  `docs/dashboards.md`; `.claude/hooks/` and `.claude/settings[.local].json`, under
+  `~` or `H:` -> this file. The `/h/`, `/c/` and `//10.0.0.210/config/` forms match too.
+- **What it denies:** the first edit in an area per (session, area, compaction) when
+  nothing since the transcript's last `compact_boundary` read the doc. The repeat
+  runs, so no task is ever stuck behind it. A read is a Read or Grep whose path is
+  the doc, or a Bash/PowerShell command in which a read verb (`cat`, `sed`, `grep`,
+  `Get-Content`, ...) comes before the doc in the same `;`/`&`/`|`/newline segment,
+  any heredoc body cut off first. With no transcript it denies once
+  (`deny-no-transcript`).
+- **Errors:** fail-open, logged as `error`.
+- **State and log:** `~/.claude/hooks/.state/doc_guard_<sid>.json` (pruned after 7
+  days; `DOC_GUARD_STATE` overrides the directory); `doc_guard.log`, tab-separated
+  `deny` / `deny-no-transcript` / `allow-read` / `allow-repeat` / `error`.
+- **Limits:** a Bash write bypasses it, as it bypasses `ha_guard.py`. Any command
+  with a read verb beside the doc's path counts as a read, a commit message
+  included: it is a reminder, not a wall.
+- **Tests:** in `H:/.claude/hooks/`, `python test_doc_guard.py` -> "ALL PASSED" and
+  `python mutate_doc_guard.py` -> "27/27 caught". It mutates a temp copy and runs the
+  suite with `-B`: a cached `.pyc` once let two mutants of equal length run the same
+  bytecode.
+- **R13, three false accepts found before the commit [M, n=1 each]:** the bare name
+  `dashboards.md` in a `python -c` counted as a read (the needle is now
+  `docs/<name>`); a checkpoint heredoc that only quoted the doc let the first live
+  probe Write through (hence the read-verb rule; replayed on that transcript's
+  prefix, the old hook runs the Write and the new one denies it); and the mutation
+  harness's stale `.pyc`.
+- **Live, 2026-10-25 [M, n=1 each]:** a Write to `H:/dashboards/views/` was denied
+  with the guard's message; a Write under `~/.claude/hooks/`, after this file was
+  Read, ran and logged `allow-read`.
+- **Replay [M, `C:/sandbox/doc_guard/replay.py`, 108 main-thread sessions
+  2026-08-01..10-25]:** 0 dashboards edits before the install; 7 hooks/settings
+  edits in 3 sessions, 3 of which would have been denied, in 2 sessions. A backstop
+  that rarely fires.
+- **Cost [M]:** median 35 ms per edit outside the areas (n=15, min 32, max 56);
+  finding the doc in a 92.0 MB transcript took 75 ms (n=1).
+- **Install:** `C:/sandbox/doc_guard/make_settings.py` adds the bare entry,
+  `hook_launcher.py` rewrites it, and `--undo` gives back the 12,114-byte file from
+  before, which is the rollback: `C:/sandbox/doc_guard/settings.orig.json`. The
+  auto-mode classifier did not block the write this time.
+- **Scoring:** against the CHANGELOG prediction-ledger row for `doc_guard.py`, dated
+  2026-10-25, due 2026-11-25.
 
 ### `~/.claude/checkpoints/.markdownlint.json` (added 2026-10-04)
 
@@ -405,7 +458,7 @@ Most of R1-R14 are behavioural; these are the only mechanised levers:
 | lever | covers | where |
 |---|---|---|
 | `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
-| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction | `~/.claude/settings.json` + `~/.claude/hooks/` |
+| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction, and reading a moved doc before the first edit in its area (`doc_guard.py`) | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
 

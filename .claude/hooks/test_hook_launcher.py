@@ -134,6 +134,14 @@ payloads = {
             tool_name="Write",
             tool_input={"file_path": os.path.join(home, "scratch.txt"), "content": "x"},
         ),
+        # doc_guard.py (2026-10-25) is silent on both paths above; with the empty
+        # transcript this one is the deny that makes its comparison non-vacuous
+        dict(
+            base,
+            hook_event_name="PreToolUse",
+            tool_name="Write",
+            tool_input={"file_path": "H:/dashboards/views/x.yaml", "content": "x"},
+        ),
     ],
     ("PostToolUse", "Write|Edit"): [
         dict(
@@ -214,8 +222,14 @@ for ev in new_s["hooks"]:
                 continue
             outs = []
             for pl in payloads.get((ev, gn.get("matcher", "*")), []):
-                o = run(ho["args"], json.dumps(pl), env=env)
-                n = run(hn["args"], json.dumps(pl), env=env)
+                # fresh deny-once state per run, or doc_guard's old-argv deny
+                # turns the new-argv run into an allow-repeat
+                fresh = [
+                    dict(env, DOC_GUARD_STATE=tempfile.mkdtemp(dir=home))
+                    for _ in range(2)
+                ]
+                o = run(ho["args"], json.dumps(pl), env=fresh[0])
+                n = run(hn["args"], json.dumps(pl), env=fresh[1])
                 check(
                     f"  {name} {modes} payload {pl.get('tool_input', {}) or pl.get('hook_event_name')}: exit {o[0]}/{n[0]}, stdout equal",
                     o[:2] == n[:2],
@@ -223,10 +237,10 @@ for ev in new_s["hooks"]:
                 )
                 outs.append(o[:2])
                 compared += 1
-            if len(outs) == 2:
+            if len(outs) >= 2:
                 check(
-                    f"  {name}: the two payloads differ in outcome (comparison is not vacuous)",
-                    outs[0] != outs[1],
+                    f"  {name}: the payloads differ in outcome (comparison is not vacuous)",
+                    len(set(outs)) > 1,
                     outs,
                 )
 shutil.rmtree(home)
