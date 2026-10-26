@@ -103,6 +103,37 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### Session start sizes MEMORY.md: over the 6,500 B budget, a line over 170 chars, or near the loader's 200-line / 25 KB cut prints one line (`.claude/hooks/ha_audit_gate.py`; new `test_memory_index_size.py`, `mutate_memory_index.py`; `docs/claude-code-enforcement.md`)
+
+- **Bill** (2026-10-26): "Build the memory size check per C:\sandbox\memory_check\DESIGN.md."
+- **Why:** MEMORY.md loads into every session, and Claude Code loads only its first 200 lines or 25 KB
+  [S: code.claude.com/docs/en/memory.md:547]; past that, memories stop loading with no message. Nothing watched
+  its size. Today it is 5,803 B, 39 lines, longest line 167 chars [M: python over the live file, 10-26].
+- **Change:** `memory_index_size()` beside `deploy_drift()`, appended to the session-start output on the success
+  path only, and silent inside every cap. It prints `MEMORY INDEX OVER BUDGET: <bytes> B (budget 6,500), <n>
+  lines; lines > 170 chars: L5 (195), ...` when the total passes 6,500 B or any line passes 170 chars (decoded
+  chars, CR not counted, first 15 named), prefixed `MEMORY INDEX NEAR THE LOADER LIMIT` from 180 lines or
+  22,500 B. The fix it names follows the cap that fired: merge or delete memories for the total, never raise the
+  budget silently; move the fact into its topic file for a long line (memtrim pattern). A missing or unreadable
+  file, or any exception, prints one line `MEMORY INDEX CHECK DID NOT RUN: <reason>` (R8). Exit is always 0.
+  Path: `memory/MEMORY.md` beside the hook's `transcript_path`, else `HA_GATE_MEMORY`, else the C--Users-wkcol
+  path. Stdin is now read once (`hook_input()`), because `session_id()` and the path both need it.
+- **6,500 B is a budget, not a measurement:** it leaves about 4 average lines of headroom
+  [D: (6,500 - 5,803) / (5,803 / 39) = 4.7]. When it fires, cut memories.
+- **R2/R7 [M]:** `test_memory_index_size.py` 23 checks, FAILS: 0. It fires on a 171-char line, 6,501 B, 180
+  lines and 22,500 B; stays silent on 170 chars, exactly 6,500 B, 179 lines, 170 x 3-byte chars, CRLF and a copy
+  of the live file; prints DID NOT RUN on a missing file and on a directory; and runs end to end through
+  `sessionstart` with a stub audit. `mutate_memory_index.py` 13 mutants, MUTATIONS MISSED: 0. Regression on the
+  new gate: test_deploy_drift FAILS: 0, test_audit_baseline SUITE PASSED, mutate_audit_baseline 9 of 9 caught.
+  R3: 428 of 436 original lines untouched [M: diff].
+- **R13, two defects in my harness:** (1) the first mutation run reported 13 caught, but importlib's .pyc cache
+  is keyed on mtime + size, so a same-size mutant written in the same second ran the previous mutant's bytecode.
+  The test now compiles from source and each mutant gets its own file. (2) The "stdin re-read" mutant then hung
+  for 600 s on the harness's inherited stdin; the harness now passes `stdin=DEVNULL`.
+- **Open:** the live file is under budget, so the next session start proves only the silent direction. A session
+  started in another project (C:\repos\..., H:\) has no MEMORY.md beside its transcript and will print DID NOT RUN
+  at each start. All 109 transcripts to date are under C--Users-wkcol [M], so that has not happened yet.
+
 ### gate.py's verdict block names every step it does not run: 1b and 2c as NOT RUN, py_compile on step 1, a missing file (`scripts/gate.py`; step numbers in `docs/ha-ui-actions.md`, `docs/file-map.md`, `packages/audit.yaml` comment; `CLAUDE.md` and `docs/rules-history.md` corrected)
 
 - **Bill** (2026-10-26): "commit and fix gate.py's report", after tier B left the block silent on 1b and

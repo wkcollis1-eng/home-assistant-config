@@ -107,6 +107,15 @@ session-start output now names each deployed `*.py` that is `(differs)` or
 **To change any hook:** edit it in `C:\sandbox`, copy it to BOTH
 `H:/.claude/hooks/` and `~/.claude/hooks/`, then `cmp` the copies.
 
+**`memory_index_size()` sizes MEMORY.md at session start** (added 2026-10-26). It
+prints one line when the auto-memory index passes its 6,500 B budget, has a line
+over 170 chars, or nears the loader's 200-line / 25 KB cut (from 180 lines or
+22,500 B). It is silent otherwise, and prints `MEMORY INDEX CHECK DID NOT RUN`
+when it cannot read the file. It reads `memory/MEMORY.md` beside the session's
+transcript. The caps and their reasons are in the script's docstring. Tests:
+`python .claude/hooks/test_memory_index_size.py` (prints `FAILS: 0`), then
+`python .claude/hooks/mutate_memory_index.py` (prints `MUTATIONS MISSED: 0`).
+
 ### `context_hygiene.py` - the stale-session pause (added 2026-09-16)
 
 A token-cost hook, not a CLAUDE.md gate. It is wired twice in
@@ -479,7 +488,7 @@ Most of R1-R14 are behavioural; these are the only mechanised levers:
 | lever | covers | where |
 |---|---|---|
 | `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
-| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction, and reading a moved doc before the first edit in its area (`doc_guard.py`) | `~/.claude/settings.json` + `~/.claude/hooks/` |
+| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction, MEMORY.md's size at session start (`memory_index_size()`), and reading a moved doc before the first edit in its area (`doc_guard.py`) | `~/.claude/settings.json` + `~/.claude/hooks/` |
 | deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
 
 

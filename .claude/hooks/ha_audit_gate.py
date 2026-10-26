@@ -56,6 +56,15 @@ WHAT CHANGED 2026-10-11, and why
    lives in ha_audit.py once (R10), day-count churn included. Any FAIL still
    blocks, baselined or not. A missing or unreadable baseline blocks as before.
 
+WHAT CHANGED 2026-10-26, and why
+--------------------------------
+5. SESSION START ALSO SIZES MEMORY.md (memory_index_size). The index loads
+   into every session. It was trimmed 7,275 -> 4,783 B on 10-11, crept back to
+   6,846 B by 10-26 with 18 of 39 lines over 170 chars, and was re-trimmed to
+   5,803 B / longest line 167 that day [M]. Nothing watched the creep. Here,
+   not in ha_audit.py: the nightly host run has no memory dir. Spec and proof:
+   C:/sandbox/memory_check (DESIGN.md, test_memory_index_size.py).
+
 LOOP SAFETY. A blocking Stop hook that keeps blocking would wedge the session,
 and the original docstring's "a broken gate must never wedge a session" still
 holds. After MAX_BLOCKS consecutive blocks the gate downgrades itself to a
@@ -82,6 +91,28 @@ STATE = os.environ.get(
 )
 MAX_BLOCKS = 2
 BASELINE_DAYS = 30
+# MEMORY.md caps. 170 chars/line: the 10-26 trim brought every line to <= 167, and
+# the lines above 170 were the ones carrying facts [M]. 6,500 B is a budget, not a
+# measurement (~5 lines over 5,803 B): when it fires, merge or delete memories,
+# do not raise it silently. The hard line is under the loader's limit, "the first
+# 200 lines or 25KB" [S: code.claude.com/docs/en/memory.md:547]; past that,
+# memories silently stop loading.
+MEM_LINE_MAX = 170
+MEM_TOTAL_MAX = 6500
+MEM_HARD_LINES = 180
+MEM_HARD_BYTES = 22500
+# Used only when the hook input has no transcript_path.
+MEM_FALLBACK = os.environ.get(
+    "HA_GATE_MEMORY",
+    os.path.join(
+        os.path.expanduser("~"),
+        ".claude",
+        "projects",
+        "C--Users-wkcol",
+        "memory",
+        "MEMORY.md",
+    ),
+)
 _root = CONFIG.rstrip("/")
 WATCH = [
     _root + "/*.yaml",
@@ -161,15 +192,28 @@ def emit(obj):
     json.dump(obj, sys.stdout)
 
 
+_INPUT = None
+
+
+def hook_input():
+    """The hook's stdin JSON as a dict, {} if none. Read once and kept: stdin can
+    be read only once, and session_id() and memory_index_path() both need it."""
+    global _INPUT
+    if _INPUT is None:
+        _INPUT = {}
+        try:
+            if sys.stdin is not None and not sys.stdin.isatty():
+                data = json.load(sys.stdin)
+                if isinstance(data, dict):
+                    _INPUT = data
+        except (ValueError, OSError):
+            pass
+    return _INPUT
+
+
 def session_id():
     """This session's id from the hook's stdin JSON, filename-safe; '' if none."""
-    try:
-        if sys.stdin is None or sys.stdin.isatty():
-            return ""
-        data = json.load(sys.stdin)
-    except (ValueError, OSError):
-        return ""
-    sid = data.get("session_id") if isinstance(data, dict) else None
+    sid = hook_input().get("session_id")
     return re.sub(r"[^A-Za-z0-9_-]", "", str(sid or ""))[:80]
 
 
@@ -281,6 +325,71 @@ def deploy_drift():
         "copies in %s. One side is stale - re-copy before trusting what the "
         "hooks enforce." % (", ".join(drift), here, repo)
     )
+
+
+def memory_index_path():
+    """This project's MEMORY.md: <transcript dir>/memory/MEMORY.md, as Claude Code
+    lays it out, so a session started from another project checks its own index."""
+    tp = hook_input().get("transcript_path")
+    if tp:
+        return os.path.join(os.path.dirname(str(tp)), "memory", "MEMORY.md")
+    return MEM_FALLBACK
+
+
+def memory_index_size(path=None):
+    """A warning naming what is over the MEMORY.md caps, else ''.
+
+    Never raises (R8): any failure is one DID NOT RUN line, because a check that
+    could not look must not read like one that found nothing.
+    """
+    try:
+        path = path or memory_index_path()
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        rows = raw.decode("utf-8-sig", errors="replace").split("\n")
+        if rows and rows[-1] == "":
+            rows.pop()  # the final newline ends a line, it does not start one
+        size, n = len(raw), len(rows)
+        long = [
+            (i, len(r.rstrip("\r")))
+            for i, r in enumerate(rows, 1)
+            if len(r.rstrip("\r")) > MEM_LINE_MAX
+        ]
+        hard = n >= MEM_HARD_LINES or size >= MEM_HARD_BYTES
+        if not (hard or long or size > MEM_TOTAL_MAX):
+            return ""
+        named = ", ".join("L%d (%d)" % x for x in long[:15]) or "none"
+        if len(long) > 15:
+            named += " (+%d more)" % (len(long) - 15)
+        fix = []
+        if size > MEM_TOTAL_MAX or hard:
+            fix.append(
+                "merge or delete memories, stale project memories first - do not "
+                "raise the budget silently"
+            )
+        if long:
+            fix.append(
+                "move the fact into the topic file, keep a pointer + trigger "
+                "(memtrim pattern)"
+            )
+        msg = "MEMORY INDEX OVER BUDGET: {:,} B (budget {:,}), {} lines; lines > {} chars: {} - {}.".format(
+            size, MEM_TOTAL_MAX, n, MEM_LINE_MAX, named, "; ".join(fix)
+        )
+        if hard:
+            msg = (
+                "MEMORY INDEX NEAR THE LOADER LIMIT: {} lines / {:,} B. Claude Code "
+                "loads only the first 200 lines or 25 KB of MEMORY.md; past that, "
+                "memories silently stop loading. Cut it in this session. ".format(
+                    n, size
+                )
+                + msg
+            )
+        return "\n\n" + msg
+    except Exception as e:  # fail open, never silently (R8)
+        return (
+            "\n\nMEMORY INDEX CHECK DID NOT RUN: %s: %s - fix memory_index_size() in "
+            "ha_audit_gate.py, or the path it was given." % (type(e).__name__, e)
+        )
 
 
 def missing_audit_message():
@@ -426,7 +535,7 @@ def main():
                 "hookEventName": "SessionStart",
                 "additionalContext": "HA CONFIG AUDIT (ran automatically per CLAUDE.md SESSION PROTOCOL).\n"
                 "Read this verdict aloud in your first message and name every FAIL "
-                "and WARN:\n\n" + out + note + deploy_drift(),
+                "and WARN:\n\n" + out + note + deploy_drift() + memory_index_size(),
             }
         }
     )
