@@ -55,7 +55,10 @@ def main():
         hold = validate(sys.argv[2], "hold_setpoint", 55, 85)
         setback = validate(sys.argv[3], "setback_setpoint", 45, 85)
         start_temp = validate(sys.argv[4], "recovery_start_temp", 40, 85)
-        recovery_min = validate(sys.argv[5], "recovery_minutes", 0.1, 300)
+        # 0 is valid (2026-10-26): the zone never left its end band. The 0.1
+        # floor was a second copy of the automation's `> 0` gate and discarded
+        # the same rows; see hvac_1f_recovery_end in hvac_performance.yaml.
+        recovery_min = validate(sys.argv[5], "recovery_minutes", 0, 300)
         outdoor = validate(sys.argv[6], "outdoor_temp", -30, 110)
     except ValueError as e:
         print(f"Validation failed for {zone}: {e}", file=sys.stderr)

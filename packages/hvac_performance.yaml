@@ -4770,10 +4770,20 @@ automation:
                     level: warning
                     message: >
                       1F setback CSV append SKIPPED - ha_maintenance_mode is on. This recovery is not recorded and will not retry.
+          # Zero minutes IS a row (2026-10-26). A zone already inside its end
+          # band when the setpoint returns ends 5 min later, so recovery_minutes
+          # is 5 - 5 = 0. Until this date `> 0` (and setback_csv.py's 0.1 floor)
+          # discarded it: with the Ecobee's 2 F setbacks that was every 1F night
+          # 10-16..10-25 and 14 of 18 2F nights 10-05..10-26 [M, recorder +
+          # InfluxDB], so the CSV kept only nights that drifted past the band.
+          # 0 means "never left the band", not "no penalty" (CHANGELOG
+          # 2026.10.26). An unknown start time also reads as 0, so it is
+          # rejected by name. Same on 2F.
           - conditions:
               - condition: template
                 value_template: >
-                  {{ recovery_minutes | float(0) > 0 and
+                  {{ states('input_datetime.hvac_1f_recovery_start') not in ['unknown', 'unavailable'] and
+                     recovery_minutes | float(0) >= 0 and
                      recovery_minutes | float(0) <= 300 and
                      degrees_to_recover | float(0) >= 0.5 }}
             sequence:
@@ -4785,12 +4795,16 @@ automation:
               message: >
                 Skipped 1F setback CSV: recovery_min={{ recovery_minutes }},
                 deg_to_recover={{ degrees_to_recover }}
-      - service: input_boolean.turn_off
-        target:
-          entity_id: input_boolean.hvac_1f_recovering
+      # setback_active OFF FIRST (2026-10-26). In the other order the instant
+      # with recovering off and setback_active still on re-armed Recovery
+      # Start, so recovering came back on and sat until the 4 h stuck clear
+      # every morning, both zones, muting the short-cycle alert meanwhile [M].
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.hvac_1f_setback_active
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hvac_1f_recovering
   # --- RECOVERY END (2F) ---
   # 1.25°F threshold (cathedral ceiling asymptote)
   - id: hvac_2f_recovery_end
@@ -4846,10 +4860,12 @@ automation:
                     level: warning
                     message: >
                       2F setback CSV append SKIPPED - ha_maintenance_mode is on. This recovery is not recorded and will not retry.
+          # Zero minutes IS a row: see hvac_1f_recovery_end (2026-10-26).
           - conditions:
               - condition: template
                 value_template: >
-                  {{ recovery_minutes | float(0) > 0 and
+                  {{ states('input_datetime.hvac_2f_recovery_start') not in ['unknown', 'unavailable'] and
+                     recovery_minutes | float(0) >= 0 and
                      recovery_minutes | float(0) <= 300 and
                      degrees_to_recover | float(0) >= 0.5 }}
             sequence:
@@ -4861,12 +4877,13 @@ automation:
               message: >
                 Skipped 2F setback CSV: recovery_min={{ recovery_minutes }},
                 deg_to_recover={{ degrees_to_recover }}
-      - service: input_boolean.turn_off
-        target:
-          entity_id: input_boolean.hvac_2f_recovering
+      # setback_active OFF FIRST: see hvac_1f_recovery_end (2026-10-26).
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.hvac_2f_setback_active
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hvac_2f_recovering
 
   # ===============================================================
   # SELF-CORRECTION: Stuck-state safety valves
@@ -4930,12 +4947,13 @@ automation:
             start_temp={{ states('input_number.hvac_1f_recovery_start_temp') }},
             hold={{ states('input_number.hvac_1f_hold_setpoint') }},
             current={{ states('sensor.main_floor_current_temperature') }}
-      - service: input_boolean.turn_off
-        target:
-          entity_id: input_boolean.hvac_1f_recovering
+      # setback_active OFF FIRST: see hvac_1f_recovery_end (2026-10-26).
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.hvac_1f_setback_active
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hvac_1f_recovering
   - id: hvac_2f_recovery_stuck_clear
     alias: "2F Recovery Stuck Clear"
     trigger:
@@ -4953,12 +4971,13 @@ automation:
             start_temp={{ states('input_number.hvac_2f_recovery_start_temp') }},
             hold={{ states('input_number.hvac_2f_hold_setpoint') }},
             current={{ states('sensor.upstairs_current_temperature') }}
-      - service: input_boolean.turn_off
-        target:
-          entity_id: input_boolean.hvac_2f_recovering
+      # setback_active OFF FIRST: see hvac_1f_recovery_end (2026-10-26).
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.hvac_2f_setback_active
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hvac_2f_recovering
   # Midnight audit: clear any stale recovering latches at 1 AM
   - id: hvac_setback_midnight_audit
     alias: "Setback Midnight Audit"

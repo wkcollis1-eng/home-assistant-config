@@ -103,6 +103,65 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### Setback CSV logs zero-minute recoveries again, and `recovering` no longer re-latches after recovery end (`packages/hvac_performance.yaml`, `scripts/setback_csv.py`; `PACKAGES.md` regenerated)
+
+- **Bill** (2026-10-26): "The setback log has no upstairs rows since 09-18. please correct this"
+- **Why no rows [M, `reports/hvac_setback_2f.csv`, InfluxDB 09-17..10-12, recorder 10-12..10-26, `system_log`]:**
+  - Last 2F row 2026-09-18 06:43. From 09-19 to 10-05 there was no 2F setback at all (season change), so no
+    row was due. `climate.upstairs` first ran heat at 10-05 22:15.
+  - From 10-05 to 10-26 there were 18 overnight 2F setbacks and 0 rows:
+    - **14 nights** were already inside the end band (hold - 1.25 F) when the setpoint came back. Recovery End
+      fired after its 5 min debounce, `recovery_minutes` = 5 - 5 = 0, and the `> 0` validity gate dropped the
+      row. `setback_csv.py`'s 0.1 floor would have dropped it as well. 10-26: setpoint 66 -> 64 at 21:00:01,
+      upstairs 64.76..65.66 F overnight, return at 06:00:01 with the room at 65.12, syslog "Skipped 2F setback
+      CSV: recovery_min=0.0, deg_to_recover=1.0".
+    - **4 nights** (10-05, 10-19, 10-21, 10-24) never armed Recovery Start. The evening hold was captured above
+      the 66 F morning return: 69 from the 10-05 off -> heat_cool -> heat switch, 67 from evening bumps on 10-19
+      and 10-24. 10-21's morning return is unverified. 10-25 06:00 read 63 F, so that night lost a real 3 F
+      recovery. **Not fixed here** (below).
+  - **1F had the same defect:** every night 10-16..10-25 ended at exactly 5:00. The only 1F row in
+    10-12..10-26 is 10-26 (06:00:00 -> 06:07:32, 2.5 min).
+  - The 2 F Ecobee setbacks (since June) rarely leave a zone below a band sized in January for the T6 Pro's
+    4 F setbacks, so the CSV had been keeping only the nights that drifted past it.
+- **Second defect, every morning, both zones [M, recorder]:** Recovery End turned `recovering` off before
+  `setback_active`. In between, Recovery Start's template trigger was true again, so `recovering` came back on
+  and sat until the 4 h stuck clear (syslog "2F recovery stuck 4h - force cleared ... current=66.38"). That
+  muted the short-cycle alert (`hvac_performance.yaml` ~1209) from about 06:05 to 10:05.
+- **No DR event is involved [M]:** all 103 setback-setpoint changes from 06-01 to 10-26 fell between 18:51 and
+  22:15, none overnight.
+- **Change:**
+  - E1: `hvac_1f/2f_recovery_end` accept `recovery_minutes >= 0` and reject an unknown
+    `input_datetime.hvac_*_recovery_start` by name (an unknown start time also reads as 0).
+    `setback_csv.py` lower bound 0.1 -> 0. A 0 means "never left the end band", not "no penalty".
+  - E2: `hvac_1f/2f_recovery_end` and `hvac_1f/2f_recovery_stuck_clear` turn `setback_active` off first.
+  - The end bands are unchanged, so the series stays on one definition.
+- **Verified (R2/R7):**
+  - Sandbox `C:\sandbox\setback_1026`, Jinja replay of the real templates (`C:\sandbox\setback_1026_test\replay.py`).
+  - On the old tree the recorded 10-26 2F morning skips the row and re-arms (both faults reproduced).
+  - On the new tree it appends and does not re-arm.
+  - Unknown start, > 300 min, degrees_to_recover < 0.5 and maintenance mode still skip.
+  - A 25 min 2F recovery and the 2.5 min 1F 10-26 recovery still append.
+  - Stuck clear re-arms on old, not on new, both zones.
+  - `setback_csv.py`: the zero row exits 2 on old and 0 on new. Negative, 300.1 and "unknown" exit 2 on both.
+- **R3:** top-level keys and all non-automation blocks are identical, and 46 -> 46 automation ids are in the
+  same order. Only the `action` of the 4 named automations changed; 42 are untouched. The diff is -14/+33 lines,
+  no comment line was removed, and LF line endings were kept.
+- **`setback_csv.py` was ruff-formatted in its own commit first.** The committed file already failed the pinned
+  ruff-format hook, so this fix could not pass it. Four `print()` calls were re-wrapped, AST-identical to the
+  parent [M, `ast.dump`], and that file is on H: too, so H: matches the repo.
+- **Gate (H:):** `PASS (parse-clean) + audit delta clean`, `0 FAIL, 1 WARN, 2 INFO across 18 pipelines`
+  (0 NEW). 2c git mode `0 WARN`; `--all` 2 WARN, both pre-existing at `hvac_performance.yaml:2871`/`:2899`.
+  check_config `{"result": "valid", "errors": null, "warnings": null}`.
+- **Reload (Bill, 2026-10-26: "1 reload"):** `automation.reload` (just before 11:42) returned HTTP 200. All 14
+  setback/recovery automations are `on`, no `last_triggered` changed, no setback helper changed, and the system
+  log has no new entry [M]. Step 5 (a row per zone with `recovering` off within ~5 min) waits for the next
+  heating morning.
+- **Bill's answers (2026-10-26, "2 yes 3 yes"):** a morning return below the captured hold now starts a
+  recovery, and the 10-05..10-26 rows are backfilled. Each is its own entry.
+- **Open:**
+  - Evening setpoint jiggles (10-11 21:14, 10-21 19:20, 10-22 20:20, 10-24 19:15) will now log zero rows too.
+  - The 09-18/19 night's 10:59 stuck clear was not examined.
+
 ### context_hygiene's task-end nudge fires on a commit too, from 80K, and says "new conversation", not "/clear" (`.claude/hooks/context_hygiene.py`, `test_hygiene.py`, `mutate_hygiene.py`; `docs/claude-code-enforcement.md`)
 
 - **Bill** (2026-10-26): "and the nudge change" - the item in `C:\sandbox\memory_check\DESIGN.md` that was
