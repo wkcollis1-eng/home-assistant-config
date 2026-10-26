@@ -69,6 +69,7 @@ is calibrated against.
 | 2026-10-19 | **mmWave family: morning daylight lamps-off** (`automation.mmw_family_morning_daylight_lights_off`). Each of its lamp-offs steps the family lux down by 6.7-11.3 lx (the measured lamp-lift range [M, n=33 on-steps after dark, n=16 morning off-steps]), and none is followed by `mmw_family_dusk_on` within 15 min unless daylight alone had fallen below 24 lx. Falsified by a step outside 6.7-11.3 lx; the loop margin itself fails only at a step of 17 lx or more [D: 12 + 5] | yes - written before the automation was installed | pending, due 2026-11-02 |
 | 2026-10-22 | **Navien panel, October**, read by `scripts/navien_xcheck.py --month 2026-10` after Save DHW (Navien) on 11-01. (a) The panel's gas (archive therm x 100,000 / 1030) lies inside the Navien range the script reports at default pads (Navien-only .. Navien-only + shared). (b) The panel's recirc hours are below the plug's time above the threshold, and its operating hours are below the plug's time from 20 W to the threshold. Basis [I, n=1]: September, where the panel's 844.7 ft3 sat inside 814-932, and its 17 h recirc and 11 h op were below the plug's 19.41 h and 12.48 h [M]. Falsified by (a) outside the range, or by either plug - panel difference at or below 0 in (b). Void if the slots are refused and no panel figures are given on the command line | yes - written 10-22, before October's panel figures exist; October's gas to 10-22 had been seen | pending - 2026-11-02 |
 | 2026-10-23 | **mmWave family: the lamps hold while the TV is on** (`binary_sensor.mmw_family_tv_on`, the `tv_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-11-06: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) while `binary_sensor.mmw_family_tv_on` reads `on`, leaving out any run by `mmw_family_daylight_off` (its logbook entry). Baseline: 16 in the 14.2 days before, 11 of them re-lit within 120 s [D: replay of the 50 W line over the recorder, 10-09..10-23]. (b) [I: the TV's background wake never reaches 50 W] no `mmw_family_tv_on` on-span that starts 3.5-4.5 h after the previous TV-off and lasts under 10 min, the wake's signature (24 spans, 7.7-8.8 min, peak 40.7-45.7 W [M]); on one, read the plug's peak inside it. (c) Every `mmw_family_tv_on` off-edge that finds a family lamp lit, the latch on, and every other condition of `&mmw_family_empty_conds` true is followed by a package lamp-off within 5 s (the `tv_quiet` release). Falsified by one (a), one (b) or one (c). Score from the recorder and the logbook | yes - written before the reloads | pending, due 2026-11-06 |
+| 2026-10-25 | **CLAUDE.md re-cut** (-3,196 B, applied 2026-10-25 ~22:35 EDT). From 2026-10-26 to 2026-11-01 the median first-call context of a fresh main-thread session falls by **1.0-2.0K tokens** from 40.2K (the 2026-10-25 rescore) [D: 3,196 B x 0.47 tok/B = 1.5K], after subtracting any MEMORY.md growth at the same rate. Falsified by a fall under 0.5K. Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-01 |
 
 **Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -94,6 +95,32 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.25] - 2026-10-25
+
+### CLAUDE.md re-cut: three rarely-needed blocks moved verbatim into docs/ (no HA config change)
+
+- **Bill** (2026-10-25): "apply all 3 recommendations", after reading `/usage`: H:\CLAUDE.md at "7k
+  tokens per request", 11 % of the week's usage (31 % of the last 24 h) [M, `/usage`, approximate, this
+  machine only]. Plan is Claude Pro; weekly limit 91 % used that day.
+- **Change:** moved verbatim, each with a pointer at its old site and a REFERENCE DOCS row: the
+  enforcement-lever table + Aligned skills -> `docs/claude-code-enforcement.md` (appended); the dashboards
+  corollary -> new `docs/dashboards.md` (the NEVER hand-edit `lovelace/` and never-loosen-a-deny-rule lines
+  stay in CONSTRAINTS); Home + Active Projects -> new `docs/house.md`. CLAUDE.md 30,112 -> 26,916 B [M].
+- **Why these three:** sessions that needed each since 10-11 [M, n=65 main-thread sessions,
+  `C:/sandbox/claude_md_1025/topic_need.py`]: hooks/settings 6 %, dashboards 18 %, house/project keywords
+  38 %; against `H:` edits 68 %, HA API calls 62 %, gate.py 52 %. The off-host gotchas stay: needed in 62 %
+  of sessions, and `docs/off-host-access.md` is 16,234 B.
+- **R3/R7 [M]:** `C:/sandbox/claude_md_1025/recut.py` undoes the move and reproduces the original byte for
+  byte; 44 of 50 sections untouched; ha_audit's CONSTRAINTS regex and entity ids, test_ha_audit's anchor and
+  the EOD time-line scan see what they saw before. Five injected faults (scope, anchor, entity, time, stray)
+  each fire their own check. R13: the time-line check first PASSED its fault - a capture group made
+  `findall` compare ":00" fragments, not lines; fixed and noted in `recut.py`.
+- **Gate:** gate.py "PASS (parse-clean) + audit delta clean" (0 FAIL, 1 WARN, 2 INFO across 18 pipelines;
+  the WARN is the standing open-question); test_ha_audit.py "SUITE PASSED - 36 rule(s) proven in both
+  directions"; check_provenance --all 0 WARN. check_config n/a (no YAML).
+- **Expected saving** [D]: about 1 % of weekly usage = 11 % x (3.2K - ~0.7K read back by the sessions that
+  need a moved doc) / 30.1K. Ledger row 2026-10-25 "CLAUDE.md re-cut" scores it on 2026-11-01.
 
 ## [2026.10.24] - 2026-10-24
 

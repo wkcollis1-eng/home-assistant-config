@@ -98,36 +98,12 @@ firmware: ESPHome codegen text-substitutes `id(...)` and does not compile
 lambdas, so config-valid is never the gate — `src/main.cpp.o` with **0 errors**
 is (`esp-firmware-validation` skill).
 
-### The rules are enforced by three things, and only three
-
-Most of R1-R14 are behavioural; these are the only mechanised levers:
-
-| lever | covers | where |
-|---|---|---|
-| `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
-| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction | `~/.claude/settings.json` + `~/.claude/hooks/` |
-| deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
-
-
-Wiring notes - where hooks, settings and this file load from, and why - are in
-`docs/claude-code-enforcement.md` ("Wiring notes"). Read it before changing
-hooks, deny rules or settings, or when a block message surprises you.
-
-R1-R4, R6, R7, R11-R14 remain judgement, enforced by the OUTPUT FORMAT making
-omission visible - except R14, which became a file on 2026-08-25 (see below).
-
-### Aligned skills
-
-| skill | gate it owns | local artifact |
-|---|---|---|
-| `homeassistant-config-validator` | HA YAML, Layers 0–4 | `scripts/validate_ha.py`, `docs/ha-validator-checks.md` |
-| `esp-firmware-validation` | ESPHome lambdas → real compile | `esphome/` |
-| `engineering-monthly-update` | monthly rollup | `reports/`, archive automations |
-
-`ha_audit.py` is the layer none of the skills cover: it checks that references
-**resolve**, that alarms **can fire**, and that the manifest and the config still
-agree. A validator answers "is this well-formed"; the audit answers "does this
-mean what it claims".
+### What enforces the rules
+Three things only: `ha_audit.py`, the Claude Code hooks, and deletion (R10's
+answer is always to remove the second copy). R1-R4, R6, R7 and R11-R13 stay
+judgement, made visible by the OUTPUT FORMAT. The lever table, the aligned
+skills (validator, ESP firmware, monthly update) and the hook wiring are in
+`docs/claude-code-enforcement.md`.
 
 ## RULES — execute these, they are not advice
 
@@ -291,31 +267,10 @@ compaction re-read a file already read [M].* Gate: `context_hygiene.py` nudges
 from 80% of `autoCompactWindow` until the file is written, re-injects it after
 every compaction, and WARNs (R8) when it was stale or missing.
 
-## Home
-- 2021 colonial, 2,440 sq ft, Zone 5A
-- Annual electricity: 6,730 kWh (baseline 200W, efficient)
-- Gas: 787 CCF/year (72.9% heating, 27.1% DHW [D: 212.9 CCF Navien]; was 71.9/28.1% [D]
-  until 2026-10-15, which read the Navien therms as CCF)
-- Navien NPE-240A2 NG DHW (Bill, 2026-10-21; warranty registration, installed 2021-11-17;
-  was "NPE-240S2" here until then), gas range, 120V washer
-- Heat & Glo SL-7X-IFT-TG 36" direct-vent NG fireplace, great room, automatic blower (Bill,
-  2026-10-23; order S3004842 of 2021-04-19, rating plate not read). Burns: `open_questions.yaml`
-- Dehumidifier and computer on Kasa plugs
-- 16-CT SEM (Fusion Energy/Sense) whole-home monitor installed June 2026
-- Ecobee thermostats (replaced Honeywell T6 Pro, June 2026)
-
-## Active Projects (reference only — details in respective repos)
-- **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
-- **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring
-- **DIY LiFePO4 UPS**: powers the N100DC host via an 18 V U3V70A boost (fitted
-  2026-08-29, EN/FET not installed). V1.20 firmware on ESPHome 2026.9.0
-  (2026-09-16). 53.3 Wh; ~128 min [D] at 2.089 A / 26.80 W [M, 2026-08-29].
-- **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 102.0 CCF/1k HDD65 efficiency
-  (ACIS BDL 2025, rebased 2026-10-10, Navien therms->CCF 2026-10-15; was 100.6, and 90.3 on
-  NOAA 6,270 HDD - see `docs/baselines.md`)
-- **Dehumidifier Control**: Aprilaire E080; RH band, max-runtime cap, stall detection. Setpoints
-  live in the `packages/dehumidifier.yaml` helpers, not here (R10; this line said 49/46 %, 150 min)
-- **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
+## Home and active projects
+House facts (equipment, model numbers, annual use) and the active projects are in
+`docs/house.md`. Read it before stating any fact about the house or a project. R14
+still governs: a physical fact not written there comes from Bill, never inference.
 
 ---
 
@@ -326,22 +281,10 @@ every compaction, and WARNs (R8) when it was stale or missing.
 NEVER infer entity IDs from patterns — use only IDs listed in §ENTITIES
 NEVER edit .storage/* — corrupts dashboards unrecoverably
 
-**`dashboards/` is a SOURCE copy HA never loads.** No `lovelace:` block includes it;
-live dashboards are UI-managed in `.storage/lovelace.*` (off-limits), so no file
-edit changes what Bill sees.
-
-| dir | is | hand-edit? |
-|---|---|---|
-| `dashboards/views/` | hand-kept; may be AHEAD of live | **YES** - not-yet-live corrections go here |
-| `dashboards/cards/` | snippet library | yes |
-| `dashboards/lovelace/` | GENERATED mirror of live | **NO** - re-run `HA_CONFIG='H:/' python scripts/export_dashboards.py` after a paste |
-
-Workflow: write `dashboards/views/<name>.yaml` (single-view format), hand Bill the
-exact YAML to paste into the raw configuration editor, say it is not live until he
-does, then re-run `export_dashboards.py`. **Never remove or loosen a deny rule to
-make an edit possible** - find the file you may edit instead.
-*Why: 2026-08-23 a card read a superseded sensor with every gate passing;
-2026-09-14 a session hand-edited `lovelace/` and had a deny rule removed.*
+NEVER hand-edit `dashboards/lovelace/` (GENERATED). `dashboards/` is a SOURCE copy HA
+never loads, so no file edit changes what Bill sees: read `docs/dashboards.md` before
+any dashboard or card work. **Never remove or loosen a deny rule to make an edit
+possible.**
 
 NEVER overwrite/truncate CSV files — append/rotate only
 NEVER add a time trigger that contends with another automation (shared read/write state) — see §EOD TIMING SEQUENCE; `ha_audit.py` checks this. The old blanket 23:54:30–23:58:45 ban was retired 2026-08-21: 9 automations already ran inside it
@@ -554,15 +497,18 @@ Pirate Weather warm bias        reads up to 8.5°F warm on sunny afternoons — 
 | `docs/eod-timing.md` | before adding, moving or removing any time trigger, or anything that snapshots a daily value |
 | `docs/influx-grafana.md` | before any InfluxDB query, continuous query or retention change, or any Grafana dashboard or provisioning work |
 | `docs/baselines.md` | before quoting or using a building, HVAC, gas or electricity baseline (UA, balance point, AFUE, HDD, CCF split, rate) |
+| `docs/house.md` | before stating any fact about the house, its equipment or an active project (model, capacity, install date, which repo) |
 | `docs/file-map.md` | when you need to know where something lives and a grep has not answered it |
 | `docs/pending.md` | at session start, headings only (`grep -n '^### P'`); in full before working an item or touching its entities |
 | `docs/ha-ui-actions.md` | when working from the HA UI, or adding or changing a `script.ha_*` action |
-| `docs/claude-code-enforcement.md` | before changing hooks, deny rules or settings; when a block message surprises you |
+| `docs/claude-code-enforcement.md` | before changing hooks, deny rules or settings; when a block message surprises you; to see which rules are mechanised or which skill owns which gate |
 | `docs/rules-history.md` | before changing, narrowing or retiring any rule; when a rule's edge case is unclear; when recording a new scar |
 | `docs/sdr-signal-level.md` | before any SDR antenna, antenna-position or signal-strength work; when tempted to judge an RF change by decode rate |
+| `docs/dashboards.md` | before any dashboard, view or card work, and before handing Bill YAML to paste |
 
 Files that cite a CLAUDE.md section this table lists by name ("SNAPSHOT RULE",
-"EOD section", "FILE MAP", "PENDING", "BASELINES") mean the doc above that now holds it.
+"EOD section", "FILE MAP", "PENDING", "BASELINES", "Home", "Active Projects",
+"enforcement table", "Aligned skills") mean the doc above that now holds it.
 
 ---
 

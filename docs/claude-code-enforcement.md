@@ -395,3 +395,37 @@ markdownlint diagnostics:
 
 Its guards and the fault that earned it are in its docstring. Tests:
 `python ~/.claude/tools/test_spanedit.py` -> "ALL PASSED (28 checks)".
+
+_Moved verbatim from CLAUDE.md (SESSION PROTOCOL, enforcement table + Aligned skills) on 2026-10-25; the pointer left there names this file._
+
+### The rules are enforced by three things, and only three
+
+Most of R1-R14 are behavioural; these are the only mechanised levers:
+
+| lever | covers | where |
+|---|---|---|
+| `ha_audit.py` | R5, R8, R9, R19, and R10's doc-drift class | `scripts/test_ha_audit.py --list` prints the live count - **do not write it down here**; three copies of it drifted before 2026-08-25 |
+| Claude Code hooks | "never hand-edit a GENERATED doc", "never edit .storage", running the audit at session start / after any turn that changed `H:`, and R20's checkpoint nudge + re-injection after compaction | `~/.claude/settings.json` + `~/.claude/hooks/` |
+| deletion | R10 itself | the R10 answer is always to remove the second copy, never to add a checker that keeps two copies in step |
+
+
+Wiring notes - where hooks, settings and this file load from, and why - are in
+`docs/claude-code-enforcement.md` ("Wiring notes"). Read it before changing
+hooks, deny rules or settings, or when a block message surprises you.
+
+R1-R4, R6, R7, R11-R14 remain judgement, enforced by the OUTPUT FORMAT making
+omission visible - except R14, which became a file on 2026-08-25 (see below).
+
+### Aligned skills
+
+| skill | gate it owns | local artifact |
+|---|---|---|
+| `homeassistant-config-validator` | HA YAML, Layers 0–4 | `scripts/validate_ha.py`, `docs/ha-validator-checks.md` |
+| `esp-firmware-validation` | ESPHome lambdas → real compile | `esphome/` |
+| `engineering-monthly-update` | monthly rollup | `reports/`, archive automations |
+
+`ha_audit.py` is the layer none of the skills cover: it checks that references
+**resolve**, that alarms **can fire**, and that the manifest and the config still
+agree. A validator answers "is this well-formed"; the audit answers "does this
+mean what it claims".
+
