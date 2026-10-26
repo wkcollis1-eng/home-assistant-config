@@ -403,6 +403,26 @@ Edits of R20 checkpoint files: 112 injections, 562,031 chars, in 7 days [M].
 - **Memory folder (2026-10-18):** the same file in
   `~/.claude/projects/C--Users-wkcol/memory/`. An Edit there returned 3 diagnostics
   before it and none after [M, n=1 each].
+- **Global (2026-10-25, Bill: "apply the markdownlint setting"):** VS Code user
+  setting `"markdownlint.config": {"default": false}` in
+  `%APPDATA%\Code\User\settings.json`. Rollback:
+  `C:/sandbox/vscode_settings/settings.orig.json`. Why: 39 injections, 123.9K
+  chars in 7 days, all markdownlint; Pylance and Python 0 in 14 days [M,
+  `C:/sandbox/token_replay/diag_scan.py`]. A folder `.markdownlint.json` outranks
+  the user setting and does not merge with it [S: vscode-markdownlint 0.62.1
+  README.md:208-213; M below], so HVAC-Baseline, whose CI runs markdownlint-cli2
+  and whose file only disables rules, keeps its lint. The folder copies above
+  and in `Documents\EdgewaterHill` are now redundant; kept until Bill decides.
+- **R2, n=1 each [M]:** a new file Written then Edited, MD001 and MD012 seeded.
+  Scratchpad 2 diagnostics before, 0 after; HVAC-Baseline 2 before, 2 after; a
+  sandbox copy of its config 2, and the same plus `"default": true` 2.
+- **Probe trap (R13, 2026-10-25):** a repeat Edit of a probe file proves nothing.
+  Claude Code reports only diagnostics absent from a PreToolUse baseline (same
+  message, code and severity, line shift up to the file's line-count change), and
+  every probe Edit stopped after 750 ms with "the editor sent no update" [S:
+  extension.js 2.1.310 `findNewDiagnostics`, `areDiagnosticsEqual`; M:
+  `Claude VSCode.log`]. Four repeat-Edit probes went silent on both sides of the
+  change, HVAC included. Probe with a NEW file: Write, then Edit.
 
 ### Settings `env`, `skillOverrides`, `disableClaudeAiConnectors`; `spanedit.py` (added 2026-10-04)
 
@@ -437,8 +457,9 @@ In `~/.claude/settings.json`:
   deny entries and the three `artifact-*` overrides.
 
 `~/.claude/tools/spanedit.py` is a library, not a hook. Use it for any scripted
-text edit, above all on a CRLF file or an H: `.md` where the Edit tool draws
-markdownlint diagnostics:
+text edit, above all on a CRLF file (until 2026-10-25 also on an H: `.md`,
+where the Edit tool drew markdownlint diagnostics; the global setting above
+ended that):
 
     import sys; sys.path.insert(0, "C:/Users/wkcol/.claude/tools")
     from spanedit import edit, install

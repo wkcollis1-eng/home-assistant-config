@@ -2674,3 +2674,61 @@
     gap is not explained; the rating plate's model line and input would say
     whether the -TG's minimum differs. Nothing waits on it: the gas split
     uses the clocked rate, not the rating.
+
+- asked: 2026-10-25
+  question: >-
+    (1) Between Mon 10-19 about 10:30 and Tue 10-20 06:20, was anything done
+    at the furnace, its filter, the gas piping or the gas meter, or did CNG do
+    any work at the street or on the service? (2) The gas meter's faceplate:
+    make and model, whether it is marked temperature-compensated ("TC"), and
+    the test-dial size(s).
+  blocks: >-
+    (1) Reading the furnace's lower burn rate from 10-20 on as a step at a
+    known time rather than a drift: the six 23:00-05:00 cycles of 10-07..10-19
+    burned 1.390 ft3/min, 85.9 % of plate, and the two of 10-25 1.249, 77.2 %
+    [D, inverse-variance means of tick-to-tick rates, n=6 vs n=2, z 4.2; the
+    date split was chosen after looking, so the z overstates]. That the rate
+    wanders at all is not post-hoc: chi2 67.7 on 25 df across the 26 timed
+    clean cycles, Monte Carlo P = 0.0024 [D, N=20,000, uniform decode lag
+    [I]]. (2) Converting meter ft3 to BTU at the meter's gas temperature: an
+    uncompensated meter at this month's 40.4 F mean outdoor raises the
+    measured input by up to 3.9 % [D: 519.67 / 500.07 = 1.039], a compensated
+    one by nothing. Neither blocks the 10-27 service visit; the brief
+    (OneDrive/Documents/East Hampton Home/Furnace gas input brief
+    2026-10-27.pdf, data sheet row 5) asks the tech for (2) as well.
+  answered: >-
+    2026-10-25, Bill: "1. nothing was doen as far as i am aware. 2. photos of
+    the meter." Three photos; their EXIF dates them 2026-08-19 12:49-12:50 EDT
+    (iPhone 16e), not today.
+
+    (1) No work at the furnace, its filter, the piping or the meter that Bill
+    knows of, so the lower burn rate from 10-20 on has no known cause. CNG
+    work at the street or on the service would not necessarily reach him and
+    is not excluded. The 10-27 as-found readings are the next evidence, not
+    another fit.
+
+    (2) Read off the photos [S: meter faceplate and index]: Honeywell American
+    Meter AL-425, serial 16F278598, CNG plate 561309, 425 CFH at 1/2 in.
+    differential, ANSI class 400, MAOP 10 psi, "TEMP. COMP." on the body
+    plate. Itron index B696-W / 54885G007, "CUBIC FEET x100", red label
+    "TEMP. COMP. 60 F". Test dials: "HALF FOOT", and one read through glare as
+    "..WO FEET", taken as two feet, consistent with the ERT's 2 ft3 step [M].
+    The third photo is the ERT module label, Itron 100G DLT, barcode
+    20109304: the id the SDR decodes, and still decoded today
+    (sensor.gas_meter_volume last changed 2026-10-25 09:29 EDT [M]), so the
+    meter in the photos is the meter in the data.
+
+    Only the TC marking and the test dials were new. Make, model and serial
+    were on file since August (docs/addons/rtlamr2mqtt-recommended.yaml, GAS
+    block; the odometer tie in packages/utility_meters.yaml), and asking for
+    them again was my miss: the files were not grepped before this question
+    was filed (R13, 2026-10-25).
+
+    Consequence: the meter is temperature-compensated to 60 F, so its ft3 are
+    already 60 F ft3 and the cold-gas correction is zero. The bound in
+    blocks (2), up to 3.9 % [D, above], is withdrawn. The month-to-date figures
+    stand unchanged: 76.7 % by the fit [D, n=27] and 80.7 % tick-to-tick
+    [M, n=27] (CHANGELOG 2026.10.25). The brief's data sheet now gives the
+    meter's identity for the tech to confirm (row 5) and the two real dials
+    (row 11): 2 ft3, plate 74.2 s, our data 86-97 s; 1/2 ft3, plate 18.5 s,
+    our data 22-24 s [D: 3,600 x dial ft3 / CFH].
