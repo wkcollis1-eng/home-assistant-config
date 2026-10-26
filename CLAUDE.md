@@ -52,8 +52,7 @@ HA API, InfluxDB, Grafana, add-on or git call from Windows):
   default `HA_CONFIG`: without it a script fails loudly (`pipelines.yaml not
   found`) instead of silently using the live tree when a sandbox was meant.
   Without `HA_URL` the audit tries localhost: `live-check-skipped` plus the
-  `sun.sun` false positive. (Corrected 2026-10-04: this said "`HA_TOKEN`, not
-  `HA_URL`, enables the live check" - off-host both are needed.)
+  `sun.sun` false positive.
 - **`H:` is the LIVE config and a git checkout: never run a git command that
   rewrites its working tree (checkout, stash, reset --hard, pull over local
   edits) without asking.** After a push made elsewhere:
@@ -71,21 +70,15 @@ house is not a thing to do quietly.
 
 ### At the END of every session, before saying you are done
 
-Run the DEFINITION OF DONE gate below: `gen_reference.py` if entities,
-automations or packages moved, then `gate.py <edited files>`, then
-`python scripts/check_provenance.py --all <edited files>` (R17, git-free mode;
-gate.py does not run it), then the deployed gate (`check_config` -> "valid" with
-warnings null; only it certifies HA will load it).
+Run the DEFINITION OF DONE steps below that apply, in order - 1b, `gate.py`, 2c,
+then 3 (only `check_config` certifies HA will load it).
 
 Then, in the final message:
-- state the three verdicts verbatim — do not upgrade them (see below)
+- state the three verdicts (`gate.py`, 2c, 3) verbatim — do not upgrade them (see below)
 - say what changed, what was verified, and **what you left open and why**
 - append to `CHANGELOG.md`; do not summarise it into this file
 
 ### Verdict vocabulary — never upgrade an assurance level
-
-Aligned with the `homeassistant-config-validator` skill, which is where
-`scripts/validate_ha.py` came from:
 
 | verdict | means | may you say "ready to restart"? |
 |---|---|---|
@@ -93,10 +86,8 @@ Aligned with the `homeassistant-config-validator` skill, which is where
 | **PASS (parse-clean)** | YAML + Jinja parse, no blocking findings. Entity refs, integration schemas and runtime template eval are **unverified** | **no** |
 | **PASS (HA-certified)** | `check_config` / `hass --script check_config` ran clean: no errors AND no warnings | yes |
 
-"Parse-clean" is a real result and not a promise. The same distinction governs
-firmware: ESPHome codegen text-substitutes `id(...)` and does not compile
-lambdas, so config-valid is never the gate — `src/main.cpp.o` with **0 errors**
-is (`esp-firmware-validation` skill).
+"Parse-clean" is a real result and not a promise. Firmware has the same split:
+config-valid is never the gate; DoD step 6 is (`esp-firmware-validation` skill).
 
 ### What enforces the rules
 Three things only: `ha_audit.py`, the Claude Code hooks, and deletion (R10's
@@ -146,9 +137,10 @@ were the bug and 13 were correct.*
 substring bug.*
 
 ### R6 — Read the deployed artifact, never the plausible story
-When behaviour surprises you, fetch the source at the version in `.HA_VERSION`,
-the shipped JS in `www/community/<card>/`, or the add-on's own repo — before
-forming a theory, not after.
+To validate a change, and whenever behaviour surprises you, read the source at
+the version in `.HA_VERSION` (`scripts/ha_source.py <domain>/<file>.py` fetches
+and caches it), the shipped JS in `www/community/<card>/`, or the add-on's own
+repo — before forming a theory, not after.
 *Why: 2026-08-22, reasoning about what `listen_mode` ought to mean nearly took the
 SDR stack dark; the source showed it publishes nothing.*
 
@@ -287,18 +279,13 @@ any dashboard or card work. **Never remove or loosen a deny rule to make an edit
 possible.**
 
 NEVER overwrite/truncate CSV files — append/rotate only
-NEVER add a time trigger that contends with another automation (shared read/write state) — see §EOD TIMING SEQUENCE; `ha_audit.py` checks this. The old blanket 23:54:30–23:58:45 ban was retired 2026-08-21: 9 automations already ran inside it
+NEVER add a time trigger that contends with another automation (shared read/write state) — see §EOD TIMING SEQUENCE; `ha_audit.py` checks this.
 NEVER use `| float` or `| int` without default: use `| float(0)` `| int(0)`
 NEVER commit multiple unrelated changes in one commit
 NEVER remove inline YAML comments
 
 MUST pass the DEFINITION OF DONE gate below before calling anything production ready
-MUST validate against the DEPLOYED ARTIFACT, never the documentation:
-  - custom Lovelace cards -> read the shipped JS in `www/community/<card>/`
-  - HA internals -> read the source at the pinned version in `.HA_VERSION`
-    (e.g. https://raw.githubusercontent.com/home-assistant/core/<version>/
-    homeassistant/components/<domain>/<file>.py)
-  *Why: both 2026-08-21 regressions came from trusting docs over the shipped artifact.*
+MUST validate against the DEPLOYED ARTIFACT, never the documentation (R6).
 MUST add `default: []` to every `choose:` block
 MUST add `availability:` guard to every new template sensor
 MUST wrap every `shell_command.*` call with ha_maintenance_mode guard
@@ -306,9 +293,8 @@ SHOULD annotate any new entity in `entity_notes.yaml` (so `gen_reference.py`
 lists it in ENTITIES.md) and record behaviour changes in CHANGELOG.md, in the
 same commit as the entity.
 
-(NOT ENFORCED, so it says SHOULD: measured 2026-08-26, 236 of 410 YAML-declared
-entities carry no annotation [M]. A rule believed enforced that is not is worse
-than one known to rest on judgement.)
+(NOT ENFORCED, hence SHOULD: 236 of 410 YAML-declared entities had no annotation
+[M, 2026-08-26]; the evidence is in `docs/rules-history.md`.)
 
 ---
 
@@ -327,10 +313,9 @@ from the HA UI with no terminal: `docs/ha-ui-actions.md`.
 **Run `python3 scripts/gate.py <edited files>`.** It runs steps 1 (with
 py_compile), 2 and 2b in order, stops at the first failure, and PRINTS THE
 VERDICT BLOCK - generated, not typed, which is the only reliable defence against
-the assurance-upgrade failure the verdict table exists to prevent. Step 1b and
-steps 3-5 stay manual: 1b because gate.py never runs gen_reference.py
-(corrected 2026-10-04 - this said "1, 1b, 2 and 2b"; gate.py's 1b is
-py_compile), 3-5 because they touch the live instance (R12).
+the assurance-upgrade failure the verdict table exists to prevent. Steps 1b, 2c
+and 3-5 stay manual: gate.py never runs gen_reference.py or check_provenance.py,
+and 3-5 touch the live instance (R12).
 
 The steps below are what it runs, kept for when you need one on its own.
 
@@ -346,6 +331,8 @@ Run every step that applies to what you touched. Record the result inline.
               "SUITE PASSED". Not optional: a rule that cannot fire looks exactly
               like one with nothing to report. UI: script.ha_audit_tests
               (RESTART after changing it - shell_command is not reloadable).
+2c. RATIOS    check_provenance.py --all <edited files> -> 0 WARN (R17, git-free
+              mode).
 3.  DEPLOYED  POST /api/config/core/check_config -> "valid" AND warnings null,
               BEFORE any reload. A package that fails to merge drops its whole
               block as a WARNING under "valid" (rules-history.md).
@@ -383,16 +370,15 @@ Kept from the old "output only" rule:
 ## EDIT ORDER (never deviate)
 
 1. `grep -rnw . -e 'ENTITY_ID' --include="*.yaml" --include="*.json" --include="*.py"` — impact scan; it names the owning package
-2. `packages/<subsystem>.yaml` — the package that owns it (`PACKAGES.md` lists them). Since the
-   2026-10-19 package split every subsystem's sensors, helpers and automations live in its package,
-   and a new one goes there too
+2. `packages/<subsystem>.yaml` — the package that owns it (`PACKAGES.md` lists them). Every
+   subsystem's sensors, helpers and automations live in its package; a new one goes there too
 3. `configuration.yaml` — core blocks, `shell_command`, `rest`, `command_line` and the housekeeping
    helpers only
 4. `automations.yaml` — housekeeping automations only (database, startup check, failure tracking,
    UPS); `new_pipeline.py --apply` still appends here
 5. `entity_notes.yaml` + `gen_reference.py`; `docs/pending.md`; §KNOWN ISSUES
 6. `CHANGELOG.md` — behavior changes only
-7. Validate with `homeassistant-config-validator --strict`
+7. Run the DEFINITION OF DONE gate
 8. Provide diff summary
 
 ---
@@ -451,33 +437,20 @@ so they are gone. What remains needs a human judgement:
 Items removed on 2026-08-23 because `ha_audit.py` now checks them are listed,
 with reasons, in `docs/rules-history.md` - do not re-add them.
 
-## PACKAGES — see `PACKAGES.md`, GENERATED
-
-Written by `scripts/gen_reference.py`; `ha_audit.py` FAILs when it is
-stale. Was 110 hand-kept lines whose counts drifted from the files they described.
-
-Design notes about a package belong in that package's own header comment,
-beside the code — not in a summary that has to be kept in step with it.
-
-## ENTITIES — see `ENTITIES.md`, do not list them here
+## ENTITIES, PACKAGES, AUTOMATIONS INDEX — see `ENTITIES.md`, `PACKAGES.md`, `AUTOMATIONS.md`, all GENERATED
 
 **Resolution order for any entity id: `ENTITIES.md`, then
 `.storage/core.entity_registry`. Never from memory, never inferred from a
 pattern, never from this file.**
 
-`ENTITIES.md` is GENERATED by `scripts/gen_reference.py` from the registry, the
-YAML helper declarations and `pipelines.yaml`. `entity_notes.yaml` holds the
-hand-written meaning; existence is always derived. `ha_audit.py` FAILs when
-`ENTITIES.md` is stale, so drift is caught the same night rather than months
-later.
+`scripts/gen_reference.py` writes all three (`ENTITIES.md` from the registry, the
+YAML helper declarations and `pipelines.yaml`), and `ha_audit.py` FAILs when any
+is stale, so drift is caught the same night. `entity_notes.yaml` holds the
+hand-written meaning; existence is always derived. To change an annotation: edit
+`entity_notes.yaml`, run `python3 scripts/gen_reference.py`, commit both.
 
-To change an annotation: edit `entity_notes.yaml`, run
-`python3 scripts/gen_reference.py`, commit both.
-
-## AUTOMATIONS INDEX — see `AUTOMATIONS.md`, GENERATED
-
-Written by `scripts/gen_reference.py`; `ha_audit.py` FAILs when it is
-stale. Was 86 hand-kept lines that held nothing `automations.yaml` did not already state.
+Design notes about a package belong in that package's own header comment,
+beside the code — not in a summary that has to be kept in step with it.
 
 ## KNOWN ISSUES
 

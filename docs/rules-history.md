@@ -225,6 +225,17 @@ errors=0 warnings=6 [M, n=1, `host_check.py`, 2026-10-19]. The split's runbook a
 required warnings null for all five moves; Bill asked for the same in step 3 on
 2026-10-19.
 
+### DEFINITION OF DONE - what gate.py runs (corrected 2026-10-04)
+
+The gate paragraph said gate.py runs steps "1, 1b, 2 and 2b". gate.py's own
+"1b" is its py_compile stage (`1b. SYNTAX  py_compile`); it never runs
+gen_reference.py, so ENTITIES step 1b was always manual. Corrected in place on
+2026-10-04. The note moved here on 2026-10-26, when check_provenance.py (which gate.py
+does not run either) was numbered into the list as step 2c. As it stood:
+
+    (corrected 2026-10-04 - this said "1, 1b, 2 and 2b"; gate.py's 1b is
+    py_compile)
+
 ### DEFINITION OF DONE - rules that carry over; STEP 0 (merged into OUTPUT FORMAT)
 
 ### Rules that carry over from 2026-08-22

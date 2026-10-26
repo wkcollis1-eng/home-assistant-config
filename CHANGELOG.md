@@ -71,6 +71,7 @@ is calibrated against.
 | 2026-10-23 | **mmWave family: the lamps hold while the TV is on** (`binary_sensor.mmw_family_tv_on`, the `tv_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-11-06: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) while `binary_sensor.mmw_family_tv_on` reads `on`, leaving out any run by `mmw_family_daylight_off` (its logbook entry). Baseline: 16 in the 14.2 days before, 11 of them re-lit within 120 s [D: replay of the 50 W line over the recorder, 10-09..10-23]. (b) [I: the TV's background wake never reaches 50 W] no `mmw_family_tv_on` on-span that starts 3.5-4.5 h after the previous TV-off and lasts under 10 min, the wake's signature (24 spans, 7.7-8.8 min, peak 40.7-45.7 W [M]); on one, read the plug's peak inside it. (c) Every `mmw_family_tv_on` off-edge that finds a family lamp lit, the latch on, and every other condition of `&mmw_family_empty_conds` true is followed by a package lamp-off within 5 s (the `tv_quiet` release). Falsified by one (a), one (b) or one (c). Score from the recorder and the logbook | yes - written before the reloads | pending, due 2026-11-06 |
 | 2026-10-25 | **CLAUDE.md re-cut** (-3,196 B, applied 2026-10-25 ~22:35 EDT). From 2026-10-26 to 2026-11-01 the median first-call context of a fresh main-thread session falls by **1.0-2.0K tokens** from 40.2K (the 2026-10-25 rescore) [D: 3,196 B x 0.47 tok/B = 1.5K], after subtracting any MEMORY.md growth at the same rate. Falsified by a fall under 0.5K. Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-01 |
 | 2026-10-25 | **`doc_guard.py`** (PreToolUse: the first edit in `H:/dashboards/` or the hooks/settings is denied once until that area's doc is read; this rule live 2026-10-25 22:52 EDT). From 2026-10-26 to 2026-11-25, `doc_guard.log` holds **0** `error` lines and **1-8** `deny` + `deny-no-transcript` lines [D: 3 would-denies in 108 main-thread sessions 2026-08-01..10-25 [M, `C:/sandbox/doc_guard/replay.py`] x 130 sessions in 30 days at the 65-in-15-days pace since 10-11 [M] = 3.6], and after more of the denies than not, the same session's next line for that area is `allow-read`, not `allow-repeat` [I: the deny names the doc and says Grep it]. Falsified by any `error` line (fail-open is hiding a fault), by more than 8 denies (the trigger is wider than the replay: narrow it), or by `allow-repeat` >= `allow-read` after denies (a speed bump: retire it). Void at 0 denies. | yes | pending, due 2026-11-25 |
+| 2026-10-26 | **CLAUDE.md tier B** (-1,386 B, applied 2026-10-26 ~08:05 EDT). Sessions started after that carry both cuts: from 2026-10-27 to 2026-11-02 the median first-call context of a fresh main-thread session falls by **1.65-2.65K tokens** from 40.2K (the 2026-10-25 rescore) [D: (3,196 + 1,386) B x 0.47 tok/B = 2.15K; the 10-25 row's band shifted by 0.65K = 1,386 B x 0.47], after subtracting any MEMORY.md growth at the same rate. **Scoring the 10-25 re-cut row:** subtract 0.65K from the fall of any session started after this time, or that row reads as a miss when it is right. Falsified by a fall under 1.15K (that row's 0.5K floor + 0.65K). Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-02 |
 
 **Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -96,6 +97,37 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.26] - 2026-10-26
+
+### CLAUDE.md tier B: six rewordings, 26,916 -> 25,530 B; the 10-04 gate correction moved to `docs/rules-history.md` (no HA config change)
+
+- **Bill** (2026-10-26): "all six", after the per-candidate table and the diff
+  (`C:/sandbox/claude_md_1026/out/tierB.diff`).
+- **Change** [M, bytes]: (1) off-host bullet: the 10-04 HA_URL correction note dropped; it is in
+  `docs/off-host-access.md` with its evidence (-115 B). (2) `check_provenance --all` numbered into the DoD list
+  as step 2c, and the END-of-session block points at the list, so the sequence is written once (R10); the 10-04
+  "1, 1b, 2 and 2b" correction, recorded nowhere else, moved verbatim to `docs/rules-history.md` (R13)
+  (-171 B; rules-history +544 B). (3) Verdict vocabulary: the "Aligned with" line dropped; the firmware
+  paragraph points at DoD step 6 (-222 B). (4) CONSTRAINTS: the DEPLOYED ARTIFACT MUST stays and its detail
+  moves into R6, which now names `scripts/ha_source.py`; the NOT ENFORCED note shortened; the retired 23:54:30
+  ban history dropped, all already in `docs/rules-history.md` / `docs/eod-timing.md` (-418 B). (5) EDIT ORDER:
+  the 10-19 history dropped, step 7 is the DoD gate (-66 B). (6) PACKAGES, ENTITIES and AUTOMATIONS INDEX
+  merged into one section whose heading keeps all three names (-394 B).
+- **`ha_source.py`** was cited nowhere. Before R6 named it, it fetched `statistics/sensor.py` at 2026.10.4
+  into a sandbox root: 1,123 lines, rc 0 [M, n=1].
+- **R3/R7 [M]:** `C:/sandbox/claude_md_1026/tierB.py` undoes every span and reproduces both originals byte for
+  byte; 38 of 48 sections untouched; each candidate passes alone. Nine injected faults each fire exactly their
+  own check (CONSTRAINTS ids, anchor, time lines, NEVER/MUST lines, headings, DoD steps, one copy, kept
+  elsewhere, stray byte). R13: the stray fault first fired two checks - its byte sat in the R3 heading, so
+  rule-lines caught it too; moved to prose.
+- **Gate:** gate.py "PASS (parse-clean) + audit delta clean." (0 FAIL, 1 WARN, 2 INFO across 18 pipelines;
+  the WARN is the standing open-question); test_ha_audit.py "SUITE PASSED - 36 rule(s) proven in both
+  directions"; check_provenance changed lines 0 WARN, `--all` 1 WARN = `docs/rules-history.md:63`, which
+  predates this change (a figure quoted in the R11 scar). check_config n/a (no YAML).
+- **Open:** gate.py's verdict block names steps 3-5 as NOT RUN but is silent on 1b and the new 2c (R8).
+- **Expected saving** [D]: about 0.5 % of weekly usage = 11 % x 1,386 / 30,112. Ledger row 2026-10-26
+  "CLAUDE.md tier B", which also says how to score the 10-25 re-cut row now.
 
 ## [2026.10.25] - 2026-10-25
 
