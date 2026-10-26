@@ -15,6 +15,3 @@ items:
   - id: 1265de5ac19b449fa14c17e50d501ee4
     url: /hacsfiles/mini-graph-card/mini-graph-card-bundle.js?hacstag=1512800620130
     type: module
-  - id: 6b2136ebd83a412690874a990e8a2639
-    url: /hacsfiles/platinum-weather-card/platinum-weather-card.js?hacstag=488086721105
-    type: module
