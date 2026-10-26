@@ -51,12 +51,14 @@ dehumidifier_sensor_loss_shutdown      state:sensor.basement_th_node_basement_hu
 dehumidifier_stamp_last_off            state:switch.dehumidifier                                             single     dehumidifier.yaml
 dehumidifier_stamp_last_on             state:switch.dehumidifier                                             single     dehumidifier.yaml
 grafana_snapshot_scheduled             time_pattern                                                          single     grafana.yaml
+hvac_1f_hold_rebaseline                state:climate.main_floor                                              single     hvac_performance.yaml
 hvac_1f_recovery_end                   template                                                              single     hvac_performance.yaml
 hvac_1f_recovery_start                 template                                                              single     hvac_performance.yaml
 hvac_1f_recovery_stuck_clear           state:input_boolean.hvac_1f_recovering                                single     hvac_performance.yaml
 hvac_1f_setback_lowered                state:climate.main_floor                                              single     hvac_performance.yaml
 hvac_1f_setback_start                  state:climate.main_floor                                              single     hvac_performance.yaml
 hvac_1f_setback_stuck_clear            state:input_boolean.hvac_1f_setback_active                            single     hvac_performance.yaml
+hvac_2f_hold_rebaseline                state:climate.upstairs                                                single     hvac_performance.yaml
 hvac_2f_recovery_end                   template                                                              single     hvac_performance.yaml
 hvac_2f_recovery_start                 template                                                              single     hvac_performance.yaml
 hvac_2f_recovery_stuck_clear           state:input_boolean.hvac_2f_recovering                                single     hvac_performance.yaml
@@ -147,4 +149,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +6 more               parallel   watchdog.yaml
 ```
 
-138 automations.
+140 automations.

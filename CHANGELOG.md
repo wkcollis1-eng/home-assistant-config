@@ -103,6 +103,52 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.10.26] - 2026-10-26
 
+### A morning return below the captured hold now starts a recovery (`packages/hvac_performance.yaml`; `PACKAGES.md`, `AUTOMATIONS.md` regenerated)
+
+- **Bill** (2026-10-26, "2 yes"): when the morning return setpoint is below the evening's captured hold, start a
+  recovery and use the return setpoint as the row's `hold_setpoint`.
+- **Why [M, InfluxDB 06-01..10-26, per-setback-interval setpoint steps]:** Setback Start captures the hold as the
+  evening's `from_state`. On 5 heating nights the 06:00 return was below hold - 0.5, so Recovery Start never armed
+  and no row was written: 2F 10-05 (hold 69, return 66), 10-19, 10-21 and 10-24 (hold 67, return 66), and 1F 10-05
+  (hold 72, return 67). The entry below calls 10-21's return unverified; it is verified: 06:00:00, 64 -> 66 under
+  hold 67.
+- **Change:** new `hvac_1f_hold_rebaseline` / `hvac_2f_hold_rebaseline` (entities
+  `automation.1f_hold_re_baseline` / `automation.2f_hold_re_baseline`), placed after Setback Lowered. A climate
+  setpoint change held 5 s, with `setback_active` on, `recovering` off and the zone in `heat`, between 04:00 and
+  11:59, rising, at least 1 F above the setback setpoint and below hold - 0.5, sets the hold to the new setpoint.
+  Recovery Start's own template then arms, so start time and start temperature stay its job.
+- **Each bound comes from the same history [M]:**
+  - The morning window: 1F 10-18 rose 63 -> 65 at 21:00:01 inside its setback, which was not a return.
+  - Heat only: every summer morning 2F stepped 73 -> 74 under a 76 hold. A re-baseline there would replace the
+    summer rows, which the later 74 -> 76 step arms, with 06:00 ones.
+- **Verified (R2/R7):**
+  - Harness: `C:\sandbox\setback_1026_test\e3test.py` renders the automation's real conditions and Recovery
+    Start's real trigger.
+  - Fault: on the tree without E3, the recorded 2F 10-25, 2F 10-06 and 1F 10-06 mornings do not arm.
+  - Fixed: with E3 they re-baseline and arm.
+  - Silent on 11 others: the 1F 10-18 evening, a cooling morning, a normal morning (the old path still arms), a
+    0.5 F rise, a return to exactly hold - 0.5 (old path), already recovering, no setback, a drop, 03:59, 12:00,
+    and `heat_cool`.
+  - 15/15 cases ran as expected on each tree.
+  - The E1/E2 replay (`replay.py`) still passes 8/8.
+- **R3:** top-level keys and the non-automation blocks are identical. Automations went 46 -> 48: the 46 are
+  unchanged and in order, and the 2 new ones sit after `hvac_2f_setback_lowered`. The diff is 0 lines removed,
+  80 added, LF kept. H: is byte-identical to the sandbox, and so are the 3 generated docs (`ENTITIES.md`
+  unchanged).
+- **Gate (H:):** `PASS (parse-clean) + audit delta clean`, `0 FAIL, 1 WARN, 2 INFO across 18 pipelines` (0 NEW,
+  0 FIXED, 1 UNCHANGED). 2c git mode `0 WARN`; `--all` 2 WARN, the same pre-existing `:2871`/`:2899`. check_config
+  `{"result": "valid", "errors": null, "warnings": null}`.
+- **Reload (11:57:05, within Bill's "2 yes ... then commit and push"):** HTTP 200. 16 setback automations are `on`,
+  and the 2 new ones have never triggered. No setback helper changed, and the system log has no entry after
+  10:05 [M]. Both zones had `setback_active` off, so nothing could fire. Step 5 waits for a live mismatch morning.
+  It was not forced, because that would mean writing live setpoints (R12).
+- **Limits:**
+  - A two-step return re-baselines to its first step, and the row's hold is that step. There were none in the
+    heating mornings 10-05..10-26 [M].
+  - Any rise of >= 1 F between 04:00 and 11:59 that stays below the hold counts as a return, whoever made it.
+  - If the room is already within 0.5 F of the return, nothing arms (as on a normal morning today) and the
+    14 h setback stuck clear ends the setback.
+
 ### Setback CSV logs zero-minute recoveries again, and `recovering` no longer re-latches after recovery end (`packages/hvac_performance.yaml`, `scripts/setback_csv.py`; `PACKAGES.md` regenerated)
 
 - **Bill** (2026-10-26): "The setback log has no upstairs rows since 09-18. please correct this"
