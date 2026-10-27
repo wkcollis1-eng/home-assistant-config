@@ -1,0 +1,22 @@
+# =============================================================================
+# BEDROOM CO2 NODE  —  Master Bedroom (2F), on a shelf
+# -----------------------------------------------------------------------------
+# This file holds NOTHING but substitutions and this node's own API key. All
+# behaviour is in co2-node-common.yaml, which both CO2 nodes share byte for byte.
+#
+# Not yet here: wifi: use_address. Until it holds this node's DHCP reservation,
+# the Device Builder reaches it as bedroom-co2-node.local, which the add-on's
+# container cannot resolve (see basement-th-node.yaml). First flash is over USB
+# either way.
+# =============================================================================
+
+substitutions:
+  node_name: bedroom-co2-node
+  friendly: Bedroom CO2 Node
+
+api:
+  encryption:
+    key: !secret api_key_bedroom_co2_node
+
+packages:
+  common: !include co2-node-common.yaml

@@ -219,6 +219,205 @@ question" —** the answer was one line away and settled it in one sentence.
   - Step 3 `check_config`: `{"result":"valid","errors":null,"warnings":null}`.
   - R3: both files reverse byte-identical to their originals (+12 lines each).
 
+### Bedroom CO2 Node flashed over USB; first boot clean (`esphome/bedroom-co2-node.yaml`, `esphome/co2-node-common.yaml` new on H:; `esphome/secrets.yaml` +1 key; not adopted in HA)
+
+- **Bill** (2026-10-27): "have the co2 monitor assembled and usb plugged into the pc." Asked which node: "Bedroom CO2 Node".
+- **Source.** github.com/wkcollis1-eng/CO2-Monitor `esphome/` (the 10-18 draft), with two edits to `co2-node-common.yaml`, uncommitted in `C:\repos\CO2 Monitor`:
+  - `min_version` 2026.9.1 -> 2026.10.0. The file says to raise it after a re-compile, and the add-on now runs 2026.10.0 [M: `update.esphome_device_builder_update`].
+  - An R13 comment at the I2C `timeout: 50ms`. The draft said to "raise this first" on I2C read errors, which cannot work: ESP-IDF clamps any timeout above 13 ms and logs "Using max allowed timeout: 13 ms" (`i2c_bus_esp_idf.cpp` 26-29, the same in 2026.9.1). The first boot logged it. The value is unchanged, and `esphome config-hash` is 0x3d155a70 before and after the comment [M].
+- **2026.9.1 -> 2026.10.0 source diff.** `scd30.cpp`/`.h` are identical, and ASC still defaults to true (`sensor.py:58`), so the explicit `false` still matters. The FRC action is a refactor (`register_apply_action`, the same uint16 method). `application.cpp`/`.h` have no shutdown or reboot change, so the restored stale-reboot counter reasoning stands. The new boot WARN "Set flash_chip: generic ... to save IRAM" is expected.
+- **Gate (sandbox `C:\sandbox\co2_bedroom_1027`, venv 2026.10.0, PowerShell).**
+  - Harness: "FAULTS: PASS (0 of 6 directions wrong)".
+  - Compile: EXIT=0, `main.cpp.obj` newer than the YAML, `firmware.ota.bin` 925,552 B, 0 `warning:` lines, config_hash 0x3d155a70, built 14:46:59.
+  - The negative copy (one injected `std::string` -> float line) failed at that line, EXIT=1.
+  - gitleaks `dir` on the two YAMLs before they went to H:: "no leaks found". A planted quoted password: "leaks found: 1".
+  - H: and the sandbox are byte-identical for `secrets.yaml` and both YAMLs [M: sha256]. `secrets.yaml` was appended to (1,855 -> 1,926 B), and its prefix is unchanged.
+- **Flash.** `esphome upload --device COM3` at 14:50:21.
+  - Wrote 991,088 B at 0x0, and the hash verified [M].
+  - Chip: ESP32-C3 (QFN32) rev v0.4, MAC `e0:72:a1:1a:d5:b4`.
+- **First boot** [M: serial, and a 26 s read-only API subscription with the node's key, 14:50:58-14:51:24]:
+  - ESPHome 2026.10.0, config hash 0x3d155a70: the gated build.
+  - `setup() finished successfully`. Safe mode reported "Boot seems successful" at 60 s.
+  - IP 10.0.0.149, from DHCP. RSSI -59/-58 dBm at the PC. Free heap 205,260 B. 11 entities.
+  - `CO2` read 1016.26, then 1016.30 ppm [M, n=2, 60 s apart]. This is uncalibrated: no FRC yet.
+  - `CO2 Sensor Fault` off, `CO2 Stale Reboots` 0.
+  - 0 WARN/ERROR lines from 14:50:56 to 14:53:26 [M, 150 s]. That covers no "no SCD30 reading" and no SCD30 read errors. 14:50:25-14:50:56 was not captured.
+  - Uptime 60.6 s at 14:51:22, so the only reset was the flash's own ("USB peripheral").
+  - ASC: a failed ASC=0 write would log ERROR and mark the component failed (`scd30.cpp` 91-96), so readings imply it was acknowledged [D]. The ASC register was not read back.
+- **Not tested.** The 0 ppm power-up filter. The SCD30 kept power through the ESP reset and gave a real reading about 3 s after boot, so the header's "first real one at ~120 s" [I] still waits for a cold power-up.
+- **Cold power-up, same day.** Bill unplugged USB at 14:59:08 and replugged at 14:59:28 [M: COM3 enumeration; a 330 s watch of the API and serial]:
+  - Reset reason "power-on event".
+  - Wi-Fi: two "Association Failed", an adapter restart, then joined at +9.0 s. API at +11.6 s, same IP.
+  - CO2 at +60.7 s 959.98, +121.7 995.77, +182.7 1157.25, +243.7 2817.41, +304.2 1884.18 ppm [M, n=5, steps 61.0/61.0/61.0/60.5 s]. 2817 was Bill breathing on it (Bill).
+  - `CO2 Sensor Fault` stayed off, and `CO2 Stale Reboots` stayed 0. 0 "no SCD30 reading" and 0 SCD30 errors in 330 s.
+  - The header [I] "first real one at ~120 s" is FALSIFIED for this unit: the first value came at +60.7 s, so the watchdog's boot margin is ~180 s [D: 240 - 60.7]. Recorded as a dated comment at the site, `co2-node-common.yaml` interval block. It is comment-only: `config-hash` is still 0x3d155a70, 2c reads 0 WARN, and H: = repo [M: sha256].
+  - No 0 ppm was published. Whether this SCD30 emitted a 0 that `filter_out` dropped is not observable: the raw read logs at DEBUG, and this build logs at INFO. The filter is NOT proven to fire.
+- **Not done:**
+  - HA adoption (Bill's action).
+  - DHCP reservation, then `wifi: use_address`. Until then, Device Builder OTA cannot resolve `.local`.
+  - Outdoor FRC.
+  - The family-room node.
+  - Commits: the repo and H: are both uncommitted, and the Device Builder had not auto-committed the new files by 14:58.
+- **DoD.**
+  - `gate.py` on the two YAMLs: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines"; "0 NEW, 0 FIXED, 1 UNCHANGED"; "PASS (parse-clean) + audit delta clean."
+  - 1b is n/a: no HA entity yet.
+  - Step 3 `check_config`: `{"result":"valid","errors":null,"warnings":null}`.
+- **Adopted in HA, same day (Bill), and a dashboard view written.** It is `dashboards/views/view-bedroom-co2.yaml` (new): a "Bedroom CO2" view on the Overview dashboard. NOT LIVE until Bill pastes it; after that, re-run `export_dashboards.py`.
+  - It references all 12 of the node's entities, and all 12 resolve on `/api/states` [M, 2026-10-27].
+  - Unattended moment: the morning after an unwatched night. CO2 shows unknown or unavailable as it is, and a fault that cleared itself overnight stays visible in a 24 h health history.
+  - Cards: tile, two `history-graph`s (24 h and 7 d), and node diagnostics. Only card types already on live dashboards are used; `statistics-graph` is on none. There are no severity bands or threshold lines: no CO2 limit is sourced, and there has been no FRC yet.
+  - R7 on `dashboard-bare-boolean`: in sandbox copies, the clean copy gave 0 findings and a planted `state: on` gave 1, at line 45.
+  - `gate.py`: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines"; "1 NEW, 0 FIXED, 1 UNCHANGED". The NEW finding is `dashboard-not-pasted` on this file. It is true until the paste.
+  - 1b: `gen_reference.py --check` gave "all generated docs current (359 entities, 140 automations)". ENTITIES.md lists no ESPHome-node entities.
+  - 2c: 0 WARN on the view.
+  - **Pasted, same day (Bill: "dashboard live").** After `export_dashboards.py`, `dashboards/lovelace/lovelace.yaml` holds 18 `bedroom_co2_node` references. Audit against the session-start baseline: "0 NEW, 0 FIXED, 1 UNCHANGED", "0 FAIL, 1 WARN, 2 INFO across 18 pipelines". `dashboard-not-pasted` has cleared, and there is no `dashboard-boolean-key` finding.
+
+### Bedroom CO2 Node firmware 1.1: fault-only LED and LED Test (`esphome/co2-node-common.yaml`; `dashboards/views/view-bedroom-co2.yaml`)
+- **Why.** Bill: "make the led fault only with a test button on the dashboard." The box is vented, so a flashing LED can be seen (Bill).
+- **What.**
+  - The LED strobes at 5 Hz while `CO2 Sensor Fault` is on, and is dark otherwise. It is driven by a second 100 ms `interval` that reads the fault entity HA shows (R10), so it keeps strobing after a recovery reboot.
+  - The new `LED Test` button (entity category config) runs a 15 s strobe and logs "LED test: 15 s strobe" at INFO.
+  - 1.0 turned the LED off at boot and never used it again ("the box is opaque"). That comment is kept, with a dated note under it.
+- **HA entity id.** It is `button.bedroom_bedroom_co2_node_led_test` [M, /api/states]: HA doubled "bedroom", so the id is not the pattern's `button.bedroom_co2_node_led_test`. The view uses the real id.
+- **Gate.**
+  - The repo harness passes both ways: "FAULTS: PASS (0 of 6 directions wrong)". The new `harness/led.py` (in the CO2 Monitor repo) gives "LED: PASS (0 of 5 directions wrong)".
+  - Compile on 2026.10.0: "POS EXIT=0", 0 warnings, `config_hash=0x12f9de22`, main.cpp.obj newer than the YAML. The negative copy, with a line injected in the LED lambda, gave "NEG EXIT=1" at `co2-node-common.yaml:292:18`.
+  - gate.py on both YAMLs: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines"; "0 NEW, 0 FIXED, 1 UNCHANGED". 2c: 0 WARN.
+  - Repo = sandbox = H: [M: sha256 1c94d8cd…].
+- **Flash.** Over USB: "UPLOAD EXIT=0 at 15:32:21", "Hash of data verified". Boot was clean: only the two known WARNs (I2C 13 ms clamp, flash_chip) and a Wi-Fi scan flag cleared at +5.5 s. HA reads hash 0x12f9de22, fault off, CO2 895.78. Rollback image (hash 0x3d155a70): `C:\sandbox\co2_bedroom_1027\fw_0x3d155a70\`.
+- **Not yet proven.**
+  - The LED on the device (Bill's press and look).
+  - The fault path end to end. That needs the SCD30 cable unplugged for more than 240 s; until then, only the host harness covers it.
+  - `dashboard-not-pasted` cannot see one new row in a view that is already live, so the export after the paste is the check.
+- **Proven on the device, same day (Bill).**
+  - The view with LED Test was pasted; the export holds the button id. "led button works" (Bill).
+  - SCD30 unplug test [M: HA poll every 2 s, plus serial]:
+    - The last good reading was at 15:41:05, 1120.81 ppm.
+    - At 15:45:24 the node logged `[W][co2:267]: no SCD30 reading for 259 s`. At 15:45:25 HA showed CO2 `unknown` and the fault `on`, and Bill reported "flashing". So the fault path to the LED is PROVEN end to end.
+    - The SCD30 driver logged no read errors at INFO while the sensor was out.
+  - On the replug at 15:46:35 the whole node reset. COM3 dropped, and the node's reset reason was "power-on event" (uptime 3.1 s); stale reboots stayed 0. The boot cleared the fault, which is why the LED went off.
+    - The cause is OPEN: either the USB connection was jostled, or hot-plugging the SCD30 pulled the 3V3 rail below power-on reset [I; falsified if Bill says the USB cable or board moved]. R14 question asked.
+    - So "the strobe stops at the next good reading" is NOT proven on the device; the host harness still covers that path.
+  - The first CO2 value after the replug came at 15:47:35, 606.61 ppm, then 1043.86 at 15:48:36 [M, HA history, n=2]. On the earlier cold boot, the first value was 959.98, then 995.77. Recorded, not explained.
+- **Bill: "dashboard did not show the fault." The view's moment 2 was wrong for a short fault (R13, corrected at the site).**
+  - HA did hold the fault [M, recorder and logbook]: on 15:45:22 to 15:46:51, 89 s. The 24 h health graph draws that as a sliver of 0.1 % of its width [D: 89 / 86400].
+  - Added a `logbook` card, "Health events, last 24 hours", for the fault and node status. It lists one line per change, however short. It reads HA's existing logbook (R10), which already holds all three of today's changes [M].
+    - Its keys were read from the deployed frontend 20260930.5 (`hui-logbook-card.ts`, `types.ts`). `entities:` is deprecated there, so the card uses `target:`.
+  - Verified in sandbox `C:\sandbox\co2_view_1027b`: removing the card gives a structure equal to the original; the diff is 0 lines removed and 19 added; LF endings kept; no bare booleans.
+  - gate.py: "PASS (parse-clean) + audit delta clean.", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines". 2c: 0 WARN. Step 3 is n/a, because no file HA loads changed.
+  - Open:
+    - Bill's paste, then the export, then a check that the card shows the 15:45 entries.
+    - It is not yet known whether Bill looked at the view during the 89 s window, when the badge should have read Problem.
+
+### Bedroom CO2 Node firmware 1.2: a 2 s calibration window, guards proven on the device, no calibration applied; the view gains the UBA 1000/2000 ppm lines (not pasted)
+
+- **Bill:** "lets calibrate and update the dashboard while calibrating." He chose "Open window, cable inside" and approved "flash 1.2 ota" with the unit on the outside window sill.
+- **Why 1.2.** FRC needs "a measurement rate of 2s for at least two minutes before applying" [S: Sensirion SCD30 Interface Description v1.0-D1, p14]. ESPHome 2026.10.0 writes the 60 s `update_interval` as the SCD30's interval at every boot [S: `scd30.cpp:68`], so a 1.1 FRC would have run outside the spec.
+- **What 1.2 does** (`co2-node-common.yaml`, moment 5):
+  - `frc_prepare` sets the 2 s interval (command 0x4600) and opens a 20 min window that ends in a reboot. The reboot's setup writes 60 s back. The SCD30 keeps its interval in non-volatile memory [S: same document, p9], so a forgotten window cannot leave it at 2 s.
+  - `forced_recalibration` checks the window first (open, and 2 min elapsed), then the 400-2000 range. It calls the driver directly, so "applied" means the SCD30 returned success.
+  - New diagnostic text entity `sensor.bedroom_bedroom_co2_node_calibration` [M, /api/states; "bedroom" doubled again].
+- **Gate.**
+  - Compile on 2026.10.0: "POS EXIT=0", 0 warnings, `config_hash=0xc7de18d3`. The negative copy gave "NEG EXIT=1" at `co2-node-common.yaml:304:23`.
+  - Harness on the 1.2 YAML: "FAULTS: PASS (0 of 6 directions wrong)", "LED: PASS (0 of 5 directions wrong)".
+  - gate.py: "PASS (parse-clean) + audit delta clean.", "2. SEMANTIC 0 FAIL, 1 WARN, 2 INFO across 18 pipelines".
+  - Repo = sandbox = H: [M: sha256 525c4188…], written 16:05:36, before the harness and the build.
+- **Flash.** OTA, "UPLOAD EXIT=0 at 16:08:23". HA read hash 0xc7de18d3, reset reason "Reboot request from esphome.ota", Calibration `60 s rate`, and both actions listed [M, 16:08:32]. Rollback YAML (1.1): `C:\sandbox\co2_frc_1027\orig-common.yaml`.
+- **Guards proven on the device, both ways [M, HA states, 16:09-16:11].** 399 ppm is refused by both guards, so none of these calls could apply.
+  - 399 before the window: `60 s rate; refused: no 2 s window, or under 2 min`.
+  - `frc_prepare` at 16:09:01: `2 s window: wait`. At +131 s: `2 s window: ready`.
+  - 399 inside the window: `2 s window: ready; refused: 399 is outside 400-2000`.
+  - The 2 s rate reached HA: 29-30 states in each full minute [M, recorder, n=173, 16:09:00-16:15:30].
+- **No calibration applied: the sill air was not outdoor air.**
+  - From 16:10 to 16:14 the 2 s readings swung 351-853 ppm, with a per-minute sd of 77-131 ppm [M, recorder, n=148]. At 16:14:04-16:14:08 the reading jumped 538 to 718. From 16:14:43 it held 798-819 [M].
+  - The reference would have been 426 ppm [S: NOAA GML Mauna Loa monthly mean, Sept 2026, 426.07, gml.noaa.gov/ccgg/trends, updated 2026-10-09]. Applied while the sensor saw about 805, it would have moved every later reading down by about 380 ppm [D: 426 - 805].
+  - **R13, my error.** The test I set beforehand, "a flat plateau = clean", was incomplete. From 16:14:43 the reading was flat (sd 2.2 ppm over n=15 [M]), and it was still not outdoor air. A clean reading must be both flat and outdoor-plausible.
+  - R14 question to Bill: what changed at the window at 16:14:05?
+- **Dashboard** (`dashboards/views/view-bedroom-co2.yaml` on H:; not pasted).
+  - The two CO2 history-graphs are now `custom:apexcharts-card`, with lines at 1000 ppm ("open a window") and 2000 ppm ("unacceptable") [S: Umweltbundesamt, "Leitwerte fuer Kohlendioxid in der Innenraumluft" (2008), table]. The y axis has soft bounds; the 7-day chart plots a 10-minute max, so a crossing is never averaged away.
+  - A Calibration row was added to the Node card.
+  - Verified in sandbox `C:\sandbox\co2_view_1027c`:
+    - The diff against H: has three hunks: the header note, the two cards, and the row.
+    - The file before the row is byte-identical.
+    - 0 CR. The `'y'` keys are quoted (R19).
+  - gate.py: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines". The new WARN is `dashboard-not-pasted` for the Calibration row. It is the designed signal and clears after the paste and the export. 2c: 0 WARN.
+- **Open:**
+  - The calibration itself.
+  - Bill's paste of the view, then the export.
+  - The README in the CO2 Monitor repo is updated for 1.2 but not committed.
+
+### Bedroom CO2 Node firmware 1.3 and the porch calibration: SCD30 temperature and humidity as diagnostics; FRC 426 applied outdoors (the sensor read about 85 ppm low [D: 426 - 340.9])
+- **Why (Bill, 2026-10-27):**
+  - "can we see the units temp/humidity its recording? comes with an SHT31 temperature and humidity sensor already built-in"
+  - "i will move to the front porch completely outside. next boot the unit will be outside and you can start calibration."
+  - After the first porch window: "Flash 1.3, then calibrate (Recommended)".
+- **Unattended moments:**
+  - A calibration months from now, by hand. FRC assumes the sensor is at the temperature of the air it reads [S: SCD30 Design-In Guidelines D1, p2]; until 1.3 nothing showed that.
+  - 03:00 with the SCD30 silent. Its temperature and humidity must go unknown with CO2, not freeze.
+- **Firmware 1.3** (`esphome/co2-node-common.yaml`, sha 643eb8a76dd8, = the CO2 Monitor repo):
+  - New `temperature:` and `humidity:` sub-sensors. They are diagnostic and named "(self-heated)" [S: SCD30 Interface Description v1.0-D1, p15].
+  - No `temperature_offset`. Setup writes the offset at every boot either way (scd30.cpp:42-49), so 1.3 sends the SCD30 nothing 1.2 did not.
+  - The stale watchdog blanks both with CO2. One read carries all three, and a failed read publishes none (scd30.cpp:186-192).
+  - The old "No temperature: or humidity: here, deliberately" comment stays, with a dated note under it.
+  - Ids read from /api/states: `sensor.bedroom_bedroom_co2_node_scd30_temperature_self_heated` and `sensor.bedroom_bedroom_co2_node_scd30_humidity_self_heated`.
+- **Gate:**
+  - Compile on 2026.10.0: "POS EXIT=0", "POS warnings: 0", config_hash=0xb871d0e7, main.cpp.obj newer than the YAML.
+  - NEG, with a member typo in a new tick line: "NEG EXIT=1" at :372:39.
+  - Harness: "FAULTS: PASS (0 of 9 directions wrong)", "LED: PASS (0 of 5 directions wrong)".
+  - R3: reversing the edit gives the 1.2 file byte-identical; 371 of 373 lines are unchanged.
+  - gate.py: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines". The new WARN is the KBDL feed, below. 2c: 0 WARN.
+  - OTA: "UPLOAD EXIT=0 at 16:53:57". The version entity shows hash 0xb871d0e7.
+- **R13, the harness:**
+  - The first draft checked temperature and humidity at the END of the dead-sensor scenario, and could not fail. F6 and F7, which each remove one blanking line, PASSED. The reason: every recovery boot starts the sensors at NaN.
+  - It was replaced by three checks:
+    - a timed check: both go NaN with CO2, in [L+240, L+270] s;
+    - a healthy never-blank check;
+    - F8: blanking ahead of the age test.
+  - The note is in `harness/sim.cpp.in`.
+- **Porch window 1** (firmware 1.2, `frc_prepare` 16:26:27):
+  - From 16:32 to 16:45 the per-minute means ran 346.0 to 338.5, sd 0.2 to 1.0, n 29 to 30 a minute [M: sensor.bedroom_co2_node_co2, 2 s rate].
+  - NO PASS. The only check it failed was the level check, |mean - 426| <= 43, and it failed it from BELOW: about 82 low [D: 426 - 344]. Not applied.
+  - The window-end reboot at 16:46:26 restored "60 s rate" [M].
+- **R13, the acceptance test:**
+  - The level check was symmetric. A plume can only raise CO2, so its lower bound rejected the very offset FRC exists to remove.
+  - At 16:56 it was made one-sided: mean <= 469 [D: 426 + 43]. The flatness checks are unchanged. Bill approved, BEFORE the second window.
+  - Dry run: "DRYRUN2: PASS (sill none True, porch some True, symmetric porch none True, cases 0 of 7 wrong)".
+- **Porch window 2** (firmware 1.3, `frc_prepare` 16:55:41):
+  - "PASS: minutes 16:58-17:00, means [343.0, 340.7, 338.9], sd [1.5, 1.3, 0.8], 3-min mean 340.9 (n=89)" [M].
+  - The SCD30 temperature went from 58.7 to 59.7 F, 16:55 to 17:01 [M]. It was still rising as the 2 s rate added self-heating. Outdoor air was 56.4 F at 16:32 [M: sensor.outdoor_temp_live].
+- **Applied at 17:01:27:**
+  - Reference 426 [S: NOAA GML, Mauna Loa monthly mean, September 2026, 426.07].
+  - Calibration read "2 s window: ready; applied 426 ppm". CO2 went from 338.4 to 425.7 within 10 s, and read 428.4 at 17:02:57 [M].
+  - FRC at 426 lowers the error for any true porch CO2 above 383 ppm [D: (340.9 + 426) / 2].
+  - That the porch air was near 426 is [I]. It is falsified by a reference meter on the porch reading near 341.
+- **Persistence through the window-end reboot (test fixed at 17:03, before it):**
+  - The reboot came at 17:15:46, "software via esp_restart". Calibration then read "60 s rate".
+  - The 3 readings before it were 448.0, 448.6 and 450.0. The first 3 from 5 min after it were 448.7 (17:20:47), 447.1 and 444.9 [M: sensor.bedroom_co2_node_co2].
+  - "PERSIST: PASS (after - before = -2.0 ppm, limit 43)". A lost calibration would have fallen about 87 ppm [D: 425.7 - 338.4].
+  - Between the FRC and the reboot the reading rose from 425.7 to about 449 [M, 17:01:37 to 17:15]. That is within the SCD30's +-43 ppm at 426 [D: 30 + 3% of 426; S: Interface Description v1.0-D1, p1]. Evening outdoor CO2 rising is [I], untested here.
+- **A low start after 2 of 3 boots, cause unknown:**
+  - The first CO2 readings started low and climbed for about 4 min: 247 to about 345 after the 16:23:54 power-on, and 277 to about 343 after the 16:53:57 OTA [M].
+  - The 17:15:46 reboot did not: its first reading, 452 at 17:16:44, was already on the plateau [M]. That falsifies the model written at 17:03, that the SCD30 restarting continuous measurement causes the climb. Kept here, not deleted (R13).
+  - The persistence test skipped the first 5 min for this reason.
+- **Corrections to the 1.2 section above:**
+  - Bill: "at 15:36 moved the unit to the window sill. thats when the calibration started." So the unplug test and the replug were on the sill.
+  - The 15:36 move did not reset the node: uptime was continuous 15:32:31 to 15:46:22 [M].
+  - On the replug reset, Bill: "dont know. maybe closing the window down put pressure on the cord that i was not aware off." It is now a bench test (`open_questions.yaml`).
+- **Dashboard:**
+  - Bill pasted the 1.2 view. The export was verified: apexcharts present; `'y': 1000` x2 and `'y': 2000` x2; logbook 1, Calibration 1, LED test 1. The audit went back to "0 FAIL, 1 WARN, 2 INFO across 18 pipelines".
+  - For 1.3 the Node card gains two rows (`dashboards/views/view-bedroom-co2.yaml`, sha b617fe256004). The 215 earlier lines are byte-identical, plus 9 new ones.
+  - gate.py: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 3 WARN, 2 INFO across 18 pipelines". `dashboard-not-pasted` stands until Bill pastes. 2c: 0 WARN.
+- **Unrelated, left open:**
+  - `fetch-health sensor.kbdl_degree_days_24h` 'insufficient': 13 obs, max gap 6.35 h, last_obs 14:51Z [M: attributes at 21:12Z].
+  - The gap is upstream [M: api.weather.gov KBDL observations, read 21:21Z]. The script keeps only the :51 routine METARs and the specials (`scripts/kbdl_degree_days.py:18-22`).
+  - The 15:51Z METAR has temperature null with QC 'Z', although its raw text says 11/M04. There is no :51 METAR at all from 16:51Z to 20:51Z.
+  - The sensor reports the fallback as designed. It clears when routine METARs resume.
+  - The export also carries a live dashboard change that is not from this session: `sensor.dehumidifier_running_watts_latched` became `sensor.dehumidifier_running_watts_68f_latched` at lovelace.yaml:1121. It needs its own commit.
+- **Open:**
+  - Bill's paste of the 1.3 rows.
+  - The README and harness in the CO2 Monitor repo, not committed.
+  - The bench replug test.
+
 ## [2026.10.26] - 2026-10-26
 
 ### Setback CSVs backfilled for the 10-05..10-26 nights: 8 rows 1F, 13 rows 2F (`reports/hvac_setback_1f.csv`, `reports/hvac_setback_2f.csv`)

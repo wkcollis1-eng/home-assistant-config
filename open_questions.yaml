@@ -2811,3 +2811,52 @@
     appearance cannot show (CHANGELOG 2026.10.27). Orifices versus meter now
     waits on a physical check (read a pulled orifice's stamp), not on an
     answer. Ledger: manifold row NOT YET SCORABLE, clock row VOID.
+
+- asked: 2026-10-27
+  question: >-
+    Bedroom CO2 Node on the outside window sill, 2026-10-27: (1) what
+    changed at the window at 16:14:05 - was the node moved, the sash raised
+    or lowered, or someone at the window? Where does it sit now, and is the
+    sash closed down onto the cable? (2) Earlier, on the SCD30 replug at
+    15:46:35, did the USB cable or the board move?
+  blocks: >-
+    (1) The outdoor FRC. The 2 s readings swung 351-853 ppm, jumped 538 to
+    718 at 16:14:04-08, then held 798-819 [M, recorder], which is not
+    outdoor air. No reference is applied until the node is known to sit in
+    outdoor air (CHANGELOG 2026.10.27, firmware 1.2). (2) Explaining the
+    whole-node reset on the replug: a jostled USB connection, or the 3V3 rail
+    dipping below power-on reset [I]. Until then "the strobe stops at the
+    next good reading" is not proven on the device.
+  answered: >-
+    Part (1) only. Bill, 2026-10-27, the same day: "nothing changed did not
+    open or close the window. maybe picking natual gas exhaust from ours or
+    neighbors hwh or furnace. i will move to the front porch completely
+    outside." Our own appliances were not firing: binary_sensor.
+    hvac_furnace_running read off from 15:30, and sensor.hwh_current_
+    consumption had no span above 20 W after 15:57:44 [M, recorder]. So the
+    source is open: a neighbour's appliance, or bedroom air through the
+    window the cable runs through, which was open throughout [I: at 16:22
+    the sill read 890 ppm, near the bedroom's level]. The porch test
+    (CHANGELOG 2026.10.27) does not need the answer. Part (2) is split
+    into the entry below.
+
+- asked: 2026-10-27
+  question: >-
+    Bedroom CO2 Node, still open from the entry above: (2) on the SCD30
+    replug at 15:46:35, did the USB cable or the board move?
+  blocks: >-
+    Explaining the whole-node reset on the replug: a jostled USB
+    connection, or the 3V3 rail dipping below power-on reset [I]. Until
+    then "the strobe stops at the next good reading" is not proven on the
+    device. Split 2026-10-27 from the entry above, whose part (1) Bill
+    answered that day.
+  answered: >-
+    Bill, 2026-10-27, the same day: "dont know. maybe closing the window
+    down put pressure on the cord that i was not aware off." Context from
+    Bill: the unit went onto the window sill at 15:36, so the unplug test
+    and the replug were on the sill. The 15:36 move itself did not reset
+    the node (uptime continuous 15:32:31-15:46:22 [M]). The cause stays
+    open [I: cord pressure from the sash, or the hot-plug rail dip]. It is
+    now a bench test, not a question: replug the SCD30 with the USB cable
+    taped down; a reset then points at the rail. Until then "the strobe
+    stops at the next good reading" stays unproven on the device.

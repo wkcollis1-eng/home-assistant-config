@@ -1,0 +1,224 @@
+# =============================================================================
+# DASHBOARD VIEW — Bedroom CO2 Node
+# Rev 0.1 (2026-10-27). A new view on the Overview dashboard (lovelace). Matches
+# the `type: sections` convention of dehumidifier.yaml and view-mmwave-office.yaml.
+# -----------------------------------------------------------------------------
+# THE UNATTENDED MOMENT: the morning after a night nobody watched. Two things
+# must be true then:
+#   1. A dead sensor reads as dead, never as a believable number. After 240 s
+#      with no SCD30 read the node publishes CO2 = unknown and turns "CO2 Sensor
+#      Fault" on (esphome/co2-node-common.yaml, moment 3); an offline node
+#      makes every entity unavailable. The tile and badges show those states
+#      as they are - no card here holds a last-good value.
+#   2. A fault that came and went is still visible. The fault clears itself on
+#      the next good read, so the health history below covers the 24 h.
+#      CORRECTED 2026-10-27 (R13): not for a short fault. The SCD30 unplug
+#      test's fault lasted 89 s [M, recorder 15:45:22-15:46:51], a sliver of
+#      0.1 % of that graph's width [D: 89 / 86400], and Bill reported
+#      "dashboard did not show the fault". The logbook card in the Node
+#      section now carries this moment: one line per change, however short.
+# No severity bands or threshold lines, deliberately: no CO2 limit for this
+# house is sourced yet, and the sensor has had no outdoor FRC. A number on a
+# chart must be measured, not invented (pre-commit checklist).
+# CHANGED 2026-10-27: the limit is now sourced (UBA 2008), so the CO2
+# graphs carry 1000/2000 ppm lines; still no bands.
+# Card types are only ones already on live dashboards (history-graph, tile,
+# heading; statistics-graph is on none, so it is not used here).
+# EXCEPTION 2026-10-27: logbook is on none either. Its keys were read from the
+# deployed frontend instead (20260930.5, hui-logbook-card.ts and types.ts).
+# Entity ids from /api/states, 2026-10-27, the day the node was adopted.
+# =============================================================================
+type: sections
+max_columns: 2
+icon: mdi:molecule-co2
+path: bedroom-co2
+title: Bedroom CO2
+header:
+  card:
+    type: markdown
+    text_only: true
+    content: |
+      # Bedroom CO2
+      **Unknown** means the SCD30 has not answered for 4 minutes - see Sensor fault.
+
+badges:
+  - type: entity
+    entity: binary_sensor.bedroom_co2_node_node_status
+    name: Node
+  - type: entity
+    entity: binary_sensor.bedroom_co2_node_co2_sensor_fault
+    name: Sensor fault
+  - type: entity
+    entity: sensor.bedroom_co2_node_co2_stale_reboots
+    name: Stale reboots
+  - type: entity
+    entity: sensor.bedroom_co2_node_node_wifi_signal
+    name: Wi-Fi
+
+sections:
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: heading
+        heading: CO2
+      - type: tile
+        entity: sensor.bedroom_co2_node_co2
+        name: CO2
+        icon: mdi:molecule-co2
+        grid_options:
+          columns: 12
+          rows: 2
+        vertical: true
+      # CHANGED 2026-10-27 (Bill: "is there co2 limit that should be drawn on
+      # the graphs to indicate time to open a window?"). history-graph cannot
+      # draw a line, so these are apexcharts-card, the card dehumidifier.yaml
+      # already draws its thresholds with. Lines [S: UBA "Leitwerte fuer
+      # Kohlendioxid (2008)" table]: under 1000 ppm no action; 1000-2000
+      # "hygienically conspicuous", ventilate more; over 2000 "hygienically
+      # unacceptable". Health Canada's 1000 ppm (H144-81/2021E-PDF s7.1) is a
+      # 24 h AVERAGE, so it is not drawn as a line. A reading near a line is
+      # only as good as the last outdoor calibration (firmware moment 5).
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Last 24 hours
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 1000
+                borderColor: '#f57c00'
+                label:
+                  text: 1000 ppm - open a window (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#f57c00'
+              - 'y': 2000
+                borderColor: '#d32f2f'
+                label:
+                  text: 2000 ppm - unacceptable (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#d32f2f'
+        yaxis:
+          # Soft bounds ('~', apexcharts-card.js parses them as SOFT): both
+          # lines always on the chart, and data beyond them still widens it.
+          - min: '~400'
+            max: '~2100'
+            decimals: 0
+        series:
+          - entity: sensor.bedroom_co2_node_co2
+            name: CO2
+            type: line
+            stroke_width: 2
+            color: '#00d1ff'
+      # 7 days fits inside the recorder's purge_keep_days: 14, so this reads
+      # states, not long-term statistics.
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Last 7 days
+        graph_span: 7d
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 1000
+                borderColor: '#f57c00'
+                label:
+                  text: 1000 ppm - open a window (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#f57c00'
+              - 'y': 2000
+                borderColor: '#d32f2f'
+                label:
+                  text: 2000 ppm - unacceptable (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#d32f2f'
+        yaxis:
+          # Soft bounds ('~', apexcharts-card.js parses them as SOFT): both
+          # lines always on the chart, and data beyond them still widens it.
+          - min: '~400'
+            max: '~2100'
+            decimals: 0
+        series:
+          - entity: sensor.bedroom_co2_node_co2
+            name: CO2 (10 min max)
+            type: line
+            stroke_width: 2
+            color: '#00d1ff'
+            group_by:
+              # max, not avg: a crossing of a line is never averaged away
+              func: max
+              duration: 10min
+
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: heading
+        heading: Node
+      - type: history-graph
+        title: Health, last 24 hours
+        hours_to_show: 24
+        entities:
+          - entity: binary_sensor.bedroom_co2_node_node_status
+            name: Node status
+          - entity: binary_sensor.bedroom_co2_node_co2_sensor_fault
+            name: Sensor fault
+      # ADDED 2026-10-27 (Bill: "dashboard did not show the fault"). Moment 2
+      # above: the graph cannot show a fault of a minute or two; this lists
+      # each change with its time. HA's logbook already records them (R10) -
+      # the card only reads it. `target:` because `entities:` is deprecated in
+      # the deployed frontend; an empty target is a visible card error.
+      - type: logbook
+        title: Health events, last 24 hours
+        hours_to_show: 24
+        target:
+          entity_id:
+            - binary_sensor.bedroom_co2_node_co2_sensor_fault
+            - binary_sensor.bedroom_co2_node_node_status
+      - type: entities
+        entities:
+          # The firmware caps recovery reboots at 3 (co2-node-common.yaml); at 3
+          # the node stays up and keeps reporting the fault.
+          - entity: sensor.bedroom_co2_node_co2_stale_reboots
+            name: Stale reboots (cap 3)
+          - entity: sensor.bedroom_co2_node_node_reset_reason
+            name: Last reset reason
+          - entity: sensor.bedroom_co2_node_node_uptime
+            name: Uptime
+          - entity: sensor.bedroom_co2_node_node_wifi_signal
+            name: Wi-Fi signal
+          - entity: sensor.bedroom_co2_node_node_free_heap
+            name: Free heap
+          - entity: sensor.bedroom_co2_node_node_loop_time
+            name: Loop time
+          - entity: sensor.bedroom_co2_node_node_esphome_version
+            name: ESPHome version
+          - type: divider
+          - entity: update.bedroom_co2_node_firmware
+            name: Firmware
+          - entity: button.bedroom_co2_node_node_restart
+            name: Restart node
+          # ADDED 2026-10-27 (Bill: "a test button on the dashboard"): firmware
+          # 1.1 strobes the LED for 15 s. The id is as HA assigned it, read from
+          # /api/states - note the doubled "bedroom"; not the pattern's guess.
+          - entity: button.bedroom_bedroom_co2_node_led_test
+            name: LED test (15 s strobe)
+          # ADDED 2026-10-27 (firmware 1.2, moment 5 there): "60 s rate", or the
+          # 2 s calibration window's wait / ready, plus the last calibration
+          # result. Id read from /api/states after the 1.2 flash (doubled again).
+          - entity: sensor.bedroom_bedroom_co2_node_calibration
+            name: Calibration
+          # ADDED 2026-10-27 (firmware 1.3, Bill: "can we see the units
+          # temp/humidity its recording?"). The SCD30's own on-board sensor,
+          # self-heated: it reads warm and dry, so it is not the room's T/RH.
+          # Its use is calibration - FRC wants the sensor at the air's
+          # temperature. Ids read from /api/states after the 1.3 flash.
+          - entity: sensor.bedroom_bedroom_co2_node_scd30_temperature_self_heated
+            name: SCD30 temperature (self-heated)
+          - entity: sensor.bedroom_bedroom_co2_node_scd30_humidity_self_heated
+            name: SCD30 humidity (self-heated)

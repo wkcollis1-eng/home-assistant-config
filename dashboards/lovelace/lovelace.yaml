@@ -2,7 +2,7 @@
 # Source: .storage/lovelace.lovelace (UI-managed; HA loads that, never this file).
 # Restore: dashboard > three-dot menu > Raw configuration editor,
 #          select all, replace with everything below this header.
-# 11 view(s).
+# 12 view(s).
 #
 title: Home
 views:
@@ -6936,3 +6936,159 @@ views:
                     </details>
                     {% endif %}
                   {% endif %}
+  - type: sections
+    max_columns: 2
+    icon: mdi:molecule-co2
+    path: bedroom-co2
+    title: Bedroom CO2
+    header:
+      card:
+        type: markdown
+        text_only: true
+        content: |
+          # Bedroom CO2
+          **Unknown** means the SCD30 has not answered for 4 minutes - see Sensor fault.
+    badges:
+      - type: entity
+        entity: binary_sensor.bedroom_co2_node_node_status
+        name: Node
+      - type: entity
+        entity: binary_sensor.bedroom_co2_node_co2_sensor_fault
+        name: Sensor fault
+      - type: entity
+        entity: sensor.bedroom_co2_node_co2_stale_reboots
+        name: Stale reboots
+      - type: entity
+        entity: sensor.bedroom_co2_node_node_wifi_signal
+        name: Wi-Fi
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: CO2
+          - type: tile
+            entity: sensor.bedroom_co2_node_co2
+            name: CO2
+            icon: mdi:molecule-co2
+            grid_options:
+              columns: 12
+              rows: 2
+            vertical: true
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Last 24 hours
+              show_states: true
+              colorize_states: true
+            graph_span: 24h
+            apex_config:
+              annotations:
+                yaxis:
+                  - 'y': 1000
+                    borderColor: '#f57c00'
+                    label:
+                      text: 1000 ppm - open a window (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#f57c00'
+                  - 'y': 2000
+                    borderColor: '#d32f2f'
+                    label:
+                      text: 2000 ppm - unacceptable (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#d32f2f'
+            yaxis:
+              - min: ~400
+                max: ~2100
+                decimals: 0
+            series:
+              - entity: sensor.bedroom_co2_node_co2
+                name: CO2
+                type: line
+                stroke_width: 2
+                color: '#00d1ff'
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Last 7 days
+            graph_span: 7d
+            apex_config:
+              annotations:
+                yaxis:
+                  - 'y': 1000
+                    borderColor: '#f57c00'
+                    label:
+                      text: 1000 ppm - open a window (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#f57c00'
+                  - 'y': 2000
+                    borderColor: '#d32f2f'
+                    label:
+                      text: 2000 ppm - unacceptable (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#d32f2f'
+            yaxis:
+              - min: ~400
+                max: ~2100
+                decimals: 0
+            series:
+              - entity: sensor.bedroom_co2_node_co2
+                name: CO2 (10 min max)
+                type: line
+                stroke_width: 2
+                color: '#00d1ff'
+                group_by:
+                  func: max
+                  duration: 10min
+      - type: grid
+        cards:
+          - type: heading
+            heading: Node
+          - type: history-graph
+            title: Health, last 24 hours
+            hours_to_show: 24
+            entities:
+              - entity: binary_sensor.bedroom_co2_node_node_status
+                name: Node status
+              - entity: binary_sensor.bedroom_co2_node_co2_sensor_fault
+                name: Sensor fault
+          - type: logbook
+            title: Health events, last 24 hours
+            hours_to_show: 24
+            target:
+              entity_id:
+                - binary_sensor.bedroom_co2_node_co2_sensor_fault
+                - binary_sensor.bedroom_co2_node_node_status
+          - type: entities
+            entities:
+              - entity: sensor.bedroom_co2_node_co2_stale_reboots
+                name: Stale reboots (cap 3)
+              - entity: sensor.bedroom_co2_node_node_reset_reason
+                name: Last reset reason
+              - entity: sensor.bedroom_co2_node_node_uptime
+                name: Uptime
+              - entity: sensor.bedroom_co2_node_node_wifi_signal
+                name: Wi-Fi signal
+              - entity: sensor.bedroom_co2_node_node_free_heap
+                name: Free heap
+              - entity: sensor.bedroom_co2_node_node_loop_time
+                name: Loop time
+              - entity: sensor.bedroom_co2_node_node_esphome_version
+                name: ESPHome version
+              - type: divider
+              - entity: update.bedroom_co2_node_firmware
+                name: Firmware
+              - entity: button.bedroom_co2_node_node_restart
+                name: Restart node
+              - entity: button.bedroom_bedroom_co2_node_led_test
+                name: LED test (15 s strobe)
+              - entity: sensor.bedroom_bedroom_co2_node_calibration
+                name: Calibration
+              - entity: sensor.bedroom_bedroom_co2_node_scd30_temperature_self_heated
+                name: SCD30 temperature (self-heated)
+              - entity: sensor.bedroom_bedroom_co2_node_scd30_humidity_self_heated
+                name: SCD30 humidity (self-heated)
+    cards: []
