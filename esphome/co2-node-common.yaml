@@ -30,6 +30,9 @@
 #      reboots to re-run SCD30 setup - at most 3 times in a row (the counter
 #      survives the reboot), then it stays up and keeps reporting the fault, so
 #      a dead cable cannot become a reboot loop that hides it.
+#      1.4: reads come every 2 s, so 240 s is about 120 missed reads. The
+#      watchdog blanks "CO2 (2 s)"; the 1-minute "CO2" follows at the end of
+#      its minute, and so do T and RH, which are 1-minute means too.
 #   4. The same 03:00, with no screen open (added 2026-10-27, Bill: "make the
 #      led fault only with a test button"; the box is vented, so it shows).
 #      The LED on GPIO20 strobes at 5 Hz while "CO2 Sensor Fault" is on, and
@@ -44,16 +47,31 @@
 #      result in HA. The window ends with a reboot, whose setup writes the
 #      60 s rate back: the SCD30 keeps its interval in non-volatile memory
 #      (p9), so a forgotten window must not leave it at 2 s.
+#      SUPERSEDED 2026-10-27 by 1.4 (moment 6): the node always measures at
+#      2 s, so p14's condition holds from 2 min after every boot. frc_prepare,
+#      its window and its reboot are gone; forced_recalibration is refused
+#      only in the first 2 min after a boot.
+#   6. Every reading, every night (added 2026-10-27, firmware 1.4, Bill:
+#      "measure every 2 s all the time and send HA a 1-minute average and
+#      show both on the graphs"). The SCD30 read 60 to 70 ppm lower at 60 s
+#      than at 2 s in the same air [D: 3 rate switches on the porch, one
+#      afternoon; H: CHANGELOG 2026-10-27], and FRC is taken at 2 s (p14).
+#      So it now measures at 2 s always, the rate it was calibrated at. HA
+#      gets "CO2", the 1-minute mean, and "CO2 (2 s)", every reading. Setup
+#      writes the interval at every boot (scd30.cpp:68, 2026.10.0), so no
+#      reboot can leave it at another rate.
 #
 # Calibration: with ASC off, the ONLY path is forced recalibration (the
 # forced_recalibration API action below), done outdoors by hand.
 # 1.2: call frc_prepare first, then forced_recalibration at "ready" (moment 5).
+# 1.4: no frc_prepare; call forced_recalibration once Calibration reads
+# "2 s rate; FRC ready".
 # =============================================================================
 
 substitutions:
   node_name: co2-node
   friendly: CO2 Node
-  fw_version: "1.3-draft"   # 1.3 (2026-10-27): SCD30 temperature + humidity (diagnostic). 1.2 (2026-10-27): 2 s calibration window. 1.1: fault-only LED + LED Test
+  fw_version: "1.4-draft"   # 1.4 (2026-10-27): 2 s always; CO2 = 1-min mean, CO2 (2 s) = every read. 1.3 (2026-10-27): SCD30 temperature + humidity (diagnostic). 1.2 (2026-10-27): 2 s calibration window. 1.1: fault-only LED + LED Test
 
 esphome:
   name: ${node_name}
@@ -78,6 +96,9 @@ esphome:
           // (globals are restored in setup, before this priority -100 trigger).
           id(co2_fault).publish_state(id(g_stale_reboots) > 0);
           id(g_last_co2_ms) = millis();        // the stale clock starts at boot
+      # 1.4 (moment 5): setup has set 2 s, and p14 asks for 2 min at 2 s before FRC
+      - delay: 2min
+      - lambda: 'id(g_frc_ready) = true;'
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -107,11 +128,7 @@ captive_portal:
 api:
   reboot_timeout: 0s     # HA being down must not reboot the node (as basement-th-node)
   actions:
-    # Moment 5 above (added 2026-10-27, 1.2): opens the 2 s window. Call it
-    # with the node already in place; call forced_recalibration at "ready".
-    - action: frc_prepare
-      then:
-        - script.execute: frc_window
+    # 1.4: frc_prepare (1.2, moment 5) is removed - the node is always at 2 s.
     # Forced recalibration. Run it OUTDOORS (or at an open window in steady air),
     # after the node has been powered and reading there for several minutes,
     # with the outdoor reference (~420 ppm). Never from an automation: a
@@ -122,9 +139,10 @@ api:
       then:
         # CHANGED 2026-10-27 (1.2): the window guard runs FIRST, so a test call
         # with 399 ppm is refused by both guards and can never apply.
+        # 1.4: the time guard is now 2 min since boot (g_frc_ready, on_boot).
         - if:
             condition:
-              lambda: 'return id(g_frc_open_ms) != 0 && millis() - id(g_frc_open_ms) >= 120000;'
+              lambda: 'return id(g_frc_ready);'
             then:
               - if:
                   condition:
@@ -154,10 +172,10 @@ api:
                         format: "FRC refused: %d ppm is outside 400-2000"
                         args: ['(int) reference_ppm']   # API int is int32_t = long on the C3
             else:
-              - lambda: 'id(g_frc_last) = "refused: no 2 s window, or under 2 min";'
+              - lambda: 'id(g_frc_last) = "refused: under 2 min since boot";'
               - logger.log:
                   level: ERROR
-                  format: "FRC refused: run frc_prepare and wait 2 min at the 2 s rate"
+                  format: "FRC refused: wait 2 min after boot at the 2 s rate"
 
 ota:
   - platform: esphome
@@ -191,10 +209,10 @@ globals:
     type: bool
     restore_value: false    # a reboot ends a test
     initial_value: 'false'
-  - id: g_frc_open_ms      # moment 5: millis() when the 2 s window opened; 0 = closed
-    type: uint32_t
-    restore_value: false    # the window ends with a reboot, by design
-    initial_value: '0'
+  - id: g_frc_ready        # 1.4: true from 2 min after boot (on_boot); replaces g_frc_open_ms
+    type: bool
+    restore_value: false    # every boot waits its own 2 min at 2 s
+    initial_value: 'false'
   - id: g_frc_last         # moment 5: the last calibration result, shown in HA
     type: std::string
     restore_value: false
@@ -210,28 +228,7 @@ script:
       - lambda: 'id(g_led_test) = true;'
       - delay: 15s
       - lambda: 'id(g_led_test) = false;'
-  - id: frc_window          # moment 5 above
-    mode: restart           # a second frc_prepare restarts the 2 min and the 20 min
-    then:
-      - if:
-          condition:
-            # 0x4600 = Set measurement interval (Interface Description p9)
-            lambda: 'return id(scd30_sensor).write_command((uint16_t) 0x4600, (uint16_t) 2);'
-          then:
-            - lambda: 'id(g_frc_open_ms) = millis() | 1; id(g_frc_last) = "";'
-            - logger.log:
-                level: WARN
-                format: "FRC window: SCD30 at 2 s; ready in 2 min; reboot in 20 min"
-            - delay: 20min
-            - logger.log:
-                level: WARN
-                format: "FRC window over: rebooting to write the 60 s rate back"
-            - lambda: 'App.safe_reboot();'
-          else:
-            - lambda: 'id(g_frc_last) = "window FAILED: the SCD30 did not take 2 s";'
-            - logger.log:
-                level: ERROR
-                format: "FRC window: the SCD30 did not take the 2 s interval"
+  # 1.4: frc_window (1.2) is removed with frc_prepare - setup sets 2 s itself.
 
 output:
   - platform: gpio
@@ -255,7 +252,10 @@ sensor:
     address: 0x61
     automatic_self_calibration: false   # moment 1 above
     altitude_compensation: 157m         # ~515 ft (Bill) x 0.3048 = 156.97 m
-    update_interval: 60s
+    # CHANGED 2026-10-27 (1.4, moment 6): 60s -> 2s. This is the SCD30's own
+    # measurement interval, written at every boot (scd30.cpp:68), and each
+    # reading is published as it comes (scd30.cpp:187-192).
+    update_interval: 2s
     # No temperature: or humidity: here, deliberately. The SCD30's T/RH are
     # self-heated, and the room already has its own T/RH sources (R10).
     # CHANGED 2026-10-27 (1.3, Bill: "can we see the units temp/humidity its
@@ -267,9 +267,11 @@ sensor:
     # No temperature_offset: setup writes the offset to the SCD30 at every boot
     # either way (scd30.cpp:42-49: 0 when the key is absent, as in 1.2), so 1.3
     # sends the sensor nothing that 1.2 did not.
+    # CHANGED 2026-10-27 (1.4): this is now "CO2 (2 s)", every reading; "CO2",
+    # the 1-minute mean HA has always had, is the copy sensor below.
     co2:
-      id: co2
-      name: "CO2"
+      id: co2_2s
+      name: "CO2 (2 s)"
       accuracy_decimals: 0
       filters:
         - filter_out: 0.0                # moment 2 above
@@ -285,11 +287,28 @@ sensor:
       name: "SCD30 Temperature (self-heated)"
       accuracy_decimals: 1
       entity_category: diagnostic
+      filters:
+        - throttle_average: 60s          # 1.4: a 1-minute mean, as at 60 s
     humidity:
       id: scd30_humidity
       name: "SCD30 Humidity (self-heated)"
       accuracy_decimals: 1
       entity_category: diagnostic
+      filters:
+        - throttle_average: 60s          # 1.4: a 1-minute mean, as at 60 s
+
+  # 1.4 (moment 6): "CO2", the 1-minute mean of "CO2 (2 s)". The same name
+  # keeps the object id, so HA keeps the entity and its history. copy forwards
+  # the source's filtered state, NaN included (copy_sensor.cpp:9), and inherits
+  # its unit, device class and decimals. throttle_average (filter.cpp:171-194)
+  # sends the mean of the minute's numbers; a minute with none but the
+  # watchdog's NaN sends NaN, and a minute with nothing sends nothing.
+  - platform: copy
+    source_id: co2_2s
+    id: co2
+    name: "CO2"
+    filters:
+      - throttle_average: 60s
 
   - platform: template
     name: "CO2 Stale Reboots"
@@ -316,16 +335,17 @@ sensor:
 
 text_sensor:
   - platform: template
+    id: calibration_text
     name: "Calibration"      # moment 5 above
     icon: mdi:tune-vertical
     entity_category: diagnostic
     update_interval: 5s
+    # CHANGED 2026-10-27 (1.4): no window to report; and it publishes only on
+    # a change (an empty optional publishes nothing, template_text_sensor.cpp:9-14).
     lambda: |-
-      std::string s;
-      if (id(g_frc_open_ms) == 0) s = "60 s rate";
-      else if (millis() - id(g_frc_open_ms) < 120000) s = "2 s window: wait";
-      else s = "2 s window: ready";
+      std::string s = id(g_frc_ready) ? "2 s rate; FRC ready" : "2 s rate; FRC wait (2 min after boot)";
       if (!id(g_frc_last).empty()) s += "; " + id(g_frc_last);
+      if (id(calibration_text).state == s) return {};
       return {s};
   - platform: version
     name: "Node ESPHome Version"
@@ -357,6 +377,9 @@ interval:
   # is ~180 s [D: 240 - 60.7], not ~120 s; no "no SCD30 reading" in 330 s.
   # Whether this SCD30 emitted a 0 that filter_out dropped is not seen: the
   # raw read logs at DEBUG and this firmware logs at INFO.
+  # 1.4: at 2 s the first reading should come within seconds of boot [I:
+  # falsified as above], and 240 s is about 120 missed reads. The NaN goes to
+  # "CO2 (2 s)"; the copy carries it to "CO2" at the end of its minute.
   - interval: 30s
     then:
       - lambda: |-
@@ -366,7 +389,7 @@ interval:
             id(co2_fault).publish_state(true);
             ESP_LOGW("co2", "no SCD30 reading for %u s", (unsigned) (age / 1000));
           }
-          if (!std::isnan(id(co2).state)) id(co2).publish_state(NAN);
+          if (!std::isnan(id(co2_2s).state)) id(co2_2s).publish_state(NAN);   // 1.4: the raw; the mean follows
           // 1.3: T and RH come from the same read, so they are just as stale
           if (!std::isnan(id(scd30_temperature).state)) id(scd30_temperature).publish_state(NAN);
           if (!std::isnan(id(scd30_humidity).state)) id(scd30_humidity).publish_state(NAN);

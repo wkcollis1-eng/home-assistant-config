@@ -75,8 +75,9 @@ is calibrated against.
 | 2026-10-25 | **CLAUDE.md re-cut** (-3,196 B, applied 2026-10-25 ~22:35 EDT). From 2026-10-26 to 2026-11-01 the median first-call context of a fresh main-thread session falls by **1.0-2.0K tokens** from 40.2K (the 2026-10-25 rescore) [D: 3,196 B x 0.47 tok/B = 1.5K], after subtracting any MEMORY.md growth at the same rate. Falsified by a fall under 0.5K. Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-01 |
 | 2026-10-25 | **`doc_guard.py`** (PreToolUse: the first edit in `H:/dashboards/` or the hooks/settings is denied once until that area's doc is read; this rule live 2026-10-25 22:52 EDT). From 2026-10-26 to 2026-11-25, `doc_guard.log` holds **0** `error` lines and **1-8** `deny` + `deny-no-transcript` lines [D: 3 would-denies in 108 main-thread sessions 2026-08-01..10-25 [M, `C:/sandbox/doc_guard/replay.py`] x 130 sessions in 30 days at the 65-in-15-days pace since 10-11 [M] = 3.6], and after more of the denies than not, the same session's next line for that area is `allow-read`, not `allow-repeat` [I: the deny names the doc and says Grep it]. Falsified by any `error` line (fail-open is hiding a fault), by more than 8 denies (the trigger is wider than the replay: narrow it), or by `allow-repeat` >= `allow-read` after denies (a speed bump: retire it). Void at 0 denies. | yes | pending, due 2026-11-25 |
 | 2026-10-26 | **CLAUDE.md tier B** (-1,386 B, applied 2026-10-26 ~08:05 EDT). Sessions started after that carry both cuts: from 2026-10-27 to 2026-11-02 the median first-call context of a fresh main-thread session falls by **1.65-2.65K tokens** from 40.2K (the 2026-10-25 rescore) [D: (3,196 + 1,386) B x 0.47 tok/B = 2.15K; the 10-25 row's band shifted by 0.65K = 1,386 B x 0.47], after subtracting any MEMORY.md growth at the same rate. **Scoring the 10-25 re-cut row:** subtract 0.65K from the fall of any session started after this time, or that row reads as a miss when it is right. Falsified by a fall under 1.15K (that row's 0.5K floor + 0.65K). Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-02 |
+| 2026-10-27 | **Bedroom CO2 Node firmware 1.4, the 60 s -> 2 s step** (OTA, boot 18:13:23). Within about 4 min of the 2 s rate starting, `sensor.bedroom_co2_node_co2` steps UP 60-70 ppm from about 923 at 60 s, to about 985-990. Built on the n = 3 transitions of the 17:50 R13 bullet in the 1.3 entry. Falsified by a step under about 30 ppm, or none | yes - stated in chat and written in the R20 checkpoint at 18:14, before the OTA; entered here at about 18:35, after the outcome (the ledger row itself was missed until then - R13) | **MISS** - direction right, magnitude wrong: +78 and +85 in the settled 1-minute means, +86 in the 2 s readings [D: 999.4, 1006.5 (18:17:24, 18:16:24) and 1007.4 (n = 9, 18:15), each minus 921.4, the last 60 s value at 18:13:13]. One switch, one room, occupancy not recorded |
 
-**Running score: 19 hits, 5 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
+**Running score: 19 hits, 6 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) (Until 2026-09-30 this read
 1 falsified and 2 withdrawn. The 09-25 idle-days FALSIFIED row and the two 09-25 mmwave-bench
@@ -425,7 +426,58 @@ question" —** the answer was one line away and settled it in one sentence.
   - Bill's paste of the 1.3 rows.
   - The README and harness in the CO2 Monitor repo, not committed.
   - The bench replug test.
-  - The 60 s offset (R13, 17:50 above): Bill's choice of remedy.
+  - The 60 s offset (R13, 17:50 above): Bill's choice of remedy. Chosen: firmware 1.4, next entry.
+
+### Bedroom CO2 Node firmware 1.4: measures every 2 s, always; `CO2` is the 1-minute mean and `CO2 (2 s)` every reading; the view shows both (`esphome/co2-node-common.yaml`; `dashboards/views/view-bedroom-co2.yaml`, not pasted)
+- **Why (Bill, 2026-10-27):** "agree lets do Firmware 1.4: measure every 2 s all the time and send HA a 1-minute average and show both on the graphs on the dashboard." It is the remedy for the 60 s offset in the 1.3 entry (R13, 17:50).
+- **Unattended moments:**
+  - Every night: the number HA shows must come from the rate the FRC was taken at, 2 s [S: SCD30 Interface Description v1.0-D1, p14]. At 60 s the sensor read 60 to 70 ppm low [D, 1.3 entry].
+  - 03:00 with the SCD30 silent: `CO2 (2 s)` goes unknown at 240 s. The three 1-minute means (CO2, SCD30 temperature, SCD30 humidity) go unknown at the end of their minute, by 330 s [M: harness S2]. None may freeze on a last good value.
+- **Firmware 1.4** (`esphome/co2-node-common.yaml`, sha 5f5dd799064e, = CO2 Monitor repo 02e70e1):
+  - `scd30: update_interval: 2s`. Setup writes the interval at every boot (scd30.cpp:68).
+  - The SCD30's CO2 becomes `co2_2s`, "CO2 (2 s)". Its 0 ppm filter and its watchdog-reset `on_value` are unchanged.
+  - "CO2" is a `copy` of it through `throttle_average: 60s`. The name keeps the object id, so `sensor.bedroom_co2_node_co2`, its history and every card on it carry on.
+  - throttle_average drops a NaN from any minute that also holds a number, and sends NaN for a minute that holds only NaN (filter.cpp:171-194, 2026.10.0).
+  - SCD30 temperature and humidity: `throttle_average: 60s` each.
+  - `frc_prepare`, its `frc_window` script and `g_frc_open_ms` are removed. The FRC guard is `g_frc_ready`, set by `on_boot` 2 min after boot, which gives p14's two minutes at 2 s. The refusal reads "refused: under 2 min since boot".
+  - Calibration reads "2 s rate; FRC wait (2 min after boot)", then "2 s rate; FRC ready", plus the last result. It publishes only on a change.
+  - The watchdog blanks `co2_2s`; the mean follows at the end of its minute.
+  - The header marks moment 5 SUPERSEDED and adds moment 6. Every earlier comment is kept.
+- **Gate:**
+  - Compile on 2026.10.0: "POS EXIT=0", "POS warnings: 0", config_hash=0x664528e8, main.cpp.obj 1617108 B and newer than the YAML.
+  - NEG, with a member typo in the Calibration lambda: "NEG EXIT=1", "'class esphome::template_::TemplateTextSensor' has no member named 'stat'" at 348:29.
+  - Harness: "FAULTS: PASS (0 of 12 directions wrong)", clean "RESULT: PASS (224 checks)"; "LED: PASS (0 of 5 directions wrong)". It was re-run after ruff-format rewrapped two asserts in `harness/gen.py` at commit, with the same verdict.
+  - New faults: F9, stale CO2 left showing; F10, the NaN sent to the mean with the 2 s reading left showing; F11, the 2 s reading blanked ahead of the age test.
+  - OTA: "OTA successful", "Successfully uploaded program." Boot at 18:13:23 [D: uptime 244.26 s at 18:17:27].
+- **R13, the harness (both caught before the flash):**
+  - F4 (wrap-unsafe age arithmetic) PASSED the first 1.4 run. At 2 s, a read lands within 2 s of the `millis()` wrap, so only a tick inside that gap sees the bad age, and S6's single tick phase never did. S6 now sweeps the tick phase from 0 to 29.5 s in 500 ms steps, and 9.5 s catches it. The note is in `harness/sim.cpp.in`.
+  - The first 1.4 draft of `faults.py` dropped F8 (1.3: temperature blanked ahead of the age test), on the claim that throttle_average hides it. Run by hand, it fails S2: temperature goes NaN at L+64.8 s, not with CO2. F8 is restored, and the note is in `harness/faults.py`.
+- **On the device** [M: /api/states and history, 18:13-18:18]:
+  - The version entity shows hash 0x664528e8.
+  - `CO2 (2 s)` is `sensor.bedroom_bedroom_co2_node_co2_2_s`: read from /api/states (R5), with the doubled prefix again. Median gap 2.0 s.
+  - `CO2` kept its id. It posted at 18:14:24, 18:15:24, 18:16:24 and 18:17:24: 931.1, 995.4, 1006.5 and 999.4. Temperature and humidity also post once a minute.
+  - Calibration read "2 s rate; FRC wait (2 min after boot)" at 18:13:30, and "2 s rate; FRC ready" at 18:15:24, 121 s after boot [D].
+- **The step:**
+  - The last 60 s value was 921.4 (18:13:13). It had been falling about 1 ppm/min [M: n = 12, 18:01-18:13].
+  - About 2 min after the switch, the 2 s readings ran 1005 to 1010 [M: n = 9, 18:15], a step of +86 [D: 1007.4 - 921.4].
+  - The settled 1-minute means are +78 and +85 [D: 999.4 - 921.4; 1006.5 - 921.4]. The first mean, 931.1, held the climb, as the earlier switches did.
+  - The +60 to 70 prediction is a MISS in the ledger. Who was in the room was not recorded.
+  - The bedroom reads about 1000 now, on the UBA line; at 60 s it showed about 920.
+- **Cost:**
+  - Recorder: up to 43,200 states a day for `CO2 (2 s)` [D: 86,400 / 2], kept 14 days (`purge_keep_days: 14`). HA writes only changes.
+  - InfluxDB: a UI config entry with no include/exclude, and infinite retention (`docs/influx-grafana.md`:104-107), so every 2 s change is kept there for good. Left for Bill.
+- **Dashboard** (`dashboards/views/view-bedroom-co2.yaml`, sha a1d60b83c2bc; not live until Bill pastes):
+  - Last 24 hours: the 2 s readings (grey, 1 px) under the 1-minute mean (cyan, 2 px). `update_interval: 1min`, because the deployed apexcharts-card.js skips the per-state-change redraw when it is set.
+  - New "Last hour" chart: both series, the same UBA lines, `'y'` quoted (R19).
+  - Last 7 days: the mean only. 7 days of 2 s readings would be 302,400 states [D: 7 x 43,200].
+  - R3: the other CO2 cards, the Node section and the top-level keys parse identical to HEAD. The diff is +61/-1.
+  - gate.py: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines". The NEW WARN is `dashboard-not-pasted` for the 2 s id, and it stands until Bill pastes.
+  - 2c: 0 WARN on the view, the firmware and the CO2 Monitor README. The first run warned on a `[D:` tag split from its `7 x` across a line break; the two lines were rejoined.
+- **CO2 Monitor repo:** 02e70e1 (firmware 1.4 and harness) and 0db38d3 (README), pushed. `hardware/CO2 Monitor.kicad_pcb` stays uncommitted (Bill's call, asked).
+- **Open:**
+  - Bill's paste of the view.
+  - InfluxDB keeping the 2 s series forever: Bill's call.
+  - The bench replug test.
 
 ## [2026.10.26] - 2026-10-26
 

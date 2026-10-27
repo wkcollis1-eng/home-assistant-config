@@ -27,6 +27,9 @@
 # EXCEPTION 2026-10-27: logbook is on none either. Its keys were read from the
 # deployed frontend instead (20260930.5, hui-logbook-card.ts and types.ts).
 # Entity ids from /api/states, 2026-10-27, the day the node was adopted.
+# CHANGED 2026-10-27 (firmware 1.4): "CO2" is now the 1-minute mean of the 2 s
+# readings, same entity; "CO2 (2 s)", sensor.bedroom_bedroom_co2_node_co2_2_s
+# (id read from /api/states after the 1.4 flash), is every reading.
 # =============================================================================
 type: sections
 max_columns: 2
@@ -108,9 +111,62 @@ sections:
           - min: '~400'
             max: '~2100'
             decimals: 0
+        # ADDED 2026-10-27 (firmware 1.4, Bill: "show both on the graphs"): the
+        # 2 s readings under the 1-minute mean. 24 h of them is 43,200 points
+        # [D: 86,400 / 2], so the card redraws once a minute, not at every
+        # reading (update_interval; deployed apexcharts-card.js skips the
+        # per-change redraw when it is set).
+        update_interval: 1min
         series:
+          - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
+            name: CO2 (2 s)
+            type: line
+            stroke_width: 1
+            color: '#8a8a8a'
           - entity: sensor.bedroom_co2_node_co2
-            name: CO2
+            name: CO2 (1 min mean)
+            type: line
+            stroke_width: 2
+            color: '#00d1ff'
+      # ADDED 2026-10-27 (firmware 1.4): the last hour, where the 2 s readings
+      # are visible one by one (1,800 points [D: 3,600 / 2]) - the 24 h chart
+      # packs dozens into each pixel. Redraws at every reading.
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Last hour
+          show_states: true
+          colorize_states: true
+        graph_span: 1h
+        apex_config:
+          annotations:
+            yaxis:
+              - 'y': 1000
+                borderColor: '#f57c00'
+                label:
+                  text: 1000 ppm - open a window (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#f57c00'
+              - 'y': 2000
+                borderColor: '#d32f2f'
+                label:
+                  text: 2000 ppm - unacceptable (UBA)
+                  style:
+                    color: '#fff'
+                    background: '#d32f2f'
+        yaxis:
+          - min: '~400'
+            max: '~2100'
+            decimals: 0
+        series:
+          - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
+            name: CO2 (2 s)
+            type: line
+            stroke_width: 1
+            color: '#8a8a8a'
+          - entity: sensor.bedroom_co2_node_co2
+            name: CO2 (1 min mean)
             type: line
             stroke_width: 2
             color: '#00d1ff'
@@ -144,6 +200,8 @@ sections:
           - min: '~400'
             max: '~2100'
             decimals: 0
+        # 1.4: the mean only. 7 days of 2 s readings is 302,400 states
+        # [D: 7 x 43,200] for the browser to fetch at every load.
         series:
           - entity: sensor.bedroom_co2_node_co2
             name: CO2 (10 min max)
@@ -211,6 +269,8 @@ sections:
           # ADDED 2026-10-27 (firmware 1.2, moment 5 there): "60 s rate", or the
           # 2 s calibration window's wait / ready, plus the last calibration
           # result. Id read from /api/states after the 1.2 flash (doubled again).
+          # CHANGED 2026-10-27 (1.4): no window now - "2 s rate; FRC wait" for
+          # 2 min after a boot, then "2 s rate; FRC ready", plus the result.
           - entity: sensor.bedroom_bedroom_co2_node_calibration
             name: Calibration
           # ADDED 2026-10-27 (firmware 1.3, Bill: "can we see the units
