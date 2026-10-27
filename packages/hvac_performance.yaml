@@ -37,6 +37,16 @@ input_number:
     unit_of_measurement: "BTU/hr"
     mode: box
     icon: mdi:fire
+    # 2026-10-27 (Bill: "use the oct data as our baseline moving forward"):
+    # 100,000 nameplate -> 81,300 MEASURED input [D: 1.306 ft3/min x 60 x 1,037
+    # BTU/ft3 = 81,259, to 3 sig figs]. 1.306 is the steady burn, meter step to
+    # meter step [M: 292 ft3 / 223.63 min, n=27 clean cycles 10-01..10-25,
+    # CHANGELOG 2026.10.25]. Why it is below plate (orifices, or a slow meter) was
+    # closed out unresolved after the 10-27 service visit (CHANGELOG 2026.10.27).
+    # The "100,000 BTU/hr INPUT rating" comments in the templates below predate
+    # this; their float(81300) fallbacks match it. No initial: here from bb7eb28
+    # (2026-08-24) until now, so a failed restore came back at min 50000.
+    initial: 81300
 
   building_ua_baseline:
     name: Building UA Baseline
@@ -2538,7 +2548,7 @@ template:
              and states('sensor.gas_effective_rate') | is_number }}
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_today') | float(0) %}
-          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
+          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(81300) %}
           {% set gas_rate = states('sensor.gas_effective_rate') | float(1.6818) %}
           {# Gas INPUT basis: rate is the 100,000 BTU/hr INPUT rating, so     #}
           {# CCF burned = runtime x rate / 103,700. AFUE must NOT appear.     #}
@@ -2862,7 +2872,7 @@ template:
         state: >
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
-          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
+          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(81300) %}
           {% if hdd >= 5 and runtime > 0 %}
             {# Gas INPUT basis: rate is the 100,000 BTU/hr INPUT rating, so     #}
             {# CCF burned = runtime x rate / 103,700 BTU/CCF. AFUE must NOT     #}
@@ -2880,6 +2890,8 @@ template:
       # CORRECTED 2026-10-11: this said "uses empirical 60,556 BTU/hr effective rate".
       # 60,556 was the helper's `initial:` until bb7eb28 (2026-08-24) removed it and
       # moved every template fallback to 100000; this comment was not updated then.
+      # 2026-10-27: the helper is now 81,300, the October MEASURED input, not the
+      # 100,000 nameplate above (the helper's header; CHANGELOG 2026.10.27).
       - name: "HVAC Building Load UA Estimate"
         unique_id: hvac_building_load_ua_estimate
         unit_of_measurement: "BTU/hr-°F"
@@ -2889,7 +2901,7 @@ template:
         state: >
           {% set runtime = states('sensor.hvac_furnace_runtime_month_2') | float(0) %}
           {% set hdd = states('sensor.hvac_hdd65_cumulative_month') | float(0) %}
-          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
+          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(81300) %}
           {% set bp_ratio = states('input_number.hdd_balance_point_ratio') | float(0.751) %}
           {% set days = now().day %}
           {% if hdd > 0 and runtime > 0 and days > 0 %}
@@ -3036,7 +3048,7 @@ template:
         unit_of_measurement: "$"
         state: >
           {% set r2 = states('sensor.hvac_2f_heat_runtime_month_2') | float(0) %}
-          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(100000) %}
+          {% set rate = states('input_number.furnace_heating_rate_btu_hr') | float(81300) %}
           {% set gas_rate = states('sensor.gas_effective_rate') | float(1.6818) %}
           {{ ((r2 * rate * 0.15 / 103700) * gas_rate) | round(2) }}
 

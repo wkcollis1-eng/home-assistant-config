@@ -177,6 +177,48 @@ question" —** the answer was one line away and settled it in one sentence.
   - Still open, with no question left to ask: orifices or meter. That waits on a physical check (read a pulled
     orifice's stamp) before any written meter-test request to CNG.
 
+### Furnace visit closed out as is; the furnace input baseline is now October's measured rate (`packages/hvac_performance.yaml`, `docs/baselines.md`; `PACKAGES.md` regenerated; one live helper write)
+
+- **Bill** (2026-10-27): "lets close this out as is. and use the oct data as our baseline moving forward."
+- **Close-out.** Nothing more is planned on the visit: no orifice pull, and no CNG meter test.
+  - The ledger rows stand as recorded above. The manifold row can score only if an orifice is ever read; the clock row is VOID.
+  - The cause (orifices, or a slow meter) stays unresolved.
+  - Against the orifice cause:
+    - Trane lists #45 as the only natural-gas size, at every input [S: 18-CE12D1-1D-EN p.22].
+    - The bore that 82 % of plate needs falls between #48 and #49 [D: 0.082 x sqrt(0.822) = 0.074 in.].
+    - p.25 assigns those two sizes to 6,000-9,000 ft [S].
+  - Capacity at 0 F is 2.3 times the load under either cause [D: 0.822 x 97,400 / (593 x 59)].
+- **Baseline.** `input_number.furnace_heating_rate_btu_hr` goes from 100,000 (nameplate) to 81,300 [D: 1.306 ft3/min x 60 x 1,037 = 81,259, to 3 significant figures].
+  - 1.306 is the steady-burn rate from the 2026.10.25 entry [M: 292 ft3 / 223.63 min, n=27 clean cycles, 10-01..10-25].
+  - Not used: the visit-day runs (1.330 and 1.333 [D]), because n=2. Also not used: the committed 23:00-05:00 rule's fit, 1.191 +/- 0.155 ft3/min [M, n=8, rerun 10-01..10-28], whose 95 % interval is 26 % wide [D: 0.310 / 1.191].
+  - The meter-based baselines (UA 593, 102.0 CCF/1k HDD65, 787 CCF/yr) are unchanged.
+- **YAML.**
+  - The helper gains `initial: 81300` and a dated comment. Without `initial:`, a missing or invalid restore comes back at the 50,000 minimum [M: HA 2026.10.4 `input_number/__init__.py` L221-222, L266-281]. bb7eb28 had removed the old `initial:` on 2026-08-24.
+  - The four `| float(100000)` fallbacks on this helper are now `| float(81300)`. They were 4 of the 4 `float(100000)` in `packages/`.
+  - One dated line goes under the 2026-10-11 CORRECTED comment above `hvac_building_load_ua_estimate`.
+  - The "100,000 BTU/hr INPUT rating" Jinja comments are kept. They predate this change, and the helper's header says so.
+  - `docs/baselines.md` gets a dated paragraph and a `Furnace input rate:` line.
+- **Live.** `input_number.set_value` 81300 at 15:30:52. The prior value was 100000.0; setting it back reverts this.
+  - Observed [M, /api/states, 15:30:52]. Each consumer moved by 0.813 [D: 81,300 / 100,000]:
+    - `sensor.hvac_heating_efficiency_mtd` 63.6 -> 51.7 CCF/1k HDD;
+    - `sensor.hvac_building_load_ua_estimate` 348 -> 283;
+    - `sensor.hvac_cathedral_ceiling_impact_mtd` 7.38 -> 6.0;
+    - `sensor.hvac_daily_gas_cost_estimate` 2.51 -> 2.04;
+    - `sensor.hvac_furnace_runtime_month_2` unchanged at 18.61 h.
+  - The MTD values step down at 15:30 for the whole month to date.
+  - No `template.reload`: the helper already drives all four sensors. The new fallbacks matter only when the helper is unreadable, and they load at the next restart or template reload.
+- **Limits (R11).**
+  - The consumers multiply this rate by a call runtime. If that runtime starts before the gas valve opens, runtime x rate still reads above metered gas [I: falsified by a runtime that starts at flame-on].
+  - The runtime method reading below the metered baselines predates this change: 348 and 63.6 at plate.
+- **Gate.**
+  - Sandbox `validate_ha.py --strict`: "FAIL: 0   WARN: 0   INFO: 1", "PASS (parse-clean)".
+  - `gate.py` run 1 on H:: "2. SEMANTIC  1 FAIL, 1 WARN, 2 INFO across 18 pipelines", "NOT READY". The FAIL was `generated-doc-stale` (PACKAGES.md). `gen_reference.py` changed one line in it (hvac_performance 5818 -> 5830 lines); ENTITIES.md and AUTOMATIONS.md were unchanged.
+  - `gate.py` run 2: "1. SYNTAX    PASS (parse-clean)"; "2. SEMANTIC  0 FAIL, 1 WARN, 2 INFO across 18 pipelines"; "PASS (parse-clean) + audit delta clean.".
+  - Session baseline: "0 NEW, 0 FIXED, 1 UNCHANGED".
+  - 2c: hvac_performance.yaml "2 WARN", baselines.md "0 WARN", both equal to before the edit.
+  - Step 3 `check_config`: `{"result":"valid","errors":null,"warnings":null}`.
+  - R3: both files reverse byte-identical to their originals (+12 lines each).
+
 ## [2026.10.26] - 2026-10-26
 
 ### Setback CSVs backfilled for the 10-05..10-26 nights: 8 rows 1F, 13 rows 2F (`reports/hvac_setback_1f.csv`, `reports/hvac_setback_2f.csv`)

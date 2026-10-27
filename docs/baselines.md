@@ -28,6 +28,16 @@ unmeasured; the blower's step on sensor.sem_family_room_power can now count
 them (open_questions.yaml, 2026-10-23). The term stands until they are
 counted, and changing it is Bill's call.
 
+2026-10-27 (Bill: "lets close this out as is. and use the oct data as our
+baseline moving forward"): the furnace input rate is now the October measured
+81,300 BTU/hr [D: 1.306 ft3/min x 60 x 1,037 = 81,259, to 3 significant
+figures], replacing the 100,000 nameplate. 1.306 is the steady burn, meter step
+to meter step [M: 292 ft3 / 223.63 min, n=27 clean cycles 10-01..10-25,
+CHANGELOG 2026.10.25]. `input_number.furnace_heating_rate_btu_hr` and its
+`initial:` hold it. Why the furnace meters below plate (orifices, or a meter
+that reads slow) was closed out unresolved after the 10-27 service visit;
+CHANGELOG [2026.10.27] has both. No meter-based line below changed.
+
 ```
 Building UA:          593 BTU/hr-°F (the ua_12m formula on 2025: 574.1 CCF,
                       3.6 MMBTU fireplace, BDL HDD59 4,230 [D]; was 585 on
@@ -36,6 +46,8 @@ Balance point:        59°F
 HDD59/HDD65 ratio:    0.751 (BDL 2025 HDD59 4,230 / HDD65 5,629 [D]; was 0.844
                       = NOAA 5,294 / 6,270)
 AFUE:                 0.95
+Furnace input rate:   81,300 BTU/hr (October 2026 measured, above; was the
+                      100,000 nameplate until 2026-10-27)
 BTU/CCF:              103,700
 Heating efficiency:   102.0 CCF/1k HDD65 (Navien-corrected 2025: 574.1 CCF /
                       BDL 5,629 [D]; was 100.6 on 566.2 CCF until 2026-10-15,
