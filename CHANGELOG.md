@@ -69,8 +69,8 @@ is calibrated against.
 | 2026-10-19 | **mmWave family: morning daylight lamps-off** (`automation.mmw_family_morning_daylight_lights_off`). Each of its lamp-offs steps the family lux down by 6.7-11.3 lx (the measured lamp-lift range [M, n=33 on-steps after dark, n=16 morning off-steps]), and none is followed by `mmw_family_dusk_on` within 15 min unless daylight alone had fallen below 24 lx. Falsified by a step outside 6.7-11.3 lx; the loop margin itself fails only at a step of 17 lx or more [D: 12 + 5] | yes - written before the automation was installed | pending, due 2026-11-02 |
 | 2026-10-22 | **Navien panel, October**, read by `scripts/navien_xcheck.py --month 2026-10` after Save DHW (Navien) on 11-01. (a) The panel's gas (archive therm x 100,000 / 1030) lies inside the Navien range the script reports at default pads (Navien-only .. Navien-only + shared). (b) The panel's recirc hours are below the plug's time above the threshold, and its operating hours are below the plug's time from 20 W to the threshold. Basis [I, n=1]: September, where the panel's 844.7 ft3 sat inside 814-932, and its 17 h recirc and 11 h op were below the plug's 19.41 h and 12.48 h [M]. Falsified by (a) outside the range, or by either plug - panel difference at or below 0 in (b). Void if the slots are refused and no panel figures are given on the command line | yes - written 10-22, before October's panel figures exist; October's gas to 10-22 had been seen | pending - 2026-11-02 |
 | 2026-10-23 | **mmWave family: the lamps hold while the TV is on** (`binary_sensor.mmw_family_tv_on`, the `tv_quiet` trigger and condition in `mmw_family_presence_off`; live from the `template.reload` and `automation.reload`). From the reloads to 2026-11-06: (a) **0** package lamp-offs (an all-lamps-off edge within -2..+5 s of an `mmw_family_last_cmd` stamp) while `binary_sensor.mmw_family_tv_on` reads `on`, leaving out any run by `mmw_family_daylight_off` (its logbook entry). Baseline: 16 in the 14.2 days before, 11 of them re-lit within 120 s [D: replay of the 50 W line over the recorder, 10-09..10-23]. (b) [I: the TV's background wake never reaches 50 W] no `mmw_family_tv_on` on-span that starts 3.5-4.5 h after the previous TV-off and lasts under 10 min, the wake's signature (24 spans, 7.7-8.8 min, peak 40.7-45.7 W [M]); on one, read the plug's peak inside it. (c) Every `mmw_family_tv_on` off-edge that finds a family lamp lit, the latch on, and every other condition of `&mmw_family_empty_conds` true is followed by a package lamp-off within 5 s (the `tv_quiet` release). Falsified by one (a), one (b) or one (c). Score from the recorder and the logbook | yes - written before the reloads | pending, due 2026-11-06 |
-| 2026-10-25 | **Furnace manifold pressure, as found at the 10-27 service visit** (furnace firing >= 5 min, before any adjustment): **2.1-2.6 in. W.C.** if the orifices are the plate's #45 [D on I: 3.5 x (rate / 1.6181)^2 with rate 1.241-1.390 ft3/min, orifice flow taken as proportional to the root of the pressure drop]. Falsified by a reading outside 2.0-2.7 in. W.C. with #45 orifices confirmed. A reading of 3.0-3.7 would mean the meter, or the house method, reads low | yes, two days before the visit | pending |
-| 2026-10-25 | **Gas meter clocked at the 10-27 visit** (furnace the only gas load, >= 5 min into the burn, before any adjustment): **86-97 s per 2 ft3** of dial, 21.6-24.2 s per 1/2 ft3 [D: 120 / rate with rate 1.241-1.390 ft3/min]. Falsified by under 84 s or over 100 s per 2 ft3 equivalent [I: 3 s allowance for stopwatch timing]. The plate rate would clock 74.2 s | yes, two days before the visit | pending |
+| 2026-10-25 | **Furnace manifold pressure, as found at the 10-27 service visit** (furnace firing >= 5 min, before any adjustment): **2.1-2.6 in. W.C.** if the orifices are the plate's #45 [D on I: 3.5 x (rate / 1.6181)^2 with rate 1.241-1.390 ft3/min, orifice flow taken as proportional to the root of the pressure drop]. Falsified by a reading outside 2.0-2.7 in. W.C. with #45 orifices confirmed. A reading of 3.0-3.7 would mean the meter, or the house method, reads low | yes, two days before the visit | **NOT YET SCORABLE** — 2026-10-27: 3.53 in. W.C. as found, nothing adjusted [M: the tech's manometer, relayed by Bill], outside the 2.0-2.7 band. But #45 was not confirmed: the orifices were not pulled (Bill, 10-27). Scores MISS if a later inspection reads #45. CHANGELOG 2026.10.27 |
+| 2026-10-25 | **Gas meter clocked at the 10-27 visit** (furnace the only gas load, >= 5 min into the burn, before any adjustment): **86-97 s per 2 ft3** of dial, 21.6-24.2 s per 1/2 ft3 [D: 120 / rate with rate 1.241-1.390 ft3/min]. Falsified by under 84 s or over 100 s per 2 ft3 equivalent [I: 3 s allowance for stopwatch timing]. The plate rate would clock 74.2 s | yes, two days before the visit | **VOID — not measured** — 2026-10-27: the tech did not clock the meter (Bill). The house's own steps read 90 s per 2 ft3 that morning [D, n=2 clean runs], inside the band, but that is the method under test, so it cannot score this row. CHANGELOG 2026.10.27 |
 | 2026-10-25 | **markdownlint off globally** (VS Code user setting `"markdownlint.config": {"default": false}`, applied 2026-10-25 ~22:00 EDT). From 2026-10-26 to 2026-11-01: **0** markdownlint `<ide_diagnostics>` injections on any `.md` outside a folder that carries its own markdownlint config (of the folders edited, only `C:\repos\Residential-HVAC-Performance-Baseline-` does) [I], against 39 injections, 123.9K chars, 13 sessions in the 7 days before [M, `C:/sandbox/token_replay/diag_scan.py 7`]. Falsified by any such injection. Not scored if no `.md` outside HVAC-Baseline was Edited in the window. | yes | pending, due 2026-11-01 |
 | 2026-10-25 | **CLAUDE.md re-cut** (-3,196 B, applied 2026-10-25 ~22:35 EDT). From 2026-10-26 to 2026-11-01 the median first-call context of a fresh main-thread session falls by **1.0-2.0K tokens** from 40.2K (the 2026-10-25 rescore) [D: 3,196 B x 0.47 tok/B = 1.5K], after subtracting any MEMORY.md growth at the same rate. Falsified by a fall under 0.5K. Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-01 |
 | 2026-10-25 | **`doc_guard.py`** (PreToolUse: the first edit in `H:/dashboards/` or the hooks/settings is denied once until that area's doc is read; this rule live 2026-10-25 22:52 EDT). From 2026-10-26 to 2026-11-25, `doc_guard.log` holds **0** `error` lines and **1-8** `deny` + `deny-no-transcript` lines [D: 3 would-denies in 108 main-thread sessions 2026-08-01..10-25 [M, `C:/sandbox/doc_guard/replay.py`] x 130 sessions in 30 days at the 65-in-15-days pace since 10-11 [M] = 3.6], and after more of the denies than not, the same session's next line for that area is `allow-read`, not `allow-repeat` [I: the deny names the doc and says Grep it]. Falsified by any `error` line (fail-open is hiding a fault), by more than 8 denies (the trigger is wider than the replay: narrow it), or by `allow-repeat` >= `allow-read` after denies (a speed bump: retire it). Void at 0 denies. | yes | pending, due 2026-11-25 |
@@ -100,6 +100,82 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.27] - 2026-10-27
+
+### Furnace service visit: the tech's readings, lined up with the meter's timing (analysis only, no config change)
+
+- **Bill's report** (2026-10-27): return 66 °F, supply 117 °F, manifold (valve outlet) 3.53 in. W.C. [M: the
+  tech's instruments, clock times not given]. Bill's photo of the tech's analyser (testo 310 II, fuel "Natural gas",
+  identity read off the display, R16) shows Tstack 97.0 °F, O2 10.9 %, CO 20 ppm, CO air-free 42 ppm, Eff 93.5 %,
+  ExAir 96.6 %, CO2 5.66 % [M, one screen]. The analyser rests on the evaporator coil's label (4TXCC005DS3HCAA),
+  not the furnace plate, so the plate's right column is still unread.
+- **Against spec:**
+  - Manifold 3.53 sits at the plate's 3.5 and inside the 3.0-3.7 adjustment range [S: IG 18-CE12D1-1D-EN pp.24-25].
+  - Rise 51 °F [D: 117 - 66] sits inside 40-70 °F [S: Product Data 22-1944-1D-EN p.7, PSBA; the PSBAB plate's own
+    range is unread, R16].
+  - None of the 6 PDFs in `Furnace literature\` gives an O2 or CO2 target [M: text search], so the combustion
+    screen cannot be scored. Its CO2 is the analyser's arithmetic on O2, not a second reading [D: 11.8 x (21 - 10.9)
+    / 21 = 5.67; CO2max 11.8 is I].
+- **The house during the visit** [M, `scripts/furnace_gas_cycles.py --start 2026-10-26`, plus a scratch step
+  timeline that reuses its `fetch` and `decode_times`]:
+  - Heat runs at 08:06, 09:17 (3.0 min), 09:25 (5.8 min), 09:55 (0.5 min, no gas) and 10:01 (9.7 min).
+  - The Navien fired 09:19:44-09:22:46 and 09:29:16-09:33:02, inside the two short runs. That fits the brief's
+    tests #8 and #10, hot tap open [I: the tech's clock times are not known].
+  - 08:06 run, Navien idle, before the tech: 10 ft3 in 451 s from the first to the last 2 ft3 step, 90.2 s per
+    step, 1.330 ft3/min = 82.2 % of plate [D: 10 x 60 / 451; plate 1.618 = 100,000 / 1,030 / 60].
+  - 10:01 run, Navien idle, after the short runs: 8 ft3 in 360 s, 90.0 s per step, 1.333 ft3/min = 82.4 % [D].
+  - Each true tick lies between the decode before its step and the step. So the true spans are 405-542 s and
+    316-422 s, which is 68-92 % and 70-94 % of plate [D]. Plate would need 371 s and 297 s [D], outside both.
+  - R18: decodes run a median 32 s apart (p90 90 s, n=227, 08:00-10:45) against a 90 s step, so the sampler is
+    faster than the quantity, but coarse.
+  - So the meter turned at the same rate before and after whatever the tech did. At the visit, while the
+    manifold read about plate, the meter registered about 82 % of plate [D, n=2 clean runs].
+- **Against the brief's section 5:**
+  - "Valve set low" (manifold below 3.0) is out, if 3.53 was as found.
+  - That leaves two causes: orifices not #45 or not clean ("orifice problem"), or #45 clean and a meter that
+    registers slow.
+  - The September Navien cross-check leans against the meter. The panel read 0.925-0.983 of the meter's
+    firing-window gas [D: 843.7 / 912, 845.3 / 860, entry above, n=1 month]. With an 18 %-slow meter the panel
+    would have to read 19-24 % low [D: 1 - 0.82 x (0.925..0.983)].
+  - That leans, it does not settle: the panel's own accuracy is unverified [I], and so is a meter error the same
+    at the Navien's flow as at the furnace's [I].
+  - **WITHDRAWN the same day (Bill; R13, recorded where the claim was made):** "the navien panle gas consumption
+    reading states this is an estimate so that reading is suspect. the actual sdr reading is more accurate." The
+    panel figure is the Navien's own estimate, not a metered volume, so it is no check on the meter, and the lean
+    above is withdrawn. Nothing independent of the meter now bears on it: the SDR decodes the meter's own
+    register, so it is exactly as right as the meter. Taking the meter as right, section 5 points at the orifices,
+    because at an in-spec manifold the bores are the only restriction between the tap and the burners [I:
+    falsified by a pulled orifice that reads #45 with a clean bore].
+- **Ledger:** both 10-27 rows stay pending.
+  - The manifold row needs "as found" and "#45 confirmed" to score. 3.53 lies outside its 2.0-2.7 falsification
+    band.
+  - The clock row needs a stopwatch time. The house's 90 s per 2 ft3 is the house method itself, so it does not
+    score that row.
+  - R14 question filed (`open_questions.yaml`, 2026-10-27). Per the 2026.10.25 lesson, no new prediction is
+    pre-registered while it is open.
+- **Not done, on purpose:** no written meter-test request to CNG while the orifices are unconfirmed. A meter found
+  slow is re-billed by a method CNG chooses, and the customer agrees to abide by the test [S: CNG Rules and
+  Regulations eff. 10/11/23, §38-§39, pp.177-178]. Only a meter more than 4 % fast earns a refund [S: §40].
+- **Answered the same day (Bill):** "manifold readings was as found no adjustments were made. only maintenace
+  item was cleaning the flame sensor."
+  - So 3.53 in. W.C. is as found [M: the tech's manometer, relayed by Bill], and the meter's unchanged 90 s per
+    2 ft3 before and after the visit agrees. "Valve set low" is out.
+  - The manifold row now waits only on "#45 confirmed". The orifice, inlet and clock questions are split into a
+    new `open_questions.yaml` entry.
+  - The 2026.10.25 wander theory (inlet supply or the valve's regulator [I]) is not yet scored: its falsifier
+    needs the inlet readings. One as-found manifold reading does not show the regulator holding over time.
+- **Answered the same day, second part (Bill):** "No did not check these items. comented that if the nozzles were
+  setup for propane manifold would need to be a 7 to work so no indication nozzels are wrong. all flames even so
+  no cleaning required."
+  - So the orifice size, the inlet pressures and a meter clock were not taken. The R14 entry is answered.
+  - The even flames rule out one blocked burner, which would read 80 % of plate [D: 4 / 5; M: the tech's eye].
+    The propane remark rules out LP orifices.
+  - Neither rules out five bores all slightly narrow. An 18 % shortfall at plate pressure needs bores 0.906 of #45
+    in diameter [D: sqrt(0.82), flow taken as proportional to bore area - I]. Flame appearance cannot show that.
+  - Ledger: the manifold row is NOT YET SCORABLE (#45 unconfirmed), and the clock row is VOID (not measured).
+  - Still open, with no question left to ask: orifices or meter. That waits on a physical check (read a pulled
+    orifice's stamp) before any written meter-test request to CNG.
 
 ## [2026.10.26] - 2026-10-26
 

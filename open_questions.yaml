@@ -2758,3 +2758,56 @@
     overnight and morning gains]. Feb-Mar has no hourly house-load record to
     size the bias (SEM from June 2026, InfluxDB from 2026-06-01), so the net
     sign stays unresolved (CHANGELOG 2026.10.26).
+
+- asked: 2026-10-27
+  question: >-
+    Furnace service visit 2026-10-27: (1) was the 3.53 in. W.C. manifold
+    reading taken AS FOUND, and did the tech adjust anything at all? (2) the
+    orifices: size stamped, how many, all clean, all five burners lit with
+    even flames? (3) the inlet pressures: static, firing, and with the hot tap
+    open (the Navien fired 09:19:44-09:22:46 and 09:29:16-09:33:02)? (4) did
+    the tech clock the meter: which dial, how many seconds, at what time?
+  blocks: >-
+    (1) Scoring the two 10-27 ledger rows: the manifold row needs "as found"
+    and "#45 confirmed" (3.53 lies outside its 2.0-2.7 band); the clock row
+    needs a stopwatch time, which the house's own 90 s per 2 ft3 cannot stand
+    in for. (2) Choosing between the brief's section 5 rows "orifice problem"
+    and "meter registers slow". (3) Any written meter-test request to CNG,
+    which waits for the orifices: a slow finding is re-billed at CNG's choice
+    and the customer agrees to abide by the test (CNG Rules SS38-39,
+    pp.177-178). Evidence: CHANGELOG 2026.10.27.
+  answered: >-
+    Part (1) only. Bill, 2026-10-27, the same day: "manifold readings was as
+    found no adjustments were made. only maintenace item was cleaning the
+    flame sensor." So 3.53 in. W.C. is the as-found manifold and the valve was
+    not touched. The house meter's unchanged 90 s per 2 ft3 before and after
+    the visit agrees (CHANGELOG 2026.10.27). The brief's "valve set low" row
+    is out. Parts (2)-(4) are split into the entry below.
+
+- asked: 2026-10-27
+  question: >-
+    Furnace service visit 2026-10-27, still open from the entry above: (2)
+    the orifices: size stamped, how many, all clean, all five burners lit
+    with even flames? (3) the inlet pressures: static, firing, and with the
+    hot tap open (the Navien fired 09:19:44-09:22:46 and 09:29:16-09:33:02)?
+    (4) did the tech clock the meter: which dial, how many seconds, at what
+    time? If the tech did not look at one of these, say so.
+  blocks: >-
+    (1) Scoring the two 10-27 ledger rows: the manifold row now needs only
+    "#45 confirmed" (3.53, as found, lies outside its 2.0-2.7 band); the
+    clock row needs a stopwatch time. (2) Choosing between the brief's
+    section 5 rows "orifice problem" and "meter registers slow". (3) Any
+    written meter-test request to CNG, which waits for the orifices (CNG
+    Rules SS38-39, pp.177-178). Split 2026-10-27 from the entry above, whose
+    part (1) Bill answered that day.
+  answered: >-
+    Bill, 2026-10-27, the same day: "No did not check these items. comented
+    that if the nozzles were setup for propane manifold would need to be a 7
+    to work so no indication nozzels are wrong. all flames even so no
+    cleaning required." So the orifice size was NOT read, the inlet was NOT
+    measured and the meter was NOT clocked. The even flames rule out one
+    blocked burner (M: the tech's eye); the propane remark rules out LP
+    orifices. Neither rules out five bores all slightly narrow, which flame
+    appearance cannot show (CHANGELOG 2026.10.27). Orifices versus meter now
+    waits on a physical check (read a pulled orifice's stamp), not on an
+    answer. Ledger: manifold row NOT YET SCORABLE, clock row VOID.
