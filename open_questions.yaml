@@ -2732,3 +2732,29 @@
     meter's identity for the tech to confirm (row 5) and the two real dials
     (row 11): 2 ft3, plate 74.2 s, our data 86-97 s; 1/2 ft3, plate 18.5 s,
     our data 22-24 s [D: 3,600 x dial ft3 / CFH].
+
+- asked: 2026-10-26
+  question: >-
+    From 2026-03-13 to 2026-03-24 the house sat flat at about 56 F: was that
+    an away hold with nobody home, and what were both thermostats set to?
+  blocks: >-
+    Whether those hold nights can serve as the no-setback control for the
+    setback recharge analysis (CHANGELOG 2026.10.26). Differenced against them,
+    the 4 F setback's net to noon is -7.1 furnace min/night [D, 95% CI
+    -22.7..+8.5, n=38 setback vs 10 hold nights]; an empty house has different
+    occupant gains, which would bias that correction. No config change waits
+    on it. The 56 F reading is the ceiling sensor and the Shelly H&T daily
+    min/mean [M], not a thermostat setpoint.
+  answered: >-
+    Bill, 2026-10-26, the same day: "the March dates were set at 55F. we were
+    on vacation for that ~ 2week period." So the house was empty, with both
+    thermostats held at 55 F; the sensors read about 1 F above that.
+
+    Consequence: the hold nights are a no-setback control WITHOUT occupant
+    heat. On lived-in days, people, lights and cooking add heat at 18:00-20:59,
+    which pulls the evening baseline down; the hold nights have none. The -7.1
+    min/night net is therefore most likely biased against the setback [I:
+    falsified if hourly house load shows evening gains no larger than the
+    overnight and morning gains]. Feb-Mar has no hourly house-load record to
+    size the bias (SEM from June 2026, InfluxDB from 2026-06-01), so the net
+    sign stays unresolved (CHANGELOG 2026.10.26).

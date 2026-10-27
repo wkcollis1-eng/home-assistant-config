@@ -251,6 +251,49 @@ question" —** the answer was one line away and settled it in one sentence.
   - Evening setpoint jiggles (10-11 21:14, 10-21 19:20, 10-22 20:20, 10-24 19:15) will now log zero rows too.
   - The 09-18/19 night's 10:59 stuck clear was not examined.
 
+### Setback recovery penalty measured to the end of its tail; the 4 F setback's net is unresolved (analysis only; `open_questions.yaml` +1, answered)
+
+- **Bill** (2026-10-26): "the recovery pentaly not only included the first call to recover from the setback but
+  also subsequent calls to maintain since walls, furniture, etc were colder."
+- **R13, my error (a chat reply this session, not a file):** I said the setback had no recovery penalty because
+  `recovery_minutes` in `reports/hvac_setback_*.csv` had a median of ~15 min. That column stops when the first
+  call reaches setpoint, so it cannot see the tail. I also said `sensor.recommended_setback_depth` "has it
+  backwards". Both claims are withdrawn.
+- **Method [D]:** hourly furnace minutes come from differencing the hourly long-term-statistics max of
+  `sensor.hvac_furnace_runtime_today`. history_stats updates every minute [S: core 2026.10.4
+  `history_stats/coordinator.py:28`]; 00:00-01:59 is one bin. Each night's hours are compared with an
+  18:00-20:59 fit of runtime against outdoor temperature.
+- **R7, the baseline fails on clean input:** on 10 constant-hold nights (03-14..03-23, house flat at ~56 F on
+  `sensor.ceiling_temp_temperature` and `sensor.shellyhtg3_54320456fd9c_temperature` [M, daily min/mean]) the
+  same method reports a net -29.1 min/night (95% CI -43.5..-14.7, p=2.7e-3) with no setback at all. So the
+  setback nights are differenced against the hold nights.
+- **Result, T6 era, 4 F setback, n=38 nights 02-11..04-13 vs 10 hold nights [D, Welch t]:**
+  - the night (21:00-04:59) saves 57.1 furnace min (CI 49.1..65.0);
+  - 05:00-06:59 costs 32.1 (28.6..35.6);
+  - 07:00-11:59 costs another 32.1 (24.3..39.8);
+  - 12:00-17:59 costs another 16.4 (6.1..26.7).
+  - Net to noon: -7.1 min/night (CI -22.7..+8.5, p=0.39). Net to 18:00: -23.4 (CI -45.6..-1.2, p=0.056).
+- **Bill's mechanism is confirmed [D]:** the 07:00-11:59 tail is as large as the recovery hours themselves.
+- **Not established: the sign of the net.**
+  - The hold ran at 55 F, not ~67 F, with the house empty: **Bill** (2026-10-26): "the March dates were set at
+    55F. we were on vacation for that ~ 2week period." So the hold nights lack the people, lights and cooking
+    heat that pull the 18:00-20:59 baseline down on lived-in days. That most likely biases the -7.1 against the
+    setback [I: falsified if hourly house load shows evening gains no larger than the overnight and morning
+    gains]. Feb-Mar has no hourly house-load record to size it (SEM from June, InfluxDB from 2026-06-01).
+  - If the hold-night offset scales with heating load (~2 times larger at the setback nights' load [I]), the
+    net is ~+19 min/night [I].
+  - Degree-hour physics gives ~+13 [I: 593 BTU/h-F x ~27 F-h / 1,222 BTU per furnace min].
+  - The tail grows on colder nights (Spearman rho -0.34, p=0.04, n=38). The net shows no outdoor-temperature
+    trend over 18-44 F (rho +0.13, p=0.45).
+  - At the October firing rate (0.7446 CCF/h [D]; the Feb-Mar rate was never measured), -7.1 min is
+    -0.09 CCF/night.
+- **A/B sizing [D]:** 24-h furnace minutes against outdoor temperature leave a residual sd of 39.6 min/day
+  (n=38). Detecting 15 min/day needs ~110 nights per arm; 30 min/day needs ~28.
+- **Open:**
+  - the `open_questions.yaml` 2026-10-26 entry was filed and answered the same day (above);
+  - the setback CSV's Ecobee-era gap (no 2F rows since 09-18).
+  - No config change.
+
 ### context_hygiene's task-end nudge fires on a commit too, from 80K, and says "new conversation", not "/clear" (`.claude/hooks/context_hygiene.py`, `test_hygiene.py`, `mutate_hygiene.py`; `docs/claude-code-enforcement.md`)
 
 - **Bill** (2026-10-26): "and the nudge change" - the item in `C:\sandbox\memory_check\DESIGN.md` that was
