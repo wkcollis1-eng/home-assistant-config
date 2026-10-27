@@ -399,6 +399,14 @@ question" —** the answer was one line away and settled it in one sentence.
   - The first CO2 readings started low and climbed for about 4 min: 247 to about 345 after the 16:23:54 power-on, and 277 to about 343 after the 16:53:57 OTA [M].
   - The 17:15:46 reboot did not: its first reading, 452 at 17:16:44, was already on the plateau [M]. That falsifies the model written at 17:03, that the SCD30 restarting continuous measurement causes the climb. Kept here, not deleted (R13).
   - The persistence test skipped the first 5 min for this reason.
+- **R13, 17:50 - the low start was the measurement rate, not the boot:**
+  - Each climb began when `frc_prepare` moved the rate from 60 s to 2 s, not at the boot before it. After the 16:23:54 power-on the 60 s readings fell 272, 247, 237; the climb started at 16:26:56, the first 2 s reading, and reached 341 by 16:27:21 [M]. After the 16:53:57 OTA they held 278, 277 until `frc_prepare` at 16:55:41 [M].
+  - Each return to 60 s did the reverse. After 16:46:26: 340 (16:46:33), 336 by 16:49:32, then 322, 291, 279 (16:53:35) [M]. After the 17:15:46 window-end reboot: 452 to 454 until 17:19:46, then down to 379 at 17:29:56, with no reboot in between [M].
+  - The SCD30 humidity stepped with it, 32.99 to 27.08 between 17:22:49 and 17:23:50, while its temperature eased 59.07 to 58.72 F [M]. Bill: no sun on the north porch, and nothing moved at 17:23.
+  - In the same air the 60 s reading sat 60 to 70 ppm below the 2 s reading [D: 338.5 - 278 = 60.5; 343.0 - 277 = 66; 448.9 - 381 = 68; n = 3 transitions, one unit, one afternoon, outdoor CO2 assumed steady]. The mechanism is unknown.
+  - FRC is taken at 2 s, as Sensirion asks [S: Interface Description v1.0-D1, p14], and the node runs at 60 s. So its 60 s readings likely sit about 65 ppm below the 426 reference [I: falsified by the node at 60 s, outdoors and settled, reading near 426].
+  - PERSIST compared 2 s readings with 60 s readings that had not fallen yet, so its -2.0 ppm says nothing about accuracy. The FRC did survive: at 60 s the reading went from 277 before it to 379 after it [M]; a lost FRC would have put it back near 277 if outdoor CO2 held steady [I].
+  - The low-start bullet above blamed the boot; that was wrong, and is kept (R13). The guidance becomes: judge nothing for 10 min after a change of rate.
 - **Corrections to the 1.2 section above:**
   - Bill: "at 15:36 moved the unit to the window sill. thats when the calibration started." So the unplug test and the replug were on the sill.
   - The 15:36 move did not reset the node: uptime was continuous 15:32:31 to 15:46:22 [M].
@@ -417,6 +425,7 @@ question" —** the answer was one line away and settled it in one sentence.
   - Bill's paste of the 1.3 rows.
   - The README and harness in the CO2 Monitor repo, not committed.
   - The bench replug test.
+  - The 60 s offset (R13, 17:50 above): Bill's choice of remedy.
 
 ## [2026.10.26] - 2026-10-26
 
