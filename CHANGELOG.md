@@ -463,6 +463,8 @@ question" —** the answer was one line away and settled it in one sentence.
   - The settled 1-minute means are +78 and +85 [D: 999.4 - 921.4; 1006.5 - 921.4]. The first mean, 931.1, held the climb, as the earlier switches did.
   - The +60 to 70 prediction is a MISS in the ledger. Who was in the room was not recorded.
   - The bedroom reads about 1000 now, on the UBA line; at 60 s it showed about 920.
+  - After the step, 18:22 to 18:58, the mean eased from about 1000 to 942-972 [M: 1-minute means], while the SCD30's own temperature rose from 71.6 to 74.3 F [M: 18:16:24 to 18:58:24], the faster rate's self-heating. The 2 s readings over 18:48-18:58: n = 297, 937.1 to 980.2, sd 12.5 [M]. Bill: "seems to have settled down some." Room air or sensor warm-up: not separable without a reference [I].
+  - The FRC at 17:01:27 was taken about 6 min into a 2 s window, with this temperature still rising (1.3 entry). That a settled 2 s reading agrees with it is [I], tested by the node outdoors after 45 min or more at 2 s, its temperature flat, reading near 426.
 - **Cost:**
   - Recorder: up to 43,200 states a day for `CO2 (2 s)` [D: 86,400 / 2], kept 14 days (`purge_keep_days: 14`). HA writes only changes.
   - InfluxDB: a UI config entry with no include/exclude, and infinite retention (`docs/influx-grafana.md`:104-107), so every 2 s change is kept there for good. Left for Bill.
@@ -473,9 +475,10 @@ question" —** the answer was one line away and settled it in one sentence.
   - R3: the other CO2 cards, the Node section and the top-level keys parse identical to HEAD. The diff is +61/-1.
   - gate.py: "1. SYNTAX PASS (parse-clean)"; "2. SEMANTIC 0 FAIL, 2 WARN, 2 INFO across 18 pipelines". The NEW WARN is `dashboard-not-pasted` for the 2 s id, and it stands until Bill pastes.
   - 2c: 0 WARN on the view, the firmware and the CO2 Monitor README. The first run warned on a `[D:` tag split from its `7 x` across a line break; the two lines were rejoined.
+  - Pasted (Bill: "dashboard live"). The exported Bedroom CO2 view parses identical to the source, except `cards: []`. The HA editor adds that key: it was in the previous export too, and is on 6 other sections views. The audit went back to "0 FAIL, 1 WARN, 2 INFO across 18 pipelines". `dashboards/lovelace/lovelace.yaml` +46/-1, all in this view.
 - **CO2 Monitor repo:** 02e70e1 (firmware 1.4 and harness) and 0db38d3 (README), pushed. `hardware/CO2 Monitor.kicad_pcb` stays uncommitted (Bill's call, asked).
 - **Open:**
-  - Bill's paste of the view.
+  - Bill's paste of the view: done, above.
   - InfluxDB keeping the 2 s series forever: Bill's call.
   - The bench replug test.
 

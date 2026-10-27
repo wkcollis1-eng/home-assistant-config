@@ -7002,9 +7002,54 @@ views:
               - min: ~400
                 max: ~2100
                 decimals: 0
+            update_interval: 1min
             series:
+              - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
+                name: CO2 (2 s)
+                type: line
+                stroke_width: 1
+                color: '#8a8a8a'
               - entity: sensor.bedroom_co2_node_co2
-                name: CO2
+                name: CO2 (1 min mean)
+                type: line
+                stroke_width: 2
+                color: '#00d1ff'
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Last hour
+              show_states: true
+              colorize_states: true
+            graph_span: 1h
+            apex_config:
+              annotations:
+                yaxis:
+                  - 'y': 1000
+                    borderColor: '#f57c00'
+                    label:
+                      text: 1000 ppm - open a window (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#f57c00'
+                  - 'y': 2000
+                    borderColor: '#d32f2f'
+                    label:
+                      text: 2000 ppm - unacceptable (UBA)
+                      style:
+                        color: '#fff'
+                        background: '#d32f2f'
+            yaxis:
+              - min: ~400
+                max: ~2100
+                decimals: 0
+            series:
+              - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
+                name: CO2 (2 s)
+                type: line
+                stroke_width: 1
+                color: '#8a8a8a'
+              - entity: sensor.bedroom_co2_node_co2
+                name: CO2 (1 min mean)
                 type: line
                 stroke_width: 2
                 color: '#00d1ff'
