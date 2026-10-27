@@ -1118,7 +1118,7 @@ views:
                   name: '  ↳ HWH recirc last capture'
               footer:
                 type: graph
-                entity: sensor.dehumidifier_running_watts_latched
+                entity: sensor.dehumidifier_running_watts_68f_latched
                 hours_to_show: 48
                 detail: 2
       - type: grid
