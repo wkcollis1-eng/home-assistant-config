@@ -2860,3 +2860,24 @@
     now a bench test, not a question: replug the SCD30 with the USB cable
     taped down; a reset then points at the rail. Until then "the strobe
     stops at the next good reading" stays unproven on the device.
+
+- asked: 2026-10-29
+  question: >-
+    Hallway mmWave node, top of the stairs: how high is it mounted, which way
+    does it face (down the stairs, or along the hallway), and how far from it
+    is the farthest point that should still count as "in the hallway"?
+  blocks: >-
+    The node's max_move_gate / max_still_gate (esphome/mmwave-hallway-node.yaml),
+    which ship as the common file's 4 / 4 restated (gate 4 ends at 3.0 m), a
+    placeholder and not a measurement. Too long a reach sees the stairwell or
+    a doorway off the hallway and holds the lamp on; too short misses the
+    arrival. The lamp automation itself does not wait on this.
+  answered: >-
+    Bill, 2026-10-29, the same evening: "unit will sit on a table about 42"
+    tall looking at the stair case. will need to see presense within 8'."
+    8 ft = 2.44 m, inside gate 3 (2.25-3.00 m) [D], so max_move_gate and
+    max_still_gate are 3 / 3, compiled and confirmed in the generated code.
+    Slant range from a 42 in table down the stairs is longer than the floor
+    distance; the §5.2 walk test decides whether gate 4 is needed.
+    R13, same evening: "gate 4 ends at 3.0 m" in blocks: above was wrong -
+    gate 4 is 3.00-3.75 m. The note is at the gates in the node file.
