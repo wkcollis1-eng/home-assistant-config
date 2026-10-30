@@ -2881,3 +2881,31 @@
     distance; the §5.2 walk test decides whether gate 4 is needed.
     R13, same evening: "gate 4 ends at 3.0 m" in blocks: above was wrong -
     gate 4 is 3.00-3.75 m. The note is at the gates in the node file.
+
+- asked: 2026-10-30
+  question: >-
+    Hallway mmWave node: where was it from 07:42 to 09:24 EDT on 10-30, and what
+    was about 33 in in front of it? Now that it faces the wall, how far is the
+    wall from the radar and what is on the other side?
+  blocks: >-
+    Any gate cap or threshold change on the hallway node
+    (esphome/mmwave-hallway-node.yaml), and any conclusion about whether the
+    lamp's presence edge can fire at its real position. [M, 10-30, Influx
+    moving_distance and recorder, 11:42-13:24Z]: a moving target held at median
+    33.5 in, n = 28,916, and presence was off for only 81 s of that span. The
+    automation needs an off-to-on edge, so a source that holds presence on
+    leaves the lamp dark. Whether that source is a person, a thing or this
+    position is not inferred from the data. Per-gate energy is separate: the
+    node's 04:10 window collects it unaided if the node stays powered.
+  answered: >-
+    Bill, 2026-10-30: "unit is sitting on a desk in front of me, so it was
+    seeing me. now the unit is facing the wall about 18" away, exterior wall,
+    2nd floor." So the 33 in target was Bill, nothing holds the radar on, and
+    the node is NOT yet in the hallway: every lux and radar reading so far says
+    nothing about the hallway, and the gates stay at 3 / 3 and factory
+    thresholds until it stands at its real position. 18 in = 0.457 m [D: 18 x
+    0.0254], inside gate 0; the bursts after the turn were at 28.7-50.4 in, past
+    that wall, and an exterior wall on the 2nd floor has no room behind it, so
+    the office's through-wall reading does not explain them. Bill behind or
+    beside the unit is [I]; bursts with the room empty would falsify it. R13s in
+    the CHANGELOG 2026.10.30 entries.
