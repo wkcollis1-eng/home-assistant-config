@@ -19,7 +19,7 @@ packages/gas_dhw.yaml                  1207 lines   automation:4, input_button:2
 packages/grafana.yaml                   105 lines   automation:1, shell_command:1
 packages/hvac_performance.yaml         5830 lines   automation:48, input_boolean:4, input_button:1, input_datetime:15 +3 more
 packages/influx_watchdog.yaml           167 lines   automation:1, rest:1, template:1
-packages/mmwave_presence.yaml          3263 lines   automation:29, input_boolean:12, input_datetime:6, input_number:12 +5 more
+packages/mmwave_presence.yaml          3372 lines   automation:30, input_boolean:12, input_datetime:6, input_number:12 +5 more
 packages/sem_meter.yaml                 636 lines   mqtt:1, sensor:1, utility_meter:34
 packages/spc.yaml                      4080 lines   automation:11, input_datetime:13, input_number:49, script:3, sensor:14 +3 more
 packages/utility_meters.yaml           1548 lines   automation:6, input_boolean:1, input_datetime:2, input_number:25 +3 more

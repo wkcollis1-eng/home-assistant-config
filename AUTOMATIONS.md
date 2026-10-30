@@ -78,6 +78,7 @@ mmw_family_override_release            state:input_boolean.mmw_family_manual_ove
 mmw_family_presence_off                state:binary_sensor.family_mmwave_presence +4 more                    single     mmwave_presence.yaml
 mmw_family_presence_on                 state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
 mmw_family_quiet_alarm                 state:binary_sensor.family_mmwave_presence                            single     mmwave_presence.yaml
+mmw_hallway_lit_empty_off              state:switch.hallway_lamp, time_pattern                               single     mmwave_presence.yaml
 mmw_hallway_override_detect            state:switch.hallway_lamp                                             single     mmwave_presence.yaml
 mmw_hallway_override_release           state:input_boolean.mmw_hallway_manual_override +1 more               single     mmwave_presence.yaml
 mmw_hallway_presence_off               state:binary_sensor.hallway_mmwave_presence                           single     mmwave_presence.yaml
@@ -153,4 +154,4 @@ watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale   
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +6 more               parallel   watchdog.yaml
 ```
 
-144 automations.
+145 automations.
