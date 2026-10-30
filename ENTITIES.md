@@ -262,6 +262,21 @@ binary_sensor.mmw_family_seen_recently          kitchen witness cap, 2026-10-16;
 binary_sensor.mmw_family_tv_on                  TV witness, 2026-10-23; Living Rm TV/Sonos/Homatics plug at or above 50 W, off 60 s after it drops below (delay_off). Holds the family lamps while on, with no seen_recently cap; the morning lux-off still turns them off
 ```
 
+## MMWAVE HALLWAY LAMP (packages/mmwave_presence.yaml)
+
+```
+input_number.mmw_hallway_lux_on         lamp-on line (lx), 2026-10-29; compared with sensor.mmw_hallway_lux_before_presence, not lux now, when presence starts. Seed 18 is the office's provisional value, not measured for the hallway
+input_number.mmw_hallway_on_minutes     lamp hold (min), Bill 2026-10-29 "10 minutes"; counted from the radar's last presence, the module's own hold subtracted. 0 = uncommissioned (never lit, never switched off)
+sensor.mmw_hallway_lux_before_presence  statistics value_min of sensor.mmw_hallway_lux_sampled over 5 min (max_age, no sample cap); the hallway darkness test, 2026-10-29. Unavailable while the VEML7700 is; fills over its first 5 min after a restart
+sensor.mmw_hallway_lux_sampled          the hallway lux re-written every 30 s (state + time_pattern trigger), 2026-10-29. HA's esphome integration drops unchanged states, so without it the 5 min window empties in a dark, still hallway (R13 note at the statistics sensor). Recorder-excluded; the node's own sensor is the record
+```
+
+## MMWAVE HALLWAY NODE (esphome/mmwave-hallway-node.yaml)
+
+```
+sensor.hallway_mmwave_ambient_light  VEML7700, node 3 (top of the stairs, 2026-10-29). At the presence edge it already includes the stair light, so the lamp decision reads sensor.mmw_hallway_lux_before_presence
+```
+
 ## MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
 
 ```

@@ -334,6 +334,12 @@ input_number.hvac_filter_runtime_hours:
 input_number.hwh_recirc_power_threshold:
   group: SPC — HWH RECIRC (packages/spc.yaml)
   note: default 70W
+input_number.mmw_hallway_lux_on:
+  group: MMWAVE HALLWAY LAMP (packages/mmwave_presence.yaml)
+  note: lamp-on line (lx), 2026-10-29; compared with sensor.mmw_hallway_lux_before_presence, not lux now, when presence starts. Seed 18 is the office's provisional value, not measured for the hallway
+input_number.mmw_hallway_on_minutes:
+  group: MMWAVE HALLWAY LAMP (packages/mmwave_presence.yaml)
+  note: lamp hold (min), Bill 2026-10-29 "10 minutes"; counted from the radar's last presence, the module's own hold subtracted. 0 = uncommissioned (never lit, never switched off)
 input_number.sdr_leak_now_hold_minutes:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: default 10 (~5 frames at 112 s)
@@ -725,6 +731,9 @@ sensor.gas_meter_tamper_enc:
 sensor.gas_meter_tamper_phy:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: SCM; watch for a CHANGE, never the value
+sensor.hallway_mmwave_ambient_light:
+  group: MMWAVE HALLWAY NODE (esphome/mmwave-hallway-node.yaml)
+  note: VEML7700, node 3 (top of the stairs, 2026-10-29). At the presence edge it already includes the stair light, so the lamp decision reads sensor.mmw_hallway_lux_before_presence
 sensor.hdd_deviation_today:
   group: CLIMATE NORMS
   note: ''
@@ -917,6 +926,12 @@ sensor.living_room_tv_sonos_homatics_today_s_consumption:
 sensor.main_floor_current_temperature:
   group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
   note: 1F current temp (watchdog monitored)
+sensor.mmw_hallway_lux_before_presence:
+  group: MMWAVE HALLWAY LAMP (packages/mmwave_presence.yaml)
+  note: statistics value_min of sensor.mmw_hallway_lux_sampled over 5 min (max_age, no sample cap); the hallway darkness test, 2026-10-29. Unavailable while the VEML7700 is; fills over its first 5 min after a restart
+sensor.mmw_hallway_lux_sampled:
+  group: MMWAVE HALLWAY LAMP (packages/mmwave_presence.yaml)
+  note: the hallway lux re-written every 30 s (state + time_pattern trigger), 2026-10-29. HA's esphome integration drops unchanged states, so without it the 5 min window empties in a dark, still hallway (R13 note at the statistics sensor). Recorder-excluded; the node's own sensor is the record
 sensor.monitoring_load:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
   note: HA host + UPS outlet + router; runs the WHOLE outage
