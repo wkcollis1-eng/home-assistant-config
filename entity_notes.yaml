@@ -132,6 +132,12 @@ binary_sensor.mmw_office_occupied:
 binary_sensor.spc_capture_stale_any:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: roll-up; attr stale_populations
+binary_sensor.top_off_charger_charge_switch:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'commanded state of U4, read-only; GPIO4 reaches ON by the pad 1 to pad 8 rework (design §7.2)'
+binary_sensor.top_off_charger_start_permitted:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-3 start check, as the firmware evaluates it'
 binary_sensor.watchdog_battery_bank_stale:
   group: WATCHDOG (packages/watchdog.yaml)
   note: Battery Bank monitor stale detection
@@ -165,6 +171,15 @@ binary_sensor.water_overnight_leak_suspected:
 binary_sensor.water_softener_regen_last_night:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: max > threshold
+button.top_off_charger_acknowledge:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'clears a latched DONE or FAULT; the charger stays latched until pressed'
+button.top_off_charger_start:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'requests a session; only the control tick turns the switch on (FW-1)'
+button.top_off_charger_stop:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'ends a session as stopped: user (proven 2026-10-28, design §11.1)'
 climate.main_floor:
   group: THERMOSTATS (Ecobee — replaced Honeywell T6 Pro June 2026)
   note: 1F Ecobee
@@ -1031,6 +1046,114 @@ sensor.shelly_temperature_humidity_temperature:
 sensor.site_eui_estimate:
   group: ENERGY METRICS
   note: ''
+sensor.top_off_charger_bms_trip_pre_step_current:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-5; NaN unless the last session ended in a BMS trip'
+sensor.top_off_charger_bms_trip_pre_step_vbus:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-5; NaN unless the last session ended in a BMS trip'
+sensor.top_off_charger_charge_after_settle:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-14, this session''s charge after the settle, raw'
+sensor.top_off_charger_charge_current:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'INA228, signed, raw (idle offset about -0.1 mA); 1 Hz copy of the 500 ms tick'
+sensor.top_off_charger_charge_power:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'signed V x I, not the INA228''s unsigned POWER register'
+sensor.top_off_charger_charger_state:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'the state machine''s state (design, States)'
+sensor.top_off_charger_edge_off_current_after:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_off_current_before:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_off_vbus_after:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_off_vbus_before:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_on_current_after:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_on_current_before:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_on_vbus_after:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_edge_on_vbus_before:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-12 edge pair, raw; R_edge = dV/dI is computed downstream'
+sensor.top_off_charger_fault_reason:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'text, e.g. done: time at voltage reached'
+sensor.top_off_charger_idle_current_offset:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'current read with the switch off, raw'
+sensor.top_off_charger_ina228_die_temperature:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'enclosure proxy, report-only (FW-10)'
+sensor.top_off_charger_last_session_charge:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9)'
+sensor.top_off_charger_last_session_charge_after_settle:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9)'
+sensor.top_off_charger_last_session_elapsed:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9)'
+sensor.top_off_charger_last_session_end:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9); how the last session ended'
+sensor.top_off_charger_last_session_final_window_mean:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9); FW-14, raw'
+sensor.top_off_charger_last_session_idle_offset:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9)'
+sensor.top_off_charger_last_session_tail_floor:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9); FW-14, raw'
+sensor.top_off_charger_last_session_time_at_voltage:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'session record, restored at boot (FW-9)'
+sensor.top_off_charger_led_mode:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-11 LED mode, so a test can check the LED against the state'
+sensor.top_off_charger_reset_reason:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'ESPHome debug reset reason (V0.4)'
+sensor.top_off_charger_session_charge:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'this session''s charge, Ah'
+sensor.top_off_charger_session_elapsed:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'time since Start'
+sensor.top_off_charger_session_idle_offset:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'idle offset taken for this session'
+sensor.top_off_charger_tail_floor:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-14 tail floor, raw (subtract the idle offset), report-only'
+sensor.top_off_charger_tail_window_mean:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-14 tail window mean, raw, report-only'
+sensor.top_off_charger_time_at_voltage:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-6; counts whenever VBUS >= V_hold, even at 0 A (design O18)'
+sensor.top_off_charger_time_remaining_at_voltage:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'FW-6, T_hold less time at voltage'
+sensor.top_off_charger_uptime:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 's since boot, every 60 s; with Reset Reason, tells a reset from a Wi-Fi gap'
+sensor.top_off_charger_vbus:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'INA228 VBUS = VIN+, after U4 and U5 (pack side), raw'
 sensor.tv_room_today_s_consumption:
   group: KASA PLUGS
   note: ''
