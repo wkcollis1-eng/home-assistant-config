@@ -77,8 +77,9 @@ is calibrated against.
 | 2026-10-26 | **CLAUDE.md tier B** (-1,386 B, applied 2026-10-26 ~08:05 EDT). Sessions started after that carry both cuts: from 2026-10-27 to 2026-11-02 the median first-call context of a fresh main-thread session falls by **1.65-2.65K tokens** from 40.2K (the 2026-10-25 rescore) [D: (3,196 + 1,386) B x 0.47 tok/B = 2.15K; the 10-25 row's band shifted by 0.65K = 1,386 B x 0.47], after subtracting any MEMORY.md growth at the same rate. **Scoring the 10-25 re-cut row:** subtract 0.65K from the fall of any session started after this time, or that row reads as a miss when it is right. Falsified by a fall under 1.15K (that row's 0.5K floor + 0.65K). Not scored if fewer than 10 fresh sessions. | yes | pending, due 2026-11-02 |
 | 2026-10-27 | **Bedroom CO2 Node firmware 1.4, the 60 s -> 2 s step** (OTA, boot 18:13:23). Within about 4 min of the 2 s rate starting, `sensor.bedroom_co2_node_co2` steps UP 60-70 ppm from about 923 at 60 s, to about 985-990. Built on the n = 3 transitions of the 17:50 R13 bullet in the 1.3 entry. Falsified by a step under about 30 ppm, or none | yes - stated in chat and written in the R20 checkpoint at 18:14, before the OTA; entered here at about 18:35, after the outcome (the ledger row itself was missed until then - R13) | **MISS** - direction right, magnitude wrong: +78 and +85 in the settled 1-minute means, +86 in the 2 s readings [D: 999.4, 1006.5 (18:17:24, 18:16:24) and 1007.4 (n = 9, 18:15), each minus 921.4, the last 60 s value at 18:13:13]. One switch, one room, occupancy not recorded |
 | 2026-10-28 | **Bedroom CO2 overnight plateau is set by the two sleepers (steady-state model).** Two adults, door open, night of 10-27: plateau about 1,172 ppm, so about 16-23 cfm of outdoor-equivalent air reaches them [D: G = 0.0052-0.0076 L/s x 295/273 (Persily & de Jonge 2017, Indoor Air 27(5), Table 4, 1.0 met, ages 30-80) / (1172 - 426) ppm]. A night with ONE of the two in the room, door open, plateaus at 700-900 ppm [D: 426 + 0.4 to 0.6 x 746]. Falsified by a plateau outside 700-900. Who slept there comes from Bill (R14) | yes - stated in chat and entered here at about 11:30, before any one-sleeper night | open |
+| 2026-10-29 | **Top-off charger session S5 (PSU 14.42 V; the second, new pack): a BMS cut within 10 min of Start.** Built on the two 10-28 sessions at 14.43 V, both of which cut within about 1.5 min of Start, at VBUS 14.310-14.315 V [M, n = 2]. Falsified by no cut in that time | yes - stated in chat at 13:59 EDT and written in the R20 checkpoint at 14:03, before Start at 14:17:34 | **FALSIFIED** - scored 2026-10-29. At +10 min (14:27:38) still CHARGING with the switch on [M]. No cut in the whole 6 h hold at VBUS 14.401-14.403 V either, apart from a 28 s current dropout at 17:54 whose cause is open (design O21, DIY-LiFePO4-UPS). The 10-28 cuts came at 0.95-1.30 A and S5 held at milliamps, so the cut may depend on current, or the holds since may have improved the balance [I] |
 
-**Running score: 19 hits, 6 misses, 3 falsified, 5 withdrawn, 2 void.** (12th hit: the 2026-09-23
+**Running score: 19 hits, 6 misses, 5 falsified, 5 withdrawn, 3 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) (Until 2026-09-30 this read
 1 falsified and 2 withdrawn. The 09-25 idle-days FALSIFIED row and the two 09-25 mmwave-bench
@@ -87,7 +88,7 @@ day, with the two battery-bank rows above.) (Until 2026-10-16 this read 12 hits 
 falsified. The three rows scored 2026-10-11 - the 09-23 furnace 'other'-runs row and both
 10-04 rows - were never added [M: tally of the outcome column, 2026-10-16]; that day added the
 10-02 daylight, 10-02 throttle and 10-09 family-release rows as hits and the 10-02 VEML floor
-as falsified.) Six of the first seven were
+as falsified.) (Until 2026-10-29 this read 3 falsified and 2 void. The 2026-09-17 water row, scored FALSIFIED on 2026-10-16, and the 2026-10-25 row, scored VOID on 2026-10-27, were never added [M: tally of the outcome column, 2026-10-29]; that day added the S5 top-off row as falsified.) Six of the first seven were
 about the SDR, and BOTH that landed were derived from a formula
 (`buffer_usage_ratio / age_coverage_ratio`; `quantum / load`) rather than fitted
 to a short sample. Every miss was a short-sample fit. That is the whole lesson of
@@ -102,6 +103,14 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.10.29] - 2026-10-29
+
+### Top-off charger: firmware file tracked, 41 entities annotated (documentation; no HA config change)
+- `esphome/top-off-charger.yaml` is now tracked. It is byte-identical to DIY-LiFePO4-UPS `Top-Off-Charger/firmware/top-off-charger.yaml` at `de3e1f7` (sha1 `95430a93a668`), the V0.4 build flashed on 2026-10-28 [M: cmp]. That repo is the source. It adds `use_address: 10.0.0.116`, because the Device Builder add-on has no mDNS.
+- `entity_notes.yaml`: the 41 `top_off_charger` entities annotated under TOP-OFF CHARGER, and `ENTITIES.md` regenerated: 359 to 400 annotated entities [M: gen_reference.py]. `update.basement_top_off_charger_firmware` is in the registry but not in `/api/states`, so it is not annotated [M].
+- The bench sessions of 2026-10-28/29, the #2814 control-pin correction (R13: this session first called the module faulty) and the open items are in the design doc, rev 0.12, §7.2, §11.1 and O18-O21 (DIY-LiFePO4-UPS `f322718`), not here (R10).
+- Prediction ledger: the S5 row added and scored FALSIFIED, and the running score's drift corrected (the note beside it).
 
 ## [2026.10.28] - 2026-10-28
 
