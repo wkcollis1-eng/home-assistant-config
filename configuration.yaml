@@ -206,6 +206,13 @@ lovelace:
       icon: mdi:radar
       show_in_sidebar: true
       filename: dashboards/mmwave-family.yaml
+    # ADDED 2026-10-29: the hallway node (node 3), same pattern.
+    mmwave-hallway:
+      mode: yaml
+      title: Hallway mmWave
+      icon: mdi:radar
+      show_in_sidebar: true
+      filename: dashboards/mmwave-hallway.yaml
 
 # ===============================================================
 # LIVE WEATHER (Updates every 10 minutes)
