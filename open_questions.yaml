@@ -2909,3 +2909,36 @@
     the office's through-wall reading does not explain them. Bill behind or
     beside the unit is [I]; bursts with the room empty would falsify it. R13s in
     the CHANGELOG 2026.10.30 entries.
+
+- asked: 2026-10-30
+  question: >-
+    Top-off charger: what is the longest the L6 countdown timer can be set to,
+    and what make and model is it?
+  blocks: >-
+    The first V0.5 session of 8 h. T_max is now 10 h and the design needs L6
+    settable above T_max plus a margin, so a shorter timer cuts the AC before
+    DONE and the session reads "reset during a session".
+  answered: >-
+    2026-10-30, Bill: no L6 timer is controlling the AC. So no timer can cut
+    an 8 h session short, and that session is not blocked. It also means
+    design layer L6, the only layer covering a #2814 failed short (design
+    section on protection layers), is not in the circuit.
+
+- asked: 2026-10-30
+  question: >-
+    Top-off charger: with the pack rested, note VBUS on the dashboard, then AC
+    off, red QD off, black QD off, and put a DMM on the pack's own terminals.
+    What do the two read?
+  blocks: >-
+    Reading the 0.2 mA tail as charge going into the cells, and any T_hold past
+    8 h. The pack read 14.354 V 14 h after S5 at zero current [M], unexplained:
+    if the BMS charge side is open the terminal floats and the tail may not be
+    reaching the cells [I]. Does not block the V0.5 flash.
+  answered: >-
+    2026-10-31, Bill: "PSU at ~10:00am - 14.46v, Battery terminals while
+    connected - 14.42, with leads removed - 14.42. question is now closed."
+    VBUS read 14.4154 V at 10:02:46, the last row before AC off [M], so the
+    DMM and VBUS agree inside one 10 mV digit, 4.6 mV [D]. The terminal does
+    not float: it held 14.42 V with no charger on it. The reading carries no
+    current, so it does not say where the tail goes inside the pack, and
+    T10's R_series is still unmeasured. Detail: design rev 0.15, section 11.1.

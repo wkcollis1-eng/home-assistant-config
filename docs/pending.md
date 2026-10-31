@@ -473,6 +473,32 @@ CLOSE WHEN, after Install:
 
 ---
 
+### P27 — top-off charger V0.5: flashed; the post-flash steps and T17 [MEDIUM]
+```
+Opened 2026-10-30. esphome/top-off-charger.yaml is V0.5 (sha1 523bec0a672c).
+Flashed 2026-10-30 12:25:15 EDT [M: reset reason esphome.ota]. Story: CHANGELOG
+2026.10.30, and design rev 0.13 in DIY-LiFePO4-UPS.
+
+The first 8 h session ran 2026-10-30 (S7, DONE 22:53:30). L6 answered: no timer in
+the circuit, so no layer covers a #2814 failed short (open_questions.yaml).
+The DMM check closed 2026-10-31: VBUS is the pack at rest (design rev 0.15).
+
+After the flash, in order:
+1. R5: python C:\sandbox\topoff_v05\verify_view_ids.py. It reads the rev 0.3 view
+   draft against /api/states. R13, 2026-10-30: run after the flash, it still lists
+   all 12 new ids. The draft guessed top_off_charger_; the live ids are
+   basement_top_off_charger_ [M], e.g. sensor.basement_top_off_charger_bms_cuts and
+   binary_sensor.basement_top_off_charger_status. Fix the 12 in edit_view.py and the
+   `.top_off_charger_` patterns in verify_view_ids.py (they cannot match the new
+   ids), then re-run: none missing. The sandbox can be wiped: edit_view.py beside it
+   rebuilds the draft from H:, and the 12 names are in the CHANGELOG entry.
+2. Copy the draft to dashboards/views/, gate it, hand it to Bill to paste (R19),
+   then export_dashboards.py. This also clears dashboard-not-pasted.
+3. entity_notes.yaml for the 12, gen_reference.py, ENTITIES.md in the same commit.
+4. DoD step 5: read the new entities and say what they read. Bill confirms the LED.
+5. T17 (a real QD pull) and design section 11's re-run list.
+```
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
