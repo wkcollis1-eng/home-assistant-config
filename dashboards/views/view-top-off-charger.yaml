@@ -1,0 +1,317 @@
+# =============================================================================
+# DASHBOARD VIEW — Top-Off Charger
+# Rev 0.2 (2026-10-30). A new view on the Overview dashboard (lovelace). Matches
+# the `type: sections` convention of view-bedroom-co2.yaml.
+# Rev 0.1, same day: history graphs of charge current, charge power and VBUS.
+# Rev 0.2 (Bill: "it should include the diagnostics as well, time remaining,
+# time at voltage, tail, etc. make a comprehensive dashboard"): all 41 of the
+# charger's entities in /api/states [M, 2026-10-30] are on the view. The rev
+# 0.1 graphs are unchanged, in the Last 24 hours section.
+# -----------------------------------------------------------------------------
+# THE UNATTENDED MOMENT: Bill reads this view after a session he did not
+# watch to the end. Three things must be true then:
+#   1. How the session ended is readable afterwards. The Last session card is
+#      the firmware's own record, restored at boot (FW-9). The logbook keeps
+#      every state change for 7 days, so a FAULT that latched and was then
+#      acknowledged still shows as a line.
+#   2. A missing reading reads as missing. The tick publishes NaN when its
+#      pair is not valid (esphome/top-off-charger.yaml, HA-facing copies),
+#      which HA stores as unknown; an offline node makes every entity
+#      unavailable, and every tile says so. The deployed history-graph ends
+#      the line at any non-numeric state and resumes it at the next number -
+#      a gap, never a held value (frontend 20260930.5, the version HA
+#      2026.10.4 pins; state-history-chart-line-data.ts, processData).
+#   3. Nothing here computes. Every value is raw, as the firmware publishes
+#      it. The firmware leaves the idle-offset subtraction and R_edge = dV/dI
+#      to HA, and nothing in HA does either yet [M, 2026-10-30: 0 top_off
+#      hits in packages/, configuration.yaml, automations.yaml,
+#      scripts.yaml]. So the tail values and the offsets sit side by side,
+#      unsubtracted. A sum in a card would be a second copy of the definition
+#      (R10); when one is wanted, it is a sensor in a package.
+# No threshold lines: history-graph cannot draw one (view-bedroom-co2.yaml).
+# The firmware's limits are placeholders until T11, so no number from them is
+# drawn or written here either - it would be a copy that drifts (R10).
+# Card types are only ones already live: heading, tile, entities,
+# history-graph, logbook, markdown.
+# Entity ids from /api/states, 2026-10-30. All are recorded since
+# 2026-10-28 19:54 UTC [M, /api/history, first row of each].
+# =============================================================================
+type: sections
+max_columns: 3
+icon: mdi:battery-charging
+path: top-off-charger
+title: Top-Off Charger
+header:
+  card:
+    type: markdown
+    text_only: true
+    # Start is only a request (FW-1): the tick starts a session only in IDLE
+    # with the FW-3 check met, which is Start permitted. Every refusal reason
+    # is an ESP_LOGW in the firmware and reaches no entity.
+    content: |
+      # Top-Off Charger
+      **Start** only asks: a session starts only while *Start permitted* is on. If it does nothing, the reason is in the device log. DONE and FAULT stay latched until **Acknowledge**. The firmware's limits are placeholders until T11 (firmware header, V0.4): supervise every session.
+
+sections:
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: heading
+        heading: Status
+      - type: tile
+        entity: sensor.top_off_charger_charger_state
+        name: State
+        grid_options:
+          columns: full
+      - type: tile
+        entity: sensor.top_off_charger_fault_reason
+        name: Fault reason
+        grid_options:
+          columns: full
+      - type: tile
+        entity: binary_sensor.top_off_charger_charge_switch
+        name: Charge switch
+      - type: tile
+        entity: binary_sensor.top_off_charger_start_permitted
+        name: Start permitted
+      # FW-11: the state the LED shows, so the LED can be checked against it.
+      - type: tile
+        entity: sensor.top_off_charger_led_mode
+        name: LED mode
+        grid_options:
+          columns: full
+      # A button row is pressed with its own PRESS control, never by tapping
+      # the row. Stop beats a Start pressed on the same tick (V0.3).
+      - type: entities
+        title: Controls
+        entities:
+          - entity: button.top_off_charger_start
+            name: Start
+          - entity: button.top_off_charger_stop
+            name: Stop
+          - entity: button.top_off_charger_acknowledge
+            name: Acknowledge
+  # ---------------------------------------------------------------------------
+  # The session values stay at the last session's until the next Start
+  # [M, 2026-10-30: in IDLE, Session Charge equals Last Session Charge].
+  - type: grid
+    cards:
+      - type: heading
+        heading: Session
+      - type: tile
+        entity: sensor.top_off_charger_time_at_voltage
+        name: Time at voltage
+      # FW-6: T_hold less time at voltage.
+      - type: tile
+        entity: sensor.top_off_charger_time_remaining_at_voltage
+        name: Time remaining
+      - type: tile
+        entity: sensor.top_off_charger_session_elapsed
+        name: Elapsed
+      - type: tile
+        entity: sensor.top_off_charger_session_charge
+        name: Charge
+      # FW-14, report-only: nothing in the tick's decisions reads these.
+      # Raw: the idle offset is NOT subtracted (header, point 3).
+      - type: tile
+        entity: sensor.top_off_charger_charge_after_settle
+        name: Charge after settle
+      - type: tile
+        entity: sensor.top_off_charger_session_idle_offset
+        name: Idle offset (at Start)
+      - type: tile
+        entity: sensor.top_off_charger_tail_window_mean
+        name: Tail window mean
+      - type: tile
+        entity: sensor.top_off_charger_tail_floor
+        name: Tail floor
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: heading
+        heading: Last session
+      # The session record (FW-9), restored at boot. A reset that cuts a
+      # session records "reset during a session" (V0.4).
+      - type: entities
+        entities:
+          - entity: sensor.top_off_charger_last_session_end
+            name: How it ended
+          - entity: sensor.top_off_charger_last_session_elapsed
+            name: Elapsed
+          - entity: sensor.top_off_charger_last_session_time_at_voltage
+            name: Time at voltage
+          - entity: sensor.top_off_charger_last_session_charge
+            name: Charge
+          - entity: sensor.top_off_charger_last_session_charge_after_settle
+            name: Charge after settle
+          - entity: sensor.top_off_charger_last_session_final_window_mean
+            name: Final window mean
+          - entity: sensor.top_off_charger_last_session_tail_floor
+            name: Tail floor
+          - entity: sensor.top_off_charger_last_session_idle_offset
+            name: Idle offset
+      # FW-5: unknown unless the last session ended in a BMS trip.
+      - type: entities
+        title: BMS trip, the sample before the step
+        entities:
+          - entity: sensor.top_off_charger_bms_trip_pre_step_vbus
+            name: VBUS
+          - entity: sensor.top_off_charger_bms_trip_pre_step_current
+            name: Current
+  # ---------------------------------------------------------------------------
+  # Full width, one above the other, all the same 24 h, so a session's state,
+  # current, VBUS and tail line up in time. A session is capped at 8 h
+  # [S: esphome/top-off-charger.yaml t_max_s 28800], so one fits with room.
+  - type: grid
+    column_span: 3
+    cards:
+      - type: heading
+        heading: Last 24 hours
+      - type: history-graph
+        title: State
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_charger_state
+            name: State
+          - entity: binary_sensor.top_off_charger_charge_switch
+            name: Charge switch
+        grid_options:
+          columns: full
+      - type: history-graph
+        title: Charge current (A)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_charge_current
+            name: Charge current
+        grid_options:
+          columns: full
+      - type: history-graph
+        title: Charge power (W)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_charge_power
+            name: Charge power
+        grid_options:
+          columns: full
+      - type: history-graph
+        title: VBUS (V)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_vbus
+            name: VBUS
+        grid_options:
+          columns: full
+      - type: history-graph
+        title: Time at voltage (s)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_time_at_voltage
+            name: Time at voltage
+          - entity: sensor.top_off_charger_time_remaining_at_voltage
+            name: Time remaining
+        grid_options:
+          columns: full
+      - type: history-graph
+        title: Session charge (Ah)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_session_charge
+            name: Charge
+          - entity: sensor.top_off_charger_charge_after_settle
+            name: Charge after settle
+        grid_options:
+          columns: full
+      # One value per 10-minute window of time at voltage [S: firmware
+      # tail_window_s 600]: 67 numbers among 104 recorder rows in the 40 h
+      # from 2026-10-28 19:54 UTC [M, /api/history, 2026-10-30].
+      - type: history-graph
+        title: Tail current, raw (A)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_tail_window_mean
+            name: Tail window mean
+          - entity: sensor.top_off_charger_tail_floor
+            name: Tail floor
+        grid_options:
+          columns: full
+  # ---------------------------------------------------------------------------
+  # FW-12. "Before" is the pair consumed on the tick that moves the switch;
+  # "after" is consumed two ticks later (firmware header). Raw: R_edge is
+  # not computed here (header, point 3).
+  - type: grid
+    cards:
+      - type: heading
+        heading: Switch edges
+      - type: entities
+        title: Switch ON edge
+        entities:
+          - entity: sensor.top_off_charger_edge_on_vbus_before
+            name: VBUS before
+          - entity: sensor.top_off_charger_edge_on_current_before
+            name: Current before
+          - entity: sensor.top_off_charger_edge_on_vbus_after
+            name: VBUS after
+          - entity: sensor.top_off_charger_edge_on_current_after
+            name: Current after
+      - type: entities
+        title: Switch OFF edge
+        entities:
+          - entity: sensor.top_off_charger_edge_off_vbus_before
+            name: VBUS before
+          - entity: sensor.top_off_charger_edge_off_current_before
+            name: Current before
+          - entity: sensor.top_off_charger_edge_off_vbus_after
+            name: VBUS after
+          - entity: sensor.top_off_charger_edge_off_current_after
+            name: Current after
+  # ---------------------------------------------------------------------------
+  - type: grid
+    cards:
+      - type: heading
+        heading: Diagnostics
+      # FW-10: an enclosure proxy, report-only.
+      - type: tile
+        entity: sensor.top_off_charger_ina228_die_temperature
+        name: INA228 die temperature
+      # Live, in IDLE, every 10 s; raw.
+      - type: tile
+        entity: sensor.top_off_charger_idle_current_offset
+        name: Idle current offset
+      # Uptime with Reset reason tells a reset from a Wi-Fi gap (V0.4 #6).
+      - type: tile
+        entity: sensor.top_off_charger_uptime
+        name: Uptime
+      - type: tile
+        entity: sensor.top_off_charger_reset_reason
+        name: Reset reason
+      - type: history-graph
+        title: INA228 die temperature, 24 h
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_ina228_die_temperature
+            name: Die temperature
+      - type: history-graph
+        title: Idle current offset, 24 h
+        hours_to_show: 24
+        entities:
+          - entity: sensor.top_off_charger_idle_current_offset
+            name: Idle offset
+      # Only the entities that change a few times a session: at most 162
+      # recorder rows each in the 40 h from 2026-10-28 19:54 UTC [M,
+      # /api/history, LED mode, the most], so a week fits. `target:` because `entities:` is deprecated in the deployed
+      # frontend (view-bedroom-co2.yaml). Button presses are logged too.
+      - type: logbook
+        title: Events, last 7 days
+        hours_to_show: 168
+        target:
+          entity_id:
+            - sensor.top_off_charger_charger_state
+            - sensor.top_off_charger_fault_reason
+            - sensor.top_off_charger_last_session_end
+            - sensor.top_off_charger_led_mode
+            - binary_sensor.top_off_charger_charge_switch
+            - binary_sensor.top_off_charger_start_permitted
+            - sensor.top_off_charger_reset_reason
+            - button.top_off_charger_start
+            - button.top_off_charger_stop
+            - button.top_off_charger_acknowledge
