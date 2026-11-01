@@ -2971,8 +2971,8 @@
     2026-10-28 ledger row, which needs a one-sleeper night. (3) Explaining the
     lowest night, 10-31, mean 1,042 ppm against 1,135 to 1,206 [M].
   answered: >-
-    2026-11-01, Bill: "every night 2 adults sleeping in the room. usually light
-    off by 10pm awake between 6 and 7 am." (1) The falsifier above fired for
+    2026-11-01, Bill: "every night 2 adults sleeping in the room." He also gave
+    the usual hours; nobody is usually up before 06:00. (1) The falsifier above fired for
     getting up as the only cause: CO2 fell 122, 77 and 102 ppm from 05:00 to
     06:00 on 10-28, 10-29 and 10-31 [D], before the usual hour, while 10-30's
     peak is inside it. (2) No one-sleeper night in this window, so that ledger
@@ -2987,7 +2987,11 @@
     Stating how the XIAO is mounted in the CO2-Monitor README, and copying it
     on the Family Room node's build. The six as-built photos do not settle it.
     Split 2026-11-01 from that entry, whose standoff half Bill answered that day.
-  answered:
+  answered: >-
+    2026-11-01, Bill: "xiao is on the 2.5mm pin header." Read as the standard
+    2.54 mm header the clearances already assumed, so 0.95 mm on 6 mm standoffs
+    and 3.95 mm on 3 mm stand [D: 15.30 - 6 - 1.6 - 6.75; 0.95 + 3]. In the
+    README. Calculated, not measured.
 
 - asked: 2026-11-01
   question: >-
@@ -2997,4 +3001,7 @@
     1,206 ppm [D], with the same two sleepers every night. 10-27 is already
     known: door open (Bill, 2026-10-28). Split 2026-11-01 from the entry above
     the last one, whose occupancy half Bill answered that day.
-  answered:
+  answered: >-
+    2026-11-01, Bill: "door is open all the time." So it was open on all five
+    nights, and neither it nor head count explains the 164 ppm between the night
+    means [D]. That spread has no explanation yet.

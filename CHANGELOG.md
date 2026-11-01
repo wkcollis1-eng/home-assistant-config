@@ -108,11 +108,27 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.01] - 2026-11-01
 
+### Bedroom CO2 Node: XIAO header and door answered; the usual hours trimmed from the current public files (documentation; no HA config change)
+
+Bill, same day: "xiao is on the 2.5mm pin header. door is open all the time."
+CO2-Monitor README updated in 3212566.
+
+- **XIAO.** Read as the standard 2.54 mm header, which is what the clearances already
+  assumed, so 0.95 mm on 6 mm standoffs and 3.95 mm on 3 mm stand [D: 15.30 - 6 - 1.6
+  - 6.75; 0.95 + 3]. Calculated, not measured.
+- **Door.** Open on all five nights, so neither it nor head count explains the 164
+  ppm between night means [D]. That spread has no explanation here, and the README
+  now says so.
+- **R13: a household routine went into public text before I flagged it.** I flagged
+  it after the push, at the end of a reply, when it belonged before the push. The
+  current files now carry only what the analysis needs, that nobody is usually up
+  before 06:00. Bill chose current files only, so nothing was rewritten.
+
 ### Bedroom CO2 Node: Bill's answers take "people getting up" from leading model to half the story (documentation; no HA config change)
 
-Bill, same day: "3mm standoffs used. every night 2 adults sleeping in the room.
-usually light off by 10pm awake between 6 and 7 am." CO2-Monitor README updated in
-3b52645.
+Bill, same day: "3mm standoffs used. every night 2 adults sleeping in the room."
+He also gave the usual hours; nobody is usually up before 06:00, which is all this
+entry needs. CO2-Monitor README updated in 3b52645.
 
 - **R13: the falsifier I filed fired.** `open_questions.yaml` called getting up
   "the leading model [I]" and named what would falsify it: a fall that began well
