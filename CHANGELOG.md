@@ -106,6 +106,78 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.01] - 2026-11-01
+
+### Bedroom CO2 Node: Bill's answers take "people getting up" from leading model to half the story (documentation; no HA config change)
+
+Bill, same day: "3mm standoffs used. every night 2 adults sleeping in the room.
+usually light off by 10pm awake between 6 and 7 am." CO2-Monitor README updated in
+3b52645.
+
+- **R13: the falsifier I filed fired.** `open_questions.yaml` called getting up
+  "the leading model [I]" and named what would falsify it: a fall that began well
+  before anyone moved. From 05:00 to 06:00, before the usual waking hour, CO2 fell
+  122, 77 and 102 ppm on 10-28, 10-29 and 10-31, each with a cycle running, and
+  rose 33 ppm on 10-30 with none [D: 1 min means]. 10-30's peak, 06:37, is inside
+  the waking hour. 11-01 does not decide it: +44 ppm over the same hour, falling
+  from 05:56, on the first morning after the clocks went back. Limit: n = 5
+  mornings, and the hour is Bill's "usually", not a log of those mornings.
+- **Now: no single cause covers the five mornings.** The blower covers the falls
+  before 06:00 but not 10-30; getting up covers 10-30 but not those falls, so both
+  may act [I: falsified by a morning that falls before 06:00 with no cycle running
+  and nobody up]. The 2 h blocks agree, read after seeing the data and untested:
+  04:00-06:00 cycles -31.5 ppm (n = 6) against clear windows +6.1 (n = 10);
+  06:00-08:00 -6.6 (n = 4) against -9.2 (n = 8) [D].
+- **Head count does not explain the nights.** The same two people slept there every
+  night, and night means ran 1,042 to 1,206 ppm, a spread of 164 ppm [D]. So
+  something besides the sleepers moves the plateau; door state is unanswered. The
+  ledger's 10-28 one-sleeper row stays open, not scored: this window holds no
+  one-sleeper night.
+- **Fit at 3 mm, read as both boards.** SCD30 worst case 3.035 mm to the cover,
+  2.835 mm under the lettering [D: 1.035 + 2; 3.035 - 0.20]; a XIAO on pin headers
+  leaves 3.95 mm [D: 0.95 + 3]. Calculated from the design figures, not measured.
+
+Open: `open_questions.yaml` carries the two parts the reply did not cover, XIAO
+mounting and door state by night, as new entries.
+
+### Bedroom CO2 Node: first five nights read from the recorder; CO2-Monitor README and as-built photos (documentation; no HA config change)
+
+Window 10-27 18:14 EDT to 11-01 08:52 EST, 111.65 h, firmware 1.4. The tagged
+figures are in the CO2-Monitor README, commits e63641a, 746c040 and 7252b75. No
+firmware, config or helper change: every explanation below is [I].
+
+- **Node, healthy path clean.** 0 resets, uptime 401,944 s; fault never on, stale
+  reboots 0 [M]. The three longest gaps, 218, 137 and 29 s, are HA restarts [M:
+  logbook], not the node. This window did not exercise the fault path, so the
+  900 s reboot and strobe-stop on a good reading remain unproven on the device.
+- **Room.** 874.9 to 1,313.5 ppm, mean 1,074.2 [M: n = 6,695, 1 min means]. Night
+  means 23:00-06:00: 1,137, 1,135, 1,206, 1,203, 1,042 [M]. No minute reached
+  1,500 [M]. The level rests on the one porch FRC of 10-27 at an assumed 426 [I].
+- **Furnace: three claims of mine withdrawn (R13).** Draft README: "CO2 falls when
+  the furnace runs". Pushed in 746c040, softened: "CO2 tended to fall around
+  furnace cycles". Draft: "the largest falls cluster at dawn". None survived.
+  (1) Dawn: 3 of the 5 falls of 50 ppm or more began 04:00-08:00, against 10 of
+  all 25 cycles [M], which is no cluster. (2) The control I had not read: 10-30 had
+  no furnace, and after its 06:37 peak CO2 fell 138 ppm by 08:50, steepest 65 ppm
+  in 10 min [M, n = 1 morning]. The four furnace mornings fell 155 to 278, steepest
+  70 to 173 [M; 04:00-09:00, chosen after seeing the data]. (3) The cycle test
+  held no clock constant: p = 0.0027 unstratified, 0.027 shuffling within 4 h
+  blocks, 0.054 within 2 h blocks [D: one-sided, 20,000 permutations each, windows
+  treated as independent, median diff -13.3 ppm, 25 cycles against 196 windows].
+  Corrected in 7252b75: a furnace effect is possible but not shown. Why it got
+  through: I read the 10-30 morning up to its peak and stopped there.
+- **Photos.** The six root `hardware/IMG_*` uploads are replaced by rotated,
+  stripped copies in `hardware/as-built/`, with 0 EXIF tags on all seven published
+  images, read from a fresh clone of the pushed tree [M]. `hardware/CO2
+  Monitor.kicad_pcb` stays Bill's uncommitted edit.
+- **Photo session.** About +20 ppm at 11-01 08:43:56 with the cover off and a
+  person at the node [M, n = 1]. Not in the README: it is one event.
+
+Open: two entries added to `open_questions.yaml` (as-built standoff height and
+XIAO mounting; who slept there, door and wake time by night), so the audit carries
+2 more `open-question` WARNs until they are answered. The ledger's 2026-10-28
+one-sleeper row stays open, not scored.
+
 ## [2026.10.31] - 2026-10-31
 
 ### Top-off charger: the DMM closes the rest question, and S7's rest undoes a claim of mine (documentation; no HA config change)

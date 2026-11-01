@@ -2942,3 +2942,59 @@
     not float: it held 14.42 V with no charger on it. The reading carries no
     current, so it does not say where the tail goes inside the pack, and
     T10's R_series is still unmeasured. Detail: design rev 0.15, section 11.1.
+
+- asked: 2026-11-01
+  question: >-
+    Bedroom CO2 Node as built: what height are the standoffs under the SCD30 and
+    under the carrier, and is the XIAO on pin headers or soldered flat?
+  blocks: >-
+    Stating the as-built clearance in the CO2-Monitor README, which still gives
+    the 5 mm and 6 mm design figures and calls the SCD30's height open, and the
+    Family Room node's build, which should copy what worked. The six as-built
+    photos do not settle either.
+  answered: >-
+    2026-11-01, Bill: "3mm standoffs used." Read as both boards. The SCD30 has
+    3.035 mm worst case to the cover, 2.835 mm under the lettering [D: 1.035 +
+    2; 3.035 - 0.20], and a XIAO on pin headers leaves 3.95 mm [D: 0.95 + 3].
+    Calculated, not measured; in the README. The XIAO half was not answered and
+    is split into its own entry below.
+
+- asked: 2026-11-01
+  question: >-
+    Bedroom, nights of 10-27 to 10-31: who slept in the room each night, was the
+    door open or shut, and what time did anyone get up each morning, above all
+    on 10-30?
+  blocks: >-
+    (1) Explaining the morning CO2 fall. 10-30 had no furnace and still fell 138
+    ppm after 06:37 [M], so people getting up is the leading model [I]; a fall
+    that began well before anyone moved would falsify it. (2) Scoring the
+    2026-10-28 ledger row, which needs a one-sleeper night. (3) Explaining the
+    lowest night, 10-31, mean 1,042 ppm against 1,135 to 1,206 [M].
+  answered: >-
+    2026-11-01, Bill: "every night 2 adults sleeping in the room. usually light
+    off by 10pm awake between 6 and 7 am." (1) The falsifier above fired for
+    getting up as the only cause: CO2 fell 122, 77 and 102 ppm from 05:00 to
+    06:00 on 10-28, 10-29 and 10-31 [D], before the usual hour, while 10-30's
+    peak is inside it. (2) No one-sleeper night in this window, so that ledger
+    row stays open. (3) Head count does not explain the 164 ppm between nights
+    [D]. Door state was not answered and is split into its own entry below.
+
+- asked: 2026-11-01
+  question: >-
+    Bedroom CO2 Node, still open from the as-built entry above: is the XIAO on
+    pin headers or soldered flat?
+  blocks: >-
+    Stating how the XIAO is mounted in the CO2-Monitor README, and copying it
+    on the Family Room node's build. The six as-built photos do not settle it.
+    Split 2026-11-01 from that entry, whose standoff half Bill answered that day.
+  answered:
+
+- asked: 2026-11-01
+  question: >-
+    Bedroom, nights of 10-28 to 10-31: was the door open or shut each night?
+  blocks: >-
+    Explaining the 164 ppm between the lowest and highest night means, 1,042 and
+    1,206 ppm [D], with the same two sleepers every night. 10-27 is already
+    known: door open (Bill, 2026-10-28). Split 2026-11-01 from the entry above
+    the last one, whose occupancy half Bill answered that day.
+  answered:
