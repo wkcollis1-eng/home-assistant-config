@@ -2,7 +2,7 @@
 # Source: .storage/lovelace.lovelace (UI-managed; HA loads that, never this file).
 # Restore: dashboard > three-dot menu > Raw configuration editor,
 #          select all, replace with everything below this header.
-# 12 view(s).
+# 13 view(s).
 #
 title: Home
 views:
@@ -1364,9 +1364,6 @@ views:
             grid_options:
               columns: 6
               rows: 2
-      - type: grid
-        column_span: 1
-        cards:
           - type: heading
             heading: Daily Cost Estimates
           - type: custom:mushroom-entity-card
@@ -1400,7 +1397,7 @@ views:
               columns: 4
               rows: 2
       - type: grid
-        column_span: 2
+        column_span: 1
         cards:
           - type: custom:apexcharts-card
             header:
@@ -1435,6 +1432,156 @@ views:
             grid_options:
               columns: 12
               rows: 8
+      - type: grid
+        column_span: 2
+        cards:
+          - type: vertical-stack
+            cards:
+              - type: conditional
+                conditions:
+                  - condition: state
+                    entity: binary_sensor.softener_regen_overdue
+                    state: 'on'
+                card:
+                  type: markdown
+                  content: '**No regen seen for {{ states(''sensor.softener_gallons_since_regen'') | float(0)
+                    | round(0) | int(0) }} gal.** Either the regen was missed (SDR down that night) or
+                    the softener has stopped regenerating. Check the softener before trusting the salt
+                    count.'
+              - type: entities
+                title: Water Softener
+                show_header_toggle: false
+                entities:
+                  - entity: input_number.softener_salt_cycles_left
+                    name: Regens of salt left
+                  - entity: sensor.softener_add_salt_by
+                    name: Add salt by
+                  - entity: binary_sensor.softener_add_salt
+                    name: Salt reminder
+                  - type: divider
+                  - entity: input_datetime.softener_last_regen
+                    name: Last regen
+                  - entity: sensor.softener_gallons_since_regen
+                    name: Gallons since
+                  - entity: input_number.softener_last_cycle_gal
+                    name: Last whole cycle
+                  - entity: sensor.softener_next_regen
+                    name: Next regen (estimate)
+                  - entity: binary_sensor.softener_regen_overdue
+                    name: Regen overdue
+              - type: horizontal-stack
+                cards:
+                  - type: button
+                    entity: input_button.softener_added_1_bag
+                    name: Added 1 bag
+                    icon: mdi:shaker-outline
+                    show_state: false
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_button.press
+                      target:
+                        entity_id: input_button.softener_added_1_bag
+                      confirmation:
+                        text: Add 1 bag to the salt count?
+                  - type: button
+                    entity: input_button.softener_added_2_bags
+                    name: Added 2 bags
+                    icon: mdi:shaker
+                    show_state: false
+                    tap_action:
+                      action: perform-action
+                      perform_action: input_button.press
+                      target:
+                        entity_id: input_button.softener_added_2_bags
+                      confirmation:
+                        text: Add 2 bags to the salt count?
+          - type: conditional
+            conditions:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: binary_sensor.softener_add_salt
+                    state: 'on'
+                  - condition: state
+                    entity: binary_sensor.softener_add_salt
+                    state: unavailable
+                  - condition: state
+                    entity: binary_sensor.softener_regen_overdue
+                    state: 'on'
+            card:
+              type: custom:mushroom-template-card
+              primary: '{% if is_state(''binary_sensor.softener_regen_overdue'', ''on'') %}No Regen! {%
+                elif is_state(''binary_sensor.softener_add_salt'', ''on'') %}Add Salt! {% else %}Set Salt
+                Level{% endif %}'
+              secondary: '{% set left = states(''input_number.softener_salt_cycles_left'') | int(-1) %}
+                {% if left >= 0 %}{{ left }} regen{{ '''' if left == 1 else ''s'' }} left{% endif %}'
+              icon: mdi:shaker-outline
+              color: red
+              vertical: true
+              features_position: bottom
+              tap_action:
+                action: navigate
+                navigation_path: /sdr-utility-meters/sdr-meters
+            grid_options:
+              columns: 3
+              rows: 2
+          - type: conditional
+            conditions:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: binary_sensor.water_filter_change_due
+                    state: 'on'
+                  - condition: state
+                    entity: binary_sensor.water_filter_change_due
+                    state: unavailable
+            card:
+              type: custom:mushroom-template-card
+              primary: '{% if is_state(''binary_sensor.water_filter_change_due'', ''on'') %}Water Filter!
+                {% else %}Set Water Filter{% endif %}'
+              secondary: '{% set gal = states(''sensor.water_filter_gallons'') | float(-1) %} {% if gal
+                >= 0 %}{{ gal | round(0) | int(0) }} gal{% endif %}'
+              icon: mdi:filter
+              color: red
+              vertical: true
+              features_position: bottom
+              tap_action:
+                action: navigate
+                navigation_path: /sdr-utility-meters/sdr-meters
+            grid_options:
+              columns: 3
+              rows: 2
+          - type: vertical-stack
+            cards:
+              - type: entities
+                title: Whole-House Water Filter
+                show_header_toggle: false
+                entities:
+                  - entity: sensor.water_filter_gallons
+                    name: Gallons on this cartridge
+                  - entity: input_number.water_filter_limit_gal
+                    name: Change at
+                  - entity: sensor.water_filter_change_by
+                    name: Change by (estimate)
+                  - entity: binary_sensor.water_filter_change_due
+                    name: Change due
+                  - type: divider
+                  - entity: input_datetime.water_filter_last_change
+                    name: Last changed
+                  - entity: input_number.water_filter_gal_at_change
+                    name: Meter at change
+              - type: button
+                entity: input_button.water_filter_changed
+                name: Filter changed
+                icon: mdi:filter-check
+                show_state: false
+                tap_action:
+                  action: perform-action
+                  perform_action: input_button.press
+                  target:
+                    entity_id: input_button.water_filter_changed
+                  confirmation:
+                    text: New cartridge in? This restarts the gallon count.
   - type: sections
     max_columns: 4
     title: Weather
@@ -6977,6 +7124,47 @@ views:
           - type: custom:apexcharts-card
             header:
               show: true
+              title: Last hour
+              show_states: true
+              colorize_states: true
+            graph_span: 1h
+            apex_config:
+              annotations:
+                yaxis:
+                  - 'y': 1000
+                    borderColor: '#f57c00'
+                    label:
+                      text: 1000 ppm
+                      position: left
+                      style:
+                        color: '#fff'
+                        background: '#f57c00'
+                  - 'y': 2000
+                    borderColor: '#d32f2f'
+                    label:
+                      text: 2000 ppm
+                      position: left
+                      style:
+                        color: '#fff'
+                        background: '#d32f2f'
+            yaxis:
+              - min: ~400
+                max: ~2100
+                decimals: 0
+            series:
+              - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
+                name: CO2 (2 s)
+                type: line
+                stroke_width: 1
+                color: '#8a8a8a'
+              - entity: sensor.bedroom_co2_node_co2
+                name: CO2 (1 min mean)
+                type: line
+                stroke_width: 2
+                color: '#00d1ff'
+          - type: custom:apexcharts-card
+            header:
+              show: true
               title: Last 24 hours
               show_states: true
               colorize_states: true
@@ -6987,14 +7175,16 @@ views:
                   - 'y': 1000
                     borderColor: '#f57c00'
                     label:
-                      text: 1000 ppm - open a window (UBA)
+                      text: 1000 ppm
+                      position: left
                       style:
                         color: '#fff'
                         background: '#f57c00'
                   - 'y': 2000
                     borderColor: '#d32f2f'
                     label:
-                      text: 2000 ppm - unacceptable (UBA)
+                      text: 2000 ppm
+                      position: left
                       style:
                         color: '#fff'
                         background: '#d32f2f'
@@ -7017,45 +7207,6 @@ views:
           - type: custom:apexcharts-card
             header:
               show: true
-              title: Last hour
-              show_states: true
-              colorize_states: true
-            graph_span: 1h
-            apex_config:
-              annotations:
-                yaxis:
-                  - 'y': 1000
-                    borderColor: '#f57c00'
-                    label:
-                      text: 1000 ppm - open a window (UBA)
-                      style:
-                        color: '#fff'
-                        background: '#f57c00'
-                  - 'y': 2000
-                    borderColor: '#d32f2f'
-                    label:
-                      text: 2000 ppm - unacceptable (UBA)
-                      style:
-                        color: '#fff'
-                        background: '#d32f2f'
-            yaxis:
-              - min: ~400
-                max: ~2100
-                decimals: 0
-            series:
-              - entity: sensor.bedroom_bedroom_co2_node_co2_2_s
-                name: CO2 (2 s)
-                type: line
-                stroke_width: 1
-                color: '#8a8a8a'
-              - entity: sensor.bedroom_co2_node_co2
-                name: CO2 (1 min mean)
-                type: line
-                stroke_width: 2
-                color: '#00d1ff'
-          - type: custom:apexcharts-card
-            header:
-              show: true
               title: Last 7 days
             graph_span: 7d
             apex_config:
@@ -7064,14 +7215,16 @@ views:
                   - 'y': 1000
                     borderColor: '#f57c00'
                     label:
-                      text: 1000 ppm - open a window (UBA)
+                      text: 1000 ppm
+                      position: left
                       style:
                         color: '#fff'
                         background: '#f57c00'
                   - 'y': 2000
                     borderColor: '#d32f2f'
                     label:
-                      text: 2000 ppm - unacceptable (UBA)
+                      text: 2000 ppm
+                      position: left
                       style:
                         color: '#fff'
                         background: '#d32f2f'
@@ -7136,4 +7289,263 @@ views:
                 name: SCD30 temperature (self-heated)
               - entity: sensor.bedroom_bedroom_co2_node_scd30_humidity_self_heated
                 name: SCD30 humidity (self-heated)
+    cards: []
+  - type: sections
+    max_columns: 3
+    icon: mdi:battery-charging
+    path: top-off-charger
+    title: Top-Off Charger
+    header:
+      card:
+        type: markdown
+        text_only: true
+        content: |
+          # Top-Off Charger
+          **Start** only asks: a session starts only while *Start permitted* is on. If it does nothing, the reason is in the device log. DONE and FAULT stay latched until **Acknowledge**. The firmware's limits are placeholders until T11 (firmware header, V0.4): supervise every session.
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Status
+          - type: tile
+            entity: sensor.top_off_charger_charger_state
+            name: State
+            grid_options:
+              columns: full
+          - type: tile
+            entity: sensor.top_off_charger_fault_reason
+            name: Fault reason
+            grid_options:
+              columns: full
+          - type: tile
+            entity: binary_sensor.top_off_charger_charge_switch
+            name: Charge switch
+          - type: tile
+            entity: binary_sensor.top_off_charger_start_permitted
+            name: Start permitted
+          - type: tile
+            entity: sensor.top_off_charger_led_mode
+            name: LED mode
+            grid_options:
+              columns: full
+          - type: entities
+            title: Controls
+            entities:
+              - entity: button.top_off_charger_start
+                name: Start
+              - entity: button.top_off_charger_stop
+                name: Stop
+              - entity: button.top_off_charger_acknowledge
+                name: Acknowledge
+      - type: grid
+        cards:
+          - type: heading
+            heading: Session
+          - type: tile
+            entity: sensor.top_off_charger_time_at_voltage
+            name: Time at voltage
+          - type: tile
+            entity: sensor.top_off_charger_time_remaining_at_voltage
+            name: Time remaining
+          - type: tile
+            entity: sensor.top_off_charger_session_elapsed
+            name: Elapsed
+          - type: tile
+            entity: sensor.top_off_charger_session_charge
+            name: Charge
+          - type: tile
+            entity: sensor.top_off_charger_charge_after_settle
+            name: Charge after settle
+          - type: tile
+            entity: sensor.top_off_charger_session_idle_offset
+            name: Idle offset (at Start)
+          - type: tile
+            entity: sensor.top_off_charger_tail_window_mean
+            name: Tail window mean
+          - type: tile
+            entity: sensor.top_off_charger_tail_floor
+            name: Tail floor
+      - type: grid
+        cards:
+          - type: heading
+            heading: Last session
+          - type: entities
+            entities:
+              - entity: sensor.top_off_charger_last_session_end
+                name: How it ended
+              - entity: sensor.top_off_charger_last_session_elapsed
+                name: Elapsed
+              - entity: sensor.top_off_charger_last_session_time_at_voltage
+                name: Time at voltage
+              - entity: sensor.top_off_charger_last_session_charge
+                name: Charge
+              - entity: sensor.top_off_charger_last_session_charge_after_settle
+                name: Charge after settle
+              - entity: sensor.top_off_charger_last_session_final_window_mean
+                name: Final window mean
+              - entity: sensor.top_off_charger_last_session_tail_floor
+                name: Tail floor
+              - entity: sensor.top_off_charger_last_session_idle_offset
+                name: Idle offset
+          - type: entities
+            title: BMS trip, the sample before the step
+            entities:
+              - entity: sensor.top_off_charger_bms_trip_pre_step_vbus
+                name: VBUS
+              - entity: sensor.top_off_charger_bms_trip_pre_step_current
+                name: Current
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: Last 24 hours
+          - type: history-graph
+            title: State
+            hours_to_show: 24
+            entities:
+              - entity: sensor.top_off_charger_charger_state
+                name: State
+              - entity: binary_sensor.top_off_charger_charge_switch
+                name: Charge switch
+            grid_options:
+              columns: full
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_charge_current
+                name: Charge current
+            title: Charge current (A)
+            hours_to_show: 0.5
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_charge_power
+                name: Charge power
+            title: Charge power (W)
+            hours_to_show: 0.5
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_vbus
+                name: VBUS
+            title: VBUS (V)
+            hours_to_show: 0.5
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_time_at_voltage
+                name: Time at voltage
+              - entity: sensor.top_off_charger_time_remaining_at_voltage
+                name: Time remaining
+            title: Time at voltage (s)
+            hours_to_show: 0.5
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_session_charge
+                name: Charge
+              - entity: sensor.top_off_charger_charge_after_settle
+                name: Charge after settle
+            title: Session charge (Ah)
+            hours_to_show: 0.5
+          - type: history-graph
+            grid_options:
+              columns: full
+            entities:
+              - entity: sensor.top_off_charger_tail_window_mean
+                name: Tail window mean
+              - entity: sensor.top_off_charger_tail_floor
+                name: Tail floor
+            title: Tail current, raw (A)
+            hours_to_show: 0.5
+      - type: grid
+        cards:
+          - type: heading
+            heading: Switch edges
+          - type: entities
+            title: Switch ON edge
+            entities:
+              - entity: sensor.top_off_charger_edge_on_vbus_before
+                name: VBUS before
+              - entity: sensor.top_off_charger_edge_on_current_before
+                name: Current before
+              - entity: sensor.top_off_charger_edge_on_vbus_after
+                name: VBUS after
+              - entity: sensor.top_off_charger_edge_on_current_after
+                name: Current after
+          - type: entities
+            title: Switch OFF edge
+            entities:
+              - entity: sensor.top_off_charger_edge_off_vbus_before
+                name: VBUS before
+              - entity: sensor.top_off_charger_edge_off_current_before
+                name: Current before
+              - entity: sensor.top_off_charger_edge_off_vbus_after
+                name: VBUS after
+              - entity: sensor.top_off_charger_edge_off_current_after
+                name: Current after
+      - type: grid
+        cards:
+          - type: heading
+            heading: Diagnostics
+          - type: tile
+            entity: sensor.top_off_charger_ina228_die_temperature
+            name: INA228 die temperature
+          - type: tile
+            entity: sensor.top_off_charger_idle_current_offset
+            name: Idle current offset
+          - type: tile
+            entity: sensor.top_off_charger_uptime
+            name: Uptime
+          - type: tile
+            entity: sensor.top_off_charger_reset_reason
+            name: Reset reason
+          - type: history-graph
+            title: INA228 die temperature, 24 h
+            hours_to_show: 24
+            entities:
+              - entity: sensor.top_off_charger_ina228_die_temperature
+                name: Die temperature
+          - type: history-graph
+            title: Idle current offset, 24 h
+            hours_to_show: 24
+            entities:
+              - entity: sensor.top_off_charger_idle_current_offset
+                name: Idle offset
+          - type: logbook
+            title: Events, last 7 days
+            hours_to_show: 168
+            target:
+              entity_id:
+                - sensor.top_off_charger_charger_state
+                - sensor.top_off_charger_fault_reason
+                - sensor.top_off_charger_last_session_end
+                - sensor.top_off_charger_led_mode
+                - binary_sensor.top_off_charger_charge_switch
+                - binary_sensor.top_off_charger_start_permitted
+                - sensor.top_off_charger_reset_reason
+                - button.top_off_charger_start
+                - button.top_off_charger_stop
+                - button.top_off_charger_acknowledge
+      - type: grid
+        cards:
+          - type: heading
+            heading: Node Health
+            heading_style: title
+          - type: entities
+            entities:
+              - entity: sensor.basement_top_off_charger_cpu_temperature
+              - entity: sensor.basement_top_off_charger_ip_address
+              - entity: sensor.top_off_charger_reset_reason
+              - entity: binary_sensor.basement_top_off_charger_status
+              - entity: sensor.basement_top_off_charger_wifi_signal
+              - entity: sensor.basement_top_off_charger_esphome_version
+              - entity: sensor.basement_top_off_charger_free_heap
+              - entity: sensor.basement_top_off_charger_loop_time
+              - entity: sensor.top_off_charger_uptime
     cards: []
