@@ -1,0 +1,65 @@
+# SDR Utility Meters view. Core cards only, like the rest of that view.
+# Press a bag button after filling the tank; it adds to what is left. To correct
+# the count, type the number into the first row.
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.softener_regen_overdue
+        state: "on"
+    card:
+      type: markdown
+      content: >-
+        **No regen seen for
+        {{ states('sensor.softener_gallons_since_regen') | float(0) | round(0) | int(0) }}
+        gal.** Either the regen was missed (SDR down that night) or the softener
+        has stopped regenerating. Check the softener before trusting the salt
+        count.
+  - type: entities
+    title: Water Softener
+    show_header_toggle: false
+    entities:
+      - entity: input_number.softener_salt_cycles_left
+        name: Regens of salt left
+      - entity: sensor.softener_add_salt_by
+        name: Add salt by
+      - entity: binary_sensor.softener_add_salt
+        name: Salt reminder
+      - type: divider
+      - entity: input_datetime.softener_last_regen
+        name: Last regen
+      - entity: sensor.softener_gallons_since_regen
+        name: Gallons since
+      - entity: input_number.softener_last_cycle_gal
+        name: Last whole cycle
+      - entity: sensor.softener_next_regen
+        name: Next regen (estimate)
+      - entity: binary_sensor.softener_regen_overdue
+        name: Regen overdue
+  - type: horizontal-stack
+    cards:
+      - type: button
+        entity: input_button.softener_added_1_bag
+        name: Added 1 bag
+        icon: mdi:shaker-outline
+        show_state: false
+        tap_action:
+          action: perform-action
+          perform_action: input_button.press
+          target:
+            entity_id: input_button.softener_added_1_bag
+          confirmation:
+            text: Add 1 bag to the salt count?
+      - type: button
+        entity: input_button.softener_added_2_bags
+        name: Added 2 bags
+        icon: mdi:shaker
+        show_state: false
+        tap_action:
+          action: perform-action
+          perform_action: input_button.press
+          target:
+            entity_id: input_button.softener_added_2_bags
+          confirmation:
+            text: Add 2 bags to the salt count?

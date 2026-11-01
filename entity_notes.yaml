@@ -36,6 +36,9 @@ automation.watchdog_influxdb_writes_stale:
 automation.watchdog_reset_failed:
   group: WATCHDOG (packages/watchdog.yaml)
   note: failure-only notice; still stale 10 min after onset
+automation.water_filter_changed:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: restarts the filter count at the current register; only reset
 binary_sensor.ac_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: season-aware via runtime_today
@@ -129,6 +132,12 @@ binary_sensor.mmw_family_tv_on:
 binary_sensor.mmw_office_occupied:
   group: MMWAVE OFFICE LAMP (packages/mmwave_presence.yaml)
   note: P24 bathroom filter, 2026-09-27; the lamp-on trigger. Starts only on a target inside 82 in (70 until 2026-10-16) while radar presence is on, holds while it is on; fails open to raw presence
+binary_sensor.softener_add_salt:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: the reminder; unavailable until the salt level is set (R8)
+binary_sensor.softener_regen_overdue:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: no regen seen past softener_regen_overdue_gal; a missed detection or a softener that stopped
 binary_sensor.spc_capture_stale_any:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
   note: roll-up; attr stale_populations
@@ -159,6 +168,9 @@ binary_sensor.watchdog_ups_stale:
 binary_sensor.watchdog_upstairs_frozen:
   group: WATCHDOG (packages/watchdog.yaml)
   note: HomeKit temperature frozen while available - |sensor - climate.upstairs current_temperature| > 1.0 F for 15 min; reloads the upstairs thermostat only; since 2026-10-23
+binary_sensor.water_filter_change_due:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: gallons at the limit; unavailable until the count is started
 binary_sensor.water_meter_stale:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: no decode in > sdr_water_stale_minutes
@@ -207,6 +219,15 @@ input_boolean.watchdog_auto_reload_ups:
 input_button.reset_load_peaks:
   group: BACKUP SIZING (packages/backup_sizing.yaml)
   note: press after the first real heat call
+input_button.softener_added_1_bag:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: press after adding a bag; softener_salt_added adds to what is left
+input_button.softener_added_2_bags:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: press after adding two bags
+input_button.water_filter_changed:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: press with the new cartridge in; the card asks first
 input_datetime.ac_spc_last_capture:
   group: SPC — AC (packages/spc.yaml)
   note: measured captures only
@@ -270,6 +291,12 @@ input_datetime.hwh_recirc_spc_last_seed:
 input_datetime.sdr_leak_now_high_last_push:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: rate-limit stamp for leak NOW high; written only when a push goes
+input_datetime.softener_last_regen:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: morning softener_regen_count counted the regen; seeded by hand once
+input_datetime.water_filter_last_change:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: written by water_filter_changed; seeded by hand once
 input_datetime.water_overnight_capture_last_ok:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: ''
@@ -343,6 +370,27 @@ input_number.mmw_hallway_on_minutes:
 input_number.sdr_leak_now_hold_minutes:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: default 10 (~5 frames at 112 s)
+input_number.softener_cycles_per_bag:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: default 3 (Bill, 2026-11-01)
+input_number.softener_gal_at_last_regen:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: 'working state: meter gallons after the last regen; -1 = not set'
+input_number.softener_last_cycle_days:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: 'working state: the last whole cycle, days'
+input_number.softener_last_cycle_gal:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: 'working state: the last whole cycle on the main meter, not the softener''s own count'
+input_number.softener_regen_overdue_gal:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: default 3300; re-check against the next few cycles
+input_number.softener_salt_cycles_left:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: 'working state: type here to correct the count; -1 = not set'
+input_number.softener_salt_remind_cycles:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: default 1
 input_number.watchdog_reload_backoff:
   group: WATCHDOG (packages/watchdog.yaml)
   note: Reload backoff period (minutes)
@@ -358,6 +406,12 @@ input_number.watchdog_threshold_sem:
 input_number.watchdog_threshold_ups:
   group: WATCHDOG (packages/watchdog.yaml)
   note: ''
+input_number.water_filter_gal_at_change:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: register at the last change; -1 = never set
+input_number.water_filter_limit_gal:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: 4-month habit in gallons, not a rating; see package header
 input_number.water_overnight_leak_threshold:
   group: SDR WATER — OVERNIGHT MINIMUM FLOW (packages/utility_meters.yaml)
   note: default 0.25 (above today's 0.10)
@@ -1061,6 +1115,15 @@ sensor.shelly_temperature_humidity_temperature:
 sensor.site_eui_estimate:
   group: ENERGY METRICS
   note: ''
+sensor.softener_add_salt_by:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: next regen plus every regen of salt left
+sensor.softener_gallons_since_regen:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: main meter, since the last regen ended
+sensor.softener_next_regen:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: straight-line on the last whole cycle; reads today once past it
 sensor.top_off_charger_bms_trip_pre_step_current:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'FW-5; NaN unless the last session ended in a BMS trip'
@@ -1187,6 +1250,12 @@ sensor.utility_electric_power_rate:
 sensor.watchdog_stale_sensor_count:
   group: WATCHDOG (packages/watchdog.yaml)
   note: Count of stale systems; Ecobee also counts while either thermostat reads frozen (since 2026-10-23)
+sensor.water_filter_change_by:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: straight-line on this cartridge's own rate; needs a day on it
+sensor.water_filter_gallons:
+  group: WATER SOFTENER (packages/water_softener.yaml)
+  note: gallons on this cartridge, regen water included
 sensor.water_meter_age:
   group: SDR WATER METER — R900 (packages/utility_meters.yaml)
   note: minutes since last decode

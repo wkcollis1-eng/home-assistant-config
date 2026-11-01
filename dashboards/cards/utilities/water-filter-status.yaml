@@ -1,0 +1,36 @@
+# SDR Utility Meters view, beside the softener card. Core cards only, like the rest
+# of that view. Press the button with the new cartridge in; it restarts the count.
+# To correct a mis-press, type the meter register into the last row.
+# "Change at" is the 4-month habit in gallons, not a cartridge rating: see the header
+# of packages/water_softener.yaml.
+type: vertical-stack
+cards:
+  - type: entities
+    title: Whole-House Water Filter
+    show_header_toggle: false
+    entities:
+      - entity: sensor.water_filter_gallons
+        name: Gallons on this cartridge
+      - entity: input_number.water_filter_limit_gal
+        name: Change at
+      - entity: sensor.water_filter_change_by
+        name: Change by (estimate)
+      - entity: binary_sensor.water_filter_change_due
+        name: Change due
+      - type: divider
+      - entity: input_datetime.water_filter_last_change
+        name: Last changed
+      - entity: input_number.water_filter_gal_at_change
+        name: Meter at change
+  - type: button
+    entity: input_button.water_filter_changed
+    name: Filter changed
+    icon: mdi:filter-check
+    show_state: false
+    tap_action:
+      action: perform-action
+      perform_action: input_button.press
+      target:
+        entity_id: input_button.water_filter_changed
+      confirmation:
+        text: New cartridge in? This restarts the gallon count.

@@ -1,0 +1,36 @@
+# Overview > Home, beside Filter Due! Shows only when there is something to do:
+# salt is low, the salt level was never set, or no regen has come when one should
+# have. "Never set" shows so an empty count cannot pass for a full tank (R8).
+# Tap goes to the softener status card on the SDR Utility Meters view.
+type: conditional
+conditions:
+  - condition: or
+    conditions:
+      - condition: state
+        entity: binary_sensor.softener_add_salt
+        state: "on"
+      - condition: state
+        entity: binary_sensor.softener_add_salt
+        state: "unavailable"
+      - condition: state
+        entity: binary_sensor.softener_regen_overdue
+        state: "on"
+card:
+  type: custom:mushroom-template-card
+  primary: >-
+    {% if is_state('binary_sensor.softener_regen_overdue', 'on') %}No Regen!
+    {% elif is_state('binary_sensor.softener_add_salt', 'on') %}Add Salt!
+    {% else %}Set Salt Level{% endif %}
+  secondary: >-
+    {% set left = states('input_number.softener_salt_cycles_left') | int(-1) %}
+    {% if left >= 0 %}{{ left }} regen{{ '' if left == 1 else 's' }} left{% endif %}
+  icon: mdi:shaker-outline
+  color: red
+  vertical: true
+  features_position: bottom
+  tap_action:
+    action: navigate
+    navigation_path: /sdr-utility-meters/sdr-meters
+grid_options:
+  columns: 3
+  rows: 2

@@ -68,6 +68,9 @@ its entities would collide, so the common case never reaches the gate at all.
 - `archive_monthly_hdd` / `_cdd` read the month accumulators, so they ran
   after 23:56:30 (23:58:15 / 23:58:30). Both retired 2026-09-23.
 - The 00:20 buffer backup runs after all captures; the 00:30 audit after it.
+- 05:01:15 `softener_regen_count` reads `water_night_prev_volume`, which the
+  05:00:45 close writes. On the same second the audit FAILs `eod-read-write`
+  (fault-tested 2026-11-01). Not a pipeline: it does nothing on most nights.
 
 ### SNAPSHOT RULE
 
@@ -115,6 +118,9 @@ Fall back: the repeated hour can produce one bin spanning two wall-clock hours,
 inflating it. This is a second reason the overnight-flow instrument uses the
 MINIMUM: an inflated bin never becomes the minimum, so the leak signal is
 untouched. Only the max-derived regen flag can false-positive, once a year.
+`softener_regen_count` reads that flag, so a false positive takes one regen off
+the salt count: the reminder comes early, the forecast is guarded. The first
+fall-back night with this instrument, 2026-11-01, stayed off at 1.2 gal/h [M].
 
 ### THE SCHEDULE (HAND-MAINTAINED, validated by ha_audit)
 
@@ -133,6 +139,7 @@ TIME      AUTOMATION                          STALE DETECTOR
 00:15:00  daily_energy_csv_export
 00:20:00  nightly_buffer_backup
 00:30:00  nightly_ha_audit                    ha_audit_stale
+05:01:15  softener_regen_count                softener_regen_overdue
 23:55:00  capture_daily_hdd                   hdd_capture_stale
 23:55:15  capture_daily_cdd                   cdd_capture_stale
 23:55:30  capture_daily_ac_min_per_cycle      ac_min_per_cycle_capture_stale

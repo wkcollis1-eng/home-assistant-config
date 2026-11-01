@@ -1,0 +1,461 @@
+# packages/water_softener.yaml
+# Water softener salt reminder (added 2026-11-01).
+#
+# THE UNATTENDED MOMENT: the 02:00 regen that finds no salt. The softener says
+# nothing, the water goes hard, and nothing in the house alarms. So the salt is
+# counted down from the regens the water meter sees, and the reminder comes up
+# one regen BEFORE the tank is empty.
+#
+# Bill's figures, 2026-11-01: a 40 lb bag lasts 3 regens, he adds 1 or 2 bags at
+# a time, a regen comes about every 2650 gal, about monthly, from about 02:00.
+#
+# THE REGEN DETECTOR IS NOT HERE, on purpose (R10). This package reads
+# binary_sensor.water_softener_regen_last_night (packages/utility_meters.yaml).
+# Its record [M, InfluxDB gal/water_meter_volume, 72 nights to 2026-11-01]: it
+# turned on for the only two regens, 08-24 and 09-26, both at 03:00:45, and for
+# nothing else since commissioning on 08-22. Both regens measured 103.3 gal
+# [M, 02:00:45-05:00:45]; the busiest other night 3.7 gal [M, same window].
+#
+# 2650 IS NOT A MAIN-METER FIGURE, so it appears nowhere below. The meter logged
+# 2775.5 gal between those two regens [M, n=1 interval, 32.88 d], and 2755.9 gal
+# since the second with none yet [M, to 2026-11-01 14:44 UTC]. Why it reads above
+# the softener's own count is not known. The forecast therefore uses the last
+# whole cycle as the main meter saw it, re-measured at every regen.
+#
+# CORRECTION, 2026-11-01 (R13). That 2775.5 runs from the end of one regen to the
+# start of the next [M: 164217.9 at 08-24 03:43 EDT, 166993.4 at 09-26 01:28 EDT],
+# so no regen water is in it and none explains the gap to 2650. The gap, 125.5 gal
+# [D: 2775.5 - 2650], is inside the softener meter's tolerance, 132.5 gal [D: 5 % of
+# 2650; S: BWS Lantis valve sheet, +/-5 %; [I] for this unit], which does not show
+# tolerance is the cause. softener_regen_count measures end to end, so it counts
+# one regen's water and its first re-measure will read about 103 gal above that
+# seed. softener_next_regen then runs about 1.25 d late [D: 103.3 / 82.5 gal/d].
+# Left as it is: the salt count and the reminder run on regens seen, not on this.
+#
+# A MISSED REGEN (SDR down that night, HA down at 05:01) must not leave the salt
+# count silently high:
+#   - softener_regen_count charges one regen per whole cycle of gallons since
+#     the last one it saw, so the next regen it does see makes up the difference.
+#   - binary_sensor.softener_regen_overdue comes up in between, and is also the
+#     fault the detector's own comment names: a softener that stopped regenerating.
+#
+# WHOLE-HOUSE FILTER (added 2026-11-01), same meter, same file: the cartridge sits
+# just ahead of the softener and all the main-meter water goes through it, regen
+# water included (Bill, 2026-11-01).
+#
+# THE UNATTENDED MOMENT: a cartridge far past its limit with nothing saying so, or
+# a count never started that reads as fine. Never set reads unavailable (R8).
+#
+# The count is the register now minus the register at the change, so an SDR outage
+# loses no gallons; they land with the next decode.
+#
+# THE LIMIT IS NOT A CARTRIDGE RATING. Pentek NCP-BB (as Bill named it), part
+# 155398-43, rates chlorine taste and odor at 500 gal @ 2 gpm [S: Pentek 310069 REV D
+# MY15 p.2], at >50 % reduction of 2 ppm free chlorine [S: same], and gives no gallon
+# figure for sediment and no end-of-life pressure drop [S: same]. Bill's water reads
+# 0.03-0.82 ppm [S: Connecticut Water, Baker Hill CT0429011, 2025 report p.7,
+# system-wide]. 10000 gal is his 4-month habit in gallons, about 10,060 gal
+# [D: 82.5 gal/d x 122 d]. It says when the habit is up; it does NOT say chlorine is
+# still being caught. Set the limit from a breakthrough reading when there is one
+# (open_questions.yaml).
+# 2026-11-01: Bill declined the tap readings ("no will not do"), so there will be no
+# breakthrough reading and 10000 stays the habit. The report alone gives a band, 1,220
+# gal at 0.82 ppm to 33,300 gal at 0.03 ppm [I: capacity scales inversely with ppm from
+# 500 gal at 2 ppm; a tap reading would falsify it, and there will be none], so it sets
+# no limit (R15).
+
+input_button:
+  softener_added_1_bag:
+    name: "Softener: added 1 bag"
+    icon: mdi:shaker-outline
+  softener_added_2_bags:
+    name: "Softener: added 2 bags"
+    icon: mdi:shaker
+  water_filter_changed:
+    name: "Water filter: changed"
+    icon: mdi:filter-check
+
+input_number:
+  # Working state: no `initial:`, so these restore across a restart. A new helper
+  # with no restore state starts at `min` [S: core 2026.10.4 input_number
+  # __init__.py 275-281], which is what makes -1 the "not set" sentinel below.
+  #
+  # -1 = never set: binary_sensor.softener_add_salt goes unavailable, and the Home
+  # card says so, rather than reading as "plenty of salt" (R8).
+  softener_salt_cycles_left:
+    name: "Softener: regens of salt left"
+    min: -1
+    max: 30
+    step: 1
+    mode: box
+    icon: mdi:shaker-outline
+  softener_gal_at_last_regen:
+    name: "Softener: meter gallons at last regen"
+    min: -1
+    max: 99999999
+    step: 0.1
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:counter
+  # The last whole cycle as the main meter saw it. Written by softener_regen_count.
+  softener_last_cycle_gal:
+    name: "Softener: last cycle gallons"
+    min: 0
+    max: 20000
+    step: 0.1
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:water-sync
+  softener_last_cycle_days:
+    name: "Softener: last cycle days"
+    min: 0
+    max: 400
+    step: 0.01
+    mode: box
+    unit_of_measurement: "d"
+    icon: mdi:calendar-range
+
+  # --- tunables -------------------------------------------------------------
+  softener_cycles_per_bag:
+    name: "Softener: regens per bag"
+    min: 1
+    max: 10
+    step: 1
+    initial: 3
+    mode: box
+    icon: mdi:sack
+  # 1 = the reminder comes up with one regen of salt left, about a cycle before
+  # the first regen that would run dry. Set 0 to wait until the count is spent.
+  softener_salt_remind_cycles:
+    name: "Softener: remind at regens left"
+    min: 0
+    max: 10
+    step: 1
+    initial: 1
+    mode: box
+    icon: mdi:bell-outline
+  # About a week past the one measured cycle: 2775.5 gal [M, n=1] plus 525 gal,
+  # 6.9 d at 76.0 gal/d [D: 525/76.0; M: 09-26 to 11-01]. RE-CHECK against the
+  # next few cycles. It needs to clear a real cycle, not be precise.
+  softener_regen_overdue_gal:
+    name: "Softener: gallons with no regen = overdue"
+    min: 1000
+    max: 20000
+    step: 50
+    initial: 3300
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:timer-alert-outline
+
+  # --- whole-house filter ---------------------------------------------------
+  # Working state, no `initial:`; -1 = never set, as for softener_salt_cycles_left.
+  water_filter_gal_at_change:
+    name: "Water filter: meter gallons at change"
+    min: -1
+    max: 99999999
+    step: 0.1
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:counter
+  # Bill's 4-month habit in gallons, not a rating: see the header. `initial:` wins
+  # at a restart, so change it here as well as in the UI.
+  water_filter_limit_gal:
+    name: "Water filter: change at gallons"
+    min: 100
+    max: 50000
+    step: 100
+    initial: 10000
+    mode: box
+    unit_of_measurement: "gal"
+    icon: mdi:gauge
+
+input_datetime:
+  # A new helper with no `initial:` starts at TODAY 00:00, not 1970 (see
+  # sdr_leak_now_high_last_push in packages/utility_meters.yaml). Seeded by hand
+  # once, to the last regen found in InfluxDB. If this is ever deleted or
+  # renamed, seed it again or the forecast starts from the wrong day.
+  softener_last_regen:
+    name: "Softener: last regen"
+    has_date: true
+    has_time: true
+  # Written by water_filter_changed; seeded by hand once, as above.
+  water_filter_last_change:
+    name: "Water filter: last change"
+    has_date: true
+    has_time: true
+
+template:
+  - sensor:
+      - name: "Softener Gallons Since Regen"
+        unique_id: softener_gal_since_regen
+        unit_of_measurement: "gal"
+        state_class: measurement
+        icon: mdi:water-sync
+        availability: >
+          {{ is_number(states('sensor.water_meter_volume'))
+             and states('input_number.softener_gal_at_last_regen') | float(-1) >= 0 }}
+        state: >
+          {{ (states('sensor.water_meter_volume') | float(0)
+              - states('input_number.softener_gal_at_last_regen') | float(0)) | round(1) }}
+
+      # Straight-line: the part of the last cycle still to run, in that cycle's
+      # own days. Past the last cycle's gallons it reads today, which is the
+      # honest answer: any night now.
+      - name: "Softener Next Regen"
+        unique_id: softener_next_regen
+        device_class: date
+        icon: mdi:calendar-sync
+        availability: >
+          {{ is_number(states('sensor.softener_gallons_since_regen'))
+             and states('input_number.softener_last_cycle_gal') | float(0) > 0
+             and states('input_number.softener_last_cycle_days') | float(0) > 0 }}
+        state: >
+          {% set gal = states('sensor.softener_gallons_since_regen') | float(0) %}
+          {% set cycle_gal = states('input_number.softener_last_cycle_gal') | float(1) %}
+          {% set cycle_days = states('input_number.softener_last_cycle_days') | float(0) %}
+          {% set left = [cycle_gal - gal, 0] | max %}
+          {{ (now() + timedelta(days=cycle_days * left / cycle_gal)).date() }}
+
+      # The first regen with no salt: every regen left, then the next cycle.
+      # Reads sensor.softener_next_regen rather than repeating its arithmetic.
+      - name: "Softener Add Salt By"
+        unique_id: softener_add_salt_by
+        device_class: date
+        icon: mdi:calendar-alert
+        availability: >
+          {{ has_value('sensor.softener_next_regen')
+             and states('input_number.softener_salt_cycles_left') | int(-1) >= 0 }}
+        state: >
+          {% set cycles = states('input_number.softener_salt_cycles_left') | int(0) %}
+          {% set cycle_days = states('input_number.softener_last_cycle_days') | float(0) %}
+          {{ ((states('sensor.softener_next_regen') | as_datetime)
+              + timedelta(days=cycles * cycle_days)).date() }}
+
+      - name: "Water Filter Gallons"
+        unique_id: water_filter_gallons
+        unit_of_measurement: "gal"
+        state_class: measurement
+        icon: mdi:filter
+        availability: >
+          {{ is_number(states('sensor.water_meter_volume'))
+             and states('input_number.water_filter_gal_at_change') | float(-1) >= 0 }}
+        state: >
+          {{ (states('sensor.water_meter_volume') | float(0)
+              - states('input_number.water_filter_gal_at_change') | float(0)) | round(1) }}
+
+      # Straight-line on this cartridge's own rate; past the limit it reads today.
+      # Needs a day on the cartridge: a rate from the first hours is a shower.
+      - name: "Water Filter Change By"
+        unique_id: water_filter_change_by
+        device_class: date
+        icon: mdi:calendar-alert
+        availability: >
+          {% set changed = state_attr('input_datetime.water_filter_last_change', 'timestamp') | float(0) %}
+          {{ has_value('sensor.water_filter_gallons')
+             and states('sensor.water_filter_gallons') | float(0) > 0
+             and changed > 0 and as_timestamp(now()) - changed >= 86400 }}
+        state: >
+          {% set gal = [states('sensor.water_filter_gallons') | float(0), 0.1] | max %}
+          {% set limit = states('input_number.water_filter_limit_gal') | float(0) %}
+          {% set days = (as_timestamp(now()) - state_attr('input_datetime.water_filter_last_change', 'timestamp') | float(0)) / 86400 %}
+          {% set left = [limit - gal, 0] | max %}
+          {{ (now() + timedelta(days=left * days / gal)).date() }}
+
+  - binary_sensor:
+      - name: "Softener Add Salt"
+        unique_id: softener_add_salt
+        icon: mdi:shaker-outline
+        availability: >
+          {{ states('input_number.softener_salt_cycles_left') | int(-1) >= 0 }}
+        state: >
+          {{ states('input_number.softener_salt_cycles_left') | int(-1)
+             <= states('input_number.softener_salt_remind_cycles') | int(1) }}
+
+      - name: "Softener Regen Overdue"
+        unique_id: softener_regen_overdue
+        device_class: problem
+        icon: mdi:timer-alert-outline
+        # No availability: guard, deliberately. A watchdog that can go
+        # unavailable fails in the direction that hides the fault (same call as
+        # water_overnight_capture_stale). A meter outage reads off here and is
+        # binary_sensor.water_meter_stale's to report.
+        state: >
+          {% set base = states('input_number.softener_gal_at_last_regen') | float(-1) %}
+          {% set vol = states('sensor.water_meter_volume') | float(-1) %}
+          {{ base >= 0 and vol >= 0
+             and vol - base > states('input_number.softener_regen_overdue_gal') | float(3300) }}
+
+      - name: "Water Filter Change Due"
+        unique_id: water_filter_change_due
+        icon: mdi:filter
+        availability: >
+          {{ states('input_number.water_filter_gal_at_change') | float(-1) >= 0 }}
+        # Reads the sensor, not the sum again (R10). A meter outage reads off here
+        # and is binary_sensor.water_meter_stale's to report.
+        state: >
+          {% set limit = states('input_number.water_filter_limit_gal') | float(0) %}
+          {{ limit > 0 and states('sensor.water_filter_gallons') | float(0) >= limit }}
+
+automation:
+  # ---------------------------------------------------------------------
+  # COUNT A REGEN
+  #
+  # 05:01:15, not on the flag turning on: the flag comes up at 03:00:45 with the
+  # regen half run [M: 56 gal of 103.3 still to come], and the baseline must
+  # start after it. 30 s after the 05:00:45 publish, so nothing is contended.
+  # It reads input_number.water_night_prev_volume, the 05:00:45 snapshot, which
+  # restores across a restart where sensor.water_meter_volume waits on MQTT.
+  #
+  # The start trigger covers HA being down at 05:01:15. The flag holds until
+  # 00:00:45, and the hour and date checks keep it to one count, after the
+  # regen, however many times HA restarts that day.
+  #
+  # Not a capture_daily_* pipeline: it does nothing on most nights by design, so
+  # a stale stamp would mean nothing. binary_sensor.softener_regen_overdue is
+  # its staleness check.
+  # ---------------------------------------------------------------------
+  - id: softener_regen_count
+    alias: "Softener: count a regen"
+    description: "Takes the night's regen off the salt count and re-measures the cycle"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "05:01:15"
+      - trigger: homeassistant
+        event: start
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.water_softener_regen_last_night
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.softener_last_regen') | as_datetime %}
+          {{ now().hour >= 5 and (last is none or last.date() != now().date()) }}
+    actions:
+      # Snapshot once, per the SNAPSHOT RULE. Every branch below uses these.
+      - variables:
+          vol: "{{ states('input_number.water_night_prev_volume') | float(-1) }}"
+          base: "{{ states('input_number.softener_gal_at_last_regen') | float(-1) }}"
+          left: "{{ states('input_number.softener_salt_cycles_left') | int(-1) }}"
+          cycle_gal: "{{ states('input_number.softener_last_cycle_gal') | float(0) }}"
+          capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+          # > 0, not >= 0: the 00:00:45 reset writes 0 when the meter is down, and
+          # a 0 taken as a reading would drop the baseline and trip overdue.
+          gal: "{{ (vol - base) if (vol > 0 and base >= 0) else -1 }}"
+          days: >
+            {{ ((as_timestamp(now())
+                 - state_attr('input_datetime.softener_last_regen', 'timestamp') | float(0))
+                / 86400) | round(2) }}
+          # One regen per whole cycle of gallons: 1 normally, 2 if the one before
+          # this went unseen. Never 0, because the flag says a regen just ran.
+          used: >
+            {{ [(gal | float(0) / cycle_gal) | round(0) | int(1), 1] | max
+               if (gal | float(0) > 0 and cycle_gal > 0) else 1 }}
+      # Only a clean single cycle re-measures. 1000 gal keeps a false count (a
+      # 15 gal hour that was not a regen, 0 of 72 nights [M]) from shortening
+      # the forecast; used == 1 keeps a missed regen from stretching it. The one
+      # known source of a false count is the fall-back night (docs/eod-timing.md,
+      # DST); it takes one regen off the salt, so the reminder comes early.
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ used | int(0) == 1 and gal | float(0) >= 1000 }}"
+            sequence:
+              - action: input_number.set_value
+                target: {entity_id: input_number.softener_last_cycle_gal}
+                data: {value: "{{ gal | float(0) | round(1) }}"}
+              - action: input_number.set_value
+                target: {entity_id: input_number.softener_last_cycle_days}
+                data: {value: "{{ days }}"}
+        default: []
+      # -1 (never set) stays -1; 0 stays 0.
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ left | int(-1) > 0 }}"
+            sequence:
+              - action: input_number.set_value
+                target: {entity_id: input_number.softener_salt_cycles_left}
+                data: {value: "{{ [left | int(0) - used | int(1), 0] | max }}"}
+        default: []
+      - action: input_number.set_value
+        target: {entity_id: input_number.softener_gal_at_last_regen}
+        data: {value: "{{ vol if vol > 0 else base }}"}
+      - action: input_datetime.set_datetime
+        target: {entity_id: input_datetime.softener_last_regen}
+        data: {datetime: "{{ capture_stamp }}"}
+
+  # ---------------------------------------------------------------------
+  # SALT ADDED
+  #
+  # Adds to what is left rather than setting it, because Bill tops up 1 or 2 bags
+  # onto whatever is there. A mis-press is corrected by typing the number into
+  # input_number.softener_salt_cycles_left.
+  #
+  # `not_from: unavailable` and NOT `unknown` too: a new input_button reads
+  # unknown until its first press, so that would swallow the first press.
+  # ---------------------------------------------------------------------
+  - id: softener_salt_added
+    alias: "Softener: salt added"
+    description: "Adds a pressed bag count to the regens of salt left"
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: input_button.softener_added_1_bag
+        not_from: unavailable
+        id: "1"
+      - trigger: state
+        entity_id: input_button.softener_added_2_bags
+        not_from: unavailable
+        id: "2"
+    actions:
+      - action: input_number.set_value
+        target: {entity_id: input_number.softener_salt_cycles_left}
+        data:
+          value: >
+            {% set left = states('input_number.softener_salt_cycles_left') | int(-1) %}
+            {% set per_bag = states('input_number.softener_cycles_per_bag') | int(3) %}
+            {% set top = state_attr('input_number.softener_salt_cycles_left', 'max') | int(30) %}
+            {{ [[left, 0] | max + trigger.id | int(0) * per_bag, top] | min }}
+
+  # ---------------------------------------------------------------------
+  # FILTER CHANGED
+  #
+  # The button is the only reset and the card asks first; a mis-press is corrected
+  # by typing the register into input_number.water_filter_gal_at_change.
+  #
+  # Falls back to water_night_prev_volume when the meter has not reported since a
+  # restart, off by at most a day's water. > 0 as in softener_regen_count: a 0 there
+  # is an outage (utility_meters.yaml:1250). With neither, nothing is written and
+  # the card stays up.
+  #
+  # not_to as well as not_from: a reset, unlike a bag press, cannot be allowed to
+  # false-fire. Unknown is still a legal from-state, for the first press.
+  # ---------------------------------------------------------------------
+  - id: water_filter_changed
+    alias: "Water filter: changed"
+    description: "Restarts the gallon count when a new cartridge goes in"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: input_button.water_filter_changed
+        not_from: unavailable
+        not_to: [unavailable, unknown]
+    actions:
+      - variables:
+          live: "{{ states('sensor.water_meter_volume') | float(-1) }}"
+          night: "{{ states('input_number.water_night_prev_volume') | float(-1) }}"
+          vol: "{{ live if live > 0 else night }}"
+          capture_stamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ vol | float(-1) > 0 }}"
+            sequence:
+              - action: input_number.set_value
+                target: {entity_id: input_number.water_filter_gal_at_change}
+                data: {value: "{{ vol }}"}
+              - action: input_datetime.set_datetime
+                target: {entity_id: input_datetime.water_filter_last_change}
+                data: {datetime: "{{ capture_stamp }}"}
+        default: []

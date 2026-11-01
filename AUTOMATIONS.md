@@ -135,6 +135,8 @@ sdr_water_leak_flag                    numeric_state                            
 sdr_water_leak_now                     numeric_state                                                         single     utility_meters.yaml
 sdr_water_leak_now_cleared             numeric_state                                                         single     utility_meters.yaml
 sdr_water_leak_now_high                numeric_state                                                         single     utility_meters.yaml
+softener_regen_count                   05:01:15, homeassistant                                               single     water_softener.yaml
+softener_salt_added                    state:input_button.softener_added_1_bag +1 more                       queued     water_softener.yaml
 spc_seed_on_startup                    homeassistant                                                         single     spc.yaml
 spc_seed_slots_manual                  -                                                                     single     spc.yaml
 track_automation_failures              event                                                                 queued     automations.yaml
@@ -152,6 +154,7 @@ watchdog_reload_ecobee                 state:binary_sensor.watchdog_ecobee_stale
 watchdog_reload_sem                    state:binary_sensor.watchdog_sem_stale                                single     watchdog.yaml
 watchdog_reload_ups                    state:binary_sensor.watchdog_ups_stale                                single     watchdog.yaml
 watchdog_reset_failed                  state:binary_sensor.watchdog_battery_bank_stale +6 more               parallel   watchdog.yaml
+water_filter_changed                   state:input_button.water_filter_changed                               single     water_softener.yaml
 ```
 
-145 automations.
+148 automations.

@@ -14,6 +14,20 @@ _Moved verbatim from CLAUDE.md (Home + Active Projects) on 2026-10-25; the point
 - Dehumidifier and computer on Kasa plugs
 - 16-CT SEM (Fusion Energy/Sense) whole-home monitor installed June 2026
 - Ecobee thermostats (replaced Honeywell T6 Pro, June 2026)
+- Water: Connecticut Water, Baker Hill System (PWSID CT0429011), groundwater wells, chlorinated
+  [S: 2025 Annual Water Quality Report pp.3,5,7]. All main-meter water passes through a 10" Big
+  Blue filter, Pentek NCP-BB, just ahead of the softener, for chlorine and softener resin
+  protection (Bill, 2026-11-01). Count: `packages/water_softener.yaml`
+- Softener: quoted as "Lantis Pro 10x54 Metered Softener with 16x16 brine tank", to treat iron,
+  hardness and manganese, with a separate 4x10 pre carbon filter for chlorine (dealer quote,
+  undated, file stamp 2022-04-20; rating plate not read). Lantis is a Blake Water Solutions line
+  [S: BWS Lantis City Softener sheet p.1, a different variant]; no BWS page read lists a "Lantis
+  Pro". Resin NOT on file, and Bill has no invoice or post-install test (2026-11-01): the quote
+  names none and BWS offers "choices of premium grade resins"
+  [S: same p.1], with no crosslink figure, so any resin-life figure is [I] for this unit (R16). The
+  utility report's data tables give no iron, manganese or hardness [S: 2025 report pp.7-9]. The
+  company said the chlorine filter would take resin life from 10-12 years to 25 (Bill, 2026-11-01;
+  verbal, no document, so [I]; falsified by this resin failing near 12 years with the filter in).
 
 ## Active Projects (reference only — details in respective repos)
 - **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
@@ -27,4 +41,3 @@ _Moved verbatim from CLAUDE.md (Home + Active Projects) on 2026-10-25; the point
 - **Dehumidifier Control**: Aprilaire E080; RH band, max-runtime cap, stall detection. Setpoints
   live in the `packages/dehumidifier.yaml` helpers, not here (R10; this line said 49/46 %, 150 min)
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700
-

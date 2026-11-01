@@ -3005,3 +3005,59 @@
     2026-11-01, Bill: "door is open all the time." So it was open on all five
     nights, and neither it nor head count explains the 164 ppm between the night
     means [D]. That spread has no explanation yet.
+
+- asked: 2026-11-01
+  question: >-
+    Water softener: how much salt is in the tank right now, in bags or in regens?
+  blocks: >-
+    Only the salt level, input_number.softener_salt_cycles_left. Until it is set,
+    binary_sensor.softener_add_salt reads unavailable and the Home card reads
+    Set Salt Level, so no reminder can come up. The gallon baseline, the forecast
+    and the overdue watchdog are running and do not wait on this.
+  answered: >-
+    2026-11-01, Bill: "added 2 bags of salt on Oct 15". 6 regens [D: 2 bags x 3
+    regens per bag], 0 used since [M: input_datetime.softener_last_regen reads
+    2026-09-26], so input_number.softener_salt_cycles_left needed no write: it
+    already read 6.0 from the 2-bags button, pressed 2026-11-01 10:36:16 EST
+    [M: logbook]. What was in the tank before Oct 15 is unknown, so 6 is a floor
+    and the add-salt reminder errs early.
+
+- asked: 2026-11-01
+  question: >-
+    Whole-house filter, free chlorine at the same cold tap each time, with a DPD
+    kit rather than strips: one reading with the old cartridge still in, one the
+    day after the new one goes in, then one about every 1,000 gal on
+    sensor.water_filter_gallons until it climbs back to the old-cartridge
+    reading. Which kit, by model?
+  blocks: >-
+    Setting input_number.water_filter_limit_gal from chlorine breakthrough, and
+    the choice of cartridge. 10000 gal is the 4-month habit in gallons and does
+    not say chlorine is still being caught: the NCP-BB is rated 500 gal
+    [S: Pentek 310069 REV D MY15 p.2]. The spent old cartridge stands in for an
+    inlet reading, so no new tap is needed. The counter and the card do not wait
+    on this.
+  answered: >-
+    2026-11-01, Bill: "no will not do", and asked for an estimate from the water
+    report instead. So there will be no reading: water_filter_limit_gal stays
+    10000, the 4-month habit, and still does not say chlorine is being caught.
+    The report alone gives a band, 1,220 gal at its highest 0.82 ppm to 33,300
+    gal at its lowest 0.03 ppm [I: capacity scales inversely with ppm from 500
+    gal at 2 ppm; a tap reading would falsify it, and there will be none], with
+    no average and no figure for this tap, so it sets no limit (R15). Detail:
+    CHANGELOG, 2026.11.01, water filter section.
+
+- asked: 2026-11-01
+  question: >-
+    Do you still have the softener's install invoice or the post-installation
+    water test the quote lists, and what do they give for the resin (type or
+    crosslink), iron, manganese and hardness?
+  blocks: >-
+    Any resin-life figure for this unit. The quote names no resin, BWS offers a
+    choice, and the utility report has no iron, manganese or hardness row, so
+    the Purolite figures stay [I] here (R16). Nothing deployed waits on this:
+    water_filter_limit_gal stays 10000.
+  answered: >-
+    2026-11-01, Bill: "No install invoice or post install test results." So
+    no document will settle it: the resin stays unknown, iron, manganese and
+    hardness have no figure, and every resin-life figure stays [I] for this
+    unit (R16). water_filter_limit_gal stays 10000.

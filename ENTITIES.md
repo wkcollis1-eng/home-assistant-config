@@ -594,6 +594,34 @@ binary_sensor.watchdog_influxdb_writes_stale  on unless the points count is a po
 sensor.influxdb_points_last_15_min            rest, 5 min; numeric points Influx holds from the last 15 min; text = Influx error body, unavailable = no answer
 ```
 
+## WATER SOFTENER (packages/water_softener.yaml)
+
+```
+automation.water_filter_changed           restarts the filter count at the current register; only reset
+binary_sensor.softener_add_salt           the reminder; unavailable until the salt level is set (R8)
+binary_sensor.softener_regen_overdue      no regen seen past softener_regen_overdue_gal; a missed detection or a softener that stopped
+binary_sensor.water_filter_change_due     gallons at the limit; unavailable until the count is started
+input_button.softener_added_1_bag         press after adding a bag; softener_salt_added adds to what is left
+input_button.softener_added_2_bags        press after adding two bags
+input_button.water_filter_changed         press with the new cartridge in; the card asks first
+input_datetime.softener_last_regen        morning softener_regen_count counted the regen; seeded by hand once
+input_datetime.water_filter_last_change   written by water_filter_changed; seeded by hand once
+input_number.softener_cycles_per_bag      default 3 (Bill, 2026-11-01)
+input_number.softener_gal_at_last_regen   working state: meter gallons after the last regen; -1 = not set
+input_number.softener_last_cycle_days     working state: the last whole cycle, days
+input_number.softener_last_cycle_gal      working state: the last whole cycle on the main meter, not the softener's own count
+input_number.softener_regen_overdue_gal   default 3300; re-check against the next few cycles
+input_number.softener_salt_cycles_left    working state: type here to correct the count; -1 = not set
+input_number.softener_salt_remind_cycles  default 1
+input_number.water_filter_gal_at_change   register at the last change; -1 = never set
+input_number.water_filter_limit_gal       4-month habit in gallons, not a rating; see package header
+sensor.softener_add_salt_by               next regen plus every regen of salt left
+sensor.softener_gallons_since_regen       main meter, since the last regen ended
+sensor.softener_next_regen                straight-line on the last whole cycle; reads today once past it
+sensor.water_filter_change_by             straight-line on this cartridge's own rate; needs a day on it
+sensor.water_filter_gallons               gallons on this cartridge, regen water included
+```
+
 ## WEATHER
 
 ```
