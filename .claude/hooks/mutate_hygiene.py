@@ -100,9 +100,45 @@ MUT = [
     ("nudge line 1K early", "NUDGE_MIN = 80_000", "NUDGE_MIN = 79_000"),
     ("stop nudge on MIN_CONTEXT", "ctx[0] < NUDGE_MIN", "ctx[0] < MIN_CONTEXT"),
     ("commit not a task end", "(?:commit|push)", "(?:push)"),
-    ("commit-graph counted", "(?:commit|push)(?![\\w-])", "(?:commit|push)\\b"),
+    ("commit-graph counted", "(?:commit|push)(?![\\w.-])", "(?:commit|push)\\b"),
+    ("dotted name counted", "(?:commit|push)(?![\\w.-])", "(?:commit|push)(?![\\w-])"),
+    ("verb after a slash counted", "*\\s(?:commit|push)", "*\\b(?:commit|push)"),
     ("stop nudge says /clear", "start a new conversation", "/clear first"),
     ("pause says /clear", "Send it in a new conversation", "/clear, then send it"),
+    # 2026-11-01: commit_behind(), a nudge after a commit, never a gate
+    (
+        "behind nudge ignores the due line",
+        "if not ctx or ctx[0] < lines(win)[0]:",
+        "if not ctx:",
+    ),
+    ("behind nudge on any command", "        or not TASK_END.search(cmd)\n", ""),
+    (
+        "behind nudge in a subagent",
+        '        inp.get("agent_id")\n        or inp.get("tool_name") not in SHELLS',
+        '        inp.get("tool_name") not in SHELLS',
+    ),
+    (
+        "behind nudge on any tool",
+        '        or inp.get("tool_name") not in SHELLS\n',
+        "",
+    ),
+    (
+        "PowerShell commit missed",
+        'SHELLS = ("Bash", "PowerShell")',
+        'SHELLS = ("Bash",)',
+    ),
+    (
+        "checkpoint write nudges itself",
+        '        or ".claude/checkpoints" in cmd.replace("\\\\", "/")\n',
+        "",
+    ),
+    ("Windows path not normalised", 'cmd.replace("\\\\", "/")', "cmd"),
+    ("behind nudge not logged", 'gate_log(inp, "commit-nudge", b)', "pass"),
+    (
+        "behind nudge replaces the due nudge",
+        "    d = checkpoint_due(inp)\n    if not d:\n        b = commit_behind(inp)",
+        "    d = None\n    if not d:\n        b = commit_behind(inp)",
+    ),
 ]
 bad = 0
 for name, old, new in MUT:

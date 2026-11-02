@@ -198,9 +198,18 @@ definition, `checkpoint_due()`:
    at the ceiling (trigger + 90K; a design bound, not a measurement) so the session
    never runs into the hard limit. A manual `/compact` is never blocked.
 
+**The commit nudge (added 2026-11-01), a nudge and never a gate.** `posttooluse` also
+fires on a commit or push that succeeds past the due line while `checkpoint_due()` is
+quiet: the checkpoint is in time, and now out of date. `commit_behind()` stays outside
+`checkpoint_due()` on purpose, because inside it every late commit would arm layers 2-4.
+It reuses `TASK_END`, in Bash or PowerShell, and skips subagents and any command naming
+`.claude/checkpoints`. It keeps no state, so each commit or push gets one nudge. The text
+tells the model to wait if another commit or push is its very next step. The reason and
+the evidence are in CHANGELOG 2026.11.01.
+
 Every deny and block is appended to `~/.claude/checkpoints/gate.log`, with columns now,
 session, event (`pretooluse-deny`, `stop-block`, `precompact-block`,
-`precompact-gave-way`), ctx and window. **The escape hatch when the checkpoint cannot be
+`precompact-gave-way`, plus `commit-nudge`, which blocks nothing), ctx and window. **The escape hatch when the checkpoint cannot be
 written:** Stop blocks only once, and Bill's `/compact` always runs. After a compaction,
 `sessionstart` WARNs if the PreCompact gate gave way. **This changes what "fresh" means
 in compactions.log:** from 2026-10-04 it means written after the due line (126K at 200K),

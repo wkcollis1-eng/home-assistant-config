@@ -713,6 +713,102 @@ check(
     None,
 )
 
+print("posttooluse after a commit (2026-11-01: a nudge, never a gate)")
+GIT = "git -C /h commit -m x"
+ckpt("c1", 300)  # written after the 126K crossing, so checkpoint_due() is quiet
+check(
+    "fresh checkpoint, commit -> behind nudge",
+    run(PT, up, sid="c1", extra=tool("Bash", cmd=GIT)),
+    "context",
+    has=("R20 CHECKPOINT BEHIND", "c1.md", "170K", "166K"),
+)
+for label, extra in (
+    ("push", tool("Bash", cmd="git push origin master")),
+    ("PowerShell commit", tool("PowerShell", cmd=GIT)),
+    ("push then a semicolon", tool("Bash", cmd="git push; echo done")),
+):
+    check(
+        label + " -> behind nudge",
+        run(PT, up, sid="c1", extra=extra),
+        "context",
+        has=("R20 CHECKPOINT BEHIND",),
+    )
+for label, extra in (
+    ("other git command", tool("Bash", cmd="git status")),
+    ("git commit-graph", tool("Bash", cmd="git commit-graph write")),
+    ("git diff into commit.diff", tool("Bash", cmd="git diff -U0 > /c/x/commit.diff")),
+    ("git diff into a path ending commit", tool("Bash", cmd="git diff > /c/x/commit")),
+    ("git diff into push.txt", tool("Bash", cmd="git diff > push.txt")),
+    ("commit text in another tool", tool("Write", cmd=GIT)),
+    (
+        "checkpoint heredoc quoting a commit",
+        tool("Bash", cmd="cat > ~/.claude/checkpoints/c1.md <<EOF\ngit commit\nEOF"),
+    ),
+    (
+        "checkpoint write with a Windows path",
+        tool("Bash", cmd=r"copy x C:\Users\b\.claude\checkpoints\c1.md & git commit"),
+    ),
+    ("subagent commit", dict(tool("Bash", cmd=GIT), agent_id="a1")),
+):
+    check(label + " -> silent", run(PT, up, sid="c1", extra=extra), None)
+check(
+    "commit, settings unreadable -> silent",
+    run(
+        PT,
+        up,
+        sid="c1",
+        extra=tool("Bash", cmd=GIT),
+        env_extra={"CONTEXT_HYGIENE_SETTINGS": os.path.join(TMP, "none.json")},
+    ),
+    None,
+)
+ckpt("c2", 100)
+check(
+    "commit at 125,999 -> silent",
+    run(
+        PT,
+        [asst(900, 120_000), asst(0, 125_999)],
+        sid="c2",
+        extra=tool("Bash", cmd=GIT),
+    ),
+    None,
+)
+check(
+    "commit at exactly 126,000 -> behind nudge",
+    run(
+        PT,
+        [asst(900, 120_000), asst(300, 126_000), asst(0, 126_000)],
+        sid="c2",
+        extra=tool("Bash", cmd=GIT),
+    ),
+    "context",
+    has=("R20 CHECKPOINT BEHIND",),
+)
+ckpt("c3", 1200)
+check(
+    "checkpoint already overdue, commit -> the due nudge alone",
+    run(PT, up, sid="c3", extra=tool("Bash", cmd=GIT)),
+    "context",
+    has=("R20 CHECKPOINT DUE",),
+    lacks=("BEHIND",),
+)
+check(
+    "a commit does not arm the gate",
+    run(PRE, up, sid="c1", extra=tool("Bash", cmd=GIT)),
+    None,
+)
+check(
+    "a commit does not arm PreCompact",
+    run("precompact", up, sid="c1", extra={"trigger": "auto"}),
+    None,
+)
+cn = gate_rows("commit-nudge")
+check(
+    "every behind nudge logged, 5 columns",
+    None if len(cn) == 5 and all(len(r) == 5 for r in cn) else {"rows": len(cn)},
+    None,
+)
+
 print("stop (layer 3: block the end of a turn once while overdue)")
 ckpt("k1")
 check(

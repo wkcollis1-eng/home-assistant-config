@@ -58,6 +58,14 @@ n=102]. One definition of "overdue", checkpoint_due(), feeds four layers:
                  the context reaches the ceiling (trigger + CEILING_AFTER). A
                  manual /compact is never blocked. Every deny/block -> GATE_LOG.
 
+Added 2026-11-01, a nudge and no gate: commit_behind(). "Fresh" above means written
+in time, not still true. e39555dd's checkpoint was fresh at 14:05, it pushed at 14:07
+and 14:08, compacted at 14:10, and the checkpoint still said commit: a fresh-session
+trial told to resume from it would have redone the work (n=3 trials, 1 miss [M]). 6
+of 57 compactions followed a commit the checkpoint predates, 2 of 43 the week before
+(p=0.46, no shown change) [M]. It stays out of checkpoint_due(), which would arm the
+gate, Stop and PreCompact layers on every commit.
+
 Escape if the checkpoint cannot be written: the turn can still end (layer 3
 blocks once), and Bill's /compact is never blocked.
 
@@ -95,8 +103,13 @@ STATE_DIR = os.environ.get("CONTEXT_HYGIENE_STATE") or os.path.join(
 )
 STATE = os.path.join(STATE_DIR, "context_hygiene.json")
 ARM = os.path.join(STATE_DIR, "arm_test")
-# (?![\w-]): not `git commit-graph`, `git commit-tree`, `pushd`.
-TASK_END = re.compile(r"\bgit\b[^\n|;&]*\b(?:commit|push)(?![\w-])")
+# (?![\w.-]): not `git commit-graph`, `git commit-tree`, `pushd`, `commit.diff`.
+# \s before the verb: not `> /c/x/commit`. Until 2026-11-01 these read \b and (?![\w-]),
+# and the commit nudge's first real firing said a commit had succeeded on `git diff -U0 >
+# .../commit.diff`. Over 2,168 real commands [M, 10-26 to 11-02]: 75 matches became 68,
+# 0 real commits lost, 2 false ones left (an echo label, a heredoc in a test).
+TASK_END = re.compile(r"\bgit\b[^\n|;&]*\s(?:commit|push)(?![\w.-])")
+SHELLS = ("Bash", "PowerShell")
 # Auto-compaction fires at the window minus TRIGGER_GAP. Smallest preTokens of an
 # auto compaction [M]: 166,234 at a 200K window (n=101, 09-23..10-04) and 367,328
 # at 400K (n=4, 09-16..09-23) - a fixed gap of 32.7-33.8K, not a ratio.
@@ -252,7 +265,7 @@ def task_end_this_turn(recs):
                 continue
             if (
                 b.get("type") == "tool_use"
-                and b.get("name") in ("Bash", "PowerShell")
+                and b.get("name") in SHELLS
                 and TASK_END.search(str((b.get("input") or {}).get("command", "")))
             ):
                 pushes.add(b["id"])
@@ -366,6 +379,12 @@ def lines(win):
     return trigger - DUE_BEFORE, trigger - GATE_BEFORE, trigger + CEILING_AFTER
 
 
+def context_now(path):
+    return last_context(tail_records(path, SMALL_TAIL)) or last_context(
+        tail_records(path)
+    )
+
+
 def checkpoint_due(inp):
     """The one definition of an overdue R20 checkpoint, for all four layers.
 
@@ -379,9 +398,7 @@ def checkpoint_due(inp):
         return None
     due, gate, ceiling = lines(win)
     path = inp["transcript_path"]
-    ctx = last_context(tail_records(path, SMALL_TAIL)) or last_context(
-        tail_records(path)
-    )
+    ctx = context_now(path)
     if not ctx or ctx[0] < due:
         return None
     since = run_start(segment_responses(tail_records(path)), due)
@@ -430,10 +447,54 @@ def gate_log(inp, event, d):
     )
 
 
+def commit_behind(inp):
+    """None, or a dict, when this tool call was a commit or push past the due line.
+
+    Once per commit, no state. The last git step of a sequence always gets it, and
+    in-time R20 writes took at most 6 calls [M, n=102], so a repeat buys little. Below
+    the due line the next crossing makes the checkpoint overdue anyway. PostToolUse
+    runs only after a tool succeeds [S: hooks.md, read 2026-11-01], so a failed commit
+    never reaches this. Replay of the week to 11-02 [M, 7 sessions]: 11 episodes, 4 of
+    them ending in a compaction with the checkpoint still behind.
+    """
+    cmd = str((inp.get("tool_input") or {}).get("command", ""))
+    if (
+        inp.get("agent_id")
+        or inp.get("tool_name") not in SHELLS
+        or not TASK_END.search(cmd)
+        # a checkpoint written from the shell may quote a commit line
+        or ".claude/checkpoints" in cmd.replace("\\", "/")
+    ):
+        return None
+    win = window()
+    if not win:
+        return None
+    ctx = context_now(inp["transcript_path"])
+    if not ctx or ctx[0] < lines(win)[0]:
+        return None
+    return dict(ctx=ctx[0], win=win, ck=checkpoint_path(inp.get("session_id")))
+
+
 def on_tool(inp):
     d = checkpoint_due(inp)
     if not d:
-        return None
+        b = commit_behind(inp)
+        if not b:
+            return None
+        gate_log(inp, "commit-nudge", b)
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": (
+                    "R20 CHECKPOINT BEHIND (context_hygiene): a commit or push just "
+                    "succeeded at context %dK (auto-compaction fires near %dK), and %s "
+                    "predates it. Update its next step, verdicts and files touched now, "
+                    "unless another commit or push is your very next step: a checkpoint "
+                    "that lists finished work sends the next context back to redo it."
+                    % (b["ctx"] // 1000, (b["win"] - TRIGGER_GAP) // 1000, b["ck"])
+                ),
+            }
+        }
     return {
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
