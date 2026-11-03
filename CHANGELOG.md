@@ -108,6 +108,22 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.03] - 2026-11-03
+
+### SDR receiver to the HA Green: staged move plan written (documentation only, nothing deployed)
+
+Bill asked how to run the NESDR SMArt v5 on the retired HA Green and send the data back to the N100, then for the plan to be written into the repo. His answers, 2026-11-03: the existing dongle moves, the Green decodes the same three meters, Green and antenna go to the basement on Ethernet, and the Green is on a wall adapter with no UPS (`open_questions.yaml`). Plan: `docs/sdr-green-move.md`, tracked as `docs/pending.md` P28. No HA config, entity, automation or add-on changed.
+
+**The unattended moment:** a power cut, or 03:00 with the Green rebooted or its dongle wedged, and nobody looking. The plan has the Green come back by itself and the N100's existing stale alarm say so when it does not.
+
+**Shape.** rtlamr2mqtt runs on the Green and publishes to the N100's Mosquitto, so the N100's HA gets the meters by MQTT discovery. Decoding stays at the radio: raw IQ over `rtl_tcp` at the running rate is 2,621,440 S/s x 2 B x 8 bit, about 41.9 Mbit/s [D], continuous, and rtl_tcp drops its oldest buffer silently when the consumer stalls (`docs/addons/rtlamr2mqtt-recommended.yaml`).
+
+**Staged, so each step tests one variable.** Stage 1 changes the host, add-on version and USB port with the antenna left in place; Stage 2 moves to the basement. Each gets a ledger row before it starts. The Stage 1 row needs InfluxDB, so an on-host session writes it.
+
+**Checked against source (R6), recorded in the plan's section 3 so it is not re-derived:** the meter entities carry over, because discovery topic and unique ids depend only on the meter id; the two copies must never run at once, for the same reason; an external broker works and the manifest's `mqtt:need` is not enforced; a dead Green makes the meter sensors `unavailable`, which the age sensors fail closed on, so the stale alarm fires; the Supervisor boots the add-on even when the Green's Core fails to start; the repository URL fixes the slug, and `https://github.com/allangood/rtlamr2mqtt` gives the `6713e36e` that `sdr_gain_set.py` expects [D: sha1 of the lower-cased URL, first 8 hex]. Not verified: that the 2026.10.15 prebuilt image has an arm64 build.
+
+**Open.** Gate G0: whether the Green powers itself back on after a power cut. The official article returned HTTP 403 here and the only community answer is a guess, so it is a one-minute plug-pull test for Bill, logged in `open_questions.yaml`; it blocks Stage 2. Also open, nothing built: whether the stale alarms should stay quiet while the house is on battery.
+
 ## [2026.11.01] - 2026-11-01
 
 ### R20 commit nudge: `context_hygiene.py` now speaks after a late commit or push (Claude Code hook, a nudge, no gate)

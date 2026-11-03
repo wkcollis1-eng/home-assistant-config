@@ -499,6 +499,23 @@ After the flash, in order:
 5. T17 (a real QD pull) and design section 11's re-run list.
 ```
 
+### P28 — SDR receiver to the HA Green in the basement: staged move, plan only [MEDIUM]
+```
+Opened 2026-11-03 at Bill's request. The plan is docs/sdr-green-move.md - read
+that, not this summary. Nothing done, nothing deployed.
+
+Bill, 2026-11-03: the existing NESDR SMArt v5 moves (no second dongle); the
+Green decodes the same three meters; Green and antenna go to the basement on
+Ethernet; the Green is on a wall adapter, not a UPS.
+
+FIRST ACTION: Stage 0 of the plan. Gate G0 (does the Green power itself back on
+after a power cut?) is open in open_questions.yaml and blocks Stage 2. The Stage
+1 ledger row needs InfluxDB, so it is an on-host session's job, before Stage 1.
+
+DO NOT run scripts/sdr_gain_set.py on the N100 once Stage 1 has started: it
+would edit the idle rollback copy (plan section 8).
+```
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
