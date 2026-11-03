@@ -124,6 +124,18 @@ Bill asked how to run the NESDR SMArt v5 on the retired HA Green and send the da
 
 **Open.** Gate G0: whether the Green powers itself back on after a power cut. The official article returned HTTP 403 here and the only community answer is a guess, so it is a one-minute plug-pull test for Bill, logged in `open_questions.yaml`; it blocks Stage 2. Also open, nothing built: whether the stale alarms should stay quiet while the house is on battery.
 
+### SDR move plan: consequence review; Pirate Weather 1.9.4 and data committed
+
+Bill asked what the plan's unintended consequences are. Reviewed against the add-on and Supervisor source (R6). No HA config changed, and the plan text is not yet corrected: that is Bill's call.
+
+- **Clock skew becomes a failure path.** `lastseen` is stamped by the clock of the host running the add-on [S: rtlamr2mqtt 2026.10.15 `mqtt_publisher.py:209`], and the age sensors subtract it from the N100's `now()` with only a top clamp (`packages/utility_meters.yaml`). On the Green, a clock more than the 5.0 min threshold behind [M: `input_number.sdr_*_stale_minutes`, 2026-11-03] latches all three stale alarms; one ahead delays them. Whether the Green keeps time through a power cut with no internet is [I]; falsifier: cold-boot it with the WAN unplugged and read its log time. Candidate fix, not built: compute age from the N100's receive time.
+- **Section 3's premise is stale.** It assumes the N100 is on 2026.5.9; it runs 2026.10.15 with auto-update on [M: `update.rtlamr2mqtt_update`, 2026-11-03]. If the Green copy is pinned while the stopped N100 copy keeps auto-updating, a rollback starts a different version. The arm64 question is settled: the 2026.10.15 image has amd64 and arm64 builds [M: Docker Hub manifest, 2026-11-03].
+- **Broker outages now replay.** While the broker is unreachable the add-on queues up to 100 readings, dropping the oldest [S: `rtlamr2mqtt.py:81`, `meter_reader.py:140-148`], about 19 min of decodes [D: 100 / 5.35 per min, M 2026-09-17], and publishes them on reconnect stamped with publish time. On one host that was rare; split across two, every N100 reboot triggers it. Whether the burst spikes the derived electric power is [I]; falsifier: `utility_electric_power_clean` history across the last Mosquitto restart.
+- **Ruled out, from source:** a Supervisor auto-update does not start a stopped add-on (Supervisor `apps/app.py` `update()` restores the prior state); an N100 copy started without the dongle exits at the USB check before it connects to MQTT, so it cannot publish `offline` over the Green (`rtlamr2mqtt.py:95-101` against `:173`); a Green that boots before the broker retries every 5 s (`mqtt_publisher.py:88-95`).
+- **Correction to plan section 10:** when the Green dies, the broker's will message makes the meter sensors `unavailable`, the ages go to 99999, and all three alarms fire together, not one by one.
+
+Also committed from the live host: Pirate Weather 1.9.3 to 1.9.4, a HACS update applied there (manifest mtime 2026-10-29 17:51 local), as `0192b77`; routine CSV appends, 16 files, each checked append-only against its committed blob, as `3f4db44`.
+
 ## [2026.11.01] - 2026-11-01
 
 ### R20 commit nudge: `context_hygiene.py` now speaks after a late commit or push (Claude Code hook, a nudge, no gate)
