@@ -136,6 +136,8 @@ Bill asked what the plan's unintended consequences are. Reviewed against the add
 
 Also committed from the live host: Pirate Weather 1.9.3 to 1.9.4, a HACS update applied there (manifest mtime 2026-10-29 17:51 local), as `0192b77`; routine CSV appends, 16 files, each checked append-only against its committed blob, as `3f4db44`.
 
+Later the same day Bill asked for the corrections, and `docs/sdr-green-move.md` now carries them, each marked where it was made: the section 3 premise and arm64 row; four new section 3 rows (the clock, the Green's clock chip, the broker-outage replay, the ruled-out paths); section 6's one variable; a version check before a rollback (section 9); and section 10's alarm timing and what happens when the power comes back. Bill asked whether a CR2032 in the Green fixes the clock. The Green has a PCF8563 clock chip that the kernel reads at boot [S: HAOS Green device-tree patch; Linux v6.18 `drivers/rtc`], so a cell covers a power cut with the internet still down, but not a cell gone flat, which nothing in HA would notice. Computing the age from the N100's receive time is still open.
+
 ## [2026.11.01] - 2026-11-01
 
 ### R20 commit nudge: `context_hygiene.py` now speaks after a late commit or push (Claude Code hook, a nudge, no gate)
