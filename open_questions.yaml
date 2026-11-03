@@ -3061,3 +3061,33 @@
     no document will settle it: the resin stays unknown, iron, manganese and
     hardness have no figure, and every resin-life figure stays [I] for this
     unit (R16). water_filter_limit_gal stays 10000.
+
+- asked: 2026-11-03
+  question: >-
+    For moving the SDR to the HA Green: is it the dongle now on the N100 or a
+    second one, which meters does the Green decode, where does it sit, and is
+    it on the UPS?
+  blocks: >-
+    The move plan, docs/sdr-green-move.md (P28).
+  answered: >-
+    2026-11-03, Bill, over three replies: "the one now on the N100 moving
+    over"; the Green decodes "the same three meters (gas, electric, water)";
+    "antenna and green moved to the basement (Ethernet connection
+    available)"; "Green will use wall plug adapter. Will not be on an ups."
+    The third reply left the power part unanswered, so it was asked again
+    (R14) and answered in the fourth. The question of whether the basement
+    switch stays powered in an outage went moot with that answer: the Green is
+    down in any outage whatever the switch does.
+
+- asked: 2026-11-03
+  question: >-
+    Gate G0: with the Green running, pull its power plug, wait 30 s, plug it
+    back in without touching any button - does it come back by itself (LED
+    heartbeat, UI answers), or does it stay dark until the button is pressed?
+  blocks: >-
+    Stage 2 of docs/sdr-green-move.md (P28). On a wall adapter with no UPS,
+    a Green that needs a button press after a power cut leaves all three
+    meters dark after every outage until someone presses it, which fails the
+    plan's unattended moment. Not settled from documents: the official
+    startup article (Nabu Casa support 25209783508125) returned HTTP 403 here,
+    and the one community answer found is a guess.
