@@ -1751,8 +1751,25 @@ automation:
       # that made min_off behave as 10-25 min in the 2026-07-30
       # investigation. Documented rather than fixed: a finer cadence costs
       # more re-evaluations than the precision is worth here.
+      #
+      # CHANGED 2026-11-03 (Bill): cadence /15 -> /1, and the trigger now
+      # carries id: conditions_cleared. With no id, HA gives a trigger its list
+      # index, so trigger.id was "0" [S: HA 2026.10.4 helpers/trigger/
+      # __init__.py L687]; the stop-reason select_option below then raised
+      # "Invalid option" [S: input_select/__init__.py L313-317] and the action
+      # aborted BEFORE switch.turn_off. This periodic path had never stopped
+      # the unit: 14 d of logbook to 11-03 held 24 condition-passing runs, the
+      # 23 template-triggered ones all switched the plug off within 10 s, the
+      # one time-pattern run (10-30 17:15:00 EDT) did not [M]. So the min-run
+      # release described above never worked. /1 because Bill's rule is
+      # "below rh_off with min-run met = off, always": a consumed edge, an HA
+      # restart or a failed turn_off is now retried within 60 s. No recorder
+      # cost: a run that fails its conditions writes no state row (7 rows for
+      # this automation in 14 d of /15 [M]). The quantisation above is now to
+      # the next minute, not the next /15 boundary.
       - platform: time_pattern
-        minutes: "/15"
+        id: conditions_cleared
+        minutes: "/1"
       - platform: template
         id: conditions_cleared
         # CONTROL VARIABLE RH as of 2026-08-03. is_number() gates first, so
@@ -1818,12 +1835,28 @@ automation:
       # blower lead-in, before compressor_active goes on - is harmless: the
       # RH condition above still has to hold, and HA only just started the
       # unit because RH was above rh_on.
+      #
+      # ADDED 2026-11-03 (Bill): min-run ALSO passes once the plug has been on
+      # min_run + 180 s. cycle_start_time is re-stamped on EVERY compressor
+      # start, including the E080's own restart after its 5-min blower-only
+      # gap (probably defrost [I]; seen 10-30 16:55 EDT and 11-03 16:20 EST
+      # [M]). On 10-30 that re-armed min-run 27 min into the run, RH crossed
+      # rh_off 9.7 min later, the stop was blocked, and the unit ran on until
+      # the E080 stopped itself and Bill switched it off by hand. Bill's rule:
+      # below rh_off with 10 min of run = off, always. 180 s is the E080 blower
+      # lead-in (3 min AIR SAMPLING [S: E080/E100 Owner's Manual, form
+      # 10015108B2209061B1.21, p.4]; 3.0 min on 24 of 24 runs 10-20..11-03
+      # [M]), so a normal start still gets min_run of COMPRESSOR time.
+      # last_on_time is re-stamped on local-control handback; the cs limb
+      # still covers that case, as before. An unset lo stamp fails OPEN, as cs.
       - condition: template
         value_template: >
           {% set cs = states('input_datetime.dehumidifier_cycle_start_time') %}
+          {% set lo = states('input_datetime.dehumidifier_last_on_time') %}
           {% set min_run = states('input_number.dehumidifier_min_run_minutes') | float(0) * 60 %}
           {{ cs in ['unknown', 'unavailable'] or cs[:4] == '1970'
-             or (as_timestamp(now()) - as_timestamp(cs, 0)) >= min_run }}
+             or (as_timestamp(now()) - as_timestamp(cs, 0)) >= min_run
+             or (as_timestamp(now()) - as_timestamp(lo, 0)) >= min_run + 180 }}
       # MOLD VETO. Under RH control this is no longer a control-conflict
       # guard (rh < rh_off and rh > ceiling cannot both hold when the band
       # is ordered below the ceiling). Retained as a CONFIGURATION-ERROR
