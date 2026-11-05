@@ -3128,3 +3128,25 @@
     and ASRock PC leads were not replaced. So (1)-(2) stand: every 10-30
     figure is on the old wire. (3) The drop in the XB7 lead itself is
     unchanged; the shared runs may now drop less. Neither was ever measured.
+
+- asked: 2026-11-05
+  question: >-
+    Battery bank monitor, Rev 2: is the green "on" LED lit on the VEML7700
+    light-sensor board (Adafruit 4162, chained from the OLED's second STEMMA
+    QT port)?
+  blocks: >-
+    Attributing Rev 2's more-negative idle current, 0.9-1.1 mA [M: Rev 1.1,
+    16 nights 2026-10-21 to 11-05 06-10Z, mean -26.57 mA, sd 0.10; Rev 2
+    dark 10-min means -27.46 to -27.54 mA, 2026-11-05 20:13-21:04Z], to the
+    VEML board (Bill's view) rather than a zero shift from re-landing the
+    sense leads on TB3, or V1.30's 500 ms light poll. The chip alone is
+    45 uA typ at 3.3 V [S: Vishay 84286 Rev 1.8 p.2], about 0.01 mA at the
+    bank [D]; the board's LED current is not published. Also blocks whether
+    soc_offset_ma needs changing: a real draw is booked correctly, an offset
+    is not.
+  answered: >-
+    2026-11-05, Bill: yes, the green "on" LED is lit. So the board draws more
+    than the chip: its LED and its regulator, neither current published. That
+    makes the VEML board a live candidate for the shift but does not size it.
+    Unplugging its cable for 10 min with Display Light Wake off measures the
+    board's whole draw; until then the attribution stays [I].

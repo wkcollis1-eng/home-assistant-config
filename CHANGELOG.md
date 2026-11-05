@@ -108,6 +108,163 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.05] - 2026-11-05
+
+### Battery Bank Monitor V1.32: offsets reach flash before the INA228 sentinel; one-shot correction of today's SOC loss; installed and observed
+
+Bill asked "why did soc change; 94 before to 99 after?", then said "lets fix with v1.32" and chose "Correct it once".
+
+**What happened [M: HA history, 2026-11-05]:**
+- 19:50:33Z: the monitor booted after an INA228 power-on reset and bridged. HW Net Charge read -27.046 Ah, HW Energy 2268.6 Wh and SOC 94.25 %.
+- 19:50:48Z: the ESP rebooted again, 15 s later. The bridged offsets were still only in RAM: flash is written every 60 s by default [S: esphome 2026.10.2 components/preferences/__init__.py:19]. The TEMP_LIMIT sentinel, though, had gone to the chip at once.
+- So the second boot found "kept power", restored the old offsets from flash and did not bridge. HW Net Charge read -7.806 Ah, HW Energy 617.4 Wh and SOC 99.10 %.
+- The defect dates from V1.26, which introduced the bridge.
+
+**The unattended moment:** a power cut or board swap resets the INA228, and within a minute the ESP reboots on its own (an OTA install, a brown-out, the watchdog). After that second boot, HW Net Charge, HW Energy and SOC must carry on from the first boot's values.
+
+**What changes on the device (`esphome/battery-bank-monitor.yaml`, V1.31 -> V1.32; CORE, the boot reset check only):**
+- (a) Every restored global the reset check can change is committed before the sentinel is written. There are 9 [M: assignments in the check]; each is queued with `update()`, then `global_preferences->sync()` writes them.
+  - A failed write is logged and published in INA228 Reset Check.
+  - The sentinel is still written after a failed write. The runtime check reboots on any other TEMP_LIMIT value, and a second bridge on a chip that kept power would count CHARGE twice.
+- (b) A one-shot correction of today's loss: the HW Net Charge offset and saved value move by -19.2396 Ah, the HW Energy ones by +1651.2394 Wh [D: 19:50:33Z value minus 19:50:48Z value]. It applies only if both hold:
+  - the live anchor is the 2026-09-30 20:51:04Z full charge (source 1, epoch within 2 h);
+  - the CHARGE bracket still shows the shift. The test is (HW - anchor) - (Ah in - Ah out) within 2 Ah of +19.24 Ah. That residual was -0.012 Ah at 19:50:33Z and +19.220 Ah at 21:42Z [D: anchor -4.2278 Ah, Influx 2026-09-30 20:51Z].
+  - It is decided once, whether applied or skipped: a new restored global, `soc_fix_1105_done`, records that. The outcome is appended to INA228 Reset Check.
+- (c) An R13 note at the bridge code.
+- No new HA entity. Adding the global moves no other global's flash key: keys are md5 of the id [S: esphome 2026.10.2 components/globals/__init__.py:88-92].
+
+**Gate:**
+- R2 host test. It uses the V1.28 harness plus a flash model of ESPHome 2026.10.2: `update()` queues a changed value, `sync()` writes the queue and clears it even on failure, and every boot loads from flash. Built with zig c++ 0.16.0, `-Wall -Wextra -Wformat=2`: 0 warnings.
+  - V1.31: "62 passed, 3 failed". The three failures are the new S11 checks (POR bridge, then an ESP reboot 15 s later): the bridged offset was not in flash, HW Net Charge read -5.089 vs 8.612 Ah, and SOC read 91.689 vs 95.140 % [M: host run].
+  - V1.32: "82 passed, 0 failed". That is the 60 earlier checks, 5 for S11 and 17 for S12 [M: host run]. S12 covers:
+    - applied once, and not again on the next boot or after a later POR;
+    - skipped with nothing changed for a newer anchor, an unshifted frame, a manual anchor, an epoch 2 h + 1 s off on either side, and a provisional anchor;
+    - applied at exactly 2 h;
+    - a failed flash write published, with the sentinel still written.
+  - In the generated C++, `sync()` precedes the TEMP_LIMIT write (main.cpp 8010 vs 8019).
+- DoD 6, run with the ESPHome 2026.10.2 venv in PowerShell, MSYSTEM removed:
+  - Config is valid, with the same one advisory WARNING as V1.31 (OTA password).
+  - Compile EXIT=0. `main.cpp.obj` (16:43:50) is newer than the YAML (16:35:37). `firmware.ota.bin` is 1,040,800 B.
+  - RAM is 116,062 of 321,296 B and flash 1,040,438 of 1,835,008 B [M: compile output]. config_hash is 0x71e3cc92.
+  - The one `-Wformat` warning is the pre-existing watchdog line (V1.31 line 3853, now 3946, unchanged).
+  - R7: `sync()` renamed to `syncx()` failed the same compile (EXIT=1 at yaml 842:34, "has no member named 'syncx'" on `esp32::ESP32Preferences`; `main.cpp.obj` removed). The clean rebuild passed with EXIT=0, the same hash and the same sizes.
+  - The exact LF bytes on H: (sha256 25e889b79ae3ac67...) were re-validated with `esphome config`: EXIT=0, "Configuration is valid!".
+  - R3: 4,004 of V1.31's 4,006 lines are unchanged [M: difflib]. 2 lines were replaced (title, `version`) and 4 blocks inserted (93 lines in total).
+
+**Expected after the install [D]:**
+- SOC about 94.24 % (99.084 - 19.2396 / 397 x 100).
+- HW Net Charge about -27.10 Ah (-7.864 - 19.240).
+- HW Energy about 2269.3 Wh (618.08 + 1651.24).
+- INA228 Reset Check ends with "V1.32 SOC fix APPLIED".
+- [I] If it reads SKIPPED instead, a guard refused: nothing changed and SOC stays near 99 %. Falsified by the APPLIED text.
+
+**Observed after Bill's install (DoD 5) [M: /api/states, read at about 21:50Z, uptime 64 s]:**
+- V1.31 had been running before this install [M: config_hash 0x6e2712cb, read 21:42Z].
+- ESPHome Version reads "2026.10.2 (config hash 0x71e3cc92, built 2026-11-05 16:48:45 -0500)", the hash of the gated build.
+- INA228 Reset Check reads "INA228 kept power across this boot (TEMP_LIMIT sentinel intact) - SOC anchor still valid | V1.32 SOC fix APPLIED: HW Net Charge -19.2396 Ah, HW Energy +1651.2 Wh (bracket residual +19.218 -> -0.022 Ah)".
+- SOC reads 94.2369 %, HW Net Charge -27.1072 Ah and HW Energy 2269.36 Wh. All three match the expected values above.
+- The [I] above is falsified: the correction applied.
+
+**Left open:**
+- (a) is proven only by the host test: no POR followed by a quick ESP reboot has happened on the device since the install.
+
+### Battery Bank Monitor V1.31: panel fixes, health page, position bar, wake lux from HA; dashboard row swapped (source); installed 2026-11-05
+
+Bill flashed V1.30 today [M: running config_hash 0xa20daca3, built 2026-11-05 08:29:06, booted 20:08:04Z]. From the V1.30 mockup sheet he chose:
+- fix tile 5 (page 1 garbled when INA228 reads NaN) and tile 6 (page 4 "STATUS:" off the panel);
+- tile 7, a position bar on the right edge;
+- tile 12, page 3 as built: it gets the bar and nothing else;
+- tile 10, a big "ALL OK" health page;
+- tile 11, on a fault the panel inverts and holds the health page.
+
+He also asked for the panel-on lux level to be settable "like the basement TH node". Mid-session he added that the TH node sits next to the battery monitor, so the BBM should use that node's lux setting.
+
+**The unattended moment:** a fault at night with no one watching. When someone switches the light on, the panel must open on the fault, say what failed, and stay there. CORE (V/I/T, the alarms, `bank_state`, SOC) must behave exactly as in V1.30. No CORE path reads the panel, the light sensor, `g_lux_wake_on` or `panel_fault`.
+
+**What changes on the device (`esphome/battery-bank-monitor.yaml`, V1.30 -> V1.31; firmware changelog items (a)-(e)):**
+- (a) Page 1, NaN branch: the "0.0A"/"0.0W" pair is gone. Only "--A"/"--W" is printed.
+- (b) Page 4 is rebuilt:
+  - an inverted "HEALTH" title carrying the pack temperature, then a big "ALL OK" over the state name, with "_" turned into a space;
+  - in OVERVOLTAGE, EMERGENCY, CRITICAL or WARNING the big word is "ALARM" instead, because "ALL OK" would be false there;
+  - on `panel_fault` the whole panel inverts and shows "FAULT" and the causes.
+  - `panel_fault` is a new internal template binary_sensor, the single definition of the predicate: INA228 watchdog, current channel, temperature sensor NaN, or `bank_state` FAULT.
+- (c) While `panel_fault` is on, a wake opens on page 4 and the 10 s cycle re-shows it. A light edge while the panel is lit still advances one page.
+- (d) A position bar at x 126-127 on pages 1-4. Content ink ends at x <= 124 on every page [M: host render of the planned draw calls with ESPHome 2026.10.2's glyph code and worst-case strings; n = 4 pages, 11 states. R7: the ink check flagged the V1.30 STATUS line and stayed silent on clean page 2].
+- (e) Wake lux: an id-only `homeassistant` import of `input_number.basement_display_lux_wake` (the TH node's helper, `packages/dehumidifier.yaml`), mirrored into a restore global, as the TH node does.
+  - Until HA first reports, the default is `light_wake_on_lux` (20 lx).
+  - Re-arm = min(5 lx, wake / 2) [D], so the hysteresis holds anywhere in the helper's 2-200 lx range. At today's setting, 15.0 lx [M: /api/states 2026-11-05], re-arm stays at 5 lx, as in V1.30.
+  - The blank delay is not shared: this panel's 5 min counts from the wake edge.
+  - No new HA entity: neither the import nor `panel_fault` has a name.
+
+**Evidence for the shared level, and its limits:**
+- The TH node's display woke 35 times at 15 lx between 2026-10-29 and 2026-11-05 [M: recorder, `binary_sensor.basement_th_node_basement_display_on`].
+- In dim light the two sensors agree: BBM 1.90-1.96 lx [M: n=2, 20:08-20:10Z] against TH 1.84-1.89 lx [M: n=1, 1 min min/max].
+- The BBM sensor has not yet seen the room lit [M: `binary_sensor.basement_battery_bank_monitor_display_light_detected` off since the 20:08:04Z boot, read 20:24Z]. Whether 15 lx clears it with the lights on is untested.
+- [I] The two read alike when lit. Falsified if Display Light Level stays below 15 lx with the basement lights on.
+
+**HA dashboard (source only):** the "Device Health & Controls" card's dead Display Button row (`binary_sensor.battery_bank_monitor_display_button`, 404 since V1.30; the session audit's WARN `entity-ref-unresolved`) is replaced by four rows: Display Lit, Display Light Level, the Display Light Wake switch, and `input_number.basement_display_lux_wake`, labelled as shared with the TH node.
+- The new source file is `dashboards/views/battery-bank-dashboard.yaml`. Reversing the row swap gives back the generated view, with 1,052 lines identical. The parsed view equals the live mirror's view object once the old card is restored.
+- Bill pasted the card the same day. `export_dashboards.py` re-ran at 15:48 [M: `.storage/lovelace.lovelace` has 0 Display Button refs and 2 refs to `input_number.basement_display_lux_wake`]. So the generated `dashboards/lovelace/lovelace.yaml` now carries the four rows.
+
+**Gate (DoD 6), ESPHome 2026.10.2 venv, PowerShell, MSYSTEM removed:**
+- Config valid, with the same one advisory WARNING as V1.30 (OTA password).
+- Compile EXIT=0. `main.cpp.obj` (15:28:46) is newer than the YAML (15:26:09). `firmware.ota.bin` is 1,039,568 B.
+- RAM 116,038 of 321,296 B and flash 1,039,200 of 1,835,008 B [M: compile output]. config_hash 0x6e2712cb.
+- The compiler reports one `-Wformat` warning at the INA228 watchdog's `on_press` ESP_LOGE (`%u` for a `uint32_t`). That line is untouched by V1.31, and the warning does not stop the build.
+- R7: an undeclared symbol injected into the new page 4 lambda failed the same compile (EXIT=1, "'undeclared_r7_symbol' was not declared in this scope" at yaml 1070:18; `main.cpp.obj` removed). The clean rebuild passed: EXIT=0, same hash, same sizes.
+- The exact LF bytes on H: were re-validated with `esphome config`: EXIT=0, "Configuration is valid!".
+- gitleaks did not run: the binary was not on PATH this session. The lines added contain entity ids and lambdas only.
+
+**Recorded error (R13):** the V1.30 entry below tags three findings `[K]`. R15 has no `[K]`, and `check_provenance.py` recognises only [M], [S], [D] and [I]. Read those findings as [M]: each was a check run on the files it names.
+
+**Left open:**
+- Bill installed it on 2026-11-05 [M: config_hash 0x6e2712cb running at 21:42Z, /api/states]. V1.32 replaced it the same evening.
+- After the install, check that the panel wakes at the shared level, and read Display Light Level with the room lit.
+- `sensor.basement_battery_bank_monitor_ina228_noise_state` has read "elevated" since the Rev 2 install, and "noisy" at 20:01Z [M: /api/states]. That is a Rev 2 noise check, not this change.
+
+### Battery Bank Monitor V1.30 for PCB Rev 2: light wake, 10 s pages, Charge page deleted; installed 2026-11-05
+
+Bill, 2026-11-05: the Rev 2 board ("Battery_Bank-Monitor-THT-V2 - Rev_2") goes in today, with an Adafruit VEML7700 in place of the button to wake the panel. Pages cycle every 10 s. The Charge page ("press Mark Full if the anchor was missed") is deleted because the HA dashboard covers it. The Device Builder runs ESPHome 2026.10.2.
+
+**The unattended moment:** an outage at night with the room dark. The panel must stay dark, and CORE (V/I/T, the alarms, `bank_state`, SOC) must behave exactly as in V1.28. When a light comes on, the panel must wake [S: `room_lit` delayed_on 2 s, VEML7700 polled every 500 ms] and cycle four pages.
+
+**What changes on the device (`esphome/battery-bank-monitor.yaml`, V1.28 -> V1.30):**
+- V1.29 (repo 389fccb / 8fc0691 / 383b2ed, 2026-09-27/28) was never flashed [M: the 2026-09-28 entry, and `binary_sensor.battery_bank_monitor_display_button` still present on 2026-11-05]. Its items (a)-(e) arrive with this install:
+  - the VEML7700 light wake (0x10 on bus_a);
+  - the button and its HA entity removed;
+  - the V/I/P page;
+  - page cycling;
+  - the PROVISIONAL 20 / 5 lx hysteresis.
+- V1.30 itself:
+  - `display_page_period` goes from 30 s to 10 s;
+  - `page_charge` is deleted, with its text recorded in the firmware changelog (b);
+  - the Rev 2 wiring is added to the header as item 6;
+  - it is built on 2026.10.2.
+- H: carried 43 comment lines from 2026-09-28 that the repo's V1.28 lacked. All 43 are in V1.30 [K: line-set check against the H: file], so none are lost. V1.28 snapshot: `C:\sandbox\bbm_v130\h_v128_backup.yaml`.
+
+**TB1 polarity is reversed between revisions [K: pad nets and silkscreen in both .kicad_pcb files]:** on Rev 2, pin 1 = BATT_RAW ("+") and pin 2 = GND. Rev 1.1 is the reverse, and the board has no reverse-polarity protection. The silkscreen is right on both. On Rev 2, TB3 takes the sense leads and VBus (1 VIN+RAW, 2 VIN-RAW, 3 VBus). The breakout's own terminal block stays empty, and JP stays open in service.
+
+**Gate (DoD 6), ESPHome 2026.10.2 venv, PowerShell:**
+- Config valid, with one advisory WARNING (the ota password; recommends encryption; out of scope).
+- Compile EXIT=0, `main.cpp.obj` newer than the YAML, `firmware.ota.bin` 1,029,360 B.
+- RAM 115,710 of 321,296 B and flash 1,028,992 of 1,835,008 B [M: compile output]; config_hash 0xa20daca3.
+- R7: a lambda fault injected into page_main failed the same compile (EXIT=1, error at yaml 945:24). The clean rebuild passed.
+- The exact LF bytes on H: re-validated with `esphome config`.
+- gitleaks: exit 0 on V1.30; a planted key gave exit 1.
+
+**Two display defects found, both already in V1.28 (repo since a93d57f, 2026-09-08), not fixed:**
+- Page 1's NaN branch prints "0.0A" and then "--A" at the same position, which garbles the line.
+- Page 4's "STATUS: %s" runs off the right edge for 5 of the 11 `bank_state` values: OVERVOLTAGE, CHARGING_ABSORPT, CHARGING_BULK, HEAVY_LOAD and DISCHARGING [K: host render with ESPHome 2026.10.2's glyph code and Roboto 12].
+
+Both are offered to Bill with mockups (`C:\sandbox\bbm_v130\render\bbm_v130_pages.png`), alongside appearance proposals.
+
+**Left open:**
+- Bill installed it on 2026-11-05 [M: config_hash 0xa20daca3, booted 20:08:04Z]. V1.31 replaced it the same day.
+- The panel no longer has an absorption cue. Bill, 2026-11-05: not needed, because he does not stop the charger from the panel; the charger stops by itself.
+- Bill, 2026-11-05: the INA228 breakout is the one from Rev 1.1, re-used, with its onboard 15 mOhm shunt still removed.
+- The light thresholds stay PROVISIONAL until set from Display Light Level on the Rev 2 install.
+- In the repo, `pcb-rev2-noise-fix-design.md` gained three R13 notes. Those notes say the Rev 1.1 results ran V1.28, not V1.29, and that the VEML7700 poll is a second change beside the board for the §8.2 noise comparison.
+
 ## [2026.11.04] - 2026-11-04
 
 ### UPS back in service: topped-off pack, new monitor board (UPS-Monitor Rev 3); no HA config change

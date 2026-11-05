@@ -1,0 +1,1075 @@
+# Battery Bank Dashboard - battery-bank-monitor (view source, 2026-11-05).
+# Copied from the generated mirror (dashboards/lovelace/lovelace.yaml, view
+# battery-bank-dashboard) on 2026-11-05; one change: the Device Health &
+# Controls card's dead Display Button row (button removed on PCB Rev 2,
+# firmware V1.30) is replaced by the light-wake rows. The wake level is the
+# basement TH node's input_number - the two nodes sit side by side and share
+# it (Bill, 2026-11-05; firmware V1.31 reads it). AHEAD of live until pasted.
+# Install (card only): Battery Bank Dashboard > pencil > Device Health &
+# Controls > Show code editor, replace with the card from `type: entities`
+# down. Then run scripts/export_dashboards.py.
+type: sections
+max_columns: 2
+title: Battery Bank Dashboard
+path: battery-bank-dashboard
+sections:
+  - type: grid
+    cards:
+      - type: gauge
+        entity: sensor.battery_bank_monitor_battery_voltage
+        name: Bank Voltage
+        min: 10.5
+        max: 15.5
+        needle: true
+        segments:
+          - from: 10.5
+            color: '#db4437'
+          - from: 11.8
+            color: '#FF7043'
+          - from: 12.2
+            color: '#ff9800'
+          - from: 12.4
+            color: '#FDD835'
+          - from: 12.65
+            color: '#9CCC65'
+          - from: 13
+            color: '#43a047'
+          - from: 13.6
+            color: '#26A69A'
+          - from: 14.2
+            color: '#29B6F6'
+          - from: 14.8
+            color: '#db4437'
+      - type: gauge
+        entity: sensor.battery_bank_monitor_state_of_charge
+        name: State of Charge
+        min: 0
+        max: 100
+        needle: true
+        segments:
+          - from: 0
+            color: '#db4437'
+          - from: 20
+            color: '#ff9800'
+          - from: 35
+            color: '#FDD835'
+          - from: 50
+            color: '#43a047'
+      - type: gauge
+        entity: sensor.battery_bank_monitor_battery_pack_temperature
+        name: Pack Temperature
+        min: 20
+        max: 110
+        needle: true
+        unit: °F
+        segments:
+          - from: 20
+            color: '#db4437'
+          - from: 32
+            color: '#ff9800'
+          - from: 45
+            color: '#43a047'
+          - from: 90
+            color: '#ff9800'
+          - from: 100
+            color: '#db4437'
+      - type: custom:mushroom-entity-card
+        entity: sensor.battery_bank_monitor_bank_state
+        name: Bank State
+        icon: mdi:state-machine
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_charging
+        name: Charging
+        icon: mdi:battery-charging
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_discharging
+        name: Discharging
+        icon: mdi:battery-minus
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_absorption_phase
+        name: Absorption (CV)
+        icon: mdi:battery-arrow-up
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: sensor.battery_bank_monitor_discharge_phase
+        name: Discharge Phase
+        icon: mdi:battery-arrow-down
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: sensor.battery_bank_monitor_runtime_remaining
+        name: Runtime (hours)
+        icon: mdi:battery-clock
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_knee_approaching
+        name: Knee Approaching
+        icon: mdi:trending-down
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_cliff_imminent
+        name: Cliff Imminent
+        icon: mdi:alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_voltage_warning
+        name: Voltage Warning
+        icon: mdi:battery-alert-variant-outline
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_voltage_critical
+        name: Voltage Critical
+        icon: mdi:battery-alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_voltage_emergency
+        name: Voltage EMERGENCY
+        icon: mdi:battery-off
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_battery_overvoltage
+        name: Overvoltage
+        icon: mdi:flash-alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_ina228_alert
+        name: INA228 HW Alert
+        icon: mdi:alert-circle
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: sensor.battery_bank_monitor_ina228_alert_reason
+        name: Alert Reason
+        icon: mdi:message-alert
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_current_channel_fault
+        name: Current Ch. Fault
+        icon: mdi:current-dc
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_ina228_watchdog
+        name: INA228 Watchdog
+        icon: mdi:dog-side
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_ina228_healthy
+        name: INA228
+        icon: mdi:chip
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.battery_bank_monitor_ds18b20_healthy
+        name: DS18B20
+        icon: mdi:thermometer
+        fill_container: true
+        layout: vertical
+        grid_options:
+          rows: auto
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Bank Voltage (24h) — INA228 + Shelly cross-check
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: voltage
+            min: 11.5
+            max: 15
+            apex_config:
+              tickAmount: 7
+              title:
+                text: Volts
+        apex_config:
+          chart:
+            height: 340
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 11.8
+                borderColor: '#FF5722'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: EMERGENCY 11.80 V — shut inverter NOW
+                  position: right
+                  style:
+                    color: '#FF5722'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 12.2
+                borderColor: '#FF7043'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: Critical 12.20 V (= INA228 BUVL hardware alert)
+                  position: right
+                  style:
+                    color: '#FF7043'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 12.4
+                borderColor: '#FF9800'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Warning 12.40 V — review load shedding
+                  position: right
+                  style:
+                    color: '#FF9800'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 13.262
+                borderColor: '#00CA8B'
+                borderWidth: 1
+                strokeDashArray: 3
+                label:
+                  text: Stasis OCV 13.262 V (measured, repo baseline)
+                  position: right
+                  style:
+                    color: '#00CA8B'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': 14.2
+                borderColor: '#29B6F6'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Absorption floor 14.20 V (full-charge anchor gate)
+                  position: right
+                  style:
+                    color: '#29B6F6'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': 14.6
+                borderColor: '#26C6DA'
+                borderWidth: 1
+                strokeDashArray: 3
+                label:
+                  text: LiTime CV setpoint 14.60 V
+                  position: right
+                  style:
+                    color: '#26C6DA'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': 14.8
+                borderColor: '#db4437'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: Overvoltage 14.80 V (= INA228 BOVL — charger fault)
+                  position: right
+                  style:
+                    color: '#db4437'
+                    background: transparent
+                    fontSize: 11px
+        series:
+          - entity: sensor.battery_bank_monitor_battery_voltage
+            name: INA228 (0.2 mV steps)
+            color: '#1A89F5'
+            stroke_width: 3
+            yaxis_id: voltage
+            float_precision: 3
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Battery Current — Charge (+) / Discharge (−) — 24h
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: amps
+            min: -150
+            max: 100
+            apex_config:
+              tickAmount: 5
+              title:
+                text: Amps
+        apex_config:
+          chart:
+            height: 315
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#888888'
+                borderWidth: 1
+                strokeDashArray: 2
+              - 'y': 80
+                borderColor: '#26C6DA'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: LiTime max charge (+80 A → 30 mV shunt)
+                  position: right
+                  style:
+                    color: '#26C6DA'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': -50
+                borderColor: '#FF9800'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: HEAVY_LOAD threshold (−50 A ≈ 640 W)
+                  position: right
+                  style:
+                    color: '#FF9800'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': -117
+                borderColor: '#9C27B0'
+                borderWidth: 1
+                strokeDashArray: 3
+                label:
+                  text: 1500 W heater calibration load (≈ −117 A)
+                  position: right
+                  style:
+                    color: '#9C27B0'
+                    background: transparent
+                    fontSize: 10px
+        series:
+          - entity: sensor.battery_bank_monitor_battery_current
+            name: Current
+            color: '#66BB6A'
+            stroke_width: 2
+            yaxis_id: amps
+            float_precision: 3
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Battery Power (24h)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: watts
+            min: -2000
+            max: 1300
+            apex_config:
+              tickAmount: 6
+              title:
+                text: Watts
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#888888'
+                borderWidth: 1
+                strokeDashArray: 2
+              - 'y': 1168
+                borderColor: '#26C6DA'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: LiTime full rate (~80 A × 14.6 V)
+                  position: right
+                  style:
+                    color: '#26C6DA'
+                    background: transparent
+                    fontSize: 10px
+              - 'y': -1500
+                borderColor: '#c0392b'
+                borderWidth: 1
+                strokeDashArray: 4
+                label:
+                  text: INA228 POL hardware alert (1500 W)
+                  position: right
+                  style:
+                    color: '#c0392b'
+                    background: transparent
+                    fontSize: 10px
+        series:
+          - entity: sensor.battery_bank_monitor_battery_power
+            name: Power
+            color: '#FFA726'
+            stroke_width: 2
+            yaxis_id: watts
+            float_precision: 3
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: State of Charge (24h) — manual shutdown at 20%
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: soc
+            min: 0
+            max: 100
+            apex_config:
+              tickAmount: 5
+              title:
+                text: '%'
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 20
+                borderColor: '#F44336'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: OPERATOR SHUTDOWN — shut bank at ~20% SOC
+                  position: right
+                  style:
+                    color: '#F44336'
+                    background: transparent
+                    fontSize: 11px
+        series:
+          - entity: sensor.battery_bank_monitor_state_of_charge
+            name: SOC (coulomb counter, 397 Ah validated)
+            color: '#43a047'
+            stroke_width: 3
+            yaxis_id: soc
+            float_precision: 1
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Voltage Slope — EMA (mV/min)
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        span:
+          end: hour
+        yaxis:
+          - id: slope
+            min: -30
+            max: 5
+            apex_config:
+              tickAmount: 5
+              title:
+                text: mV/min
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 0
+                borderColor: '#555555'
+                borderWidth: 1
+                strokeDashArray: 2
+              - 'y': -3
+                borderColor: '#FF9800'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Knee threshold (−3 mV/min)
+                  position: right
+                  style:
+                    color: '#FF9800'
+                    background: transparent
+                    fontSize: 11px
+              - 'y': -10
+                borderColor: '#F44336'
+                borderWidth: 2
+                strokeDashArray: 4
+                label:
+                  text: Cliff threshold (−10 mV/min)
+                  position: right
+                  style:
+                    color: '#F44336'
+                    background: transparent
+                    fontSize: 11px
+        series:
+          - entity: sensor.battery_bank_monitor_voltage_slope
+            name: Slope (EMA)
+            color: '#AB47BC'
+            stroke_width: 2
+            yaxis_id: slope
+            float_precision: 2
+            show:
+              in_header: true
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Temperatures — Last 24 Hours
+          show_states: true
+          colorize_states: true
+        graph_span: 24h
+        yaxis:
+          - id: temp
+            min: 40
+            apex_config:
+              title:
+                text: °F
+        apex_config:
+          chart:
+            height: 280
+          legend:
+            show: true
+            position: bottom
+          stroke:
+            curve: smooth
+          annotations:
+            yaxis:
+              - 'y': 32
+                borderColor: '#db4437'
+                borderWidth: 2
+                strokeDashArray: 5
+                label:
+                  text: NEVER charge below 32 °F
+                  position: right
+                  style:
+                    color: '#db4437'
+                    background: transparent
+                    fontSize: 11px
+        series:
+          - entity: sensor.battery_bank_monitor_battery_pack_temperature
+            name: Pack (DS18B20)
+            color: '#00CA8B'
+            stroke_width: 2
+            yaxis_id: temp
+            float_precision: 1
+            show:
+              in_header: true
+          - entity: sensor.battery_bank_monitor_ina228_die_temperature
+            name: INA228 Die
+            color: '#F7D88B'
+            stroke_width: 2
+            opacity: 0.7
+            yaxis_id: temp
+            float_precision: 1
+      - type: markdown
+        title: Bank Status & Runtime
+        content: |
+          {% set st = states('sensor.battery_bank_monitor_bank_state') %}
+          {% set ph = states('sensor.battery_bank_monitor_discharge_phase') %}
+          {% set soc = states('sensor.battery_bank_monitor_state_of_charge') | float(-1) %}
+          {% set rth = states('sensor.battery_bank_monitor_runtime_remaining') | float(-1) %}
+          {% set rtd = states('sensor.battery_bank_monitor_runtime_remaining_days') | float(-1) %}
+
+          {% set st_color =
+            'cyan'   if 'CHARG' in st else
+            'orange' if st == 'HEAVY_LOAD' else
+            '#81C784' if st == 'DISCHARGING' else
+            'red'    if st == 'FAULT' else
+            'lime'   if st == 'IDLE' else 'silver' %}
+
+          ### Bank: <font color="{{ st_color }}">{{ st }}</font> &nbsp;|&nbsp; SOC: <font color="{{ 'red' if soc <= 20 else 'lime' }}">{{ soc | round(1) }}%</font> &nbsp;|&nbsp; Phase: <font color="silver">{{ ph }}</font>
+
+          {% if rth > 0 %}
+          ### Runtime: <font color="{{ st_color }}">{{ rtd | round(1) }} days ({{ rth | round(1) }} h)</font>
+          {% elif 'CHARG' in st %}
+          ### Runtime: <font color="cyan">-- Charging</font>
+          {% else %}
+          ### Runtime: <font color="silver">-- Not discharging</font>
+          {% endif %}
+
+          | Phase | Voltage band | Meaning |
+          | :--- | :---: | :--- |
+          | <font color="silver">{{ '->' if ph in ['N/A', 'Unknown', 'unknown', 'unavailable'] }} Idle</font> | — | Not discharging (phase engages when I < −0.05 A) |
+          | <font color="lime">{{ '->' if ph == 'Settling' }} Settling</font> | > 13.00 V | Post-charge OCV relaxation |
+          | <font color="#81C784">{{ '->' if ph == 'Plateau' }} Plateau</font> | 12.65–13.00 V | Bulk of usable capacity |
+          | <font color="orange">{{ '->' if ph == 'Knee' }} Knee</font> | 12.40–12.65 V | Prepare shutdown |
+          | <font color="red">{{ '->' if ph == 'Cliff' }} Cliff</font> | < 12.40 V | Shut bank immediately |
+
+          ***
+          **Manual operating model:** no HA control of the bank. Operator reads SOC and shuts the bank at **~20% SOC**. The data is the safety system.
+        grid_options:
+          rows: auto
+      - type: markdown
+        title: Thresholds & Hardware Alerts
+        content: |
+          {% set v = states('sensor.battery_bank_monitor_battery_voltage') | float(0) | round(3) %}
+
+          **Firmware alarms (2 s polled)**
+
+          | Threshold | Trigger | Action |
+          | :--- | :---: | :--- |
+          | <font color="#FF9800">Warning</font> | < 12.40 V | Review load shedding |
+          | <font color="#FF7043">Critical</font> | < 12.20 V | Shed non-essential loads |
+          | <font color="#FF5722">EMERGENCY</font> | < 11.80 V | Shut inverter NOW |
+          | <font color="#db4437">Overvoltage</font> | > 14.80 V | Charger fault — disconnect |
+
+          **INA228 hardware alert limits (latched, GPIO5, independent of firmware)**
+
+          | Register | Limit | Catches |
+          | :--- | :---: | :--- |
+          | BUVL | 12.20 V | Bus under-voltage |
+          | BOVL | 14.80 V | Bus over-voltage |
+          | SOVL | +250 A | Charge over-current |
+          | SUVL | −250 A | Discharge over-current |
+          | POL | 1500 W | Over-power |
+
+          ***
+          <center><font color="silver"><i>Current Voltage: {{ v }} V — INA228 reference (Shelly reads ~30 mV low)</i></font></center>
+        grid_options:
+          rows: auto
+      - type: markdown
+        title: Cycle & Charger Health
+        content: |
+          {% set ce = states('sensor.battery_bank_monitor_last_coulombic_efficiency') %}
+          {% set cyc = states('sensor.battery_bank_monitor_total_full_charge_cycles') | int(0) %}
+          {% set cvt = states('sensor.battery_bank_monitor_cv_absorption_time') %}
+          {% set cve = states('sensor.battery_bank_monitor_cv_absorption_elapsed') %}
+          {% set ahc = states('sensor.battery_bank_monitor_ah_charged_this_cycle') | float(0) %}
+          {% set ahd = states('sensor.battery_bank_monitor_ah_discharged_this_cycle') | float(0) %}
+
+          **This Cycle** *(since last full-charge anchor)*
+
+          | Metric | Value |
+          | :--- | ---: |
+          | Ah Charged | {{ ahc | round(2) }} Ah |
+          | Ah Discharged | {{ ahd | round(2) }} Ah |
+          | Full-charge cycles | {{ cyc }} |
+          | HW Net Charge (INA228 reg) | {{ states('sensor.basement_battery_bank_monitor_hw_net_charge_ina228') }} Ah |
+          | Integration Δ (SW−HW) | {{ states('sensor.basement_battery_bank_monitor_cycle_integration_delta_sw_hw') }} Ah |
+          | CV Absorption (live) | {{ cve if cve not in ['unknown', 'unavailable'] else '---' }} min |
+
+          ***
+          **Last Completed Cycle**
+
+          | Metric | Value |
+          | :--- | ---: |
+          | Coulombic Efficiency | {{ ce if ce not in ['unknown', 'unavailable'] else '--- (needs full→full cycle)' }} |
+          | Ah Charged | {{ states('sensor.battery_bank_monitor_last_cycle_ah_charged') }} |
+          | Ah Discharged | {{ states('sensor.battery_bank_monitor_last_cycle_ah_discharged') }} |
+          | Peak Charge I | {{ states('sensor.battery_bank_monitor_last_charge_peak_current') }} |
+          | Peak Discharge I | {{ states('sensor.battery_bank_monitor_last_discharge_peak_current') }} |
+          | Mean Discharge V | {{ states('sensor.battery_bank_monitor_last_discharge_mean_voltage') }} |
+          | CV Absorption Time | {{ cvt if cvt not in ['unknown', 'unavailable'] else '---' }} min |
+          | Unseen Drain | {{ states('sensor.battery_bank_monitor_last_unseen_drain') }} |
+
+          ***
+          **References:** validated capacity **397 Ah** (Oct 2025) · recon coulombic eff. **0.99** · self-discharge **~0%/month** (92-day study). *Absorption time trending up across months at comparable DoD = early capacity-fade indicator.*
+        grid_options:
+          rows: auto
+      - type: markdown
+        title: Outage Data
+        content: |
+          {% set ah = states('sensor.battery_bank_monitor_last_outage_ah') | float(0) %}
+          {% set wh = states('sensor.battery_bank_monitor_last_outage_wh') | float(0) %}
+          {% set dur = states('sensor.battery_bank_monitor_last_outage_duration') | float(0) %}
+          {% set pavg = states('sensor.battery_bank_monitor_last_outage_average_power') | float(0) %}
+          {% set ppk = states('sensor.battery_bank_monitor_last_outage_peak_power') | float(0) %}
+          {% set cnt = states('sensor.battery_bank_monitor_total_outage_events') | int(0) %}
+          {% set ah_o = states('sensor.battery_bank_monitor_outage_ah_this_event') | float(0) %}
+          {% set wh_o = states('sensor.battery_bank_monitor_outage_wh_this_event') | float(0) %}
+
+          **Last Outage**{% if cnt > 0 %} *(#{{ cnt }})*{% endif %}
+
+          | Metric | Value |
+          | :--- | ---: |
+          | Duration | {{ (dur * 60) | round(1) }} min |
+          | Ah Used | {{ ah | round(3) }} Ah |
+          | Wh Used | {{ wh | round(2) }} Wh |
+          | Capacity Used | {{ (ah / 397 * 100) | round(2) }}% of 397 Ah |
+          | Avg Power | {{ pavg | round(1) }} W |
+          | Peak Power | {{ ppk | round(1) }} W |
+
+          ***
+          **This Event** *(live if discharging)*
+
+          | Metric | Value |
+          | :--- | ---: |
+          | Ah | {{ ah_o | round(3) }} Ah |
+          | Wh | {{ wh_o | round(2) }} Wh |
+        grid_options:
+          rows: auto
+      - type: history-graph
+        title: Battery Current — Charge (+) / Discharge (−) — 12h
+        hours_to_show: 12
+        refresh_interval: 30
+        entities:
+          - entity: sensor.battery_bank_monitor_battery_current
+            name: Current (A)
+      - type: history-graph
+        entities:
+          - entity: sensor.battery_bank_monitor_battery_power
+        title: Bank Power (12h)
+        hours_to_show: 12
+        refresh_interval: 30
+      - type: history-graph
+        title: Bank Voltage (12h)
+        hours_to_show: 12
+        refresh_interval: 30
+        entities:
+          - entity: sensor.battery_bank_monitor_battery_voltage
+            name: Voltage (V)
+      - type: history-graph
+        title: State of Charge (12h)
+        hours_to_show: 12
+        refresh_interval: 30
+        entities:
+          - entity: sensor.battery_bank_monitor_state_of_charge
+            name: SOC (%)
+      - type: entities
+        title: Device Health & Controls
+        entities:
+          - entity: sensor.battery_bank_monitor_uptime
+            name: Uptime
+            icon: mdi:clock-outline
+          - entity: sensor.battery_bank_monitor_esp32_internal_temperature
+            name: ESP32 Temp
+            icon: mdi:thermometer
+          - entity: sensor.battery_bank_monitor_ina228_die_temperature
+            name: INA228 Die Temp
+            icon: mdi:chip
+          - entity: sensor.battery_bank_monitor_apparent_ri
+            name: Apparent Ri
+            icon: mdi:omega
+          - entity: sensor.battery_bank_monitor_apparent_ri_sample_count
+            name: Ri Sample Count
+            icon: mdi:counter
+          - entity: sensor.battery_bank_monitor_self_discharge_ah_this_cycle
+            name: Self-Discharge Ah (Cycle)
+            icon: mdi:battery-arrow-down-outline
+          - entity: sensor.battery_bank_monitor_recommended_self_discharge_rate
+            name: Recommended Self-Discharge Rate
+            icon: mdi:chart-line
+          # 2026-11-05 V1.30/V1.31: the button is gone (PCB Rev 2); the VEML7700 wakes the panel.
+          - entity: binary_sensor.basement_battery_bank_monitor_display_lit
+            name: Display Lit
+            icon: mdi:monitor
+          - entity: sensor.basement_battery_bank_monitor_display_light_level
+            name: Display Light Level
+            icon: mdi:brightness-5
+          - entity: switch.basement_battery_bank_monitor_display_light_wake
+            name: Display Light Wake
+            icon: mdi:lightbulb-on-outline
+          - entity: input_number.basement_display_lux_wake
+            name: Panel Wake Level (shared with basement TH node)
+            icon: mdi:white-balance-sunny
+          - entity: sensor.battery_bank_monitor_ip_address
+            name: IP Address
+            icon: mdi:ip-network
+          - type: divider
+          - entity: button.battery_bank_monitor_mark_as_fully_charged_reset_cycle_counters
+            name: Mark as Fully Charged (missed-anchor backup)
+            action_name: MARK 100%
+          - entity: button.battery_bank_monitor_reset_lifetime_counters_post_battery_swap
+            name: Reset Lifetime Counters (battery swap ONLY)
+            action_name: RESET
+      - type: vertical-stack
+        cards:
+          - type: grid
+            columns: 3
+            square: false
+            cards:
+              - type: custom:mushroom-template-card
+                primary: '{{ states(''sensor.backup_essentials_load'') | float(0) | round(0) }} W'
+                secondary: |-
+                  {{ state_attr('sensor.backup_essentials_load', 'amps_at_bank_v')
+                     | float(0) | round(0) }} A from the bank
+                icon: mdi:home-battery
+                icon_color: |-
+                  {% set a = state_attr('sensor.backup_essentials_load',
+                                        'amps_at_bank_v') | float(0) %}
+                  {% if a >= 250 %}red{% elif a >= 150 %}orange{% else %}green{% endif %}
+                vertical: true
+                tap_action:
+                  action: more-info
+                  entity: sensor.backup_essentials_load
+              - type: custom:mushroom-template-card
+                primary: |-
+                  {{ states('sensor.battery_bank_monitor_state_of_charge')
+                     | float(0) | round(1) }}%
+                secondary: |-
+                  {{ states('sensor.battery_bank_monitor_bank_state') }} · {{ states('sensor.battery_bank_monitor_battery_voltage')
+                     | float(0) | round(2) }} V
+                icon: mdi:battery-charging-high
+                icon_color: |-
+                  {% set s = states('sensor.battery_bank_monitor_state_of_charge')
+                             | float(0) %}
+                  {% if s < 30 %}red{% elif s < 60 %}orange{% else %}green{% endif %}
+                vertical: true
+                tap_action:
+                  action: more-info
+                  entity: sensor.battery_bank_monitor_state_of_charge
+              - type: custom:mushroom-template-card
+                primary: |-
+                  {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                        'age_coverage_ratio') | float(0) %}
+                  {% if c < 0.9 %}
+                    filling…
+                  {% else %}
+                    {{ states('sensor.backup_essentials_avg_24h') | float(0) | round(0) }} W
+                  {% endif %}
+                secondary: |-
+                  {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                        'age_coverage_ratio') | float(0) %}
+                  {% if c < 0.9 %}
+                    {{ (c * 24) | round(1) }} h of 24 · now
+                    {{ states('sensor.backup_essentials_avg_24h') | float(0) | round(0) }} W
+                  {% else %}
+                    24 h mean · outage was
+                    {{ states('sensor.battery_bank_monitor_last_outage_average_power')
+                       | float(0) | round(0) }} W
+                  {% endif %}
+                icon: mdi:timer-outline
+                icon_color: |-
+                  {% set c = state_attr('sensor.backup_essentials_avg_24h',
+                                        'age_coverage_ratio') | float(0) %}
+                  {{ 'disabled' if c < 0.9 else 'blue' }}
+                vertical: true
+                tap_action:
+                  action: more-info
+                  entity: sensor.backup_essentials_avg_24h
+          - type: entities
+            title: Peak hold — lower bounds, see header
+            show_header_toggle: false
+            entities:
+              - entity: sensor.backup_essentials_peak_watts
+                name: ALL ESSENTIALS, SIMULTANEOUS — the sizing number
+                secondary_info: last-changed
+              - type: section
+                label: Individual peaks — taken at different moments, do NOT add these
+              - entity: sensor.fridge_peak_watts
+                name: Fridge (inrush ~18x running)
+              - entity: sensor.furnace_peak_watts
+                name: Furnace — COOLING until first heat call
+              - entity: sensor.family_room_peak_watts
+                name: Family Room (SEM)
+              - entity: sensor.hwh_recirc_peak_watts
+                name: HWH recirc pump
+              - entity: sensor.monitoring_peak_watts
+                name: Monitoring brain (HA + UPS + router)
+              - entity: sensor.basement_router_peak_watts
+                name: ↳ of which, basement router
+              - type: divider
+              - entity: input_button.reset_load_peaks
+                name: Reset peaks — press at first heat call
+              - type: section
+                label: NEVER RUN THE COFFEE MAKER ON THE INVERTER
+          - type: custom:apexcharts-card
+            stacked: true
+            graph_span: 24h
+            header:
+              show: true
+              title: Essentials — 24 h, stacked
+              show_states: true
+              colorize_states: true
+            yaxis:
+              - id: watts
+                min: 0
+                apex_config:
+                  title:
+                    text: Watts
+            series:
+              - entity: sensor.sem_furnace_power
+                name: Furnace
+                type: area
+                color: '#FF7043'
+                stroke_width: 1
+                yaxis_id: watts
+              - entity: sensor.sem_fridge_power
+                name: Fridge
+                type: area
+                color: '#42A5F5'
+                stroke_width: 1
+                yaxis_id: watts
+              - entity: sensor.sem_family_room_power
+                name: Family Room
+                type: area
+                color: '#8D6E63'
+                stroke_width: 1
+                yaxis_id: watts
+              - entity: sensor.hwh_current_consumption
+                name: HWH recirc
+                type: area
+                color: '#26A69A'
+                stroke_width: 1
+                yaxis_id: watts
+              - entity: sensor.monitoring_load
+                name: Monitoring (HA + UPS + router)
+                type: area
+                color: '#AB47BC'
+                stroke_width: 1
+                yaxis_id: watts
+              - entity: sensor.backup_essentials_load
+                name: Total (bank) — live
+                type: line
+                color: '#FFFFFF'
+                stroke_width: 2
+                yaxis_id: watts
+                show:
+                  in_header: true
+                  legend_value: true
+          - type: custom:apexcharts-card
+            graph_span: 24h
+            header:
+              show: true
+              title: Whole home vs essentials
+              show_states: true
+              colorize_states: true
+            yaxis:
+              - id: watts
+                min: 0
+                apex_config:
+                  title:
+                    text: Watts
+            series:
+              - entity: sensor.sem_whole_home_power
+                name: Whole home — 5 min avg
+                type: line
+                color: '#78909C'
+                stroke_width: 2
+                group_by:
+                  func: avg
+                  duration: 5min
+                yaxis_id: watts
+              - entity: sensor.backup_essentials_load
+                name: On the bank — 5 min avg
+                type: area
+                color: '#66BB6A'
+                stroke_width: 2
+                group_by:
+                  func: avg
+                  duration: 5min
+                yaxis_id: watts
+          - type: entities
+            title: Measured — what the bank has already carried
+            show_header_toggle: false
+            entities:
+              - entity: sensor.battery_bank_monitor_total_outage_events
+                name: Outages survived
+              - type: divider
+              - entity: sensor.battery_bank_monitor_last_outage_peak_power
+                name: Last outage — peak power
+              - entity: sensor.battery_bank_monitor_last_discharge_peak_current
+                name: Last discharge — PEAK CURRENT
+              - entity: sensor.battery_bank_monitor_last_outage_average_power
+                name: Last outage — average power
+              - entity: sensor.battery_bank_monitor_last_outage_duration
+                name: Last outage — duration
+              - entity: sensor.battery_bank_monitor_last_outage_wh
+                name: Last outage — energy delivered
+              - type: divider
+              - entity: sensor.battery_bank_monitor_runtime_remaining
+                name: Runtime remaining (bank's own estimate)
+              - entity: sensor.battery_bank_monitor_last_coulombic_efficiency
+                name: Coulombic efficiency
+    column_span: 2
+cards: []
+header:
+  card:
+    type: markdown
+    text_only: true
+    content: '# Battery Bank Status — 12V 500Ah LiFePO4 (397 Ah validated)'
+badges:
+  - type: custom:mushroom-template-badge
+    entity: sensor.battery_bank_monitor_bank_state
+    content: '{{ states(''sensor.battery_bank_monitor_bank_state'') }}'
+    icon: '{% set s = states(''sensor.battery_bank_monitor_bank_state'') %} {% if ''CHARG'' in s %}mdi:battery-charging
+      {% elif s == ''DISCHARGING'' %}mdi:battery-minus {% elif s == ''HEAVY_LOAD'' %}mdi:battery-alert-variant
+      {% elif s == ''FAULT'' %}mdi:alert-octagon {% else %}mdi:battery-check{% endif %}'
+    color: '{% set s = states(''sensor.battery_bank_monitor_bank_state'') %} {% if ''CHARG'' in s
+      %}#00bcd4 {% elif s == ''DISCHARGING'' %}#4caf50 {% elif s == ''HEAVY_LOAD'' %}#ff9800 {% elif
+      s == ''FAULT'' %}#f44336 {% else %}#9e9e9e{% endif %}'
+  - type: custom:mushroom-template-badge
+    entity: sensor.battery_bank_monitor_state_of_charge
+    content: SOC {{ states('sensor.battery_bank_monitor_state_of_charge') | float(0) | round(1) }}%
+    icon: mdi:battery-high
+    color: '{% set soc = states(''sensor.battery_bank_monitor_state_of_charge'') | float(0) %} {%
+      if soc <= 20 %}#f44336 {% elif soc <= 35 %}#ff9800 {% else %}#4caf50{% endif %}'
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: sensor.battery_bank_monitor_battery_pack_temperature
+    show_entity_picture: false
+  - type: entity
+    show_name: true
+    show_state: true
+    show_icon: true
+    entity: sensor.battery_bank_monitor_voltage_slope
+    show_entity_picture: false
+  - type: entity
+    entity: sensor.ina228_bring_up_wifi_signal
+    show_name: true
+icon: mdi:battery-charging-100

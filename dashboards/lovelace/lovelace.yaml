@@ -3795,9 +3795,18 @@ views:
               - entity: sensor.battery_bank_monitor_recommended_self_discharge_rate
                 name: Recommended Self-Discharge Rate
                 icon: mdi:chart-line
-              - entity: binary_sensor.battery_bank_monitor_display_button
-                name: Display Button
-                icon: mdi:gesture-tap-button
+              - entity: binary_sensor.basement_battery_bank_monitor_display_lit
+                name: Display Lit
+                icon: mdi:monitor
+              - entity: sensor.basement_battery_bank_monitor_display_light_level
+                name: Display Light Level
+                icon: mdi:brightness-5
+              - entity: switch.basement_battery_bank_monitor_display_light_wake
+                name: Display Light Wake
+                icon: mdi:lightbulb-on-outline
+              - entity: input_number.basement_display_lux_wake
+                name: Panel Wake Level (shared with basement TH node)
+                icon: mdi:white-balance-sunny
               - entity: sensor.battery_bank_monitor_ip_address
                 name: IP Address
                 icon: mdi:ip-network
