@@ -464,6 +464,18 @@ TO DEPLOY:
    UPS_SurvivalSleep_Design_Summary_v11.md and v12.md, and the
    DIY-LiFePO4-UPS copy of ups-monitor.yaml.
 
+2026-11-04: SUPERSEDED BY HARDWARE on the deployed board. The monitor is now
+on UPS-Monitor Rev 3 (Bill; board file in open_questions.yaml 2026-11-04),
+which routes ALERT to D1 = GPIO3, the pin V1.20 reads [M: pad positions].
+- Do NOT apply V1.21: on Rev 3, GPIO5 is unconnected.
+- Everything above about pins describes Rev 1.
+- Rev 3 has no test points. For the test below, ALERT is R1 pad 1 (the
+  pull-up's other end is +3V3) or the INA260 socket's Alert pin; GND is TB1
+  pin 2. Run it on V1.20 as is: there is nothing to Install.
+- TO DEPLOY above is void on Rev 3, step 5 included: docs that say GPIO3
+  (D1) are right for this board.
+- C:/sandbox/ups_v121/ deleted 2026-11-04 at Bill's request, so nothing can
+  load V1.21 by mistake. It survives only in git 01045d0.
 CLOSE WHEN, after Install:
 - the sensor reads off at idle;
 - holding the ALERT test point to the GND test point for >200 ms

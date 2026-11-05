@@ -3091,3 +3091,40 @@
     plan's unattended moment. Not settled from documents: the official
     startup article (Nabu Casa support 25209783508125) returned HTTP 403 here,
     and the one community answer found is a guess.
+
+- asked: 2026-11-04
+  question: >-
+    Is the monitor board fitted on 2026-11-04 (same XIAO ESP32-C3 and INA260)
+    a second UPS-Monitor-THT Rev 1 wired as before, or a different design?
+  blocks: >-
+    P26: its pin claims (INA260 ALERT on XIAO D3 = GPIO5, which V1.20 does
+    not read) and the withdrawn V1.21 fix were made from the Rev 1 board file.
+  answered: >-
+    2026-11-04, Bill: the board file, C:/Users/wkcol/OneDrive/Desktop/UPS
+    Monitor Rev 3 -Oct 2026/UPS-Monitor-Rev 3 - Oct 2026.kicad_pcb (gerbers
+    dated 2026-10-08). Read with that file [M: pad positions]: Rev 3 routes
+    ALERT to the XIAO footprint pad at x = 12.69 mm, D1 = GPIO3, the pin V1.20
+    reads; Rev 1 routed it to x = 7.61 mm, D3 = GPIO5. SDA, SCL and GPIO10 sit
+    at the same positions on both and work on Rev 3 (INA260 and DS18B20
+    healthy), which fixes the module's orientation. So on Rev 3 the V1.21 fix
+    is wrong and must not be applied (P26).
+
+- asked: 2026-11-04
+  question: >-
+    The UPS rewire (Amazon stranded 16 AWG replaced with DigiKey 16 AWG solid
+    and stranded): was it done before 2026-10-30, or during the 10-31 to 11-04
+    swap? Which runs did it cover: PSU to ideal diode to bus, pack to bus, the
+    XB7 lead?
+  blocks: >-
+    (1) Predicting the bus with the XB7 back on: the 10-30 float of 13.2042 V
+    [M, n = 16,656] predicts it only on the same wire. (2) Every 10-30 against
+    11-04 comparison: the ~33 mOhm PSU-path estimate (reply, 11-04), the "drop
+    grows with load" [I] in CHANGELOG 2026.11.04, and the loaded noise pair.
+    (3) The XB7 terminal estimate, which used the design's computed 57 mV lead
+    drop for 16 AWG at 4.016 mOhm/ft.
+  answered: >-
+    2026-11-04, Bill: during the 10-31 to 11-04 board swap. Solid between
+    the PSU and the ideal diode, stranded for the remaining runs; the XB7
+    and ASRock PC leads were not replaced. So (1)-(2) stand: every 10-30
+    figure is on the old wire. (3) The drop in the XB7 lead itself is
+    unchanged; the shared runs may now drop less. Neither was ever measured.

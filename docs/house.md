@@ -35,6 +35,13 @@ _Moved verbatim from CLAUDE.md (Home + Active Projects) on 2026-10-25; the point
 - **DIY LiFePO4 UPS**: powers the N100DC host via an 18 V U3V70A boost (fitted
   2026-08-29, EN/FET not installed). V1.20 firmware on ESPHome 2026.9.0
   (2026-09-16). 53.3 Wh; ~128 min [D] at 2.089 A / 26.80 W [M, 2026-08-29].
+  Monitor board: UPS-Monitor Rev 3 since 2026-11-04, same XIAO ESP32-C3 and
+  INA260 (Bill); INA260 ALERT reaches GPIO3 there (P26).
+  XB7 (Xfinity gateway, normally on the UPS bus): 12 V DC, safe zone +/-10 %,
+  so 13.2 V max (Bill, 2026-11-04); the design set calls +/-10 % inferred.
+  UPS wiring since the 10-31 to 11-04 swap: DigiKey 16 AWG, solid PSU to ideal
+  diode, stranded for the rest, replacing Amazon stranded 16 AWG; the XB7 and
+  ASRock PC leads were not replaced (Bill, 2026-11-04).
 - **HVAC Performance Baseline**: Longitudinal SPC study since 2021, 102.0 CCF/1k HDD65 efficiency
   (ACIS BDL 2025, rebased 2026-10-10, Navien therms->CCF 2026-10-15; was 100.6, and 90.3 on
   NOAA 6,270 HDD - see `docs/baselines.md`)
