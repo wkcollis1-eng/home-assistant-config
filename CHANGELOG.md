@@ -138,6 +138,10 @@ The repo change was uncommitted when this entry was written.
   - Rev 2's "noisy" at 20:01Z is the gauge's ~5-min average carrying a ~4 A load [D: timing].
   - The thresholds are stale. The follow-up is in the note's §9; nothing is changed here.
 - **Not run:** the JP zero and the zero-move test. There is no independent current reference; the clamp question is still open.
+- **R13 addendum, same day: "Rev 2 is near the chip's own noise" was not established.**
+  - The 0.16 mA chip figure is SLYS021A Table 8-2's 19.7 noise-free bits at our settings [S: p. 33]. That is a peak-to-peak of 1.23 codes of the 20-bit shunt register [D: 2^(20 − 19.7)], and the table is flat at 19.7 from 527 to 2,124 ms [S: pp. 33–34]. It is a typical-table figure at the register's resolution, not a measured floor.
+  - What holds without it: the re-spin removed 0.114 mA rms in quadrature, 95 % [0.107, 0.121] [D: √(0.2060² − 0.1717²), bootstrap se]; the same breakout served both builds (Bill, in the V1.30 entry below). The chip's own noise is at most 0.176 mA [D: top of Rev 2's 95 % interval].
+  - How Rev 2's 0.172 mA splits between chip and board waits on the JP run. R13 notes were added beside the claim (§8.1, §8.2) and beside the header's comparison with the chip's floor; nothing was removed.
 
 ### Battery Bank Monitor V1.32: offsets reach flash before the INA228 sentinel; one-shot correction of today's SOC loss; installed and observed
 
