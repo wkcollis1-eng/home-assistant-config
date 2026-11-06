@@ -110,6 +110,30 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.06] - 2026-11-06
+
+### UPS bleed, step 1 of the 14a order: the pack reached float on the N100 alone (no HA config change)
+
+Bill, 2026-11-06: the battery and the PSU have reached equilibrium. HA agrees [M, HA history, EST, row statistics of change-only series]:
+
+- **Pack current** (`sensor.tv_room_ups_monitor_battery_current_10_hz_mean`, 2 h medians, about 1,440 rows each): -247 mA at 17:00 11-04, a peak of -266 mA at 19:00, then -214, -168, -112, -60, -26, -11 and -5 mA, and -0.5 mA in the 15:00 11-05 bin. The 1 h median has stayed inside +/-5 mA from 14:00 11-05 on. Since 15:00 11-05: median +0.7 mA, mean -1.0 mA, IQR -7.8 to +12.0 mA, n = 17,606, to 15:26 11-06. That is zero to within the INA260's own zero, which nothing on this board has checked.
+- **Bus** (`sensor.ups_monitor_battery_voltage`): 13.256 V in the first 2 h bin, then 13.242 V in every bin from 15:00 11-05 (median 13.2420 V, n = 16,568). To one decimal that is the order's 13.2 V end point. It sits 37.8 mV above the 10-30 float of 13.2042 V [D: 13.2420 - 13.2042], which had the XB7 on and the old wiring (2026.11.04).
+- **Plug** (`sensor.ups_outlet_current_consumption`, 2 h medians): 9.7 W at 19:00 11-04, 13.6 W from 15:00 11-05 (n = 38,808). That is a 3.9 W rise while the pack's share fell by 3.52 W DC [D: 0.266 A x 13.25 V], so the PSU picked up what the pack stopped supplying. The N100's load is not held constant, so this is a consistency check, not an efficiency figure. The +8 to +9 W steps in the plug series are N100 bursts that come back down within minutes; there is no sustained step after 11-04.
+- 11-04's [I] (falsified if the bus reached 13.21 V with the PSU carrying all of the N100) is not falsified: the PSU carries all of it at 13.242 V. Because the wiring changed between the two readings, this still does not show that the drop grows with load.
+
+**The bleed's charge**, which the top-off design's §10.2 runs the bleed to measure: **3.73 Ah out of the pack** from load-on (15:40:52 11-04) to 15:00 11-05, and 3.76 Ah to 15:26 11-06 [D: forward-filled integral of the 10 Hz mean, 34,431 rows, holds capped at 10 s]. Of that, 0.118 Ah came out during Bill's AC-cut test (21:49-21:57 11-04). It is counted because it left the pack all the same. Not counted: the 215 s with HA down during the N100's move (15:37:17-15:40:52), at most 0.084 Ah [D: 1.4 A x 215 s / 3600]. The firmware's own Ah counters cannot give this figure, because they skip discharge weaker than -0.20 A and the pack's share stayed under that for most of the bleed.
+
+Set against the 7.42 Ah put in past float by S8-S18 [D, design §11.2], the bleed is 3.69 Ah short [D: 7.42 - 3.73]. Nothing here says which of three explanations accounts for that:
+- the P20's 6.9 Ah display reading (n = 1, accuracy unchecked), which makes up nearly all of the 7.42 Ah;
+- the pack settling 37.8 mV above the old float and keeping charge that the old float would not [I];
+- INA260 zero or gain error, with no reference check. Each 1 mA of zero offset moves the figure by 0.023 Ah over the 23.3 h to equilibrium [D: 0.001 A x 23.3 h].
+
+14a decides between them (O23): the bleed's Ah plus 14a's Ah, set against 9.95 Ah [I].
+
+**What the XB7 step tests.** The next step in the owner's order is the XB7 on the bus, then at least 24 h, then 14a. The wiring stays the same and the load goes up. If the bus settles below 13.242 V, the drop between the PSU and the bus grows with load, and the pack will give a second, smaller bleed down to the new level; that charge belongs in the total above [I]. If the bus stays at 13.242 V, the 37.8 mV comes from the wiring or the PSU, not from the load. Written 2026-11-06 about 15:30 EST. The plug shows no sustained step since 11-04, but whether the XB7 is on the bus is Bill's to say.
+
+No HA config or firmware changed. At Bill's go-ahead the same day, the top-off design doc (DIY-LiFePO4-UPS, rev 0.20) records this bleed in §10.2, §11.2 and O23. It also makes two corrections. First, R13: its §10.2 had read the UPS INA260 as counting load current, twice and tagged [I], but the INA260 meters the battery branch [S: that repo's README, from the `ups-monitor.yaml` header]. Second, the XB7's R5 "envelope" top of 13.11 V is the 2 A worst-case drop off a 13.20 V bus [S: its `docs/voltage-drop-analysis.md`], not a limit measured on the XB7. The doc also recommends, without deciding, ending a bleed on the pack current: the bus moved only 10 mV across the whole taper.
+
 ## [2026.11.05] - 2026-11-05
 
 ### INA228 PCB Rev 2: first noise results written up (documentation only, no HA config change)
