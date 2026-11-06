@@ -82,6 +82,8 @@ is calibrated against.
 | 2026-10-30 | **Top-off charger, the first V0.5 hold of 8 h at PSU 14.42 V.** The last 10-min window of the tail, Last Session Final Window Mean less Last Session Idle Offset, reads 0.195-0.213 mA [D: S5's two log-log fits, extrapolated from 6 h to 8 h, R11], with the session ending DONE. Falsified by a reading outside that range; a flat tail from +6 h is the plateau the longer hold was asked to find. Void if the session starts over 24 h after a hold ends, or if the pack was charged in between [I: S4 to S5 the same tail fell, so a fuller start may read low]. Not a claim about where the current goes: the DMM question in `open_questions.yaml` is outstanding, and this row measures only the shunt. | yes - written before the flash | pending, due at that session |
 | 2026-11-01 | **The third measured softener regen.** `binary_sensor.water_softener_regen_last_night` turns on for a real regen by the morning of 2026-11-08, before `binary_sensor.softener_regen_overdue` comes up at 3300 gal [I: the one measured cycle is 2775.5 gal [M, n=1], and 2757.8 gal have run since the last regen [M, 2026-11-01 about 10:20 EST], which leaves 17.7 gal [D: 2775.5 - 2757.8], and the softener's own count is not on the main meter]. Falsified if overdue turns on first, or no regen by 2026-11-08 05:01:15. Void if the SDR water meter is down on the night. This is also the first real run of `softener_regen_count`. | yes - written before the regen | pending, due 2026-11-08 |
 | 2026-11-01 | **R20 commit nudge.** Of the first 40 compactions after deployment, `scorecard.py recovery` shows at most 1 that followed a commit or push the checkpoint predates. [I: a one-shot nudge is enough because in-time writes took at most 6 calls [M, n=102], and the last git step of a sequence always gets it.] Baseline 8 of 100 [D: 6 of 57 + 2 of 43, scorecard.py recovery, the two weeks to 2026-11-02], so 1 or fewer of 40 comes up about 16 % of the time with no effect [D: binomial, p = 0.08]. Falsified by 2 or more; then make it repeat until the checkpoint is written. Read `commit-nudge` rows in gate.log beside it: a row with no write inside 6 calls is the failure this row predicts will not happen. | yes | open |
+| 2026-11-05 | **INA228 PCB Rev 2 is quieter by σ over a full week.** Pooled σ through the 0.7629 mA quantizer, over 2026-11-06 to 11-12 with nights included, lands at 0.160–0.190 mA. Blocks are centred, dark, idle 10-min blocks, by the method in `pcb-rev2-noise-fix-design.md` §8.2, "Results on Rev 2". [I: 5 h gave 0.1717 mA, se 0.0023, n = 22 blocks, evening only.] HIT inside 0.160–0.190. MISS outside it but below 0.199. Falsified at 0.199 mA or above, which is the lowest σ of 31 Rev 1.1 evenings [D]. | yes, before any 11-06 data was read | open |
+| 2026-11-05 | **Rev 2's visible calm is grid position, and it goes when the zero drifts.** If by 2026-12-31 Rev 2's idle mean comes within 0.1 code of a code boundary (−27.85 or −27.08 mA, or any other), those blocks show a median 2-s scatter of at least 0.33 mA. [D: σ 0.1717 mA through the quantizer gives 0.381 mA on a boundary; Rev 1.1's on-boundary row measured 0.380 mA, n = 268 blocks.] Falsified if they show under 0.30 mA. Void if no block comes within 0.1 code of a boundary by 12-31. | yes | open |
 
 **Running score: 19 hits, 6 misses, 5 falsified, 5 withdrawn, 3 void.** (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
@@ -109,6 +111,33 @@ is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.05] - 2026-11-05
+
+### INA228 PCB Rev 2: first noise results written up (documentation only, no HA config change)
+
+Bill asked for a detailed before/after of Rev 2's current noise: "the current seems to have significantly less jitter".
+
+It is written into the Lifepo4-Battery-Banks repo, `INA228 Monitor/pcb-rev2-noise-fix-design.md`:
+- the header Status;
+- a §0 row;
+- §8.2, "Results on Rev 2, 2026-11-05";
+- two §9 follow-ups.
+
+The repo change was uncommitted when this entry was written.
+
+**Findings.**
+- **σ before the quantizer:** Rev 2 0.1717 mA (22 blocks) against Rev 1.1 0.2060 mA (4,226 blocks), z = −14.7 [D: block bootstrap]. Over the same UTC hours, z = −13.2 [D].
+- **Most of the visible calm is grid position.** Share of samples off the most common code [M]:
+  - Rev 1.1, last week: 30.3 % (969 blocks);
+  - Rev 2: 5.3 % (22 blocks);
+  - Rev 1.1, days with the mean at a code centre: 7.6 % (720 blocks).
+
+  Two prediction-ledger rows were registered for this (above).
+- **This answers the open note in the V1.32 entry below.**
+  - `ina228_noise_state` read "elevated" on Rev 1.1 too. Every publication from 10-01 to 11-05 fell between 0.3076 and 0.3287 W [M: n = 51,389].
+  - Since the 09-28 GND move, the gauge reads the monitor's own draw through the shunt.
+  - Rev 2's "noisy" at 20:01Z is the gauge's ~5-min average carrying a ~4 A load [D: timing].
+  - The thresholds are stale. The follow-up is in the note's §9; nothing is changed here.
+- **Not run:** the JP zero and the zero-move test. There is no independent current reference; the clamp question is still open.
 
 ### Battery Bank Monitor V1.32: offsets reach flash before the INA228 sentinel; one-shot correction of today's SOC loss; installed and observed
 
