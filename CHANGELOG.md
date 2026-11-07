@@ -112,6 +112,54 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.06] - 2026-11-06
 
+### INA228 PCB Rev 2: the first full day of idle data written up (documentation only, no HA config change)
+
+Bill asked for the Rev 2 design note to be updated with the last ~24 h of data. The changes are in the Lifepo4-Battery-Banks repo, `INA228 Monitor/pcb-rev2-noise-fix-design.md`:
+- the header Status;
+- the §0 row;
+- an R13 note under §8.2's "Per evening";
+- a new subsection, "Results on Rev 2, first day, 2026-11-06".
+
+The repo change was uncommitted when this entry was written.
+
+**Findings.** The window runs 20:10Z 11-05 to 21:00Z 11-06. Firmware was V1.32 throughout, with no reboot, load or lit display after 17:50 EST 11-05 [M].
+- **σ before the quantizer:** 0.1701 mA, 95 % [0.1671, 0.1724] (141 blocks), against Rev 1.1's 0.2060 mA (4,226 blocks), z = −26.4 [D: block bootstrap]. That is below all 28 Rev 1.1 days with at least 100 centred blocks; the lowest of them read 0.2014 mA [D].
+- **It held through the day.** The 119 blocks after the first 5 h read 0.1694 mA, z = −1.1 against those 5 h [D]. Night minus daytime is +0.0068 mA, z = 1.9, so no day/night claim is made [D].
+- **The gain is at short averaging times.** Over 22.1 h, the Allan deviation is below all four length-matched Rev 1.1 runs out to 200 s (rank p = 0.20), and inside their range from 600 s up [D]. The zero still wanders by the hour, as it did on Rev 1.1: hourly fitted means ran from −27.540 to −27.626 mA, and the nearest approach to a code boundary was 0.135 mA [D]. No cause is claimed.
+- **Grid position still carries most of the visible calm.** Rev 2 against Rev 1.1, both measured 0.4–0.5 code from a boundary:
+
+  | board | blocks | median 2-s scatter |
+  |---|---|---|
+  | Rev 2 | 126 | 0.182 mA |
+  | Rev 1.1 | 2,241 | 0.212 mA |
+
+  The board accounts for 0.030 mA of that scatter (Mann–Whitney p < 10⁻³²); on Rev 1.1, position accounted for 0.142 mA [D]. In quadrature, the re-spin removed 0.116 mA rms, 95 % [0.112, 0.120]. The chip's own noise is at most 0.172 mA [D].
+- **No change elsewhere:**
+  - VBUS scatter: Mann–Whitney p = 0.27 [D].
+  - ENERGY: the register's offset from V×|I| moved by no more than the quantizer's own bias of 0.0009 W [D].
+  - Noise gauge: it stayed at 0.3263–0.3690 W after the load tail (1,320 publications) [M].
+- **Withdrawn from the 5-h write-up:** "0.006 mA lower at 200 s". Over the day the gap is 0.002–0.005 mA, and it is not significant.
+- **Not established:**
+  - one day only;
+  - the VEML light poll is not ruled out as a noise source;
+  - there is no independent current reference.
+
+**R13: my error in the 11-05 entry below.** Its 0.1717 mA was low. The data pull ended at 01:03:34Z, and the analysis held the last reading to the window end, so the last block held 192 copies of one value. On the full data the same 22 blocks read 0.1724 mA (se 0.0021), with z = −15.7 overall and −13.9 over matched hours [D]. The design note's R13 note carries the rest.
+
+**Ledger.**
+- Row 85 (σ over 11-06 to 11-12) is not scored on one day.
+- Row 86 is not triggered: no block came within 0.1 code of a boundary; the nearest was 0.287 code [D].
+- Both rows cite 0.1717, but none of their bands moves with the 0.0007 mA shift [D: 0.1724 − 0.1717].
+
+**Same day: other board differences** (not yet in the design note).
+- **Acquisition settings are identical across the swap.** `ina228_config_readback` held a single value, `SHUNT_CAL=3750 ADC_CONFIG=0xFDC5`, over 33 publications from 09-29 to 11-05 21:49Z, Rev 2 included [M].
+- **Rev 2's INA228 die runs 2.74 degF warmer over the pack** than Rev 1.1's did:
+  - Rev 2: 9.21 degF on 11-06 [M];
+  - Rev 1.1: a median of 6.47 degF over 38 days, range 5.31–6.67 [M];
+  - the ESP32's rise over the pack is unchanged [M].
+
+  Bill confirmed that the mounting is the same. The KiCad files show the XIAO and the buck both farther from U2 on Rev 2 [K], so the cause is open. No reading depends on it: the firmware sets no shunt temperature coefficient, and chip drift over the rise is 0.04 mA [D]. It was filed as an R14 question in `open_questions.yaml` and answered the same day.
+
 ### UPS bleed, step 1 of the 14a order: the pack reached float on the N100 alone (no HA config change)
 
 Bill, 2026-11-06: the battery and the PSU have reached equilibrium. HA agrees [M, HA history, EST, row statistics of change-only series]:
@@ -150,6 +198,7 @@ The repo change was uncommitted when this entry was written.
 
 **Findings.**
 - **σ before the quantizer:** Rev 2 0.1717 mA (22 blocks) against Rev 1.1 0.2060 mA (4,226 blocks), z = −14.7 [D: block bootstrap]. Over the same UTC hours, z = −13.2 [D].
+  - R13, 2026-11-06: 0.1717 was low. The analysis held the last reading past the end of the data pull. On the full data the same blocks give 0.1724 mA, z = −15.7, and −13.9 over the same hours [D]; see [2026.11.06].
 - **Most of the visible calm is grid position.** Share of samples off the most common code [M]:
   - Rev 1.1, last week: 30.3 % (969 blocks);
   - Rev 2: 5.3 % (22 blocks);

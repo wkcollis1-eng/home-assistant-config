@@ -3150,3 +3150,32 @@
     makes the VEML board a live candidate for the shift but does not size it.
     Unplugging its cable for 10 min with Display Light Wake off measures the
     board's whole draw; until then the attribution stays [I].
+
+- asked: 2026-11-06
+  question: >-
+    Battery bank monitor, Rev 2: is the board mounted as Rev 1.1 was (same
+    enclosure, same place and orientation, lid on, the INA228 breakout at the
+    same height)? And does anything now sit near the breakout that did not
+    on Rev 1.1, such as the XIAO, a cable bundle or the OLED?
+  blocks: >-
+    Attributing Rev 2's warmer INA228 die to the board layout. Die minus pack
+    temperature: on Rev 1.1, a median of 6.47 degF over 38 UTC days, range
+    5.31 to 6.67 [M: 1-min forward-fill, 30 min hold cap, 2026-09-29 to
+    11-05 17:37Z]. On Rev 2, 9.21 degF on 11-06 (1,067 min) [M], above every
+    Rev 1.1 day. The ESP32 is unchanged: 33.23 degF over the pack, against
+    32.11 to 33.91 on Rev 1.1 [M]. The breakout moved from 3.8 mm to 35.3 mm
+    from the buck [K], so the buck did not set Rev 1.1's die temperature.
+    This is not the cause of the -1 mA zero step: 1.52 degC at 10 nV/degC [S]
+    gives 0.04 mA at the shunt [D]. Separately, the two .kicad_pcb files are
+    not in the repo, so what lies near U2 cannot be read from the layout yet.
+  answered: >-
+    2026-11-06, Bill: Rev 2 is mounted in the same enclosure, position and
+    orientation as Rev 1.1. The layout answers the rest [K: both .kicad_pcb
+    files, on Bill's Desktop]. Measured between footprint origins: the XIAO
+    moved from 7.6 mm to 17.4 mm from U2, the buck from 24.8 mm to 40.6 mm,
+    and J1 from 11.8 mm to 3.4 mm. So neither mounting nor proximity to a
+    heat source explains the warmer die, and the cause is not established.
+    No reading depends on it. The firmware sets no shunt temperature
+    coefficient [M: V1.32, 0 hits]. The driver writes SHUNT_TEMPCO only when
+    it is above 0 [S: ESPHome 2026.4.3 ina2xx_base.cpp:370-377, not the
+    deployed 2026.10.2]. Chip offset drift over the rise is 0.04 mA [D].
