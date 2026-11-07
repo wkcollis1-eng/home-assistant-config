@@ -110,6 +110,43 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.07] - 2026-11-07
+
+### INA228 PCB Rev 2: the JP in-place zero (§8.2 step 2) measured and written up (documentation only, no HA config change)
+
+Bill fitted a jumper on JP at 14:37:13 EST and removed it at 16:30:53 EST [M]. JP shorts the INA228's inputs on the chip side of the filter. The results are in the Lifepo4-Battery-Banks repo, `INA228 Monitor/pcb-rev2-noise-fix-design.md`:
+- the header Status;
+- the §0 row;
+- a new subsection, "Results on Rev 2, JP zero, 2026-11-07";
+- three §9 follow-ups.
+
+The repo change was uncommitted when this entry was written.
+
+**Findings.** Firmware V1.32, no reboot [M]. The in-service reference is the same day's dark idle, 15:00–19:29:30Z.
+- **In-place offset: −3.090 mA, 95 % [−3.109, −3.075]** [D: 3,407 samples, 1.89 h]. That is −1.159 µV at the input [D].
+  - TI's limit is ±1 µV at 25 °C [S: SLYS021A §6.5 p.5]. With drift allowed, the reading is 0.11 µV past it [D].
+  - JP also reads the path from its pins to the chip, so this does not show the chip out of specification.
+- **σ with JP: 0.1495 mA [0.1434, 0.1572]**, against 0.1648 mA [0.1602, 0.1709] in service, z = −3.4 [D: 10-min blocks, common σ].
+  - So 0.069 mA rms, 95 % about [0.046, 0.087], enters outside JP [D]. Where is not established.
+  - Part of it may be real variation in the monitor's own draw [I]. A P-2b repeat on Rev 2 would split it.
+- **Zero-move, informal.** After removal the dark zero read −27.671 mA, −0.106 mA from before [D].
+  - That is inside step 4's 0.3 mA, but it is the size of 11-06's hourly wander (0.086 mA [D]).
+  - The deliberate move is still to run.
+- **ENERGY** ran 0.031 W short of V×|I| with JP, against 0.038 W in service [D]. So the shortfall is mostly a constant.
+- **Noise gauge:** it read "quiet" through JP (0.0083–0.0261 W [M]). It follows the draw, not the noise.
+
+**HA side.** No HA config reads the bank current or `noise_state`, so nothing in HA changed behaviour. While JP was in, the firmware booked −3.09 mA instead of the draw. That under-booked 0.046 Ah [D: 24.475 mA × 1.894 h], so SOC reads that much high until the next anchor.
+
+**Not changed:**
+- `soc_offset_ma` stays at 0.0. Step 2 pairs JP with the recharge bracket. JP's share of the setting is −3.09 mA [D].
+  - The open bracket spans the board swap. It is 913.76 h long at 22:36Z [M], and only 50.8 h of it are Rev 2 [D: from the 19:50:33Z 11-05 power-on]. So its RECON suggestion at the next full charge is a record, not a setting. The bracket after it is all Rev 2.
+  - Setting −3.09 mA now would raise SOC 2.82 Ah at the flash, about 0.71 of a point [D: 3.09 mA × 913.76 h; × 6.096 points / 24.180 Ah]. The offset multiplies the hours since the anchor, so it would cover the Rev 1.1 hours too. Bill asked whether to flash it; the recommendation was no.
+- `ina_offset_max_ma` (2.67 mA, used only in the RECON σ) is below the measured 3.09 mA. That is a §9 proposal; nothing was flashed.
+
+**R13: my own error, same day.** At 14:52 EST, from the first 12 min of JP (352 samples), I told Bill that the chip was essentially all of Rev 2's noise. That fit's σ interval, [0.1469, 0.1869] mA, could not separate JP from in service [D]. The full run can: z = −3.4. The claim is withdrawn, and the design note records it.
+
+**Ledger.** No row is scored by this run.
+
 ## [2026.11.06] - 2026-11-06
 
 ### INA228 PCB Rev 2: the first full day of idle data written up (documentation only, no HA config change)
