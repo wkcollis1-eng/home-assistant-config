@@ -23,6 +23,35 @@ are in CHANGELOG.md [2026.10.23]. What is left is the curve's own test:
 3. Falsifier [I]: the normalised weekly mean tracks basement temperature by more
    than ~2 W across the range. Then the curve is wrong, not the machine, and an
    out-of-control on the 68 °F series is read as the curve until shown otherwise.
+4. **2026-11-07: a +3 W compressor shift the curve does not explain** (CHANGELOG [2026.11.07]).
+   Since ~10-29 runs sit above the curve inside the fit range too [M: n=17 after 10-23 14:14,
+   +3.25 W, t=5.2; fit period n=434, mean +0.01 W, sd 2.51]. Item 3's trigger is met (weekly
+   mean 454.48 -> 458.52 W as the basement cooled [M]) but not its conclusion: at the same
+   temperature the weeks differ, so the cause is time, not the curve's shape. Ruled out [M,
+   InfluxDB]: a re-fit (leaves a 2.97 W weekly range at 62-64 °F); plug voltage; node RH;
+   furnace heat or blower (0 min in every power band 11-04..11-07 while the shift held
+   +2.8..+3.7 W a day); off-time (the shift survives it, +3.42 W, t=7.9, n=482); node drift
+   (node minus Shelly +0.31..+0.41 °F daily 10-01..11-07, no step); the fan (fan-only
+   57.1-58.5 W, flat). So the extra watts are compressor-side, or a plug-metering gain shift
+   the fan's 57 W cannot resolve [D: 3.25 W / 455 W = 0.7 %]. One change at a time:
+   a. Shelly at the E080 intake from 2026-11-08 (Bill). The curve was fitted on the node, so a
+      steady intake-node offset is already in its intercept: only a change since ~10-29 can
+      explain the shift, and one reading cannot confirm it. Intake minus node at or below 0
+      makes the intake unlikely (it would have had to read ~1.1 °F colder than the node before
+      10-29 [D: 3.42 W / 3.07 W/°F; slope at 62 °F = 4.920 + 2(0.154)(62-68)]). It confirms only
+      if the per-run residual tracks intake minus node at ~3 W/°F. The Shelly's own offset to
+      the node is known: they sat side by side until 11-08 (Bill, 2026-11-07), so the Shelly
+      reads 0.31..0.41 °F low [M: daily node minus Shelly, 10-01..11-07]. Intake on the node's
+      scale = Shelly + ~0.36 °F [D: midpoint]. Side by side, the node-drift test above is direct.
+      R18: the Shelly writes a median 12 min apart (p90 84, max 234) vs the node's 0.2 [M: n=328,
+      7 days to 2026-11-07, InfluxDB], so a steady-window intake value is usually carried from
+      before the run. Read (a) over days; it can refute, and b is the test that can confirm.
+   b. Then clean the filter (never cleaned since 2026-08-01): the one intervention with a clean
+      before/after. Not back near 0 within a day of runs means not the filter [D: one day is
+      ~7 runs, sem 2.51 / sqrt(7) = 0.95 W, so a 3 W drop is ~3 sem].
+   `binary_sensor.basement_rh_sensors_disagree` (tolerance 1.0 %RH [M]) will trip while the
+   Shelly is moved; nothing automates on it. Do not re-fit or widen the range until this is
+   explained: every run below 62.41 °F is from the shifted weeks.
 
 ### P11 — SCM tamper baselines need history before they can alarm [LOW]
 ```

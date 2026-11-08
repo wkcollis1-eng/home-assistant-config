@@ -47,4 +47,10 @@ _Moved verbatim from CLAUDE.md (Home + Active Projects) on 2026-10-25; the point
   NOAA 6,270 HDD - see `docs/baselines.md`)
 - **Dehumidifier Control**: Aprilaire E080; RH band, max-runtime cap, stall detection. Setpoints
   live in the `packages/dehumidifier.yaml` helpers, not here (R10; this line said 49/46 %, 150 min)
+  - In service 2026-08-01; filter never cleaned as of 2026-11-07. Sits ~3 ft from the furnace;
+    the basement TH node (SHT45) is on the opposite side of the room (Bill, 2026-11-07).
+  - The Shelly H&T (`sensor.shelly_temperature_humidity_*`) moves to the E080's air intake on
+    2026-11-08 for P3; until then it sat next to the node (Bill, 2026-11-07). From then it is
+    not room ambient: the Grafana battery_bank panel and `Lifepo4 Export/lifepo4_export.py`
+    read it as ambient.
 - **Basement Sensor Node**: XIAO ESP32-C3 + SHT45 + OLED + VEML7700

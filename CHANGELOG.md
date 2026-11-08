@@ -112,6 +112,21 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.07] - 2026-11-07
 
+### Dehumidifier: a +3 W compressor shift since ~10-29, not the furnace; P3 test plan (DOCUMENTATION, `docs/pending.md`, `docs/house.md`)
+
+- **Asked:** Bill said the dehumidifier "has been running" while its last SPC capture was 10-20.
+- **The counter is right** [M, InfluxDB plug series, n=12,514 points]: runs over 150 W per day equal
+  `counter.dehumidifier_cycles_today` at 23:59 on all 15 days 10-24..11-07. The skips were excused
+  correctly: idle days had basement RH under the 55.5 % turn-on (max 54.6-55.1 %), and the run days
+  had steady-window inlets under the 62.41 °F fit floor.
+- **Found instead:** since ~10-29 the steady watts sit ~3 W above the 68 °F curve, inside its range
+  too. The furnace (Bill: the only change, unit ~3 ft from it) is ruled out: it was idle in every
+  power band 11-04..11-07 while the shift held, and runs after furnace heat read lower [M: n=7,
+  -2.14 W, t=-2.4]. The other ruled-out causes and the two-step test are in P3 item 4.
+- **Not changed:** no config. The fit floor stays 62.41 °F; a re-fit now would fold the shift into
+  the curve. Tonight's 68 °F capture (459.6 W [M, latched]) will plot above the October UCL
+  (457.7 W [M, live limit]).
+
 ### SPC capture watchdog: Cooling kWh/CDD no longer reads stale while the AC is off (SENSOR, `packages/spc.yaml`)
 
 Bill got the "SPC Capture Stale" notification naming Cooling kWh/CDD. It was a false positive.
