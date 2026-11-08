@@ -872,6 +872,15 @@ template:
       # not excused. [M] 10-21 and 10-22 ran one cycle each (latched 434.5 /
       # 432.4 W) and this read stale on 10-23 with the machine and its control
       # loop healthy. Fridge, AC, HWH recirc and cooling kWh/CDD unchanged.
+      #
+      # COOLING kWh/CDD, 2026-11-07: opportunity is CDD > 0 AND
+      # sensor.sem_ac_daily > 0, the two quantities its guard reads. It was
+      # CDD alone, which is weather, not the appliance: a warm spell in
+      # heating season with the AC off made a capture impossible, and the
+      # detector read stale. [M] On 11-05 (6.9 h, CDD 0.9) and 11-06 (16.0 h,
+      # CDD 0.5-2.0) it was on with sem_ac_daily 0 kWh and ac_runtime_today
+      # 0.0 h all day; notify_spc_capture_stale fired 11-06 08:54 UTC. The
+      # AC running on a CDD day with no capture for 2 days still reads stale.
       # =================================================================
       - name: "Fridge SPC Capture Stale"
         unique_id: fridge_spc_capture_stale
@@ -1023,7 +1032,12 @@ template:
         state: >
           {% set last = states('input_datetime.cooling_kwh_cdd_spc_last_capture') %}
           {% set act = states('sensor.hvac_cdd65_today') | float(0) %}
-          {% if act <= 0 %}
+          {# 2026-11-07: and the AC must have run - CDD alone is weather, and
+             with the AC off no capture is possible (see the note above). An
+             AC reading that is not a number is ignored, which falls back to
+             the old, louder answer - never a quieter one. #}
+          {% set ac = states('sensor.sem_ac_daily') %}
+          {% if act <= 0 or (is_number(ac) and ac | float(0) <= 0) %}
             false
           {% elif last in ['unknown', 'unavailable', 'none', ''] or last[:4] == '1970' %}
             true
@@ -1041,6 +1055,7 @@ template:
         attributes:
           last_capture: "{{ states('input_datetime.cooling_kwh_cdd_spc_last_capture') }}"
           activity_today: "{{ states('sensor.hvac_cdd65_today') }}"
+          ac_kwh_today: "{{ states('sensor.sem_ac_daily') }}"
           capture_guard: "CDD >= 0.5 and AC > 0.1 kWh"
 
       # Single signal for "some SPC pipeline has stopped measuring". This is

@@ -56,7 +56,7 @@ binary_sensor.cooling_kwh_cdd_out_of_control:
   note: ''
 binary_sensor.cooling_kwh_cdd_spc_capture_stale:
   group: SPC — CAPTURE WATCHDOG (packages/spc.yaml)
-  note: gated on sensor.hvac_cdd65_today
+  note: gated on sensor.hvac_cdd65_today and sensor.sem_ac_daily (2026-11-07)
 binary_sensor.dehumidifier_should_run:
   group: DEHUMIDIFIER
   note: ''

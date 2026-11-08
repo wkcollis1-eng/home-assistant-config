@@ -399,7 +399,7 @@ sensor.ac_runtime_today                [pipeline: capture_daily_ac_watts]
 ```
 automation.notify_spc_capture_stale              persistent_notification, 2h debounce
 binary_sensor.ac_spc_capture_stale               season-aware via runtime_today  [pipeline: capture_daily_ac_watts]
-binary_sensor.cooling_kwh_cdd_spc_capture_stale  gated on sensor.hvac_cdd65_today  [pipeline: capture_daily_cooling_kwh_cdd]
+binary_sensor.cooling_kwh_cdd_spc_capture_stale  gated on sensor.hvac_cdd65_today and sensor.sem_ac_daily (2026-11-07)  [pipeline: capture_daily_cooling_kwh_cdd]
 binary_sensor.dehumidifier_spc_capture_stale     gated on counter.dehumidifier_cycles_today  [pipeline: capture_daily_dehumidifier_watts]
 binary_sensor.fridge_spc_capture_stale           on = ran today, no capture in >2 days  [pipeline: capture_daily_fridge_watts]
 binary_sensor.furnace_spc_capture_stale          season-aware via runtime_today  [pipeline: capture_daily_furnace_watts]

@@ -112,6 +112,40 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.07] - 2026-11-07
 
+### SPC capture watchdog: Cooling kWh/CDD no longer reads stale while the AC is off (SENSOR, `packages/spc.yaml`)
+
+Bill got the "SPC Capture Stale" notification naming Cooling kWh/CDD. It was a false positive.
+- `binary_sensor.cooling_kwh_cdd_spc_capture_stale` gated its opportunity on `sensor.hvac_cdd65_today` > 0 alone. That is weather, not the appliance.
+  - Its capture guard needs CDD >= 0.5 **and** `sensor.sem_ac_daily` > 0.1 kWh, so with the AC off no capture is possible.
+- [M, recorder history 10-25 to 11-08 03:00Z] On 11-05 it was on 12:00-18:54Z (CDD 0.9). On 11-06 it was on 06:54-22:54Z (CDD 0.5-2.0).
+  - `sem_ac_daily` read 0 kWh and `ac_runtime_today` 0.0 h through the whole window.
+  - `notify_spc_capture_stale` last fired at 11-06 08:54:04Z.
+  - The recorder holds history from 10-24 only, so n=2 episodes. Any earlier ones are not visible here.
+- The other five detectors gate on their own appliance's activity. That is why AC SPC stayed quiet through the same days.
+
+**Change.**
+- Opportunity is now CDD > 0 AND `sem_ac_daily` > 0.
+- An AC reading that is not a number is ignored, so the detector falls back to the old CDD-only answer. This is the file's own "never a quieter one" precedent.
+- New attribute `ac_kwh_today`, a dated note in the watchdog header, and the `entity_notes.yaml` note. ENTITIES.md and PACKAGES.md were regenerated.
+
+**Verified.**
+- R2: 15 cases rendered on HA's own engine (`/api/template`, inputs injected, read-only).
+  - The 11-05/06 replay goes from True to false.
+  - The cases that should still fire are unchanged from the old template: the AC ran on a CDD day with the stamp at 09-18; the 2/3-day boundary; a 1970, unknown or unparseable stamp; an unavailable or unknown AC meter.
+- R3: reversing the three spans gives the live file byte for byte (204,112 bytes); 4,072 lines outside the spans are unchanged.
+- Gate:
+  - `gate.py` step 1: PASS (parse-clean).
+  - Step 2: 0 FAIL, 2 WARN, 2 INFO across 18 pipelines. Same as the session start; the "NEW" G0 open question is the untracked `.audit_baseline.json` predating 11-03.
+  - 2c (changed lines): 0 WARN.
+  - Step 3 `check_config`: valid, errors null, warnings null.
+- Step 4: `template.reload` (Bill OK'd), HTTP 200 at 11-08 02:33Z.
+- Step 5: the detector re-rendered `off` with the new `ac_kwh_today: 0` attribute present, so the new template is loaded [M].
+  - The case it exists for, a warm day with the AC off, has not recurred live yet. Only R2 proves it.
+
+**Not changed.**
+- `pipelines.yaml`: `guard.source` already names `sem_ac_daily`, and `guard.activity` is a scalar that only the entity-resolution rule reads.
+- No detector dismisses its persistent notification when it clears, so the 11-06 card stays until dismissed by hand. That is the same for all six and was left alone.
+
 ### INA228 PCB Rev 2: the JP in-place zero (§8.2 step 2) measured and written up (documentation only, no HA config change)
 
 Bill fitted a jumper on JP at 14:37:13 EST and removed it at 16:30:53 EST [M]. JP shorts the INA228's inputs on the chip side of the filter. The results are in the Lifepo4-Battery-Banks repo, `INA228 Monitor/pcb-rev2-noise-fix-design.md`:
