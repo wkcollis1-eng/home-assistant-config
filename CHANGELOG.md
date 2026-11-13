@@ -230,6 +230,30 @@ cycle], rested on a generic plug meter at both converters.
 - **Left open:** the inverter test; a DMM on VBUS (commissioning report, quarterly voltage check); the charger plug-meter
   falsifier at the next charge.
 
+### Battery bank health from the 11-13 test: apparent Ri sample 1, ohmic edges, per-battery split (analysis only, no firmware or HA change)
+
+Bill asked what the test says about the bank's health, and whether `sensor.battery_bank_monitor_apparent_ri`, 3.733 mΩ,
+is exceptionally low.
+- **It is the first V1.25 settled-step sample:** count 0 to 1 at 15:26:29Z, armed on the hair-dryer step at 15:25:32Z,
+  published 15:26:17Z, pack 59.7 °F [M]. HA's series reproduce it [D: (13.2896 - 13.1686) / (36.13 - 3.71)].
+- **It reads 0.148 mΩ high** [D: 3.732 - 3.584]. Its rest point was the dryer's ramp, -3.71 A at 15:25:28Z, inside the
+  5 A quiescent band. The true rest at 15:25:26Z (-0.03 A, 13.2980 V) gives 3.584 mΩ [D: 0.1294 / 36.10]. The V1.25
+  comment that a straddled rest point is harmless holds for a small rest current (its 17:42 case, -0.40 A); at -3.71 A
+  the rest point carries ohmic drop but no polarization, so it is off the 30-45 s load line. Firmware not changed.
+- **3.584 mΩ is on the commissioning baseline, not low.** The commissioning report (§5.2) measured 2.2 / 3.34 / 3.73 mΩ
+  at 5 s / 60 s / 2 min on an 80.5 A step, 69 °F, ~80 % SOC [M], and predicted 3.3-3.5 mΩ for this metric. The figure
+  is five batteries in parallel: 17.9 mΩ per branch if they shared equally [D: 5 x 3.584], against the report's
+  ~15 mΩ per battery including interconnect. n=1, at 59.7 °F, a 36 A step and ~91 % SOC: no trend can be read from it.
+- **Ohmic edges:** discharge release 2.490 mΩ [D: 0.0877 V / 35.22 A, 15:34:42-46Z]; charge start 2.549 mΩ [D: 0.1766 V
+  / 69.27 A, 15:56:42-46Z]; commissioning R0 2.63 mΩ [M]. 2 s samples, so each edge holds up to ~4 s of polarization.
+- **The per-battery split does not repeat between charge and discharge** (clamp, first subsection): r = -0.146 [n=5,
+  t=-0.26, df 3, p=0.81]. A split set by branch resistance repeats in both directions. Battery 2 took 18.0 A on charge
+  and gave 5.58 A on discharge; battery 3 the reverse. [I] different states of charge, BMS or cells (the bank is
+  mixed-brand, commissioning report); falsified if a second clamp set repeats the same ranks in both directions. Which
+  battery is which is asked in `open_questions.yaml`.
+- **Not measurable from this test:** capacity (5.28 Ah out [M] is too shallow), and self-discharge (the recommended
+  rate is the shunt offset, second subsection above).
+
 ## [2026.11.07] - 2026-11-07
 
 ### Dehumidifier: a +3 W compressor shift since ~10-29, not the furnace; P3 test plan (DOCUMENTATION, `docs/pending.md`, `docs/house.md`)

@@ -3317,3 +3317,20 @@
     that the plug meter read the charger 24.4 % low on 09-30 (09-30 clamp
     entry); falsified if it reads within 5 % of the SEM step on the charger.
   answered: null
+- asked: 2026-11-13
+  question: >-
+    For batteries 1-5 in the clamp-photo order: the brand and model on each
+    label, and roughly when each was bought; and which battery terminals the
+    main positive and negative cables (to the shunt, charger and inverter)
+    attach to. A photo of the bank from above would do.
+  blocks: >-
+    Reading the per-battery split from the 2026-11-13 clamp test. Charge 15.0
+    / 18.0 / 11.9 / 21.3 / 12.3 A, discharge 7.43 / 5.58 / 8.54 / 7.76 / 6.29
+    A [M x 9, D x 1]. A split set by branch resistance (battery, BMS, cables)
+    repeats in both directions; this one does not, r = -0.146 [n=5, t=-0.26,
+    df 3, p=0.81]. Batteries 2 and 3 swap ends: 2 took 18.0 A on charge and
+    gave 5.58 A on discharge, 3 the reverse. [I] the batteries sat at
+    different states of charge or differ in BMS or cells; falsified if a
+    second clamp set, at the next charge and discharge, repeats the same
+    ranks in both directions. Nothing is built on the split until then.
+  answered: null
