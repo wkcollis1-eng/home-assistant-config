@@ -2096,7 +2096,29 @@
     which is impossible for a real charger. (3) Any INA228 gain correction:
     none is made until this reading. Split 2026-10-02 from the entry above,
     whose part (a), the model numbers, Bill answered that day.
-  answered: null
+  answered: >-
+    2026-11-13, Bill: 31 photos of a FNIRSI DMC100 clamp (label, IMG_2238),
+    matched to sensor.battery_bank_monitor_battery_current at each photo's
+    EXIF second. Discharge hold, inverter cable 35.4 / 35.4 / 35.5 / 35.6 A
+    against HA -35.99 / -35.96 / -36.12 / -35.89 A: clamp - |HA| = -0.515 A
+    mean, sd 0.152 [M: n=4, 10:29:02-10:33:11 EST; paired t=-6.78, df 3,
+    p=0.007]. Charge, LiTime cable 78.7 A against HA 78.23 A, +0.47 A [M: n=1,
+    11:12:30, CC hold]; 25.9 A against 26.49 A, -0.59 A [M: n=1, 11:23:00, on
+    the taper, HA falling 0.078 A/s]. The clamp reads below HA on discharge and
+    above it on charge, which a gain error cannot do, and both gaps are the
+    size of the clamp's own MIN/MAX boxes, -0.320 A and +0.430 A [M: IMG_2239,
+    IMG_2207; read as its open-jaw zero, I: falsified if the empty jaw in DC A
+    reads under 0.1 A]. (3) No INA228 gain correction: none is indicated.
+    (2) For the INA228 current alone to explain the 09-30 charge-side 98.6 %
+    [D], it would have to read 6.8 A high at 78.2 A [D: 78.23 x (1 - 90/98.6);
+    90 % is an assumed charger efficiency, not a LiTime spec]; it read 0.47 A
+    low. The current path is cleared; VBUS and the plug meter are not tested by
+    this. (1) The converter split still waits on the AC side or VBUS.
+    FALSIFIED 2026-11-13, same day (R13): Bill reads the closed, empty jaw in
+    DC A at 0 to -0.02 A, under the 0.1 A falsifier above, so the MIN/MAX boxes
+    were not the clamp's zero and the ~0.5 A gaps are unexplained [M: Bill, n
+    not stated]. Neither (3) nor (2) rested on it: the 78 A gap is 0.47 A
+    against the 6.8 A [D] that (2) would need.
 
 - asked: 2026-10-01
   question: >-
@@ -3179,3 +3201,54 @@
     coefficient [M: V1.32, 0 hits]. The driver writes SHUNT_TEMPCO only when
     it is above 0 [S: ESPHome 2026.4.3 ina2xx_base.cpp:370-377, not the
     deployed 2026.10.2]. Chip offset drift over the rise is 0.04 mA [D].
+
+- asked: 2026-11-13
+  question: >-
+    Clamp test 2026-11-13, discharge email. Bill (11-13): by capture time the
+    photos run battery 1, 2, 3, 4, 5, then the inverter. That email holds only
+    4 battery photos, IMG_2214-2217 (10:32:12-10:32:57, about 15 s apart),
+    before the inverter (2218), and the camera numbering skips IMG_2213, between
+    10:30:30 and 10:32:12. Is IMG_2213 on the phone, and is it the clamp on
+    battery 1? If so, what does it read?
+  blocks: >-
+    The per-battery discharge split. Charging, the five parallel batteries did
+    not share evenly: 15.0 / 18.0 / 11.9 / 21.3 / 12.3 A for batteries 1-5, sum
+    78.5 A against HA 78.2 A [M: IMG_2232-2236, 11:11:22-11:12:11 EST, battery
+    order by capture time, per Bill 11-13]. Whether discharge ranks them the
+    same needs the photo-to-battery mapping. Bill's order rule over 4 photos
+    reads 2214-2217 as batteries 1-4 with battery 5 missing. [I] They are
+    batteries 2-5 with battery 1 in IMG_2213: 2214 (-7.43 A) matches battery
+    2's -7.50 A four minutes earlier, and the -,-,+,+ signs mirror the charge
+    signs of batteries 2-5 (+,+,-,-); for batteries 1-4 battery 3 would not
+    mirror. Falsified if IMG_2213 is not a photo of battery 1.
+  answered: >-
+    2026-11-13, Bill: IMG_2213 was in the battery 2 + inverter set ("all
+    battery 2"), not battery 1, so the [I] above is FALSIFIED (R13). By Bill's
+    capture-time order the discharge photos are battery 1 7.43 A (2214),
+    battery 2 5.58 A (2215), battery 3 8.54 A (2216), battery 4 7.76 A (2217);
+    battery 5 was not photographed on discharge [M: 10:32:12-10:32:57 EST, n=1
+    each]. Battery 5 by difference from the 35.6 A inverter cable (2218): 6.29 A
+    if all four were discharging [D: 35.6 - (7.43 + 5.58 + 8.54 + 7.76)].
+    Battery 3 read the same sign as on charge while 1, 2 and 4 flipped; asked
+    separately in the next entry.
+
+- asked: 2026-11-13
+  question: >-
+    Clamp test 2026-11-13, IMG_2216 (battery 3, discharging) reads +8.54 A, the
+    same sign as battery 3 on charge (+12.7, +11.9 A), while batteries 1, 2 and
+    4 flip sign between charge and discharge. Was the clamp turned the other
+    way on that photo? If that can't be known, a clamp on batteries 3 and 5 at
+    the next discharge, jaw facing as in the charge photos, settles it.
+  blocks: >-
+    The per-battery discharge split. Battery 5 by difference from the 35.6 A
+    inverter cable is 6.29 A if battery 3 was discharging [D: 35.6 - 29.31] and
+    23.37 A if it was charging [D: 35.6 - (7.43 + 5.58 + 7.76) + 8.54]. [I]
+    battery 3 was discharging and the jaw was reversed; falsified if a re-clamp
+    at the next discharge, jaw as in the charge photos, reads battery 3
+    positive (taking charge).
+  answered: >-
+    2026-11-13, Bill: "clamp turned the other way on that photo". Battery 3 was
+    discharging at 8.54 A with the jaw reversed, so the [I] above holds and
+    battery 5 by difference is 6.29 A [D: 35.6 - (7.43 + 5.58 + 8.54 + 7.76)].
+    Discharge split, batteries 1-5: 7.43 / 5.58 / 8.54 / 7.76 / 6.29 A [M x 4,
+    D x 1; one photo each, 10:32:12-10:32:57 EST].

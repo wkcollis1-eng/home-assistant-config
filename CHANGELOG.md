@@ -110,6 +110,51 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.13] - 2026-11-13
+
+### Battery bank clamp test: the 09-30 open question answered, no INA228 gain correction (documentation only, no HA config change)
+
+- **Bill** (2026-11-13): 31 photos of a FNIRSI DMC100 clamp, sent as 6 emails, from a discharge hold (about 36 A,
+  10:26-10:33 EST) and a charge (about 78 A constant current 10:57-11:16, taper to 11:30). Matched to
+  `sensor.battery_bank_monitor_battery_current` at each photo's EXIF second.
+- **Total cable against HA:** inverter cable, clamp - |HA| = -0.515 A mean [M: n=4, sd 0.152, paired t=-6.78, df 3,
+  p=0.007]; LiTime cable +0.47 A at 78 A [M: n=1] and -0.59 A on the taper [M: n=1]. Opposite signs on discharge
+  and charge are not a gain error, and both gaps are the size of the clamp's -0.320 / +0.430 A MIN/MAX boxes [M]
+  (read as its open-jaw zero: [I], falsifier in `open_questions.yaml`). **That [I] was falsified the same day (R13):**
+  Bill reads the closed, empty jaw at 0 to -0.02 A in DC A, under the 0.1 A falsifier, so the ~0.5 A gaps are
+  unexplained. The no-gain-correction finding below did not rest on it.
+- **No INA228 gain correction.** The 09-30 charge-side 98.6 % [D] is not the current path: explaining it would need
+  the INA228 6.8 A high at 78.2 A [D: 78.23 x (1 - 90/98.6), 90 % an assumed charger efficiency]; it read 0.47 A low.
+- **Per battery, charging** (11:11:22-11:12:11): 15.0 / 18.0 / 11.9 / 21.3 / 12.3 A, sum 78.5 A against HA 78.2 A [M].
+  Battery order is by capture time (Bill: battery 1-5, then the inverter or charger).
+- **Discharge photos (Bill):** IMG_2213 was a battery 2 photo, not battery 1, so my [I] that 2214-2217 were batteries
+  2-5 is falsified (R13). By capture order they are batteries 1-4: 7.43 / 5.58 / 8.54 / 7.76 A [M: n=1 each]; battery 5
+  has no discharge photo. Battery 3 reads the same sign as on charge; asked in `open_questions.yaml`. Bill: the clamp
+  was turned the other way on that photo, so battery 3 was discharging and battery 5 is 6.29 A by difference from the
+  35.6 A inverter cable [D: 35.6 - (7.43 + 5.58 + 8.54 + 7.76)].
+- **HA's last-cycle figures checked** (full charge #3, 16:31:28Z; bracket from the 09-30 anchor, 1051.66 h [M]) against
+  HA's own current/voltage series [M: n=1,431 current, 1,784 voltage, 15:20-16:31:22Z]: Ah in 32.6910 (HA 32.6910),
+  Ah out 5.5713 (HA 5.5712), peak discharge 36.3052 A (HA 36.3052), mean discharge V 13.1211 (HA 13.1185), CV
+  absorption 13.667 min (absorption sensor on 16:17:12Z for 13.667 min). Peak charge 78.4477 A against HA's 78.9268 A
+  is by design: the HA peak was the switch-on overshoot at 15:56:46, before the peak resets on the 30 s `delayed_on`.
+- **Last Coulombic Efficiency 17.04 % is arithmetic on the ledger, not a coulombic efficiency.** It is ledger Ah out /
+  ledger Ah in [D: 5.5713 / 32.6910], and the ledger's +-50 mA deadband books none of the idle drain: over the same
+  bracket the INA228 CHARGE register counted 33.52 Ah out [M], so 27.95 Ah [D: 33.52 - 5.57] left unbooked, a mean
+  26.6 mA [D: 27.95 Ah / 1051.66 h]. The firmware's own clean-bracket CE (anchor log, line 3638) uses the CHARGE
+  counters; the published entity does not. Firmware unchanged: Bill declined the fix (2026-11-13), so the entity
+  keeps reading ledger arithmetic.
+- **Last Unseen Drain -1.17 Ah is inside the firmware's own noise band.** U = closure = (99.7051 - 100) / 100 x 397
+  [D]; the firmware's 1 sigma for this bracket is 2.85 Ah, its own formula at line 3650 on this bracket:
+  [D: sqrt((2.67 mA x 1051.66 h)^2 + (0.01 x 32.70)^2 + (0.01 x 33.52)^2 + (0.005 x 32.70)^2)].
+  So its own rule labels it NOISE-LIMITED, a label the entity does not carry. It establishes no drain.
+- **10:42 changeover (Bill):** he disconnected the inverter negative to connect the charger negative. HA read 9.78 V at
+  10:42:44 and the INA228 alert reason went UNDER-V [M]; the monitor was unavailable 10:44:38-10:54:30 and came back
+  reporting an INA228 power-on reset, counters bridged from the last saved -37.769 Ah, SOC anchor kept [M].
+  `automation.watchdog_reload_battery_bank` fired at 10:45:38 [M]. Voltage warning, critical and emergency stayed off
+  [M]. Nothing was lost: net charge -37.7690 Ah before, -37.7685 Ah after; SOC 91.551 % both sides [M]. The discharge
+  test itself counted as outage event 10 at 10:36:32 (5.28 Ah, 69.3 Wh) [M].
+- **Left open:** the inverter/charger efficiency split still waits on an AC-side or VBUS check.
+
 ## [2026.11.07] - 2026-11-07
 
 ### Dehumidifier: a +3 W compressor shift since ~10-29, not the furnace; P3 test plan (DOCUMENTATION, `docs/pending.md`, `docs/house.md`)
