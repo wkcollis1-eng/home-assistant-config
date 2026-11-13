@@ -112,6 +112,46 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.13] - 2026-11-13
 
+### Navien cross-check, October 2026: panel inside the meter's range; the fireplace measured out of the DHW estimate (documentation only, no HA config change)
+
+- **Panel entered** (Bill, 2026-11-13): 9.06104 therm, 11 h operating (Bill: also the panel's October figure, the same
+  as September's), 15 h recirc. Save DHW (Navien) archived 8.74 CCF. `navien_xcheck.py --month 2026-10` ran with
+  exit 0 and no WARN.
+- **Gas, October** [M: sensor.gas_meter_volume, 56,877 decodes, longest gap 5.8 min]: whole house 2,910 ft3. By
+  class: Navien only 744, furnace only 1,408, oven 76, shared 550, none 132. Navien range 744-1,294 ft3 [M]; estimate
+  867 ft3 [D] (864 / 867 / 871 across the three pad settings). Panel 880.0 ft3 [D: 9.0636 therm x 100,000 / 1,030]:
+  inside the range, 13 ft3 above the estimate [D].
+- **Beside September** (2026.10.22 entry): estimate minus panel was +39 ft3 in September [D: 884 - 844.7] and -13 ft3
+  in October [D]. n=2 months and the sign changed, so no bias is claimed either way. Heating value alone moves
+  October's panel 6 ft3 [D: 880.0 at 1,030 vs 874.0 at 1,037 Btu/ft3]. October is the first month with the furnace
+  burning: 18.9 % of its gas fell in shared intervals [D: 550 / 2,910], split by rate x on-time, and the result still
+  landed 13 ft3 from the panel. Neither figure is shown better; the panel stays the DHW figure of record.
+- **Hours** [D]: plug recirc (> 70 W) 17.82 h against the panel's 15 h, +2.82 h (September +2.41 h); plug 20-70 W
+  11.53 h against 11 h, +0.53 h.
+- **Fireplace, October: three burns, 1.7 ft3 of their gas was in the Navien estimate** [D]. Read-only, from scratch
+  scripts that import navien_xcheck's own helpers (not kept on H:; the method is this entry):
+  - Found as runs of 3 or more gas steps in 'none' intervals (no Navien, furnace or oven signature, steps joined
+    within 20 min), then bounded by the blower's edges on `sensor.sem_family_room_power`: flame on = fan on - 3 min,
+    flame out = fan off - 12 min [S: 2472-981 Rev. B 9/17, "Fan Speed"; [I] for this house, R16]. The blower's edges
+    alone do not find burns: the family-room circuit carries 22-90 W steps from other loads every day [M], so any
+    fireplace-hours counter needs the gas run first and the edges second.
+  - Burns [D]: 10-23 19:10-21:31 EDT (2.34 h), 10-28 19:52-20:52 (1.01 h), 10-31 19:11-20:49 (1.62 h). The 10-23
+    window reproduces the clocked burn's edges (open_questions.yaml, 2026-10-23) within 10 s.
+  - Fireplace gas 90 ft3 [D], burning 18.2 ft3/h over its own intervals [D] (clocked 18.5 ft3/h on 10-23). Inside the
+    burns, 88 ft3 sat in 'none' and 2 ft3 in 'navien' (one step on 10-23, during the 182 s 38 W Navien episode), and
+    none in 'furnace' or 'shared'.
+  - With the fireplace added to `classify()` as a fourth load, the Navien estimate falls 867.1 -> 865.4 ft3, i.e.
+    1.7 ft3 [D]; 2.6 and 2.8 ft3 with every burn window widened 15 and 30 min each side [D].
+  - The 10-28 and 10-31 fan-off edges are -57 and -63 W, larger than the blower's ~34 W on low (2026-10-23 entry):
+    lights switched off at the same moment is [I], falsified if a burn's fan-off edge is ~34 W with the room lights
+    left on. The widening above shows the result does not depend on it.
+  - Not established: a burn with fewer than 3 'none' steps, or one hidden wholly under furnace calls, is not found.
+    42 ft3 of 'none' gas stays unexplained [D: 132 - 90] (cooktop, decode gaps, or such a burn).
+- **Decision: the fireplace class is not built into navien_xcheck.py.** October's effect, 1.7 ft3 [D], is under one
+  2 ft3 meter step and under the 6 ft3 heating-value spread above. Re-measure on December, the first month with
+  heavy furnace and fireplace overlap; build the class if the fireplace gas in the Navien estimate exceeds 6 ft3 in
+  any month.
+
 ### Battery bank clamp test: the 09-30 open question answered, no INA228 gain correction (documentation only, no HA config change)
 
 - **Bill** (2026-11-13): 31 photos of a FNIRSI DMC100 clamp, sent as 6 emails, from a discharge hold (about 36 A,
