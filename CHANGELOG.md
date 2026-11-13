@@ -153,7 +153,8 @@ question" —** the answer was one line away and settled it in one sentence.
   `automation.watchdog_reload_battery_bank` fired at 10:45:38 [M]. Voltage warning, critical and emergency stayed off
   [M]. Nothing was lost: net charge -37.7690 Ah before, -37.7685 Ah after; SOC 91.551 % both sides [M]. The discharge
   test itself counted as outage event 10 at 10:36:32 (5.28 Ah, 69.3 Wh) [M].
-- **Left open:** the inverter/charger efficiency split still waits on an AC-side or VBUS check.
+- **Left open:** the inverter/charger efficiency split still waits on an AC-side or VBUS check. Later the same day the
+  charger half was measured from the SEM (third subsection below); the inverter half and VBUS still wait.
 
 ### Battery bank monitor: the 11-07 JP zero against this closure, and the self-discharge entities (analysis only, no firmware or HA change)
 
@@ -178,6 +179,56 @@ Bill asked how the 11-07 short (JP, [2026.11.07] below) and this closure improve
   -3.090 mA alone would be 0.569 % per month [D: same formula]. Each clean full charge zeroes it.
 - **Plan:** `docs/pending.md` P29. The bracket that began at 16:31:22Z today is the first wholly on Rev 2; the firmware
   publishes it no sooner than 2026-11-27 16:31Z [D: + recon_min_days 14.0].
+
+### Battery bank: charger efficiency measured from the SEM; the inverter half waits on a test (analysis only, no HA config change)
+
+Bill asked for the inverter/charger efficiency split now. The 09-30 figure, 0.900 [D: (583/647.49) x (730.12/730), n=1
+cycle], rested on a generic plug meter at both converters.
+- **The SEM sees the charger.** At charge start, 15:56:38Z, the INA228 stepped +1062.7 W, `sem_other_power` +1366.7 W,
+  `sem_main_a_power` +1364.4 W, `sem_main_b_power` -0.1 W; no branch CT moved [M: 70 s windows either side]. The mains
+  CTs see every circuit, so which outlet the charger used does not change the figure.
+- **The SEM against the revenue meter, windows bounded by the meter's 0.01 kWh updates.** House only before, 143.1 min:
+  meter 0.95 kWh, SEM 0.951 kWh, +0.1 % [M]. Charger on, 15:57:53-16:29:27Z, 31.6 min: 0.80 against 0.813 kWh, +1.6 %
+  [M]. After, 74.5 min: 0.65 against 0.655 kWh, +0.8 % [M]. One register count is 1.25 % of the charge window [D: 0.01 / 0.80].
+- **Charger AC in to DC into the bank at 78 A CC: 0.756** [D: 1081.4 W DC / 1429.9 W AC, n=15 one-minute means, sd 0.0035].
+  Minutes 15:57-16:03 and 16:08-16:15Z; 16:04-16:07 is excluded because another leg-A load took `sem_other_power` to
+  2824 W at 16:06 [M]. AC is `sem_other_power` minus a 64.8 W background, the mean of 15:40-15:55:30Z (66.35 W) and
+  16:32-16:47Z (63.22 W) [M]. Any background from 59 to 74 W gives 0.753-0.761 [D]. Loss 348.4 W [D: 1429.9 - 1081.4];
+  bank 13.550-14.136 V over those minutes [M].
+- **What 0.756 includes.** The DC side is VBUS x I at the bank, after the charger's cables, so the charger at its own
+  terminals is higher by an unmeasured cable loss. The clamp cleared the current path (first subsection above); VBUS
+  has never been checked with a DMM, and an error there moves 0.756 by the same fraction. If the SEM over-read the
+  charger by the same 1.6 %, it is 0.768 [D: 0.756 x 1.016]. Taper minutes read 0.77-0.85 [D] but are not used: at low
+  power the background term dominates them.
+- **The 09-30 plug meter read the charger low**, 730 Wh against 965.8 Wh [D: 730.12 / 0.756], 24.4 % [D: 1 - 730 / 965.8]
+  [I: same charger efficiency on 09-30; falsified if the plug meter reads within 5 % of the SEM step on the charger].
+  The same error on the inverter's load would make the 09-30 inverter 1.19 [D: 0.900 / 0.756], so the plug meter's
+  error depends on the load [I: falsified if it reads a resistive load and the charger both within 5 % of the SEM].
+  The 09-30 inverter 0.900 [D] is therefore untested, and the round trip is at most 0.756 [D: 0.756 x inverter <= 1].
+- **The commissioning report's charger figure, 95.7 % ± 2.5 % [M: 1586 Wh DC / ~1657 Wh AC, Kill-A-Watt, 98 min charge],
+  is contradicted.** It is the LiTime 80 A by name (Lifepo4-Battery-Banks, commissioning report summary table), and its
+  DC side was this INA228, whose current path the clamp cleared today. At 0.957 the CC AC draw would be 1130.0 W [D: 1081.4 / 0.957],
+  so the SEM would have to over-read the charger by 26.5 % [D: 1429.9 / 1130.0 - 1]; against the revenue meter it read +1.6 % [M].
+  The taper (0.77-0.85 [D]) can lift a whole-charge figure toward 0.85, not to 0.957. If 0.756 held then, the
+  Kill-A-Watt read the charger 21.0 % low [D: 1 - 1657 / (1586 / 0.756)], the direction and size of the 09-30 plug
+  meter's 24.4 % [I: falsified by the plug-meter check at the next charge]. The battery repo still publishes 95.7 % [M]
+  (report, README, `diag-test-runsheet.md`, which leans on it to rule out a gain error; the clamp now carries that).
+  Not edited here: separate repo. "Round trip" above is AC to AC; the repo's battery-only round trip (voltaic x CE)
+  is a different quantity and is not contradicted.
+- **The inverter half cannot come from today's data.** No HA power entity moved with the DC at either discharge edge.
+  At 15:25:33Z the INA228 stepped -474.8 W while whole-home rose +308.0 W, which the furnace (+67.0 W) and the
+  dehumidifier (`dehumidifier_current_consumption`, +220.7 W) starting at the same time cover to 20.3 W [D: 308.0 - 287.7]. At 15:35:23Z the INA228
+  stepped +251.2 W and the largest SEM step was whole-home +20.1 W [M: 70 s windows]. Test requested in
+  `open_questions.yaml` (asked 2026-11-13, resistive load through the plug meter, wall / inverter / wall).
+- **Correction (R13, same day): the 15:35:23Z edge above was 39 s late.** The load was a hair dryer on low speed, medium
+  heat (Bill). It stopped at 15:34:44Z: DC -467.4 W at :42, -6.0 W at :46 [M: 2 s samples]. 15:35:18Z is the inverter's
+  own idle draw ending, 5.5 W [D: 5.83 - 0.35]. At the true edge the INA228 stepped +467.2 W and the largest SEM step
+  was main A +26.8 W [M: 70 s windows], so the finding stands. The hold was steady at 472.7 W DC, sd 1.25 W [M: n=8
+  one-minute means, 15:26-15:34Z], so the test now asks for the same dryer on the same setting.
+- **`packages/backup_sizing.yaml` unchanged.** `amps_at_bank_v` assumes 88 % inverter efficiency with no source. It
+  stays until the inverter is measured: today gave no inverter data, and an [I] cannot justify a config change (R15).
+- **Left open:** the inverter test; a DMM on VBUS (commissioning report, quarterly voltage check); the charger plug-meter
+  falsifier at the next charge.
 
 ## [2026.11.07] - 2026-11-07
 

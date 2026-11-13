@@ -2119,6 +2119,18 @@
     were not the clamp's zero and the ~0.5 A gaps are unexplained [M: Bill, n
     not stated]. Neither (3) nor (2) rested on it: the 78 A gap is 0.47 A
     against the 6.8 A [D] that (2) would need.
+    2026-11-13, later: the charger half of (1) is measured from the SEM, not
+    the plug meter (CHANGELOG [2026.11.13]): AC in to DC into the bank is
+    0.756 at 78 A CC [D: n=15 one-minute means, sd 0.0035], and the SEM read
+    +1.6 % against the revenue meter over the same charge [M: 0.80 kWh meter,
+    0.813 kWh SEM, 31.6 min]. (2) for the charge side: the 09-30 98.6 % came
+    from the plug meter reading the charger low, 24.4 % [D: 1 - 730 / (730.12
+    / 0.756 = 965.8 Wh it should have read); I: assumes the same charger
+    efficiency on 09-30, falsified if the plug meter reads within 5 % of the
+    SEM on the charger]. VBUS is still not DMM-checked; an error there moves
+    0.756 by the same fraction. The 0.900 above is not the round trip; the
+    inverter half moved to the 2026-11-13 entry asking for a resistive-load
+    test.
 
 - asked: 2026-10-01
   question: >-
@@ -3252,3 +3264,56 @@
     battery 5 by difference is 6.29 A [D: 35.6 - (7.43 + 5.58 + 8.54 + 7.76)].
     Discharge split, batteries 1-5: 7.43 / 5.58 / 8.54 / 7.76 / 6.29 A [M x 4,
     D x 1; one photo each, 10:32:12-10:32:57 EST].
+- asked: 2026-11-13
+  question: >-
+    Inverter efficiency, about 20 min at a time of your choosing. One steady
+    resistive load of 300-1000 W (a space heater on one fixed setting, or
+    incandescent or halogen lamps; nothing with a motor, compressor or a
+    thermostat that cycles), run through the plug meter: (a) 5 min in a wall
+    outlet, (b) at least 10 min in an inverter outlet, (c) 5 min back in the
+    wall. Note the clock time of each move and photograph the plug meter's W
+    and V in each stage. Also, what was on the inverter during today's
+    10:26-10:33 EST hold, and how was it connected? At the next charge, 5 min
+    of the charger through the plug meter during CC.
+  blocks: >-
+    (1) The inverter half of the 09-30 split. No HA power entity moved with
+    the DC at today's discharge edges: at 15:35:23Z the INA228 stepped +251.2
+    W and the largest SEM step was whole-home +20.1 W [M: 70 s windows either
+    side], so today's inverter AC output is unmeasured. Inverter efficiency =
+    plug-meter W on the inverter x (SEM step / plug-meter W at the wall) /
+    INA228 DC step. (2) The 0.88 in packages/backup_sizing.yaml
+    (amps_at_bank_v, "88% inverter efficiency", no source), which stays until
+    (1) is measured. (3) The [I] that the plug meter read the charger 24.4 %
+    low on 09-30 (09-30 clamp entry above); falsified if it reads within 5 %
+    of the SEM step on the charger.
+  answered: >-
+    2026-11-13, Bill: "a hair dryer running on low speed medium heat", read
+    as the load on the inverter during today's hold. How it was connected was
+    not stated; nothing waits on it, since no HA meter saw it. It was steady:
+    472.7 W DC, sd 1.25 W [M: n=8 one-minute means, 15:26-15:34Z].
+    CORRECTION (R13, same day): the edge in blocks above was 39 s late. The
+    dryer stopped at 15:34:44Z: DC -467.4 W at :42, -6.0 W at :46 [M: 2 s
+    samples]. 15:35:18Z is the inverter's own idle draw ending, 5.5 W [D:
+    5.83 - 0.35]. At the true edge the INA228 stepped +467.2 W and the
+    largest SEM step was main A +26.8 W [M: 70 s windows either side], so
+    the finding stands. The test is split into the next entry.
+- asked: 2026-11-13
+  question: >-
+    Inverter efficiency, about 20 min at a time of your choosing, with the
+    same hair dryer on the same setting (low speed, medium heat), run through
+    the plug meter: (a) 5 min in a wall outlet, (b) at least 10 min in an
+    inverter outlet, (c) 5 min back in the wall. Note the clock time of each
+    move and photograph the plug meter's W and V in each stage. At the next
+    charge, 5 min of the charger through the plug meter during CC. Split
+    2026-11-13 from the entry above, whose question about today's load Bill
+    answered that day.
+  blocks: >-
+    (1) The inverter half of the 09-30 split, near 472.7 W DC [M: today's
+    hold, entry above]. Inverter efficiency = plug-meter W on the inverter x
+    (SEM step / plug-meter W at the wall) / INA228 DC step. The dryer has a
+    motor, but today it held sd 1.25 W over 8 min [M], steady enough. (2)
+    The 0.88 in packages/backup_sizing.yaml (amps_at_bank_v, "88% inverter
+    efficiency", no source), which stays until (1) is measured. (3) The [I]
+    that the plug meter read the charger 24.4 % low on 09-30 (09-30 clamp
+    entry); falsified if it reads within 5 % of the SEM step on the charger.
+  answered: null
