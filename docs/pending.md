@@ -557,6 +557,36 @@ DO NOT run scripts/sdr_gain_set.py on the N100 once Stage 1 has started: it
 would edit the idle rollback copy (plan section 8).
 ```
 
+### P29 — battery bank `soc_offset_ma`: set it from the first all-Rev-2 bracket [LOW]
+```
+Opened 2026-11-13 at Bill's request ("how do we make this data actionable").
+Figures and reasoning: CHANGELOG [2026.11.13]. Nothing deployed.
+
+TRIGGER: the first clean full charge at or after 2026-11-27 16:31Z, seen as an
+update of sensor.basement_battery_bank_monitor_suggested_offset_current. The
+bracket that began 2026-11-13 16:31:22Z is the first wholly on Rev 2. A board,
+shunt or sense-path change before then restarts the wait.
+
+RULE - one knob, soc_offset_ma:
+1. From history at the closure: i = suggested_offset_current (mA);
+   b_in, b_out = ah_in/ah_out_since_anchor just before the reset (Ah);
+   h = hours_since_anchor just before the reset.
+2. s = sqrt((0.01 b_in)^2 + (0.01 b_out)^2 + (0.005 b_in)^2) / h x 1000 (mA).
+   That is the firmware's sigma without its 2.67 mA datasheet term: for this
+   knob the offset is what is being measured.
+3. |i| > 2 s: propose soc_offset_ma = i to Bill (firmware substitution: R2,
+   DoD step 6, Bill installs). Otherwise no change.
+4. Leave self_discharge_pct_per_month at 0.0. It is the same constant current;
+   setting both counts it twice.
+5. Check at the closure after that: last_anchor_closure within 2 s x h / 1000
+   Ah of 0.
+6. Split, for the record only: unseen drain (self-discharge plus anything the
+   shunt cannot see) = i + 3.090 mA [D: JP 2026-11-07], IF JP's offset is the
+   in-service offset [I]. Below 0 by more than 2 s falsifies that: the path
+   outside JP adds offset, so run P-2b on Rev 2 (design note, JP zero
+   follow-ups) before quoting a self-discharge rate.
+```
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```

@@ -155,6 +155,30 @@ question" —** the answer was one line away and settled it in one sentence.
   test itself counted as outage event 10 at 10:36:32 (5.28 Ah, 69.3 Wh) [M].
 - **Left open:** the inverter/charger efficiency split still waits on an AC-side or VBUS check.
 
+### Battery bank monitor: the 11-07 JP zero against this closure, and the self-discharge entities (analysis only, no firmware or HA change)
+
+Bill asked how the 11-07 short (JP, [2026.11.07] below) and this closure improve the monitor, and how to act on
+`self_discharge_ah_this_cycle` and `recommended_self_discharge_rate`.
+- **JP cannot be combined with this closure.** JP measured Rev 2's in-place offset, -3.090 mA [D: 11-07]. The 09-30 to
+  11-13 bracket ran 860.6-865.0 h on Rev 1.1 and 186.7-191.0 h on Rev 2 [D: Rev 1.1's analysed set ends 11-05 12:30
+  EST, Rev 2 booted 16:49 EST, closure 16:31:22Z]. Rev 1.1's in-place offset was never measured (09-28 P-2a shorted at
+  another point, with the buck pickup still in). So Suggested Offset Current -1.113 mA [M] describes neither board,
+  and `soc_offset_ma` stays 0.0.
+- **Recommended Self-Discharge Rate and Suggested Offset Current are one number in two units.** -0.2048 %/mo [M] is
+  -1.113 mA [D: -0.2048 / 100 x 397 Ah / 730.5 h x 1000], the offset entity's own value. The SD model (firmware line
+  2264) and `soc_offset_ma` (line 2425) both subtract a constant current from SOC, so setting both counts it twice. A
+  negative rate is not self-discharge: it says the shunt over-read discharge, the sign JP found on Rev 2.
+- **Self-Discharge Ah This Cycle reads 0.0 by design** [M]: it integrates `self_discharge_pct_per_month`, which is 0.0.
+  It measures nothing and has nothing to act on.
+- **For `soc_offset_ma` the firmware's sigma is the wrong yardstick.** Of its 2.851 Ah, 2.808 Ah is the datasheet
+  offset term [D: 2.67 mA x 1051.66 h]. For this knob the offset is the quantity being measured, so the band that
+  applies is the gain and CE terms alone: 0.496 Ah, 0.472 mA over this bracket [D: sqrt((0.01 x 32.70)^2 + (0.01 x 33.52)^2 + (0.005 x 32.70)^2)].
+  On an idle bracket that band stays near 0.415 mA at any length [D: 27.5 mA dark draw, 14 d and 30 d alike].
+- **What is at stake:** -1.113 mA moves SOC 0.205 % of 397 Ah per month [D: 1.113 mA x 730.5 h / 397 Ah]; Rev 2's
+  -3.090 mA alone would be 0.569 % per month [D: same formula]. Each clean full charge zeroes it.
+- **Plan:** `docs/pending.md` P29. The bracket that began at 16:31:22Z today is the first wholly on Rev 2; the firmware
+  publishes it no sooner than 2026-11-27 16:31Z [D: + recon_min_days 14.0].
+
 ## [2026.11.07] - 2026-11-07
 
 ### Dehumidifier: a +3 W compressor shift since ~10-29, not the furnace; P3 test plan (DOCUMENTATION, `docs/pending.md`, `docs/house.md`)
