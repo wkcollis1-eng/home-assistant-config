@@ -3334,3 +3334,81 @@
     second clamp set, at the next charge and discharge, repeats the same
     ranks in both directions. Nothing is built on the split until then.
   answered: null
+- asked: 2026-11-13
+  question: >-
+    HVAC repo Q3 report: the September 2026 gas bill (statement 09-15, 8 CCF
+    over 34 days). What meter-read date does it print, and was the read actual
+    or estimated?
+  blocks: >-
+    Closing the Q3 2026 gas total (29 CCF, bills) against the SDR gas meter.
+    The SDR read 862 ft3 = 8.62 CCF from Aug 21 to Sep 15 [M, 26 days, Aug 21
+    partial], already more than the 8 CCF billed for the whole 34-day slot,
+    and whole-CCF bill quantisation cannot close that. [I] the read predates
+    09-15 or was estimated; falsified if the bill prints an actual read dated
+    09-15. Carried in Q3_2026_UPDATE.md section 3.2.
+  answered: >-
+    2026-11-13, Bill: meter read date was Sep 14, actual. Away about two
+    weeks that month with DHW off, no heat and no cooking. The meters show 11
+    absent days in mid-August. Q3_2026_UPDATE.md section 3.2 is resolved; the
+    AC and electricity sections were revised for the absence.
+- asked: 2026-11-13
+  question: >-
+    HVAC repo Q3 report: in roughly which month did the office computer start
+    shutting down overnight with sleep modes on?
+  blocks: >-
+    Attributing the electricity drop. Slot-month differences 2026 - 2025
+    average +3.0 kWh/month Jan-Apr and -147.6 May-Sep [D, post-hoc split, no
+    test], about 4.9 kWh/day, matching the summer bill-window drop of 5.04
+    kWh/day [D: 464 / 92]. Recirculation hours were already lower Jan-May
+    (290 -> 199 h [M]) with no electricity drop, which argues against
+    recirculation [I; falsifier: a recirculation schedule change dated
+    April-May 2026]. Carried in Q3_2026_UPDATE.md section 5.2.
+  answered: >-
+    2026-11-13, Bill: January (2026). January-April show no electricity
+    drop, so the computer change does not explain the May timing; follow-up
+    question asked the same day.
+- asked: 2026-11-13
+  question: >-
+    HVAC repo Q3 report: was the house empty, or the AC switched off, for any
+    stretch between May and September 2025? Seven Q3 2025 days had no AC at 5
+    CDD or more [M], three in August and four in September (dates in the
+    2026-11-13 session reply).
+  blocks: >-
+    A like-for-like AC comparison and the 2025 side of the electricity
+    adjustment. Q3 2026 without its 11-day absence has no such day [M]. If the
+    2025 days were unoccupied, the 2025 slope (24.91 min/CDD) is understated
+    and the Q3 slope difference (-1.96 min/CDD, p ~ 0.21 [D]) changes again.
+    Carried in Q3_2026_UPDATE.md section 7, question 1.
+  answered: >-
+    2026-11-13, Bill: away 10-12 days in September 2025 as well (dates not
+    recorded here). The 2025 AC fits now drop the 23 September days that trip
+    could have covered: Q3 slope difference -1.10 min/CDD, p ~ 0.54; season
+    -2.99, p ~ 0.12 [D, week-block bootstrap]. The AC results do not depend
+    on the dates; the electricity adjustment does. Follow-up asked the same day.
+- asked: 2026-11-13
+  question: >-
+    HVAC repo Q3 report: what changed around April-May 2026, or ran in summer
+    2025 but not in summer 2026, beyond the office computer (from January) and
+    the DHW recirculation? One example: the air-handler fan set to on rather
+    than auto in 2025.
+  blocks: >-
+    Attributing the May-September electricity drop. Slot-month differences
+    average +3.0 kWh/month Jan-Apr and -108.1 May-Sep absence-adjusted [D,
+    post-hoc split, no test]. Both named changes were in place before the drop
+    began. Carried in Q3_2026_UPDATE.md section 7, question 2.
+  answered: >-
+    2026-11-13, Bill: not aware of any change. The May-September electricity
+    drop is unexplained; the section 5.2 inference, which named this answer
+    as its falsifier, is withdrawn.
+- asked: 2026-11-13
+  question: >-
+    HVAC repo Q3 report: what were the departure and return dates of the
+    September 2025 trip, and was the water heater turned off then, as it was
+    in August 2026?
+  blocks: >-
+    The 2025 side of the electricity adjustment for the Aug 12-Sep 10 window
+    (third-window drop 1.01 to about 3.38 kWh/day, Q3 2.90 to about 3.67 [I:
+    2026 fit applied to 2025]) and of the DHW comparison. The AC results do
+    not depend on it. The dates are for the arithmetic only, not for the
+    public repo. Carried in Q3_2026_UPDATE.md section 7, question 1.
+  answered: null

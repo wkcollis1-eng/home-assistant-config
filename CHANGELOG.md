@@ -112,6 +112,48 @@ question" —** the answer was one line away and settled it in one sentence.
 
 ## [2026.11.13] - 2026-11-13
 
+### HVAC repo Q3 2026 report: two R14 questions registered (documentation only, no HA config change)
+
+- **Report** (Bill, 2026-11-13, in place of the October monthly update): `Q3_2026_UPDATE.md` (1.10.0) in the
+  public repo `Residential-HVAC-Performance-Baseline-`, plus pointers in its UPDATES.md, README.md and CHANGELOG.md.
+  Q3 and January-September 2026 against 2025, SEM and SDR full months, an AC section with CDD against last year.
+  Not committed or pushed: waits on Bill (R12, public repo).
+- **`open_questions.yaml`**: two entries appended, asked 2026-11-13, 128 entries after [M: append script, parse check
+  and byte-identical prefix asserted, temp file + os.replace, LF kept]. `ha_audit.py` open-question WARNs now 5
+  [M: off-host run 2026-11-13], the two new ones by design.
+  - The September 2026 gas bill (statement 09-15, 8 CCF over 34 days): read date, actual or estimated. The SDR gas
+    meter read 8.62 CCF from Aug 21 to Sep 15 [M: 862 ft3, 26 days, Aug 21 partial], more than the whole slot billed.
+  - The month the office computer began overnight shutdown and sleep: blocks attributing the electricity drop, slot
+    differences 2026 - 2025 averaging +3.0 kWh/month Jan-Apr and -147.6 May-Sep [D, post-hoc split, no test run].
+- **Read only on H:**: `reports/hvac_daily_2026.csv`, `www/energy/energy_daily_master.csv`. No other H: file changed.
+- **Flagged, not changed**: `docs/house.md` records the water heater as Navien NPE-240A2; the repo's reports say S2 in
+  7 places. A separate repo commit.
+- **Answered the same day** (Bill, 2026-11-13): the September bill's read was actual, on Sep 14, and the household
+  was away about two weeks in that slot with DHW off, no heat and no cooking. The computer change began in January.
+  The meters show 11 absent days in mid-August [M: microwave, counter and computer circuits at 0, Navien plug at
+  standby]. Both entries got `answered:`, and two follow-ups were appended: 2025 occupancy, and what changed around
+  April-May 2026. 130 entries after [M: span-edit script; untouched entries and the byte prefix asserted identical;
+  temp file + os.replace]. `ha_audit.py`: 0 FAIL, 5 WARN, 2 INFO [M: off-host run 2026-11-13]. The two answered
+  WARNs cleared and the two follow-ups replaced them, by design.
+- **R13, my error**: the draft's AC finding (Q3 slope difference -5.03 min/CDD, p ~ 0.030) and the published
+  September season finding (-6.05, p ~ 0.010) both came from the absence. Excluding it, they are -1.96 (p ~ 0.21)
+  and -3.59 (p ~ 0.052) [D, week-block bootstrap, B=5000]. The repo's "base load, not cooling" reading of the
+  electricity drop is withdrawn. Adjusted for the absence, the bill-window drops fall as the CDD difference rises
+  (Spearman rho = -1.0, n = 4, exact p ~ 0.083 [D]). The Q3 report was revised; `SEPTEMBER_2026_UPDATE.md` and the
+  README got dated correction notes. Still uncommitted.
+- **Follow-ups answered the same day** (Bill, 2026-11-13). The household was also away 10-12 days in
+  September 2025; no dates are recorded in either repo. The 2025 AC fits now drop the 23 September
+  days that trip could have covered: the Q3 slope difference is -1.10 min/CDD, p ~ 0.54, and the
+  season difference -2.99, p ~ 0.12 [D, week-block bootstrap, B=5000]. Neither result depends on the
+  exact dates [D: the full span and three 10-12-day placements]. The electricity adjustment does
+  depend on them, so the adjusted figures are now stated as lower bounds. Bill knows of no change
+  around April-May 2026, so the timing of the electricity drop is unexplained. Two entries in
+  `open_questions.yaml` got `answered:` and one follow-up was appended (trip dates, DHW off), 131
+  entries [M: span-edit script; prefix asserted byte-identical; temp file + os.replace].
+- **Committed** (Bill's go-ahead, 2026-11-13): HVAC repo branch `report/q3-2026`, 9d6d177 and eff48a5,
+  pushed, not merged. The H: commit carries only this entry's five `open_questions.yaml` entries; three
+  older uncommitted entries (asked 2026-11-07 and 11-08) stay uncommitted in the working tree.
+
 ### Navien cross-check, October 2026: panel inside the meter's range; the fireplace measured out of the DHW estimate (documentation only, no HA config change)
 
 - **Panel entered** (Bill, 2026-11-13): 9.06104 therm, 11 h operating (Bill: also the panel's October figure, the same
