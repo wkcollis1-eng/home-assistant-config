@@ -3412,3 +3412,31 @@
     not depend on it. The dates are for the arithmetic only, not for the
     public repo. Carried in Q3_2026_UPDATE.md section 7, question 1.
   answered: null
+
+- asked: 2026-11-16
+  question: >-
+    Hallway mmWave node: what is within about a foot (30 cm) of the node's
+    front face - anything on the face itself (an insect, tape, dust), or
+    anything placed, hung, opened or moved near it on or about 11-13, or the
+    node bumped or re-aimed?
+  blocks: >-
+    The fix for the hallway phantoms. Since 11-13 11:00, 172 presence
+    episodes are a single moving-target blip at 11.8 in (gate 0), peak
+    moving energy 31-69 against a g0 move threshold of 50, still energy
+    about 7-22, held exactly the module's 30 s timeout; 11-10 to 11-12 had
+    0, 0 and 1 such [M: Influx hallway_mmwave_moving_distance and
+    _moving_energy, HA history, 11-09 to 11-16]. Real walk-throughs sit at
+    55-60 in with energy 83-100 [M]. They caused 10 of the 14 lamp
+    turn-ons on 11-16 [M]. Ruled out: furnace (a day with 193 min on had 0
+    episodes), lamp feedback (0 of 172 within 5 s of a lamp switch), any
+    setting change (23 hallway number/select entities constant all week),
+    office radar (z -1.5 and +0.5) [M]. None in a stretch when all three
+    radars were silent. Raising
+    number.hallway_mmwave_g0_move_threshold to about 70 stays unbuilt: what
+    a person inside 0.75 m reads at gate 0 is unmeasured [I].
+  answered: >-
+    2026-11-16, Bill: "Nothing in front. move threshold from 50 to about
+    70." Gate 0 move set to 70 live at 20:16 local (01:16Z 11-17), and in
+    esphome/mmwave-hallway-node.yaml, the office's P25 pattern, so the boot
+    push keeps it. Lasting only once Bill reflashes the node; until then a
+    reboot puts 50 back.

@@ -110,6 +110,55 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.16] - 2026-11-16
+
+### Hallway mmWave phantoms: a gate-0 target since 11-13, one R14 question registered (analysis only, no HA config or firmware change)
+
+- **Report** (Bill, 2026-11-16): the hallway lamp lights with no one there, "started today".
+- **Found**: since 11-13 11:00, 172 presence episodes are a single moving-target blip at 11.8 in (gate 0, the
+  first range bin), peak moving energy 31-69 against `number.hallway_mmwave_g0_move_threshold` 50, still energy
+  about 7-22, each held exactly the module's 30 s `radar_timeout`. 11-10, 11-11 and 11-12 had 0, 0 and 1 such
+  [M: Influx `hallway_mmwave_moving_distance` / `_moving_energy` / `_still_energy`, HA history, 11-09 to 11-16].
+  Real walk-throughs sit at 55-60 in, energy 83-100 [M]. They caused 10 of the 14 lamp turn-ons on 11-16 [M].
+  So it started 11-13, not today: 97 of 120 episodes after 11:00 that day were the same shape.
+- **Ruled out** [M, same sources]: the furnace (a day with 193 min on had 0 episodes; 8 of 91 starts on 11-16
+  inside a cycle); lamp feedback (0 of 172 within 5 s of a lamp switch); any setting change (23 hallway `number` /
+  `select` entities constant all week); the office radar (z -1.5 on 11-13, +0.5 on 11-16, 5,000 random 3 s
+  windows). The family radar gave z +3.7 on 11-16 and -0.8 on 11-13; it does not repeat, so nothing is built on it.
+  The daily 04:10-04:20 engineering-mode switch is the scheduled gate log.
+- **Not inferred**: a stretch with no episodes of any kind, when all three radars were silent. Why, and what is
+  within a foot of the node, are Bill's to say (R14).
+- **`open_questions.yaml`**: one entry appended, asked 2026-11-16, 132 entries after [M: append script, the old
+  file asserted an exact byte prefix and all 131 entries parse-identical; sandbox first, temp file + os.replace,
+  LF kept]. It blocks raising the g0 move threshold to about 70: what a person inside 0.75 m reads at gate 0 is
+  unmeasured [I]. The 97 uncommitted lines already in the file (entries asked 11-07 and 11-08) are untouched.
+
+### Hallway mmWave: gate 0 move threshold 50 -> 70, set live and in the node's firmware (installed 2026-11-16)
+
+- **Answer** (Bill, 2026-11-16): "Nothing in front. move threshold from 50 to about 70." The question's
+  `answered:` is set; the other 131 entries are parse-identical and the bytes before the entry are unchanged [M: edit
+  script asserts; temp file + os.replace; LF kept].
+- **Live**: `number.hallway_mmwave_g0_move_threshold` 50 -> 70 at 2026-11-17 01:16:10Z (20:16 local), prior 50
+  snapshotted; reads 70.0, last_changed 01:16:10Z [M: `/api/states`, 01:21Z].
+- **Durable**: `g0_move: "70"` under a ONE MEASURED EXCEPTION comment, the office's P25 pattern, in
+  `esphome/mmwave-hallway-node.yaml` and its source `C:\repos\mmwave-presence-node`. Both are byte-identical to the
+  sandbox file that compiled: +16 lines inserted, nothing else changed, CRLF kept. It has to live there because
+  `push_commissioned_state` (`mmwave-node-common.yaml`) rewrites every gate threshold from the substitutions at each
+  boot, so a value set only live reverts to 50 at the next reboot.
+- **Compile** (DoD 6, ESPHome 2026.10.2, the add-on's version, from PowerShell): EXIT 0; `main.cpp.obj` 20:19:23
+  is newer than the YAML at 20:17:17; `firmware.ota.bin` is 968,352 bytes; the generated `main.cpp:591` is
+  `set_value(70.0f)` on `n_g0_move`. One `-Wformat` warning at `mmwave-node-common.yaml:1129` was already there
+  and is untouched.
+- **Installed** (Bill, 2026-11-16, Device Builder): the node rebooted at 02:11:46Z on 11-17 (uptime 122 s at
+  02:13:43Z), and the threshold read 70.0 after the boot [M: `/api/states`]. The old firmware's boot push would
+  have written 50 back. Limit: the node's log was not read, so 70 after a boot also fits a push that did not run
+  (the module keeps 70 in its own memory), and the node exposes no version sensor to read a build from [M:
+  `/api/states`].
+- **Open**: not yet observed. 0 moving-target rows in the first 5 min after the live change [M: Influx
+  `hallway_mmwave_moving_distance` / `_moving_energy`, 01:16-01:21Z], which is too short to say anything against
+  172 episodes in about 81 h [D: 11-13 11:00 to 11-16 20:16]. The 69 peak was a throttled floor, so some ghosts
+  may still clear 70 [I: falsified if no weak gate-0 episode occurs in the 24 h after the install].
+
 ## [2026.11.13] - 2026-11-13
 
 ### HVAC repo Q3 2026 report: two R14 questions registered (documentation only, no HA config change)
