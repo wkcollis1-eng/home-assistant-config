@@ -82,10 +82,11 @@ is calibrated against.
 | 2026-10-30 | **Top-off charger, the first V0.5 hold of 8 h at PSU 14.42 V.** The last 10-min window of the tail, Last Session Final Window Mean less Last Session Idle Offset, reads 0.195-0.213 mA [D: S5's two log-log fits, extrapolated from 6 h to 8 h, R11], with the session ending DONE. Falsified by a reading outside that range; a flat tail from +6 h is the plateau the longer hold was asked to find. Void if the session starts over 24 h after a hold ends, or if the pack was charged in between [I: S4 to S5 the same tail fell, so a fuller start may read low]. Not a claim about where the current goes: the DMM question in `open_questions.yaml` is outstanding, and this row measures only the shunt. | yes - written before the flash | pending, due at that session |
 | 2026-11-01 | **The third measured softener regen.** `binary_sensor.water_softener_regen_last_night` turns on for a real regen by the morning of 2026-11-08, before `binary_sensor.softener_regen_overdue` comes up at 3300 gal [I: the one measured cycle is 2775.5 gal [M, n=1], and 2757.8 gal have run since the last regen [M, 2026-11-01 about 10:20 EST], which leaves 17.7 gal [D: 2775.5 - 2757.8], and the softener's own count is not on the main meter]. Falsified if overdue turns on first, or no regen by 2026-11-08 05:01:15. Void if the SDR water meter is down on the night. This is also the first real run of `softener_regen_count`. | yes - written before the regen | pending, due 2026-11-08 |
 | 2026-11-01 | **R20 commit nudge.** Of the first 40 compactions after deployment, `scorecard.py recovery` shows at most 1 that followed a commit or push the checkpoint predates. [I: a one-shot nudge is enough because in-time writes took at most 6 calls [M, n=102], and the last git step of a sequence always gets it.] Baseline 8 of 100 [D: 6 of 57 + 2 of 43, scorecard.py recovery, the two weeks to 2026-11-02], so 1 or fewer of 40 comes up about 16 % of the time with no effect [D: binomial, p = 0.08]. Falsified by 2 or more; then make it repeat until the checkpoint is written. Read `commit-nudge` rows in gate.log beside it: a row with no write inside 6 calls is the failure this row predicts will not happen. | yes | open |
-| 2026-11-05 | **INA228 PCB Rev 2 is quieter by σ over a full week.** Pooled σ through the 0.7629 mA quantizer, over 2026-11-06 to 11-12 with nights included, lands at 0.160–0.190 mA. Blocks are centred, dark, idle 10-min blocks, by the method in `pcb-rev2-noise-fix-design.md` §8.2, "Results on Rev 2". [I: 5 h gave 0.1717 mA, se 0.0023, n = 22 blocks, evening only.] HIT inside 0.160–0.190. MISS outside it but below 0.199. Falsified at 0.199 mA or above, which is the lowest σ of 31 Rev 1.1 evenings [D]. | yes, before any 11-06 data was read | open |
-| 2026-11-05 | **Rev 2's visible calm is grid position, and it goes when the zero drifts.** If by 2026-12-31 Rev 2's idle mean comes within 0.1 code of a code boundary (−27.85 or −27.08 mA, or any other), those blocks show a median 2-s scatter of at least 0.33 mA. [D: σ 0.1717 mA through the quantizer gives 0.381 mA on a boundary; Rev 1.1's on-boundary row measured 0.380 mA, n = 268 blocks.] Falsified if they show under 0.30 mA. Void if no block comes within 0.1 code of a boundary by 12-31. | yes | open |
+| 2026-11-05 | **INA228 PCB Rev 2 is quieter by σ over a full week.** Pooled σ through the 0.7629 mA quantizer, over 2026-11-06 to 11-12 with nights included, lands at 0.160–0.190 mA. Blocks are centred, dark, idle 10-min blocks, by the method in `pcb-rev2-noise-fix-design.md` §8.2, "Results on Rev 2". [I: 5 h gave 0.1717 mA, se 0.0023, n = 22 blocks, evening only.] HIT inside 0.160–0.190. MISS outside it but below 0.199. Falsified at 0.199 mA or above, which is the lowest σ of 31 Rev 1.1 evenings [D]. | yes, before any 11-06 data was read | **HIT** - scored 2026-11-17: 0.1715 mA [0.1705, 0.1730] over UTC days 11-06 to 11-12, 0.1720 mA over EST days, 953 of 988 blocks fitted [D: InfluxDB, design note §8.2 "twelve days"] |
+| 2026-11-05 | **Rev 2's visible calm is grid position, and it goes when the zero drifts.** If by 2026-12-31 Rev 2's idle mean comes within 0.1 code of a code boundary (−27.85 or −27.08 mA, or any other), those blocks show a median 2-s scatter of at least 0.33 mA. [D: σ 0.1717 mA through the quantizer gives 0.381 mA on a boundary; Rev 1.1's on-boundary row measured 0.380 mA, n = 268 blocks.] Falsified if they show under 0.30 mA. Void if no block comes within 0.1 code of a boundary by 12-31. | yes | **HIT** - scored 2026-11-17 on the blocks to 11-17 13:30Z. 67 Rev 2 blocks came within 0.1 code of a boundary, 11-08 to 11-14; median 2-s scatter 0.381 mA, quartiles 0.378-0.382 [M: InfluxDB, design note §8.2 "twelve days"]. Their fitted σ stayed 0.1675-0.1815 mA by day [D]. Rev 1.1's blocks on the same cut read 0.380 mA [M: 244 blocks] |
 
-**Running score: 20 hits, 7 misses, 5 falsified, 5 withdrawn, 3 void.** (12th hit: the 2026-09-23
+**Running score: 22 hits, 7 misses, 5 falsified, 5 withdrawn, 3 void.** (Until 2026-11-17 this read 20 hits; that
+day scored both 2026-11-05 Rev 2 rows HIT.) (12th hit: the 2026-09-23
 200K-trial row, scored 2026-10-04 as registered; its own cell says why that yardstick was wrong.) (Withdrawn read 1 until
 2026-09-18: the 09-17 withdrawal was never added to the count.) (Until 2026-09-30 this read
 1 falsified and 2 withdrawn. The 09-25 idle-days FALSIFIED row and the two 09-25 mmwave-bench
@@ -109,6 +110,49 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.11.17] - 2026-11-17
+
+### INA228 PCB Rev 2: twelve days against Rev 1.1 and JP; the noise gauge put on the next flash (documentation only, no HA config or firmware change)
+
+Bill asked (2026-11-17) for Rev 1.1 against Rev 2 from InfluxDB, with the 11-07 JP short beside them. Written up in the
+Lifepo4-Battery-Banks repo, `INA228 Monitor/pcb-rev2-noise-fix-design.md`: the Status, a §0 row, a new subsection
+"Results on Rev 2, twelve days, 2026-11-17", and two §9 notes. The repo change was uncommitted when this entry was written.
+
+**Findings** (10-min idle dark blocks, the design note's Gaussian-quantizer fit, block bootstrap B = 2000):
+- **σ before the quantizer** [D]:
+  - Rev 1.1: 0.2060 mA, se 0.0004, 4,231 blocks fitted, 10-01 to 11-05.
+  - Rev 2: 0.1715 mA, se 0.0008, 1,519 blocks, 11-05 to 11-17 with JP removed.
+  - JP: 0.1475 mA, se 0.0034, 10 blocks.
+  - Rev 2 - Rev 1.1 = -0.0345 mA, z = -39.8.
+  - JP - Rev 2 = -0.0240 mA, z = -7.0. Against the spread of Rev 2's 13 daily fits (SD 0.0041 mA) it is z = -4.6.
+- **The raw 2-s scatter cannot see the board change**: medians 0.259 and 0.257 mA [M]. It follows where the zero sits.
+  Rev 2 days read 0.168-0.368 mA while their σ stayed 0.1675-0.1815 mA [M, D].
+- **Allan deviation**:
+  - Both boards level near 0.023 mA from 8 min up: Rev 1.1 0.0236, Rev 2 0.0228 mA at 8 min [M].
+  - JP read 0.0042 mA at 8 min and kept falling [M: about 12 independent 8-min intervals].
+  - So the floor enters at or outside JP's pins: the monitor's own draw, or sense-path pickup [I: falsified by a JP run
+    of several hours that levels near 0.02 mA].
+  - It is worth about 0.001 Ah/day [D: CHARGE Allan 0.044 mA at 17 h x 24 h].
+- **Outside JP**:
+  - 0.0875 mA rms, se 0.0062 [D: sqrt(0.1715^2 - 0.1475^2)], against all twelve days.
+  - The [2026.11.07] entry's 0.069 mA [0.046, 0.087] used that afternoon as its reference. Both stand, each with its
+    reference.
+- **No on-device replacement for the gauge works.** Two candidates were run on the same blocks [D]:
+  - a per-block σ from the block's mean code and its share off the modal code reads Rev 1.1 0.2281, Rev 2 0.2295 mA;
+  - a closed form from both tails is usable on 328 of 1,650 Rev 2 blocks, and its daily values follow position
+    (0.178-0.213 mA).
+  - Only the pooled fit separates the boards, and that is a host job.
+
+**Ledger.** Both 2026-11-05 Rev 2 rows are scored HIT: "quieter by σ over a full week" and "visible calm is grid
+position". The running score is 22 hits.
+
+**`docs/pending.md` P30** (Bill: "replace the noise at the next re-flash (when other updates are made)"). Delete INA228
+Noise Gauge and Noise State at the next battery-bank-monitor flash made for another reason, with no on-device
+replacement.
+
+**Not changed:** firmware; HA config; `entity_notes.yaml` (P30 step 3); `soc_offset_ma` (P29, at the first clean full
+charge from 11-27 16:31Z). The analysis scripts are not in any repository.
 
 ## [2026.11.16] - 2026-11-16
 

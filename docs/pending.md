@@ -587,6 +587,40 @@ RULE - one knob, soc_offset_ma:
    follow-ups) before quoting a self-discharge rate.
 ```
 
+### P30 — battery-bank-monitor.yaml: delete INA228 Noise Gauge + Noise State at the next flash [LOW]
+```
+Opened 2026-11-17 at Bill's request ("make a note to replace the noise at
+the next re-flash (when other updates are made)"). Evidence: CHANGELOG
+[2026.11.17]; Lifepo4 repo design note, section "Results on Rev 2, twelve
+days".
+
+TRIGGER: the next esphome/battery-bank-monitor.yaml change made for another
+reason. Not a reason to flash on its own.
+
+WHY: the gauge is an EMA of the idle ENERGY rate, which is the idle draw in
+watts, about 0.33 W [M, 11-14 to 11-17]. Its 0.25 / 0.40 W states were set
+09-25; TB1 GND has been metered since 09-28, so the state reads "elevated"
+for good. With JP it fell to 0.0099 W while sigma fell 0.015 mA [D, 11-07].
+It follows the draw, not the noise.
+
+DO (V1.32 line numbers; re-grep, they move):
+1. Firmware, 8 hits on 11-17: the on_value lambda on the HW energy sensor
+   that feeds only these two (comment "V1.28: idle ENERGY rate as a live
+   noise gauge", ~2703-2735); the sensor "INA228 Noise Gauge" (~2870); the
+   text sensor "INA228 Noise State" (~3227). Keep ENERGY itself.
+2. Grep the whole tree for both ids again before deleting (R4). On 11-17 no
+   dashboard, automation or package read them.
+3. entity_notes.yaml: the two entries (~505-510); then gen_reference.py.
+4. Gate: R2 sandbox, DoD step 6 (esp-firmware-validation); Bill installs.
+   After the install, the recorder rows go too (Bill: delete means gone
+   from every graph) - ask first, R12.
+
+NO ON-DEVICE REPLACEMENT: two cheap sigma estimators were tested on 6,721
+blocks on 11-17 and both follow the zero's position, not the board [D,
+design note]. The noise measure that works is the pooled quantizer fit on
+InfluxDB data, run from the host when wanted.
+```
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
