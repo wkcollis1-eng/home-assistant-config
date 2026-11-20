@@ -3440,3 +3440,58 @@
     esphome/mmwave-hallway-node.yaml, the office's P25 pattern, so the boot
     push keeps it. Lasting only once Bill reflashes the node; until then a
     reboot puts 50 back.
+- asked: 2026-11-19
+  question: >-
+    Boost UPS: is its battery still the Cyclenbatt 12 V 10 Ah LiFePO4 with
+    the 10 A BMS that boost-subsystem-design.md s2 names, and if not, what
+    make, capacity and BMS discharge rating?
+  blocks: >-
+    (1) Whether the design doc's s7 limit (BMS 10 A = the U3V70A's 10 A
+    cycle-by-cycle input limit) still governs this UPS now the XB7 is off
+    it. (2) Which opens first on a fault behind F1 (025103.5MXL, 3.5 A,
+    melting I2t 1.58 A2s, 300 A at 125 VDC [S: Littelfuse 251 datasheet
+    rev GK p2]): the fuse or the BMS. Board file "UPS for HA with
+    Boost.kicad_pcb", 2026-11-19 16:26 save.
+  answered: >-
+    2026-11-19, Bill: "yes cyclenbatt with 10a bms."
+- asked: 2026-11-19
+  question: >-
+    Boost UPS board: reading the labels printed on your U3V70A, counting
+    from the pin nearest the board's right edge, is the input end EN, GND,
+    GND, VIN, VIN and the output end GND, GND, VOUT, VOUT?
+  blocks: >-
+    First power. The footprint (2026-11-19 16:26 save) assigns input row
+    x 95.35 EN, 92.81 GND, 90.27 GND, 87.73 VIN, 85.19 VIN and output row
+    x 97.84 GND, 95.30 GND, 92.76 VOUT, 90.22 VOUT [M: pcbnew]. Pololu's
+    product page text states no pin order [S: pololu.com/product/2890,
+    read 2026-11-19]. A VIN/GND swap shorts F1's output to GND (F1 opens);
+    EN on a GND pin keeps the boost off.
+  answered: >-
+    2026-11-19, Bill: "yes pin / silkscreen is correct."
+- asked: 2026-11-19
+  question: >-
+    Boost UPS board: what is the part number, or the rated current per
+    contact, of the 3-pin socket the Pololu D24V7F3 plugs into (footprint
+    U3, PinSocket_1x03_P2.54mm)?
+  blocks: >-
+    The F2 size. F2 can go to 2 A (0251002.MXL) only if each socket contact
+    is rated for at least 2 A; otherwise 1 A (0251001.MXL). The other
+    bounds allow more: the 1.5 mm trace carries 3.2 A at a 10 C rise [D:
+    IPC-2221, 1 oz], and any 251 rating up to 5 A opens in 1 s or less at
+    the BMS's 10 A [S: Littelfuse 251 datasheet rev GK p1, 200% 1 s max].
+  answered: >-
+    2026-11-19, Bill: "socket rated for 3 amps", pasting Pololu item #1013
+    (0.1 in female header, 1x3, straight, current rating 3 A). That meets the
+    2 A condition above, so F2 -> 2 A, 0251002.MXL.
+- asked: 2026-11-19
+  question: >-
+    UPS on battery in September: at your switch.ups_outlet cuts on 2026-09-16
+    16:00 EDT and 2026-09-18 21:05 EDT, was the XB7 still on the UPS bus, or
+    only the N100? Battery current read about 2.0 A both times (medians 2.065
+    and 2.011 A), against 0.907 A on 2026-11-04 with the N100 alone.
+  blocks: >-
+    Whether boost-subsystem-design.md s12.4 counts the September cuts as
+    N100-alone readings. If they were, the N100's running draw spans about
+    0.9 to 2.1 A; if not, they are the shared bus and the 2026-11-04 reading
+    is the only N100-alone one.
+  answered: null

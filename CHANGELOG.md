@@ -111,6 +111,143 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.19] - 2026-11-19
+
+### Boost-UPS board, 16:26 save: checklist review, two open questions logged (documentation only, no HA config or firmware change)
+
+Bill asked for his seven-point checklist against `UPS for HA with Boost.kicad_pcb` (OneDrive Desktop, saved 2026-11-19
+16:26, sha256 dca849a7...b1), the UPS whose U3V70A feeds only the ASRock N100DC (no XB7). Read-only review: board, design
+doc and firmware unedited; worked on a copy in `C:\sandbox\ups_boost_review`.
+
+**Since 11-18:** two inputs now. BUS goes to F2 0.75 A and then the D24V7F3; BP+ goes to F1 3.5 A and then the U3V70A
+[M: pcbnew]. The monitor sits on the battery side of the BP-65 and the boost behind it, which closes the 11-18
+one-input finding.
+
+**Load:** `sensor.ups_outlet_current_consumption` is in W.
+- Daily time-weighted mean 13.9-14.3 W, p95 ~20 W, max 29.0 W [M: n=450,427 change samples, 2026-11-05..11-19, 2 s
+  poll; R18: ms inrush invisible].
+- Using AC W >= DC W, at 11.8 V F1 carries <=1.20 A mean and <=2.46 A at the highest sample [D: W/11.8].
+- Against F1's 2.625 A continuous limit after the 25 % derating [S: Littelfuse 251 datasheet rev GK p2], the highest
+  sample is inside.
+- F1 hot-plug I2t <= 0.85 A2s against 1.58 melting [D: 0.5 x 230 uF x 13.3^2 / 0.024 ohm; fuse R only].
+- Soft-start I2t is unmeasured (doc s10 V1/V2).
+
+**Findings, worst first:**
+1. **U3V70A footprint repeats pad numbers 1-4 across its two rows with different nets** (pad 1 is both ENABLE and GND)
+   [M]. Any future "Update PCB from schematic" merges them.
+2. **No pole for the 18 V return.** BUS is 1 BUS+, 2 GND, 3 BP+, 4 18V Out [M].
+   **Withdrawn the same day (R13).** Bill: the PC's 18 V negative lands on the common star ground that the battery,
+   PSU, BP-65 and this board's BUS.2 already share. That wiring is correct, so this was not a defect. The boost's output
+   return reaches the board through the BUS.2 wire, which carries only the difference between input and output return
+   [D]. I wrote it as a missing pole without asking how the returns were wired.
+3. **The DR-1 shed lives only in GPIO5.** R3 100k turns Q1 off whenever the pin is undriven (reset, boot, sleep without
+   a pad hold), and EN then floats up through the module's 100k pull-up [S: Pololu 2890].
+4. **Q2 releases EN as soon as PSU_SENSE passes ~3.3 V** [D: 0.6 V Vbe [I] x 122k / 22k]. An AC flicker after a shed
+   re-enables the boost with no "confirmed AC return" (doc s7 DR-1).
+5. **OP-1's EN jumper header is gone, and the board has no test points.**
+6. **C8's courtyard overlaps Q1 and Q2.** DRC: 64 violations / 2 errors / 0 unconnected [M: kicad-cli 10, no schematic].
+7. **Housekeeping:**
+   - Two parts are both labelled C5.
+   - Net "+3V3_Fused" carries ~13 V.
+   - Non-GND copper sits 2.0 mm (H3) and 2.53 mm (H1) from the hole centre [M], under a typical M3 head or standoff
+     [I: hardware not in hand].
+   - BOM.csv (11-18) is stale.
+   - 3D model paths are absolute.
+
+**Open:** two `open_questions.yaml` entries (the battery/BMS on this UPS; the U3V70A's printed labels against the
+footprint). They take the audit from 4 to 6 WARN, and both new WARNs are those entries.
+
+**Same day, Bill's answers and follow-up:**
+- Both questions answered in `open_questions.yaml`. The battery is the Cyclenbatt 10 Ah with the 10 A BMS, and the
+  U3V70A's printed pin order matches the footprint.
+- **F2 0.75 A is not too small.**
+  - Derated continuous limit 0.5625 A [D: 0.75 x 0.75; S: Littelfuse 251 rev GK p2].
+  - The monitor draws ~0.04 A [S: boost-subsystem-design.md s7, steady state].
+  - A Wi-Fi transmit peak is ~0.11 A at the bus [D: 3.3 V x 335 mA / (0.85 x 11.8 V); 335 mA is S: ESP32-C3
+    datasheet v2.1 Table 5-7; the 0.85 buck efficiency is I].
+- **F1: 5 A is not indicated by anything measured.**
+  - Derated limits are 2.625 / 3.00 / 3.75 A for 3.5 / 4 / 5 A [D: x 0.75].
+  - Melting I2t is 1.58 / 2.45 / 4.14 A2s [S: p2].
+  - The load bound is 1.20 A mean and 2.46 A at the highest 2 s sample [D, above].
+  - What could argue for a larger fuse is the soft-start pulse, which is unmeasured (doc s10 V2). The doc's ~10 A is
+    [I], so it cannot justify a change (R15). If V2 puts the pulse near 1.58 A2s, step to 4 A.
+- **GPIO5 during reset (finding 3), researched:**
+  - **Pin state.** MTDI/GPIO5 has no setting at reset and input-enable only after it, so it has no drive and no pull
+    [S: ESP32-C3 datasheet v2.1 App. A]. No power-up glitch is listed for it [S: v1.2 Table 7].
+  - **XIAO board.** The XIAO wires ESP pin 10 straight to D3, with no part on the net [S: Seeed XIAO ESP32C3
+    schematic, 2022-05-23].
+  - **Where the hold lives.** The hold on GPIO0-5 is a bit in RTC_CNTL_PAD_HOLD_REG, reset value 0 [S: ESP32-C3 TRM
+    v1.4 Reg 9.46 p258]. It keeps the pin "through a core reset triggered by watchdog time-out or Deep-sleep events"
+    [S: TRM s5.9 p167].
+  - **Which resets touch it.** A Core Reset leaves the RTC domain alone. A System Reset "Resets the whole digital
+    system, including RTC", and a Chip Reset resets the whole chip [S: TRM s6.1.3 p192].
+    - System Reset sources: RWDT system stage, super watchdog, clock glitch, brown-out [S: Table 6.1-1 p193].
+    - Chip Reset sources: power-on and brown-out [S: Table 6.1-1 p193].
+    - CHIP_EN low powers the chip down [S: datasheet v2.1 pin description].
+  - **Survives / lost.** The hold survives esp_restart, OTA, the task and interrupt watchdogs, deep-sleep wake and
+    USB resets. It is lost on brown-out, power-on, the RESET button and the RTC watchdog's system stage [D].
+  - **Consequence.** Once the hold is lost, R3 turns Q1 off and the boost starts on battery. Doc s7 calls that
+    "Not acceptable as a designed event".
+  - **Firmware.** No firmware drives GPIO5 on this UPS yet (`ups-monitor.yaml` has no shed). Rev 4's on_boot releases
+    the hold after any non-timer reset. This board needs the opposite while a shed is latched and AC is absent.
+
+**Same day, fuse sizes and the hardware latch** (Bill: go as large as still protects the hardware, add the latch):
+- **F1 -> 5 A, Littelfuse 0251005.MXL.**
+  - It is the largest 251 rating whose 200 % point equals the BMS's 10 A, so it opens in 1 s or less there [S: 251
+    datasheet rev GK p1]. A 7 A part sits at 143 % at 10 A [D: 10 / 7], where the datasheet publishes no time.
+  - Derated limit 3.75 A against the 2.46 A highest load sample [D: 5 x 0.75]. The 3.5 A part leaves 2.625 A [D].
+  - Hot-plug I2t at each BP-65 reconnect is at most 1.29 A2s against 4.14 A2s melting [D: 0.5 x 230 uF x
+    13.3 V^2 / 0.0158 ohm; S: p2].
+  - Fits the footprint: body 3.18 mm max, lead 0.64 mm [S: p3]; footprint D3.2 mm, drill 0.80 mm [M].
+  - The module limits its own overloads: 10 A cycle-by-cycle input limit, short-circuit hiccup, over-temperature
+    shutoff [S: pololu.com/product/2890, read 2026-11-19]. F1 is for a failed module or a short on V_FUSED.
+  - Residual: the two VIN header pins carry 2.5 A each at 5 A [D]; Pololu publishes no pin rating [S: same page].
+- **F2 -> 2 A (0251002.MXL) or 1 A (0251001.MXL)**, set by the D24V7F3 socket's contact rating (asked in
+  `open_questions.yaml`).
+- **Hardware latch designed, not yet on the board.** Q3 2N3906 with its emitter on `+3V3_Fused` (the bus after
+  F2), R9 22k base-emitter, R10 100k base to ENABLE, R11 100k collector to Q1's base.
+  - Set by a GPIO5 pulse, or by any loss of V_FUSED while the bus is up. Cleared only by Q2, which needs AC.
+  - Fed from the bus, not V_FUSED, so LVD, F1, a BMS trip or a battery-only power-up all leave the boost off until
+    AC returns. That is DR-1 [S: boost-subsystem-design.md s7] held in hardware instead of firmware.
+  - Sets once V_FUSED falls below about 6.3 V at an 11.8 V bus [D: 0.55 V x 222k / 22k]. A false set needs a
+    5.5 V drop from the bus to V_FUSED, 2.2 ohm at 2.46 A [D].
+  - New single point: an open R4, R5 or Q2 leaves the boost off after any shed, even with AC. Manual clear: short
+    C8's leads for a moment.
+  - Firmware must pulse GPIO5 (100 ms), never hold it high: a leftover high sheds the PC as the next outage begins.
+
+**Same day, socket answer and the latch dropped** (Bill: "cant be as simple as latching off of the PSU_Sense?"):
+- **F2 -> 2 A, Littelfuse 0251002.MXL.** Bill: the D24V7F3 socket is Pololu #1013, current rating 3 A [S:
+  pololu.com item 1013, as pasted by Bill]. That meets the 2 A condition in `open_questions.yaml`. It opens in 1 s
+  or less at 4 A [S: 251 rev GK p1, 200 % point]; the 1.5 mm trace carries 3.2 A at a 10 C rise [D: IPC-2221, 1 oz].
+- **The hardware latch (Q3, R9-R11) is dropped. It was never built.** No board change beyond the F1 and F2 values;
+  Q1, Q2 and their dividers stay as built.
+  - Bill's scheme (the BP-65 cut as the shed, PSU_SENSE as the AC signal) misses one moment. The ladder shuts the
+    host down at the 12.2 V tier [S: boost-subsystem-design.md line 15], before the BP-65's 11.8 V cut. If AC returns
+    before the BP-65 cuts, 18 V never dropped, BIOS Restore on Power Loss never fires and the host stays off [I:
+    wrong if the shut-down host draws close to its 2.089 A running current].
+  - Replaced by one stateless firmware rule, not yet written. D3/GPIO5 high when AC is absent (PSU_ADC on D2/GPIO4)
+    and battery current has sat at the host-off level for 30 s. Low once AC has been present for 60 s, and low if
+    the INA260 reading is missing. Q2 still forces the boost on in hardware the moment PSU_SENSE appears.
+  - PSU_ADC reads 2.03 V at the 13.3 V float [D: 13.3 x 18k / 118k; R7 100k, R6 18k, M: board values].
+  - Open: the host-off threshold needs one reading, battery current with the host shut down on battery. Running is
+    2.089 A [M: n=156, 2026-08-29 outage test, ups-monitor.yaml header]. The deployed ups-monitor.yaml is for the
+    Rev 1 THT board and uses neither GPIO4 nor GPIO5.
+  - **Correction (R13, same day):** "low if the INA260 reading is missing" above was wrong while a shed is active:
+    it restarts the boost on battery, the soft-start DR-1 exists to prevent. Missing data now means no new decision;
+    D3 keeps its state. The design doc carries the spec as boost-subsystem-design.md s12 (r2): board, components,
+    XIAO pin map, the rule, and the 2026-09-15 LVD evidence. That doc is edited locally and not committed.
+  - **Correction (R13, same day):** the addendum above calls 2.089 A the host's running current. It is the whole earlier
+    shared bus, XB7 included [S: ups-monitor.yaml line 67; 2026-09-15 report s4.6 Test C, "XB7 + monitor only (~1.2-1.4 A)
+    rather than 2.089 A"]. This UPS has not been read on battery, so the threshold needs two readings, not one.
+  - Two board findings, now in doc s12 [M]. Two footprints share the ref C5: 0.1 uF on +3V3_Fused and 10 uF on 18V_OUT.
+    The U3V70A footprint repeats pad numbers 1-4 across its two rows on different nets, so its pins are named by net.
+  - **Correction (R13, same day). Bill: "measured this UPS on battery yet - not correct."** It has been, and I said
+    otherwise without searching. His AC-cut test of 2026-11-04 (the 21:49-21:57 EST entry) read the N100 alone (owner,
+    top-off doc rev 0.20) at a median 0.907 A, 0.66-1.23 A [M: sensor.ups_monitor_battery_current, n = 85 rows after
+    the first 30 s, bus 13.11-13.21 V]. Only the host-off reading is missing. His two September cuts read about 2.0 A
+    (medians 2.065 A on 09-16 and 2.011 A on 09-18 [M: n = 97, 70]), which matches the shared bus with the XB7; asked
+    in open_questions.yaml. Doc s12.4 and s12.6 updated.
+
 ## [2026.11.17] - 2026-11-17
 
 ### INA228 PCB Rev 2: twelve days against Rev 1.1 and JP; the noise gauge put on the next flash (documentation only, no HA config or firmware change)
