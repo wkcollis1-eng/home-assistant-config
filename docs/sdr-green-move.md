@@ -8,8 +8,10 @@ N100 and onto the retired HA Green, in the basement.
 been taken; when a meter goes stale and you need to know which host should be
 receiving.
 
-**STATUS: PLAN. Nothing done, nothing deployed.** Written 2026-11-03 at Bill's
-request. Tracked as `docs/pending.md` P28. Update the status line here as each
+**STATUS: WITHDRAWN 2026-11-22, before Stage 0: Bill removed the move from
+consideration. Nothing done, nothing deployed.** Kept as the plan of record if
+the move comes back. Written 2026-11-03 at Bill's request. Tracked as
+`docs/pending.md` P28, closed 2026-11-22. Update the status line here as each
 stage completes, and record each stage in CHANGELOG.md with its times.
 Corrected 2026-11-03 after a consequence review (CHANGELOG [2026.11.03]); each
 correction is marked where it was made.

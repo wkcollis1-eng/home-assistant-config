@@ -540,23 +540,6 @@ After the flash, in order:
 5. T17 (a real QD pull) and design section 11's re-run list.
 ```
 
-### P28 — SDR receiver to the HA Green in the basement: staged move, plan only [MEDIUM]
-```
-Opened 2026-11-03 at Bill's request. The plan is docs/sdr-green-move.md - read
-that, not this summary. Nothing done, nothing deployed.
-
-Bill, 2026-11-03: the existing NESDR SMArt v5 moves (no second dongle); the
-Green decodes the same three meters; Green and antenna go to the basement on
-Ethernet; the Green is on a wall adapter, not a UPS.
-
-FIRST ACTION: Stage 0 of the plan. Gate G0 (does the Green power itself back on
-after a power cut?) is open in open_questions.yaml and blocks Stage 2. The Stage
-1 ledger row needs InfluxDB, so it is an on-host session's job, before Stage 1.
-
-DO NOT run scripts/sdr_gain_set.py on the N100 once Stage 1 has started: it
-would edit the idle rollback copy (plan section 8).
-```
-
 ### P29 — battery bank `soc_offset_ma`: set it from the first all-Rev-2 bracket [LOW]
 ```
 Opened 2026-11-13 at Bill's request ("how do we make this data actionable").
@@ -621,6 +604,36 @@ design note]. The noise measure that works is the pooled quantizer fit on
 InfluxDB data, run from the host when wanted.
 ```
 
+### P31 — inverter efficiency: the hair-dryer plug-meter test at the next bank discharge/charge test [LOW]
+```
+Opened 2026-11-22 on Bill's answer to the 2026-11-13 open question ("yes i
+will do the hair dryer test at the next discharge/charge test. do not know
+when this will happen."). Evidence: open_questions.yaml, the 2026-11-13
+inverter-efficiency entry and the hold entry before it.
+
+TRIGGER: the next battery-bank discharge/charge test. No date; Bill sets it.
+
+DO (Bill; the same dryer on low speed, medium heat, through the plug meter):
+a. 5 min in a wall outlet.
+b. At least 10 min in an inverter outlet.
+c. 5 min back in the wall.
+   Note the clock time of each move and photograph the plug meter's W and V
+   in each stage.
+d. At the charge: 5 min of the charger through the plug meter during CC.
+
+THEN (Claude): inverter efficiency = plug-meter W on the inverter x (SEM
+step / plug-meter W at the wall) / INA228 DC step, each step read over 70 s
+windows either side of the logged times, as on 11-13.
+
+BLOCKS, unbuilt until it runs:
+1. The inverter half of the 09-30 split, near 472.7 W DC [M: 11-13 hold,
+   n=8 one-minute means, sd 1.25 W].
+2. The 0.88 in packages/backup_sizing.yaml (amps_at_bank_v; its comment
+   gives no source). It stays until 1 is measured.
+3. The [I] that the plug meter read the charger 24.4 % low on 09-30;
+   falsified if (d) reads within 5 % of the SEM step on the charger [I].
+```
+
 ### Closed — full detail is in CHANGELOG.md, not here
 
 ```
@@ -651,4 +664,7 @@ P22   battery-bank diag2 test run: 7 tests run, V1.27
       reinstalled, H: diag copy deleted; CHANGELOG [2026.09.25] RESOLVED
 P25   office mmWave G0 move 70 made durable: firmware 0.4
       installed, sw 0.4, G0 70.0 at boot; CHANGELOG [2026.09.28] DEPLOYED
+P28   SDR receiver to the HA Green: withdrawn by Bill
+      2026-11-22 before Stage 0, nothing built; plan kept in
+      docs/sdr-green-move.md; CHANGELOG [2026.11.22]             WITHDRAWN
 ```

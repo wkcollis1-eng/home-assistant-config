@@ -31,7 +31,11 @@ _Moved verbatim from CLAUDE.md (Home + Active Projects) on 2026-10-25; the point
 
 ## Active Projects (reference only — details in respective repos)
 - **HA Energy Stack**: InfluxDB 1.x + Grafana, SEM-Meter MQTT pipeline, SPC monitoring
-- **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring
+- **Battery Bank Monitor**: 12V/500Ah LiFePO4 emergency backup, INA228 monitoring.
+  Five 100 Ah packs, numbered in the 2026-11-13 clamp-photo order: 1, 3 and 5
+  LiTime, 2 and 4 Cyclenbatt, each on a 6" 2 AWG lead to the busbar; the
+  inverter's ~18" 2 AWG cables land at opposite ends of the busbar (Bill,
+  2026-11-22). Models and purchase dates not recorded.
 - **DIY LiFePO4 UPS**: powers the N100DC host via an 18 V U3V70A boost (fitted
   2026-08-29, EN/FET not installed). V1.20 firmware on ESPHome 2026.9.0
   (2026-09-16). 53.3 Wh; ~128 min [D] at 2.089 A / 26.80 W [M, 2026-08-29].

@@ -3125,6 +3125,12 @@
     plan's unattended moment. Not settled from documents: the official
     startup article (Nabu Casa support 25209783508125) returned HTTP 403 here,
     and the one community answer found is a guess.
+  answered: >-
+    2026-11-22, Bill: "HA Green running the nooelec smart v5 sdr dongle is
+    remopved from consideration at this point so the open question is not
+    relevant." Not tested. P28 is closed as WITHDRAWN in docs/pending.md, and
+    the status line of docs/sdr-green-move.md says so; the plan is kept as
+    the record if the move comes back.
 
 - asked: 2026-11-04
   question: >-
@@ -3316,7 +3322,13 @@
     efficiency", no source), which stays until (1) is measured. (3) The [I]
     that the plug meter read the charger 24.4 % low on 09-30 (09-30 clamp
     entry); falsified if it reads within 5 % of the SEM step on the charger.
-  answered: null
+  answered: >-
+    2026-11-22, Bill: "yes i will do the hair dryer test at the next
+    discharge/charge test. do not know when this will happen." Agreed as the
+    plan and not yet run, so blocks (1)-(3) stay unbuilt: the 0.88 in
+    packages/backup_sizing.yaml stays, and the 24.4 % [I] stays untested.
+    Tracked as P31 in docs/pending.md, triggered by the next bank
+    discharge/charge test; the charger's 5 min in CC fits that test's charge.
 - asked: 2026-11-13
   question: >-
     For batteries 1-5 in the clamp-photo order: the brand and model on each
@@ -3333,7 +3345,23 @@
     different states of charge or differ in BMS or cells; falsified if a
     second clamp set, at the next charge and discharge, repeats the same
     ranks in both directions. Nothing is built on the split until then.
-  answered: null
+  answered: >-
+    2026-11-22, Bill: "bat 1 litime, bat 2. cyclenbatt, bat 3 litime, bat 4
+    cycenbat, bat 5 litime. battery cables run to a bus bar all 2awg 6"
+    long. inveter cables run to bus bar with 2awg cable ~18" long. inverter
+    cable connects to bus bar at opposite ends." Models and purchase dates
+    were not given; the next step, a second clamp set, does not need them,
+    so they are not re-asked. The charger is permanently wired to the
+    busbars [S: Lifepo4-Battery-Banks, INA228 Monitor/
+    battery-bank-monitor-wiring-summary-v1_10.md section 4.7]. Every battery
+    has the same 6" 2 AWG lead, so the leads cannot set the split; it comes
+    from inside the batteries or their state of charge [I, as before]. By
+    brand, on charge the two Cyclenbatts took the two highest currents, 18.0
+    and 21.3 A, the LiTimes 15.0, 11.9 and 12.3 A [M, 2026-11-13 clamp];
+    exact Mann-Whitney two-sided p = 0.20, n = 2 + 3 [D], the smallest p
+    that n allows, so not established. On discharge, Cyclenbatt 5.58 and
+    7.76 A, LiTime 7.43, 8.54 and 6.29 A [M]: no brand order. Falsifier
+    unchanged: a second clamp set at the next charge and discharge.
 - asked: 2026-11-13
   question: >-
     HVAC repo Q3 report: the September 2026 gas bill (statement 09-15, 8 CCF
@@ -3411,7 +3439,16 @@
     2026 fit applied to 2025]) and of the DHW comparison. The AC results do
     not depend on it. The dates are for the arithmetic only, not for the
     public repo. Carried in Q3_2026_UPDATE.md section 7, question 1.
-  answered: null
+  answered: >-
+    2026-11-22, Bill: the 2025 vacation was in August, mid-month, about 8
+    days. His exact days are kept out of this public file, per the blocks
+    line above. That conflicts with the 2026-11-13 answer as recorded in
+    Q3_2026_UPDATE.md section 7 ("away for 10-12 days in September 2025"),
+    and the water heater part was not answered. Both are re-asked in the
+    2026-11-22 entry below; the report is not reworked until it is answered.
+    If August stands, all of the trip falls in the 2025 third window (Aug
+    12-Sep 10), and the section 4.3 AC fits dropped 23 September days that
+    the trip did not cover.
 
 - asked: 2026-11-16
   question: >-
@@ -3494,4 +3531,88 @@
     N100-alone readings. If they were, the N100's running draw spans about
     0.9 to 2.1 A; if not, they are the shared bus and the 2026-11-04 reading
     is the only N100-alone one.
-  answered: null
+  answered: >-
+    2026-11-22, Bill: "i belive both were on the UPS. the amps from the kasa
+    plug can confirm." The plug confirms it [M: hourly means of
+    sensor.ups_outlet_current_consumption, long-term statistics]: 30.63 W in
+    the hour before the 09-16 16:00 EDT cut and 30.15 W before the 09-18
+    21:05 cut; daily medians 29.08-30.49 W from 09-01 to 10-30, against
+    13.97-14.30 W from 11-05 to 11-22 with the N100 alone (median 14.20 W
+    [D]), the pack's hourly mean current near 0 A throughout. That is about
+    16 W more [D: 30.15 and 30.63 less 14.20], against 1.10 and 1.16 A more
+    battery current at the cuts [D: 2.011 and 2.065 less 0.907 A], 14.5-15.3
+    W at 13.2 V [D]. So the September cuts are shared-bus readings, N100 plus
+    XB7, and 2026-11-04's 0.907 A is the only N100-alone one. The plug shows
+    no step of that size from 11-05 to 11-22 [M], so no XB7 on the UPS since
+    11-04 by this measure.
+
+- asked: 2026-11-22
+  question: >-
+    Top-off charger session 14 (2026-11-21 17:08 to 11-22 01:09 EST): which
+    pack was on it, and did that pack get a P20 bulk charge first - if so,
+    what Ah did the P20 show?
+  blocks: >-
+    Reading session 14 against S1-S7 (the second pack) or S8-S18 (the UPS's
+    own pack), and saying whether its 0.0149 Ah after the settle is the pack
+    still filling or a steady draw. The UPS's own pack stayed on the UPS
+    throughout: sensor.ups_monitor_battery_voltage 13.2335-13.2467 V, no gap
+    over 120 s, 11-21 07:00 to 11-22 09:24 EST [M, 17,982 rows], while the
+    charger's VBUS ran 13.8654 V at rest to 14.4320 V at hold [M]. So it was
+    another pack, but which one is a label, not a measurement. Session 14:
+    charge 0.050406 Ah, 0.014864 Ah after the settle, 45 tail windows each
+    below the last, 13.163 to 0.4235 mA net of the -0.118 mA idle offset
+    [M, D]. A second session on the same pack would show which: a filling
+    pack takes much less after the settle the next time.
+  answered: >-
+    2026-11-22, Bill: "it was the second pack, no P20 charge first. last top
+    off charge was the end of Oct." He had said the same on 2026-11-21, in
+    the session-14 current-noise entry above ("this is the new battery. last
+    charge was the top off charger the end of October"). Asking it again was
+    my error: I did not search this file for session 14 before asking
+    [R13]. The pack is the Cyclenbatt 12.8 V 10 Ah of S1-S7 (top-off design
+    section 11.1); its last session was S7, DONE 2026-10-30 22:53:30 EDT,
+    523.3 h before session 14 [D]. Against S7 on the same pack: net tail
+    3.167 / 1.815 / 1.206 / 0.869 / 0.542 mA at +2 / +3 / +4 / +5 / +6.8 h
+    from Start [D], against S7's 0.273 / 0.208 / 0.179 / 0.168 / 0.143 mA
+    [section 11.1], and still falling at DONE (0.4235 mA). After the settle,
+    0.014864 Ah against S7's 0.00076 Ah [M, both raw register]. Session 14
+    put back 0.05135 Ah net [D], 0.098 mA over the rest [D: 0.05135 Ah /
+    523.3 h]; that is a lower bound on the pack's shelf loss if session 14
+    ended less full than S7, as its 14.43 V hold (S7 14.45 V) and falling
+    tail suggest [I]. [I] the pack was still refilling at DONE; falsifier: a
+    session on this pack soon after that again takes near 0.015 Ah after the
+    settle. BMS: on 10-28 (S1, S2, also about three weeks after a full
+    charge) it cut at VBUS 14.310 and 14.315 V at 1.30 and 0.95 A. Session
+    14 crossed 14.31 V at 1.66-1.56 A (+9 to +10 s), passed 1.25-1.35 A at
+    VBUS 14.330-14.337 V and 0.90-1.00 A at 14.358-14.362 V, and never cut
+    [M, 1 s rows]. That meets section 11.1's falsifier ("or not at all") for
+    the 10-28 cut as a fixed property of the pack; the about 20 h at voltage
+    of S4, S5 and S7 having balanced it is favoured [I; falsifier: a cut
+    near VBUS 14.31 V at about 1 A on this pack again].
+
+- asked: 2026-11-22
+  question: >-
+    The 2025 trip: on 11-13 it was recorded as about 10-12 days in September
+    2025; on 11-22 you said August, mid-month. Which is right, or is August
+    the 2026 trip (the meters show an 11-day absence in mid-August 2026)?
+    And was the water heater turned off for the 2025 trip?
+  blocks: >-
+    Q3_2026_UPDATE.md (HVAC repo): which 2025 days the AC fits drop (section
+    4.3 drops 23 September days now), and the 2025 side of the electricity
+    adjustment for the Aug 12-Sep 10 window (1.01 to as much as 3.38
+    kWh/day; Q3 2.90 to as much as 3.67 [I: 2026 fit applied to 2025]) and
+    of the DHW comparison. The dates are for the arithmetic only, not for
+    the public repo.
+  answered: >-
+    2026-11-22, Bill: the September 2025 dates were wrong; the trip was in
+    mid-August 2025, about 8 days. He does not know the exact days, or
+    whether the water heater was off, so neither is re-asked. His
+    approximate days are kept out of this public file, per the blocks line
+    above. Q3_2026_UPDATE.md is reworked to 1.11.0 (HVAC repo, PR #22): the
+    AC fits drop a 12-day mid-August 2025 span in place of the 23 September
+    days and test five 8-day placements inside it, and every figure that
+    depends on the trip's days is published as a range across them. AC
+    slope difference, Q3 -2.81 min/CDD, p ~ 0.063, 0.033-0.062 over the
+    placements; June-September -4.32, p ~ 0.006, 0.003-0.004 [D, week-block
+    bootstrap, B = 5000]. The water heater stays unknown; August 2025 DHW
+    fits near-zero use on the trip days either way (report section 1.4).

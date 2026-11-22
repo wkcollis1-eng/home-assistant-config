@@ -111,6 +111,88 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.22] - 2026-11-22
+
+### Top-off charger session 14 read from HA history; one R14 question registered (documentation only, no HA config or firmware change)
+
+- **The session.** Device counter 14, Start 2026-11-21 17:08:42 EST, DONE 11-22 01:09:12, "done: time at voltage
+  reached": 28,807.5 s at voltage in 28,830.0 s, BMS Cuts 0, no FAULT, die 57.0-61.4 °F [M]. Rest 13.8654 V, edge
+  on to 14.1959 V at 3.0096 A [M]; 14.38 V by +25 s; hold VBUS median 14.4320 V, sd 0.13 mV [M]. First on the
+  firmware since S18 (counter 13, 11-03).
+- **Not the UPS's pack.** `sensor.ups_monitor_battery_voltage` held 13.2335-13.2467 V with no gap over 120 s from
+  11-21 07:00 to 11-22 09:24 EST [M, 17,982 rows], while the charger read 13.87-14.43 V. Which pack it was, and
+  whether a P20 bulk charge came first, is Bill's to say: `open_questions.yaml`, asked 2026-11-22.
+- **Charge vs charge after settle, from the deployed firmware** (`esphome/top-off-charger.yaml` sha1
+  `523bec0a672c`, header lines 102-113, `tail_settle_s` 1800). Both are the INA228's CHARGE register. Charge counts
+  from Start; charge after settle counts from the moment time at voltage reaches 1,800 s. Here the settle fell at
+  17:39:13 (+1,831 s) with the register at 0.035544 Ah; final 0.050406 Ah; difference 0.014862 Ah, against the
+  published 0.014864 Ah [M]. Net of the -0.11823 mA idle offset: 0.05135 Ah in all, 0.03561 before the settle and
+  0.01575 after [D: register + 0.11823 mA x span]. HA's 1 s rows put 0.0216 Ah into the first 5 min [D].
+- **No floor.** All 45 tail windows fell, each below the last, 13.163 to 0.4235 mA net [D]; log-log slope -1.40
+  over windows 1-18 and -1.53 over 19-45 [D]. So the 0.3052 mA "tail floor" is the last window, and the hold ended
+  on the timer with the pack still taking charge. Against S17 and S18 on the UPS's pack (0.00147 and 0.00085 Ah
+  after the settle, design §11.2), this is a different pack, so nothing here compares them.
+- Rest after DONE: 14.4313 V at +1 min, 14.3799 V at +8 h [M]. Limits: n = 1 session on an unidentified pack; the
+  register's gain is unchecked against a reference. No design-doc revision without Bill's go-ahead.
+
+### Bill's answers to five open questions recorded; P28 withdrawn; the 2025-trip question re-registered (documentation only, no HA config or firmware change)
+
+- **Session 14's pack** (Bill, 2026-11-22): the second, new Cyclenbatt 12.8 V 10 Ah, no P20 first, last charged
+  by the top-off charger at the end of October. He had said so on 2026-11-21 in the session-14 current-noise entry;
+  the entry above asked again because I did not search `open_questions.yaml` first [R13, recorded at the entry].
+  So "an unidentified pack" above is wrong: it is the S1-S7 pack, last on S7 (DONE 10-30 22:53:30 EDT), 523.3 h
+  before Start [D].
+- **Against S7 on the same pack** (top-off design §11.1): net tail 3.167 / 1.815 / 1.206 / 0.869 / 0.542 mA at
+  +2 / +3 / +4 / +5 / +6.8 h from Start, against 0.273 / 0.208 / 0.179 / 0.168 / 0.143 [D]; 0.014864 Ah after the
+  settle against 0.00076 [M, raw register]. Net 0.05135 Ah over the 523.3 h rest is 0.098 mA [D: 0.05135 / 523.3],
+  a lower bound on shelf loss if session 14 ended less full than S7 (hold 14.43 against 14.45 V, tail still
+  falling) [I]. [I] the pack was still refilling at DONE; falsifier: a session on it soon after that again takes
+  near 0.015 Ah after the settle.
+- **No BMS cut.** S1 and S2 (10-28, also about three weeks after a full charge) cut at VBUS 14.310 and 14.315 V at
+  1.30 and 0.95 A. Session 14 crossed 14.31 V at 1.66-1.56 A, passed 1.25-1.35 A at 14.330-14.337 V and 0.90-1.00 A
+  at 14.358-14.362 V, and never cut [M, 1 s rows]. That meets §11.1's falsifier ("or not at all"); the ~20 h at
+  voltage of S4, S5 and S7 having balanced the pack is favoured [I; falsifier: a cut near 14.31 V at about 1 A on
+  this pack again].
+- **September UPS cuts: N100 plus XB7**, as Bill believed, from the Kasa plug as he proposed. Hourly means of
+  `sensor.ups_outlet_current_consumption` [M, long-term statistics]: 30.63 W before the 09-16 16:00 EDT cut, 30.15 W
+  before the 09-18 21:05 cut, daily medians 29.08-30.49 W 09-01..10-30, against 13.97-14.30 W 11-05..11-22 with the
+  N100 alone (median 14.20 [D]). About 16 W more [D: 30.15 and 30.63 less 14.20], against 1.10 and 1.16 A more
+  battery current at the cuts [D: 2.011 and 2.065 less 0.907 A], 14.5-15.3 W at 13.2 V [D]. So 2026-11-04's
+  0.907 A is the only N100-alone reading. No step of that size 11-05..11-22 [M]: no XB7 on the UPS since 11-04 by
+  this measure.
+- **Bank labels** (Bill): batteries 1, 3 and 5 LiTime, 2 and 4 Cyclenbatt; each on a 6" 2 AWG lead to the busbar;
+  the inverter's ~18" 2 AWG cables land at opposite ends of it. On charge (2026-11-13 clamp) the Cyclenbatts took
+  the two highest currents, 18.0 and 21.3 A, against 15.0, 11.9 and 12.3 A [M]; exact Mann-Whitney two-sided
+  p = 0.20, n = 2 + 3 [D], the smallest that n allows, so not established. Discharge shows no brand order [M].
+  Equal leads cannot set the split [I]. Models and purchase dates not re-asked.
+- **2025 trip** (Bill): August 2025, mid-month, about 8 days; his exact days stay out of this public repo. That
+  conflicts with "10-12 days in September 2025" (Q3_2026_UPDATE.md §7, from 2026-11-13), and the water heater part
+  was not answered. One new entry asks both; the Q3 report is not reworked until it is answered.
+- **P28 withdrawn** (Bill: the Green/NESDR move is "removed from consideration"; G0 never tested). Moved to the
+  Closed table of `docs/pending.md` as WITHDRAWN; the status line of `docs/sdr-green-move.md` now says so, and the
+  plan is kept as the record.
+- Open: the inverter efficiency test (asked 2026-11-13, not answered) and the new 2025-trip entry.
+
+### The 2025 trip and the inverter test answered; P31 opened; DIY-LiFePO4-UPS and HVAC repo docs updated (documentation only, no HA config or firmware change)
+
+- **2025 trip** (Bill): the September 2025 dates were wrong; the trip was in mid-August 2025, about 8 days. He does
+  not know the exact days or whether the water heater was off. The `open_questions.yaml` entry is answered without
+  the days. The HVAC repo's `Q3_2026_UPDATE.md` is reworked to 1.11.0 (PR #22, for Bill to merge): the AC fits drop
+  a 12-day mid-August span and test five 8-day placements in it, and every figure that depends on the trip's days
+  is published as a range. AC slope difference, Q3 -2.81 min/CDD, p ~ 0.063 (0.033-0.062 over the placements;
+  1.10.0 had -1.10, p ~ 0.54); June-September -4.32, p ~ 0.006 (0.003-0.004; 1.10.0 had -2.99, p ~ 0.12) [D,
+  week-block bootstrap, B = 5000]. The ratio differences stay not significant. The 1.10.0 figures stay in the
+  report, marked superseded; dated correction notes went into `SEPTEMBER_2026_UPDATE.md`, the README and
+  `UPDATES.md` [R13]. So the entry above's "the Q3 report is not reworked until it is answered" is done.
+- **Inverter efficiency test** (Bill): "yes i will do the hair dryer test at the next discharge/charge test. do not
+  know when this will happen." The question is answered and the test is P31 in `docs/pending.md`. The 0.88 in
+  `packages/backup_sizing.yaml` stays until it runs.
+- **DIY-LiFePO4-UPS** (pushed to main): top-off design rev 0.21 records session 14 as S19 (§11.1 row; the BMS-cut
+  falsifier met; the tail and "Charge after settle" explained; §11.2, the UPS's pack on float throughout). Boost
+  design §12.4 rule 5 and §12.6 record the September cuts as N100 plus XB7, from the Kasa plug.
+- **`docs/house.md`**: the bank's brands and cabling added under Active Projects.
+- Open: P31, with no date set.
+
 ## [2026.11.19] - 2026-11-19
 
 ### Boost-UPS board, 16:26 save: checklist review, two open questions logged (documentation only, no HA config or firmware change)
