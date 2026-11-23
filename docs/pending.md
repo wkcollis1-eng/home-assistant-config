@@ -516,13 +516,26 @@ CLOSE WHEN, after Install:
 
 ### P27 — top-off charger V0.5: flashed; the post-flash steps and T17 [MEDIUM]
 ```
-Opened 2026-10-30. esphome/top-off-charger.yaml is V0.5 (sha1 523bec0a672c).
-Flashed 2026-10-30 12:25:15 EDT [M: reset reason esphome.ota]. Story: CHANGELOG
-2026.10.30, and design rev 0.13 in DIY-LiFePO4-UPS.
+Opened 2026-10-30. esphome/top-off-charger.yaml is V0.6 (sha1 3daf29e04028),
+flashed 2026-11-23 16:24 EST [M: config hash 0x347e7447, the local compile's].
+V0.5 (sha1 523bec0a672c) was flashed 2026-10-30 12:25:15 EDT [M: reset reason
+esphome.ota]. Story: CHANGELOG 2026.10.30, and design rev 0.13 in DIY-LiFePO4-UPS.
 
 The first 8 h session ran 2026-10-30 (S7, DONE 22:53:30). L6 answered: no timer in
 the circuit, so no layer covers a #2814 failed short (open_questions.yaml).
 The DMM check closed 2026-10-31: VBUS is the pack at rest (design rev 0.15).
+
+2026-11-23: V0.6 written (CHANGELOG 2026.11.23, design rev 0.22), compiled on
+2026.11.0, host-replayed, and installed by Bill 2026-11-23 (Device Builder). Then:
+a. R5 done: the id is sensor.basement_top_off_charger_charge_current_net [M].
+   Still to do: entity_notes.yaml, gen_reference.py and ENTITIES.md in one commit.
+b. Bench: Start Permitted stays off for 5 min after boot; a refused Start logs
+   "idle offset settling, N of 300 s of idle readings"; Charge Current Net reads
+   unknown for 5 min, then about 0 A in IDLE.
+   At the flash: Net read unknown until 300.8 s after boot, then -0.035 to
+   +0.042 mA [M, n = 57]. Start Permitted was not testable: VBUS 14.422 V is over
+   v_start_max 14.40 V, so the start gate held it off.
+c. T17 (bench BMS open) now expects FAULT "BMS open" at about 300 s, not 120 s.
 
 After the flash, in order:
 1. R5: python C:\sandbox\topoff_v05\verify_view_ids.py. It reads the rev 0.3 view

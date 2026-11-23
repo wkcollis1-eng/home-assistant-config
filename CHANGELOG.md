@@ -111,6 +111,90 @@ prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
 
+## [2026.11.23] - 2026-11-23
+
+### Top-off charger: S20 and S21 read; firmware V0.6 written to `esphome/top-off-charger.yaml` and flashed; design rev 0.22
+
+- **The sessions** were on the second Cyclenbatt pack, with firmware V0.5 [M, HA 1 s rows]:
+  - S20 (count 15): 11-22 09:40:23-17:44:13 EST, DONE, 28,809.5 s at voltage in 29,030.0 s, BMS Cuts 2.
+  - S21 (count 16): 11-23 07:30:52-13:11:52 EST, FAULT "BMS open too long", 19,750.0 s at voltage in 20,460.0 s,
+    BMS Cuts 11.
+  - Net charge was 2.69 mAh and 1.42 mAh [D: register + 0.1012 mA x span].
+  - At +5 h the tails read 0.159 mA (S20) and 0.106 mA (S21), net of the idle, against S7's 0.168 [D]. So the pack
+    is about as full as a 14.43 V hold gets it, and any balancer bleed there is under about 0.11 mA [D].
+- **S21's FAULT was an O21 dropout, not an open.**
+  - It began with a 1.836 mA net spike, VBUS up 0.309 mV [D]. Then 88 s at 0.0009 +/- 0.0033 mA net [D], which is
+    the idle level, not the 12-18 uA an open BMS reads.
+  - Current came back at 0.043-0.062 mA [D], under `bms_i_open` (0.07 mA), so V0.5's low run reached 12 blocks.
+    VBUS was 14.4318 V after the switch opened [M], so the lead, fuse and QD were whole.
+  - O21 is now n = 10.
+  - The other 12 counted cuts are noise [D: phase-randomised surrogates, n = 400, P = 0.60 for S21, 0.53 for S20].
+- **V0.5 idle-offset bug.** The EWMA ran in IDLE only:
+  - S19 snapshotted -0.11823 mA 76 s after boot.
+  - S20 started 6 s after its Acknowledge and inherited -0.11605 mA.
+  - Idle actually read -0.1008 to -0.1018 mA [M, hourly means], so both sessions' net figures and FW-5's blocks
+    read 15-17 uA high [D].
+  - R13 is recorded at the S19 entry above.
+  - A host replay with the snapshot biased that way reproduces S20's on-time DONE and its 2 cuts. With the real
+    idle, the replay does not reach 8 h of credit by the device's end [M, host replay].
+- **V0.6** (yaml sha1 `3daf29e04028`, 91,610 B; also in DIY-LiFePO4-UPS `Top-Off-Charger/firmware/`, commit `cbf0c46`)
+  has three changes from Bill (1, 2, 4) and one FW-5 fix (3):
+  1. **Start waits for the offset to settle.** It needs `idle_settle_s` (300 s) of valid switch-settled-OFF ticks
+     after boot, and the EWMA now runs in DONE and FAULT too. Start Permitted and the LED follow this. A refused
+     Start logs "idle offset settling, N of 300 s of idle readings".
+  2. **New sensor "Charge Current Net"**, I less the offset in force: while charging, FW-5's i_net (I less the
+     Start snapshot); otherwise, I less the live EWMA; NaN until settled. "Charge Current" stays raw, so its history
+     continues.
+  3. **FW-5 counts dead blocks** (low AND under `bms_i_dead`, 0.04 mA) for the cut and the FAULT. A run whose
+     blocks all read under 0.04 mA behaves exactly as V0.5. Given up: an open reading 0.04-0.07 mA, none measured.
+  4. **`bms_open_max_s` 120 -> 300 s:** 30 dead blocks end the session, not 12. BMS reconnects have read
+     28 s, 31 s, ~76-80 s and at least 122 s, and two of S7's dropouts reached 10 of the 12 blocks [M, design
+     doc 11.1 "S7: the cuts"]. A stuck open now keeps the switch on, with no current, 180 s longer before
+     the FAULT [D: 300 s - 120 s].
+- **Verified.**
+  - Compile on ESPHome 2026.11.0 (the add-on's version), PowerShell, no MSYSTEM: EXIT=0, `main.cpp.obj`,
+    0 compiler warnings, RAM 33.6 %, flash 54.6 % [M: compile log].
+  - A planted undeclared identifier failed the same build at `top-off-charger.yaml:1579:41` [M].
+  - R3: the 27 edits, reversed, are byte-identical to V0.5.
+  - Host harness on the real lambdas: "TOTAL 29 tests, 0 failed"; "MUTANTS 12 survived 1". The 1 is
+    MUT 09's "HARNESS ERROR, not a catch" (the parallel run lost a build file), not a survivor: re-run alone,
+    "MUT 09 net while charging not FW-5 i_net CAUGHT by 1: B3". So all 12 are caught.
+  - R13: two of the new 300 s checks were wrong on their first run, and failed. One compared V0.5 at 120 s
+    with V0.6 at 300 s (360 ticks apart, the 18-block shift); one read time at voltage on runs that reach
+    DONE, which caps it. Both were fixed in the harness, not the firmware, and the mutants were re-run, since
+    the first check had failed on every build.
+  - V0.5's suite on V0.6 at 120 s: "TOTAL 54 tests, 1 failed". At 300 s: "TOTAL 54 tests, 2 failed", the
+    second being "open at +3 h: FAULT BMS open at 120 s", which now FAULTs at 600 ticks (300 s), as intended.
+    The LED failure is a mode 1 duty-window artefact
+    [D: 3 s on in a 7.55 s window]; the new tests read 0.3333 over 150 s.
+  - Replay: S21 V0.5 FAULTs within one block of the device at 17 of 20 phases; V0.6 does not FAULT on the dropout;
+    V0.6 matches V0.5 on S6's real open, both at 300 s [M, host replay].
+  - 300 s on S20's tail (4 positions, 3 block phases): a 250 s open ends V0.6 at 120 s in 12 of 12 runs and
+    at 300 s in none; a 600 s stuck open FAULTs V0.6 at 300 s in 12 of 12, 600-613 ticks in [M, host replay].
+- **Design doc rev 0.22** (DIY-LiFePO4-UPS commit `cbf0c46`) records S20/S21 in §11.1, updates FW-3, FW-5 and FW-14
+  for V0.6, takes O21 to n = 10, adds notes to O4, O5 and O18, and corrects S19's net charge (R13).
+  - R3: 16 span edits, reversed, are byte-identical; 881 of 893 lines unchanged.
+- **Flashed** by Bill, 2026-11-23 (Device Builder > Install, OTA). The device reports "2026.11.0 (config
+  hash 0x347e7447, built 2026-11-23 16:16:42 -0500)": 0x347e7447 is the local compile's hash for
+  `3daf29e04028` [M: HA version sensor, compile log]. Reset reason "Reboot request from esphome.ota"; boot
+  16:24:38 EST [D: uptime 304.16 s at 16:29:42.78].
+  - Charge Current Net (`sensor.basement_top_off_charger_charge_current_net` [M, /api/states, R5]) read
+    unknown until 300.8 s after boot (`idle_settle_s` 300 s), then -0.035 to +0.042 mA in IDLE [M, HA rows,
+    n = 57, 16:29:39-16:30:35 EST].
+  - Start Permitted stays off, but for the start gate: VBUS reads 14.422 V, over `v_start_max` (14.40 V)
+    [M]. This boot does not show the settle gate on Start Permitted.
+  - The audit after the flash: "0 FAIL, 0 WARN, 2 INFO across 18 pipelines", so the new entity leaves
+    ENTITIES.md current.
+- **Open.**
+  - No session has run on V0.6, and T1-T17 have not run.
+  - Charge Current Net has no entity_notes.yaml annotation yet (P27 a).
+  - A tail under FW-5's 0.14 mA arming level still disarms the open test (about 20 % of S21's blocks [D, HA rows];
+    unchanged from V0.5). That level is the design's (twice `bms_i_open`), not the INA228's: idle 10 s blocks
+    read sd 0.005 mA, S20's and S21's tail blocks 0.043-0.045 mA [M, HA rows, n = 4,720 and 600 blocks].
+    Lowering it needs the tail's own floor (T11).
+  - V0.6 counts fewer cuts on S7's rows (3-5 against 9-15 [D, replay]), some of which may have been real short
+    dropouts.
+
 ## [2026.11.22] - 2026-11-22
 
 ### Top-off charger session 14 read from HA history; one R14 question registered (documentation only, no HA config or firmware change)
@@ -128,6 +212,9 @@ question" —** the answer was one line away and settled it in one sentence.
   17:39:13 (+1,831 s) with the register at 0.035544 Ah; final 0.050406 Ah; difference 0.014862 Ah, against the
   published 0.014864 Ah [M]. Net of the -0.11823 mA idle offset: 0.05135 Ah in all, 0.03561 before the settle and
   0.01575 after [D: register + 0.11823 mA x span]. HA's 1 s rows put 0.0216 Ah into the first 5 min [D].
+  **R13, 2026-11-23:** that offset was 17 uA off the -0.1012 mA idle, because V0.5 snapshotted it 76 s after
+  boot, before its EWMA settled. Net against the idle, S19 put in 0.05122 Ah, not 0.05135 [D: 0.05135 Ah -
+  17 uA x 28,830 s]. See [2026.11.23] and top-off design rev 0.22.
 - **No floor.** All 45 tail windows fell, each below the last, 13.163 to 0.4235 mA net [D]; log-log slope -1.40
   over windows 1-18 and -1.53 over 19-45 [D]. So the 0.3052 mA "tail floor" is the last window, and the hold ended
   on the timer with the pack still taking charge. Against S17 and S18 on the UPS's pack (0.00147 and 0.00085 Ah
