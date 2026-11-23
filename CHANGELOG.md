@@ -84,6 +84,7 @@ is calibrated against.
 | 2026-11-01 | **R20 commit nudge.** Of the first 40 compactions after deployment, `scorecard.py recovery` shows at most 1 that followed a commit or push the checkpoint predates. [I: a one-shot nudge is enough because in-time writes took at most 6 calls [M, n=102], and the last git step of a sequence always gets it.] Baseline 8 of 100 [D: 6 of 57 + 2 of 43, scorecard.py recovery, the two weeks to 2026-11-02], so 1 or fewer of 40 comes up about 16 % of the time with no effect [D: binomial, p = 0.08]. Falsified by 2 or more; then make it repeat until the checkpoint is written. Read `commit-nudge` rows in gate.log beside it: a row with no write inside 6 calls is the failure this row predicts will not happen. | yes | open |
 | 2026-11-05 | **INA228 PCB Rev 2 is quieter by σ over a full week.** Pooled σ through the 0.7629 mA quantizer, over 2026-11-06 to 11-12 with nights included, lands at 0.160–0.190 mA. Blocks are centred, dark, idle 10-min blocks, by the method in `pcb-rev2-noise-fix-design.md` §8.2, "Results on Rev 2". [I: 5 h gave 0.1717 mA, se 0.0023, n = 22 blocks, evening only.] HIT inside 0.160–0.190. MISS outside it but below 0.199. Falsified at 0.199 mA or above, which is the lowest σ of 31 Rev 1.1 evenings [D]. | yes, before any 11-06 data was read | **HIT** - scored 2026-11-17: 0.1715 mA [0.1705, 0.1730] over UTC days 11-06 to 11-12, 0.1720 mA over EST days, 953 of 988 blocks fitted [D: InfluxDB, design note §8.2 "twelve days"] |
 | 2026-11-05 | **Rev 2's visible calm is grid position, and it goes when the zero drifts.** If by 2026-12-31 Rev 2's idle mean comes within 0.1 code of a code boundary (−27.85 or −27.08 mA, or any other), those blocks show a median 2-s scatter of at least 0.33 mA. [D: σ 0.1717 mA through the quantizer gives 0.381 mA on a boundary; Rev 1.1's on-boundary row measured 0.380 mA, n = 268 blocks.] Falsified if they show under 0.30 mA. Void if no block comes within 0.1 code of a boundary by 12-31. | yes | **HIT** - scored 2026-11-17 on the blocks to 11-17 13:30Z. 67 Rev 2 blocks came within 0.1 code of a boundary, 11-08 to 11-14; median 2-s scatter 0.381 mA, quartiles 0.378-0.382 [M: InfluxDB, design note §8.2 "twelve days"]. Their fitted σ stayed 0.1675-0.1815 mA by day [D]. Rev 1.1's blocks on the same cut read 0.380 mA [M: 244 blocks] |
+| 2026-11-23 | **Top-off charger V0.7, first boot and first session** (written before the flash). (a) The version sensor reads config hash 0x5fdd1b3c. (b) At first boot Session Charge Net and Charge After Settle Net read unknown (the V0.6 record holds no net fields), and Charge Power Net reads unknown until about 300 s after boot, then within +/-1 mW in IDLE [D: under 15 V x 0.042 mA, the largest Charge Current Net read on V0.6]. (c) At the first V0.7 session's end, Session Charge Net - Session Charge equals -(the session's idle offset) x its elapsed time within 0.00002 Ah, two steps of the 5 dp state. Falsified by another hash, a net figure equal to its raw one with an offset recorded, or (c) outside 0.00002 Ah. | yes, before the flash | pending (c), the first V0.7 session. (a) and (b) as predicted, read 2026-11-23 22:49-22:58Z [M, /api/states and history]: (a) "config hash 0x5fdd1b3c"; (b) Session Charge Net and Charge After Settle Net unknown from boot, 1 row each; Charge Power Net unknown until 300.8 s after boot [D], then -0.755 to +0.626 mW [M, n = 258, 257 s] |
 
 **Running score: 22 hits, 7 misses, 5 falsified, 5 withdrawn, 3 void.** (Until 2026-11-17 this read 20 hits; that
 day scored both 2026-11-05 Rev 2 rows HIT.) (12th hit: the 2026-09-23
@@ -196,6 +197,60 @@ question" —** the answer was one line away and settled it in one sentence.
     Lowering it needs the tail's own floor (T11).
   - V0.6 counts fewer cuts on S7's rows (3-5 against 9-15 [D, replay]), some of which may have been real short
     dropouts.
+
+### Top-off charger V0.7: three net sensors, flashed 2026-11-23 about 17:49 EST; design rev 0.23
+
+- **Why** (Bill, 2026-11-23: should power and the Ah figures use Charge Current Net?). Net is the closer basis.
+  While charging, raw reads the INA228's own zero, about 86 uA low, and net overstates the pack's current by the
+  VBUS pin's 12-18 uA (design 11.2 "The zero"). Over S19 the difference was 0.81 mAh [D: 0.1012 mA x 28,830 s].
+- **V0.7** (yaml sha1 `116df9e36a24`, 96,417 B; also in DIY-LiFePO4-UPS `Top-Off-Charger/firmware/`, uncommitted)
+  adds three sensors. The raw ones stay, so their history continues:
+  1. **Charge Power Net:** VBUS x Charge Current Net, NaN whenever that is.
+  2. **Session Charge Net:** the CHARGE register less the Start snapshot of the idle offset x elapsed time. The
+     register integrates from Start, so the same offset comes off over the same span. One definition, in the
+     tick (R10).
+  3. **Charge After Settle Net:** the same, from a snapshot on the raw figure's settle tick.
+  - With no Start snapshot they read NaN, never raw. The shipped config cannot reach that state (Start needs
+    600 settled EWMA ticks); a test fixture proves the guard.
+  - Both net Ah figures are in the restored record: 2 new `restore_value` globals. A restoring global's key is
+    the md5 of its id, so no saved value moves [S: esphome/components/globals/__init__.py:100-105, 2026.11.0].
+    A V0.6 record reads NaN for them at first boot.
+- **Verified.**
+  - R3: the 28 edits, reversed, are byte-identical to V0.6; 1851 of 1856 lines untouched.
+  - Host harness on the real lambdas, S20's and S21's rows: "TOTAL 25 tests, 0 failed"; "MUTANTS 14 survived 0".
+    Every V0.6 global, sensor, switch edge and log line is unchanged at every dump (246 and 174) [M, host
+    replay]. Two candidate mutants are equivalent and were not planted: dropping the NaN guard (no `-ffast-math`
+    in the build [M: compile_commands.json, 0 matches]), and the live EWMA for its Start snapshot.
+  - Flash: S20's replay takes 431 blob writes against V0.6's 336, and S21's 306 against 238 [D: host model of
+    the preference layer, real lambdas]. The difference is the two new record fields.
+  - Compile on ESPHome 2026.11.0 (the add-on's version), PowerShell, no MSYSTEM: EXIT 0, `main.cpp.obj` and
+    `build/firmware.ota.bin` newer than the start, 0 compiler warnings, RAM 33.7 %, flash 54.6 %, config hash
+    0x5fdd1b3c [M: compile log].
+  - A planted undeclared function failed the same build at `top-off-charger.yaml:1634:11` [M].
+  - gitleaks: no leaks in the yaml; the same scan with secrets.yaml added found 8 [M].
+- **Design doc rev 0.23** (DIY-LiFePO4-UPS, uncommitted): FW-9, FW-14, a 11.1 replay bullet, O4 and the revision
+  row. R3: the 7 edits, reversed, are byte-identical; 898 of 903 lines untouched.
+- **Flashed** by Bill 2026-11-23, OTA [M: reset reason "Reboot request from esphome.ota"], booting about
+  22:48:59Z, 17:48:59 EST [D: uptime 543.084 s at 22:58:02.127Z]. Read 22:49-22:58Z [M, /api/states and history]:
+  - The version sensor reads "2026.11.0 (config hash 0x5fdd1b3c, built 2026-11-23 17:48:10 -0500)": the local
+    compile's hash. The build time is Device Builder's own compile of the same yaml.
+  - R5: the three ids are live: `sensor.basement_top_off_charger_charge_power_net`,
+    `sensor.basement_top_off_charger_session_charge_net` and
+    `sensor.basement_top_off_charger_charge_after_settle_net`. Annotated in entity_notes.yaml; the raw three
+    now name their net twin, and Charge Current Net's "the only offset-corrected figure" is retired.
+    ENTITIES.md regenerated: 3 rows added, 4 notes changed, 808 of 812 lines unchanged.
+  - Session Charge Net and Charge After Settle Net read unknown from boot, 1 row each: the V0.6 record has no
+    net fields. Charge Power Net read unknown until 22:53:59.834Z, 300.8 s after boot [D], then -0.755 to
+    +0.626 mW, mean -0.020 mW [M, n = 258, to 22:58:16.818Z].
+  - At 22:54:33Z, Charge Current Net -1.33122e-05 A x VBUS 14.41953 V = -1.9196e-04 W, Charge Power Net's
+    reading at that moment [D].
+  - S21's record restored: Last Session Charge 0.000847567 Ah, Last Session Idle Offset -0.10059 mA [M].
+- **Open.**
+  - Ledger row 2026-11-23 (c) waits on the first V0.7 session. Start Permitted reads off: VBUS 14.4189-14.4199 V
+    [M, n = 408, 22:47-22:58Z] is over v_start_max 14.40 V. So the settle gate that V0.6 added is still
+    untested on the device.
+  - Unchanged from V0.6 and unreachable: Charge Current Net falls back to raw I with no Start snapshot, and
+    Charge Power Net inherits it.
 
 ## [2026.11.22] - 2026-11-22
 

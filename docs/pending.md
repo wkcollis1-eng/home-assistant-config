@@ -516,8 +516,9 @@ CLOSE WHEN, after Install:
 
 ### P27 — top-off charger V0.5: flashed; the post-flash steps and T17 [MEDIUM]
 ```
-Opened 2026-10-30. esphome/top-off-charger.yaml is V0.6 (sha1 3daf29e04028),
-flashed 2026-11-23 16:24 EST [M: config hash 0x347e7447, the local compile's].
+Opened 2026-10-30. esphome/top-off-charger.yaml is V0.7 (sha1 116df9e36a24),
+flashed 2026-11-23 17:49 EST [M: config hash 0x5fdd1b3c, the local compile's].
+V0.6 (sha1 3daf29e04028) was flashed 2026-11-23 16:24 EST [M: config hash 0x347e7447].
 V0.5 (sha1 523bec0a672c) was flashed 2026-10-30 12:25:15 EDT [M: reset reason
 esphome.ota]. Story: CHANGELOG 2026.10.30, and design rev 0.13 in DIY-LiFePO4-UPS.
 
@@ -537,6 +538,14 @@ b. Bench: Start Permitted stays off for 5 min after boot; a refused Start logs
    +0.042 mA [M, n = 57]. Start Permitted was not testable: VBUS 14.422 V is over
    v_start_max 14.40 V, so the start gate held it off.
 c. T17 (bench BMS open) now expects FAULT "BMS open" at about 300 s, not 120 s.
+
+2026-11-23: V0.7 written (CHANGELOG 2026.11.23, design rev 0.23): Charge Power Net,
+Session Charge Net and Charge After Settle Net. Compiled on 2026.11.0 (config hash
+0x5fdd1b3c), host-replayed, installed to H:, and flashed by Bill 2026-11-23 (OTA):
+d. DONE 2026-11-23: the version sensor reads config hash 0x5fdd1b3c [M]. Ledger row
+   2026-11-23: (a) and (b) as predicted; (c) waits on the first V0.7 session.
+e. DONE 2026-11-23: the three ids are live [M]; annotated in entity_notes.yaml,
+   ENTITIES.md regenerated.
 
 After the flash, in order:
 1. R5: python C:\sandbox\topoff_v05\verify_view_ids.py. It reads the rev 0.3 view

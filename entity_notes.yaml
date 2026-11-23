@@ -553,9 +553,18 @@ sensor.basement_router_peak_watts:
 sensor.basement_router_today_s_consumption:
   group: KASA PLUGS
   note: ''
+sensor.basement_top_off_charger_charge_after_settle_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.7: Charge After Settle less the Start idle offset x the time since the settle, net in the firmware; restored at boot (FW-9). Unknown before the settle, with no Start snapshot, and for a V0.6 record'
 sensor.basement_top_off_charger_charge_current_net:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'V0.6: I less the idle offset in force (the Start snapshot while charging, the live EWMA otherwise); unknown until 300 s of idle after boot. The only offset-corrected figure: Charge Power, Session Charge and the FW-14 figures are raw'
+  note: 'V0.6: I less the idle offset in force (the Start snapshot while charging, the live EWMA otherwise); unknown until 300 s of idle after boot. V0.7 adds Charge Power Net, Session Charge Net and Charge After Settle Net; Charge Power, Session Charge and the other FW-14 figures stay raw'
+sensor.basement_top_off_charger_charge_power_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.7: VBUS x Charge Current Net; unknown whenever that is, so for 300 s after boot'
+sensor.basement_top_off_charger_session_charge_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.7: Session Charge less the Start idle offset x elapsed, net in the firmware; restored at boot (FW-9). Unknown with no Start snapshot, and for a V0.6 record'
 sensor.climate_norms_status:
   group: CLIMATE NORMS
   note: ''
@@ -1135,13 +1144,13 @@ sensor.top_off_charger_bms_trip_pre_step_vbus:
   note: 'FW-5; NaN unless the last session ended in a BMS trip'
 sensor.top_off_charger_charge_after_settle:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'FW-14, this session''s charge after the settle, raw'
+  note: 'FW-14, this session''s charge after the settle, raw; net twin Charge After Settle Net (V0.7)'
 sensor.top_off_charger_charge_current:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'INA228, signed, raw (idle offset about -0.1 mA); 1 Hz copy of the 500 ms tick'
 sensor.top_off_charger_charge_power:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'signed V x raw I (idle offset included), not the INA228''s unsigned POWER register'
+  note: 'signed V x raw I (idle offset included), not the INA228''s unsigned POWER register; net twin Charge Power Net (V0.7)'
 sensor.top_off_charger_charger_state:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'the state machine''s state (design, States)'
@@ -1210,7 +1219,7 @@ sensor.top_off_charger_reset_reason:
   note: 'ESPHome debug reset reason (V0.4)'
 sensor.top_off_charger_session_charge:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'this session''s charge, Ah: the INA228 CHARGE register, raw (idle offset included)'
+  note: 'this session''s charge, Ah: the INA228 CHARGE register, raw (idle offset included); net twin Session Charge Net (V0.7)'
 sensor.top_off_charger_session_elapsed:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'time since Start'
