@@ -185,9 +185,11 @@ question" —** the answer was one line away and settled it in one sentence.
     [M]. This boot does not show the settle gate on Start Permitted.
   - The audit after the flash: "0 FAIL, 0 WARN, 2 INFO across 18 pipelines", so the new entity leaves
     ENTITIES.md current.
+- **Annotated** (P27 a, the same day; documentation only): `entity_notes.yaml` gains Charge Current Net, and
+  the Charge Power, Session Charge and Last Session Charge notes now say they use raw I, idle offset included.
+  ENTITIES.md regenerated: 1 line added, 3 changed, 808 of 811 unchanged [M, diff].
 - **Open.**
   - No session has run on V0.6, and T1-T17 have not run.
-  - Charge Current Net has no entity_notes.yaml annotation yet (P27 a).
   - A tail under FW-5's 0.14 mA arming level still disarms the open test (about 20 % of S21's blocks [D, HA rows];
     unchanged from V0.5). That level is the design's (twice `bms_i_open`), not the INA228's: idle 10 s blocks
     read sd 0.005 mA, S20's and S21's tail blocks 0.043-0.045 mA [M, HA rows, n = 4,720 and 600 blocks].

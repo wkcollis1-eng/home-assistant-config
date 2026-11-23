@@ -527,8 +527,9 @@ The DMM check closed 2026-10-31: VBUS is the pack at rest (design rev 0.15).
 
 2026-11-23: V0.6 written (CHANGELOG 2026.11.23, design rev 0.22), compiled on
 2026.11.0, host-replayed, and installed by Bill 2026-11-23 (Device Builder). Then:
-a. R5 done: the id is sensor.basement_top_off_charger_charge_current_net [M].
-   Still to do: entity_notes.yaml, gen_reference.py and ENTITIES.md in one commit.
+a. DONE 2026-11-23: the id is sensor.basement_top_off_charger_charge_current_net [M];
+   annotated in entity_notes.yaml, ENTITIES.md regenerated. Charge Power,
+   Session Charge and Last Session Charge notes now say they use raw I.
 b. Bench: Start Permitted stays off for 5 min after boot; a refused Start logs
    "idle offset settling, N of 300 s of idle readings"; Charge Current Net reads
    unknown for 5 min, then about 0 A in IDLE.

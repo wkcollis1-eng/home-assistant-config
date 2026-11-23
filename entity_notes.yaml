@@ -553,6 +553,9 @@ sensor.basement_router_peak_watts:
 sensor.basement_router_today_s_consumption:
   group: KASA PLUGS
   note: ''
+sensor.basement_top_off_charger_charge_current_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.6: I less the idle offset in force (the Start snapshot while charging, the live EWMA otherwise); unknown until 300 s of idle after boot. The only offset-corrected figure: Charge Power, Session Charge and the FW-14 figures are raw'
 sensor.climate_norms_status:
   group: CLIMATE NORMS
   note: ''
@@ -1138,7 +1141,7 @@ sensor.top_off_charger_charge_current:
   note: 'INA228, signed, raw (idle offset about -0.1 mA); 1 Hz copy of the 500 ms tick'
 sensor.top_off_charger_charge_power:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'signed V x I, not the INA228''s unsigned POWER register'
+  note: 'signed V x raw I (idle offset included), not the INA228''s unsigned POWER register'
 sensor.top_off_charger_charger_state:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'the state machine''s state (design, States)'
@@ -1177,7 +1180,7 @@ sensor.top_off_charger_ina228_die_temperature:
   note: 'enclosure proxy, report-only (FW-10)'
 sensor.top_off_charger_last_session_charge:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'session record, restored at boot (FW-9)'
+  note: 'session record, restored at boot (FW-9); raw, as Session Charge'
 sensor.top_off_charger_last_session_charge_after_settle:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'session record, restored at boot (FW-9)'
@@ -1207,7 +1210,7 @@ sensor.top_off_charger_reset_reason:
   note: 'ESPHome debug reset reason (V0.4)'
 sensor.top_off_charger_session_charge:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
-  note: 'this session''s charge, Ah'
+  note: 'this session''s charge, Ah: the INA228 CHARGE register, raw (idle offset included)'
 sensor.top_off_charger_session_elapsed:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'time since Start'
