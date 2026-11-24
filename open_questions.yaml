@@ -3616,3 +3616,50 @@
     placements; June-September -4.32, p ~ 0.006, 0.003-0.004 [D, week-block
     bootstrap, B = 5000]. The water heater stays unknown; August 2025 DHW
     fits near-zero use on the trip days either way (report section 1.4).
+
+- asked: 2026-11-24
+  question: >-
+    On the top-off charger board, does the status LED's current (or the
+    XIAO's own supply) pass through the INA228 shunt, or share its ground
+    return?
+  blocks: >-
+    The cause of the even/odd tick split. While CHARGING, HA's 1 s rows
+    (even ticks only, yaml step 11) read above the CHARGE register in 12
+    of 12 sessions, +0.0165 to +0.0914 mA [M, Influx, hourly from +1 h,
+    n = 4-8 h per session], and +0.020 mA above the firmware's all-tick
+    Tail Window Mean on 2026-11-24 [M, n = 45 windows]; in IDLE the two
+    phases agree to 0.3 uA [M, n = 1271 s]. The CHARGING LED blinks 500/500
+    ms locked to the tick (yaml line 1904), so even ticks always see one
+    LED half [I; falsifier: the answer above, or a build that publishes
+    the odd tick]. Until answered: whether to move the LED phase or only
+    publish a two-tick mean, and how far the V0.6 thresholds (fitted on
+    even-tick rows) need re-fitting.
+  answered: >-
+    2026-11-24, Bill, by pointing at the design document
+    (DIY-LiFePO4-UPS, Top-Off-Charger/top-off-charger-design.md, sections
+    5 and 5.5): neither. The board is fed from BATT_RAW through F1 and the
+    D24V7F3, upstream of the switch, so "the shunt sees only battery
+    current"; the LED returns through R1 (1 kOhm) to the GND pour, and the
+    INA228's ground is a Kelvin track to the TB2-2 pad [S, design section
+    5, rev 0.8 board]. So the split is not the LED's own current in the
+    shunt. What stays open is a model, not a question for Bill: the
+    tick-locked LED, or the even-tick Wi-Fi burst, loading the shared
+    supply and so moving the real charge current [I; falsifier: a build
+    that holds the LED steady while CHARGING and publishes both tick
+    phases]. The thresholds no longer wait on it: they are re-checked on
+    all-tick (CHARGE) block means (CHANGELOG 2026.11.24, second entry).
+
+- asked: 2026-11-24
+  question: >-
+    Top-off charger session count 17 (S22, 2026-11-24 07:21 to 15:43 EST):
+    which pack was on it - the second Cyclenbatt of S1-S7 and S19-S21, or
+    another?
+  blocks: >-
+    S22's row in the top-off design's section 11 bench table, and reading
+    its tail against S20 and S21 (the second pack, CHANGELOG 2026.11.23).
+    The UPS's own pack stayed on the UPS throughout:
+    sensor.ups_monitor_battery_voltage 13.2358-13.2465 V, no gap over
+    120 s, 06:21 to 16:43 EST [M, 7,057 rows]. So S22 ran on another pack,
+    and which one is a label, not a measurement. Until answered, S22's
+    figures enter the design doc as V0.8 evidence without naming the pack.
+  answered:

@@ -84,7 +84,7 @@ is calibrated against.
 | 2026-11-01 | **R20 commit nudge.** Of the first 40 compactions after deployment, `scorecard.py recovery` shows at most 1 that followed a commit or push the checkpoint predates. [I: a one-shot nudge is enough because in-time writes took at most 6 calls [M, n=102], and the last git step of a sequence always gets it.] Baseline 8 of 100 [D: 6 of 57 + 2 of 43, scorecard.py recovery, the two weeks to 2026-11-02], so 1 or fewer of 40 comes up about 16 % of the time with no effect [D: binomial, p = 0.08]. Falsified by 2 or more; then make it repeat until the checkpoint is written. Read `commit-nudge` rows in gate.log beside it: a row with no write inside 6 calls is the failure this row predicts will not happen. | yes | open |
 | 2026-11-05 | **INA228 PCB Rev 2 is quieter by σ over a full week.** Pooled σ through the 0.7629 mA quantizer, over 2026-11-06 to 11-12 with nights included, lands at 0.160–0.190 mA. Blocks are centred, dark, idle 10-min blocks, by the method in `pcb-rev2-noise-fix-design.md` §8.2, "Results on Rev 2". [I: 5 h gave 0.1717 mA, se 0.0023, n = 22 blocks, evening only.] HIT inside 0.160–0.190. MISS outside it but below 0.199. Falsified at 0.199 mA or above, which is the lowest σ of 31 Rev 1.1 evenings [D]. | yes, before any 11-06 data was read | **HIT** - scored 2026-11-17: 0.1715 mA [0.1705, 0.1730] over UTC days 11-06 to 11-12, 0.1720 mA over EST days, 953 of 988 blocks fitted [D: InfluxDB, design note §8.2 "twelve days"] |
 | 2026-11-05 | **Rev 2's visible calm is grid position, and it goes when the zero drifts.** If by 2026-12-31 Rev 2's idle mean comes within 0.1 code of a code boundary (−27.85 or −27.08 mA, or any other), those blocks show a median 2-s scatter of at least 0.33 mA. [D: σ 0.1717 mA through the quantizer gives 0.381 mA on a boundary; Rev 1.1's on-boundary row measured 0.380 mA, n = 268 blocks.] Falsified if they show under 0.30 mA. Void if no block comes within 0.1 code of a boundary by 12-31. | yes | **HIT** - scored 2026-11-17 on the blocks to 11-17 13:30Z. 67 Rev 2 blocks came within 0.1 code of a boundary, 11-08 to 11-14; median 2-s scatter 0.381 mA, quartiles 0.378-0.382 [M: InfluxDB, design note §8.2 "twelve days"]. Their fitted σ stayed 0.1675-0.1815 mA by day [D]. Rev 1.1's blocks on the same cut read 0.380 mA [M: 244 blocks] |
-| 2026-11-23 | **Top-off charger V0.7, first boot and first session** (written before the flash). (a) The version sensor reads config hash 0x5fdd1b3c. (b) At first boot Session Charge Net and Charge After Settle Net read unknown (the V0.6 record holds no net fields), and Charge Power Net reads unknown until about 300 s after boot, then within +/-1 mW in IDLE [D: under 15 V x 0.042 mA, the largest Charge Current Net read on V0.6]. (c) At the first V0.7 session's end, Session Charge Net - Session Charge equals -(the session's idle offset) x its elapsed time within 0.00002 Ah, two steps of the 5 dp state. Falsified by another hash, a net figure equal to its raw one with an offset recorded, or (c) outside 0.00002 Ah. | yes, before the flash | pending (c), the first V0.7 session. (a) and (b) as predicted, read 2026-11-23 22:49-22:58Z [M, /api/states and history]: (a) "config hash 0x5fdd1b3c"; (b) Session Charge Net and Charge After Settle Net unknown from boot, 1 row each; Charge Power Net unknown until 300.8 s after boot [D], then -0.755 to +0.626 mW [M, n = 258, 257 s] |
+| 2026-11-23 | **Top-off charger V0.7, first boot and first session** (written before the flash). (a) The version sensor reads config hash 0x5fdd1b3c. (b) At first boot Session Charge Net and Charge After Settle Net read unknown (the V0.6 record holds no net fields), and Charge Power Net reads unknown until about 300 s after boot, then within +/-1 mW in IDLE [D: under 15 V x 0.042 mA, the largest Charge Current Net read on V0.6]. (c) At the first V0.7 session's end, Session Charge Net - Session Charge equals -(the session's idle offset) x its elapsed time within 0.00002 Ah, two steps of the 5 dp state. Falsified by another hash, a net figure equal to its raw one with an offset recorded, or (c) outside 0.00002 Ah. | yes, before the flash | **HIT** (c), read 2026-11-24 on the first V0.7 session (count 17): Session Charge Net - Session Charge 0.000851080 Ah against -(-0.000101588 A) x 30,160.0 s = 0.000851080 Ah, under 0.001 uAh apart [D, /api/states]. Was: pending (c), the first V0.7 session. (a) and (b) as predicted, read 2026-11-23 22:49-22:58Z [M, /api/states and history]: (a) "config hash 0x5fdd1b3c"; (b) Session Charge Net and Charge After Settle Net unknown from boot, 1 row each; Charge Power Net unknown until 300.8 s after boot [D], then -0.755 to +0.626 mW [M, n = 258, 257 s] |
 
 **Running score: 22 hits, 7 misses, 5 falsified, 5 withdrawn, 3 void.** (Until 2026-11-17 this read 20 hits; that
 day scored both 2026-11-05 Rev 2 rows HIT.) (12th hit: the 2026-09-23
@@ -111,6 +111,73 @@ R14 exists for exactly this and the question had already been filed; the
 prediction was made anyway, in the gap before the answer came back. **The lesson
 is not "predict better" but "do not pre-register against an outstanding R14
 question" —** the answer was one line away and settled it in one sentence.
+
+## [2026.11.24] - 2026-11-24
+
+### Top-off charger: first V0.7 session read; tail figures are raw; HA's 1 s rows are even ticks and read high while charging
+
+No firmware or HA config changed. Analysis of session count 17 (07:21:12-15:43:51 EST, DONE, 28,800 s at voltage in
+30,160 s, BMS Cuts 2) on HA history and InfluxDB rows, which agree row for row (27,748 current rows, 0 value
+differences [M]).
+
+- **Tail Window Mean and Tail Floor are raw (Bill, 2026-11-24, confirmed).** `blk_tail_sum` takes `i`, not `i_net`
+  (`esphome/top-off-charger.yaml` step 7a); the header's "subtract downstream" has no downstream: nothing in HA does
+  it. Net, with the Start snapshot -0.10159 mA: floor -0.0313 -> +0.0703 mA, final window -0.0227 -> +0.0789 mA [D].
+- **HA/Influx 1 s rows are even ticks only (step 11), and read high while CHARGING (R18).** Against the CHARGE
+  register: even-tick rows +0.0266 mA (sd 0.0068, n = 45 windows), the firmware's all-tick Tail Window Mean +0.0063 mA
+  (sd 0.0042; partly low-block exclusion) [M]. In IDLE the phases agree: even-tick mean -0.1012 mA, EWMA -0.1009 mA
+  [M, n = 1271 s]. Every session since 10-29 shows it: even minus CHARGE +0.0165 to +0.0914 mA per session, S20
+  +0.0176, S21 +0.0302 [M, Influx, hourly from +1 h, 12 sessions, n = 4-8 h each]. V0.6's bms_i_dead and the "tails
+  fell to 0.106 mA" figure came from those rows. Candidate cause: the CHARGING LED blinks 500/500 ms locked to the
+  tick (line 1904) [I]; asked of Bill (open_questions.yaml, 2026-11-24).
+- **Cut 2, 13:19:02, was a BMS open:** 1.46 mA pulse at 13:18:21, then 92 s at idle-level samples (mean -0.0006 mA
+  net), the only run over 12 s in 22,958 s of tail [M]: an O21 dropout, counted once, no FAULT, as V0.6 intended.
+  **Cut 1, 12:57:52, had no pulse** and an 11 s quiet run in the even ticks, against 15 runs of 10 s or more in the
+  same tail [M]: read as noise [I; falsifier: the device log's block means, not kept].
+- 1,360 s of the session earned no time at voltage [D: 30,160 - 28,800]; not decomposed.
+- Ledger: V0.7 (c) HIT, above.
+- **Which pack is asked of Bill** (open_questions.yaml, 2026-11-24, R14). The UPS's own pack stayed on the UPS
+  throughout: sensor.ups_monitor_battery_voltage 13.2358-13.2465 V, no gap over 120 s, 06:21-16:43 EST [M, 7,057
+  rows]. So S22 ran on another pack, and which one is a label, not a measurement. Its row in the design's section
+  11 bench table waits on the answer.
+
+### Top-off charger: FW-5's dead and arming levels re-checked on all-tick blocks; Q1 answered; V0.8 recommended, not written
+
+No firmware or HA config changed. The 2026-11-24 entry in `open_questions.yaml` is answered: Bill pointed at the
+design document. Replays on InfluxDB rows of the eight block-firmware sessions S7, S15 and S17-S22; scripts in the
+session scratchpad, not kept.
+
+- **Q1: the LED and XIAO currents do not pass the shunt** [S, design section 5 and 5.5, rev 0.8 board]: the board is fed
+  upstream of the switch. Inside five BMS opens, where no battery current flows, even-tick rows and CHARGE agree,
+  +0.0021 mA (sd 0.0078, t +1.64, n = 37 blocks) [M], against +0.0156 to +0.0393 mA over the same sessions' tails [M,
+  n = 1325-2295 blocks each]. So the split rides on the battery current: tick-locked board load moving the real
+  charge current is favoured [I; falsifier: a build that holds the LED steady while CHARGING].
+- **The device's blocks, rebuilt and checked.** Time at Voltage steps 10 s only on a credited block; Session Charge
+  differenced per block, less the Start snapshot, is the all-tick block mean. S22: 3,015 blocks, 136 not credited,
+  which is the whole 1,360 s [M], closing "not decomposed" above. The firmware's own block mean reads the all-tick
+  mean plus 0.0025 to 0.0075 mA, with 0.010 to 0.020 mA of noise per block [M: Monte Carlo fit to each session's
+  credit sequence, 8 sessions]; the published Tail Window Mean less the all-tick mean over the same blocks is
+  +0.00575 mA (sd 0.00749, t +5.2, n = 45) [M].
+- **bms_i_dead 0.04 mA is not safe on a low tail.** Opens read 0.001 mA median in CHARGE [M, 37 interior blocks, 5
+  opens, 4 sessions], each after a 0.47-0.87 mA reconnect pulse [M]. S22's tail has 128 of 2,295 blocks under 0.04 mA
+  [M] and about 21 two-block runs under it that are not opens [M]. Cut 1 (12:57:52, e 20,200 s) was a 40 s run at
+  0.0196-0.0291 mA with no pulse before it: a dip, so a false cut [M levels; I that it was no open, falsifier: a run
+  at the open level]. No two-block run under 0.020 mA falls outside an open in any of the eight sessions [M].
+- **Arming at 0.14 mA hides opens on a low tail.** V0.7 is armed for 0.218 of S22's tail and 0.418 of S21's [I: per-tick
+  model, R = 200]. A 60 s open with no reconnect pulse (a QD pull, T17) is caught 0.26 of the time on S22 [I: model,
+  40 positions]. Opens with a pulse arm themselves; so far every open has had one [M, n = 5].
+- **Candidate V0.8 FW-5** [I: replay on rebuilt blocks, never run on the device]: block mean from the CHARGE delta;
+  dead under 0.020 mA while armed at 0.040 mA; credit withheld on dead blocks and one block either side; no low rule.
+  Across the eight sessions: 5 of 5 opens cut and 0 false cuts [D: replay at zero noise], at most 0.12 false cuts per
+  session at CHARGE's own 0.0043 mA noise [I: model]; no-pulse 60 s opens caught 0.974-0.999 of the time [I: model];
+  S22's withheld credit 6.5 min, against the device's 22.7 min [D].
+- **T11 status per limit** (for Bill; the banner changes only when V0.8 sets them). Set by the data: v_hold 14.38 V
+  (52 mV under the 14.4322 V hold [D]), t_max 10 h (5,840 s over the longest session to DONE [D: 36,000 - 30,160]),
+  bms_i_from 0.1 A (BMS trips at 0.116-0.310 A [M, n = 4]), bms_block_s 10, bms_open_max_s 300 (the longest
+  open, 13 blocks under 0.04 mA [M, S22], is 130 s). Owner's choice: t_hold 8 h, t_ol 300 s (S9 spent 118 s
+  above 2.0 A [M, n = 1]), tail_settle_s
+  (report-only; no plateau [M]). Replaced by V0.8: bms_i_open, bms_i_dead and the 0.14 mA arming level. Still open:
+  i_off_floor 0.050 A, a raw per-tick test that missed the 1.66 mA failed-on switch [M, design section 7.2], until T15.
 
 ## [2026.11.23] - 2026-11-23
 
