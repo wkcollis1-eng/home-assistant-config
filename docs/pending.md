@@ -516,8 +516,10 @@ CLOSE WHEN, after Install:
 
 ### P27 — top-off charger V0.5: flashed; the post-flash steps and T17 [MEDIUM]
 ```
-Opened 2026-10-30. esphome/top-off-charger.yaml is V0.7 (sha1 116df9e36a24),
-flashed 2026-11-23 17:49 EST [M: config hash 0x5fdd1b3c, the local compile's].
+Opened 2026-10-30. esphome/top-off-charger.yaml is V0.8 (sha1 3f82958602a5),
+flashed by Bill 2026-11-24 about 17:51 EST [M: config hash 0x5a2cb048, the local
+compile's]. V0.7 (sha1 116df9e36a24) was flashed 2026-11-23 17:49 EST [M: config
+hash 0x5fdd1b3c; the 2026-11-24 rebuild of V0.7 gives the same hash].
 V0.6 (sha1 3daf29e04028) was flashed 2026-11-23 16:24 EST [M: config hash 0x347e7447].
 V0.5 (sha1 523bec0a672c) was flashed 2026-10-30 12:25:15 EDT [M: reset reason
 esphome.ota]. Story: CHANGELOG 2026.10.30, and design rev 0.13 in DIY-LiFePO4-UPS.
@@ -561,6 +563,28 @@ After the flash, in order:
 3. entity_notes.yaml for the 12, gen_reference.py, ENTITIES.md in the same commit.
 4. DoD step 5: read the new entities and say what they read. Bill confirms the LED.
 5. T17 (a real QD pull) and design section 11's re-run list.
+6. V0.8, recommended 2026-11-24 (CHANGELOG [2026.11.24], second entry): FW-5 on
+   the CHARGE-delta block mean, dead 0.020 mA, armed 0.040 mA, no low rule; net
+   tail figures; a block-current sensor; FW-13 on a block mean. Written 2026-11-24
+   at Bill's go, with t_hold_s 32400 (CHANGELOG [2026.11.24], third entry):
+   compiled on 2026.11.0 (config hash 0x5a2cb048), host-tested, installed to H:.
+   Flashed by Bill 2026-11-24 (Device Builder). After the Install:
+   f. DONE 2026-11-24: the version sensor reads config hash 0x5a2cb048 [M];
+   g. DONE 2026-11-24: the five new ids are live [M] (Tail Window Mean Net, Tail
+      Floor Net, Block Current Net, Last Session Tail Floor Net, Last Session Final
+      Window Mean Net); annotated in entity_notes.yaml, ENTITIES.md regenerated
+      (DoD 1b);
+   h. DONE 2026-11-24 in IDLE: Block Current Net publishes on the 10 s block,
+      -0.0052 to +0.0043 mA, no FW-13 FAULT [M, 107 rows]. OPEN: Bill confirms
+      the LED is steady while CHARGING, at the next session;
+   i. DONE 2026-11-24: design doc rev 0.24 and the public firmware copy, in
+      DIY-LiFePO4-UPS (T15(b) is now about 11 s from settle, and under 20 s for
+      a current that starts mid-block). OPEN: the banner paste snippet (R19);
+   j. OPEN: S22's row in design section 11's bench table waits on which pack it
+      was (open_questions.yaml, 2026-11-24);
+   k. OPEN: Time Remaining at Voltage reads 3,600 s until the next session ends
+      (the boot re-seed; CHANGELOG [2026.11.24], third entry). Check that it
+      reads 0 at that session's DONE.
 ```
 
 ### P29 — battery bank `soc_offset_ma`: set it from the first all-Rev-2 bracket [LOW]

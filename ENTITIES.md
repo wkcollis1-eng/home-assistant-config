@@ -519,51 +519,56 @@ sensor.upstairs_current_temperature    2F current temp (watchdog monitored)
 ## TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
 
 ```
-binary_sensor.top_off_charger_charge_switch              commanded state of U4, read-only; GPIO4 reaches ON by the pad 1 to pad 8 rework (design §7.2)
-binary_sensor.top_off_charger_start_permitted            FW-3 start check, as the firmware evaluates it
-button.top_off_charger_acknowledge                       clears a latched DONE or FAULT; the charger stays latched until pressed
-button.top_off_charger_start                             requests a session; only the control tick turns the switch on (FW-1)
-button.top_off_charger_stop                              ends a session as stopped: user (proven 2026-10-28, design §11.1)
-sensor.basement_top_off_charger_charge_after_settle_net  V0.7: Charge After Settle less the Start idle offset x the time since the settle, net in the firmware; restored at boot (FW-9). Unknown before the settle, with no Start snapshot, and for a V0.6 record
-sensor.basement_top_off_charger_charge_current_net       V0.6: I less the idle offset in force (the Start snapshot while charging, the live EWMA otherwise); unknown until 300 s of idle after boot. V0.7 adds Charge Power Net, Session Charge Net and Charge After Settle Net; Charge Power, Session Charge and the other FW-14 figures stay raw
-sensor.basement_top_off_charger_charge_power_net         V0.7: VBUS x Charge Current Net; unknown whenever that is, so for 300 s after boot
-sensor.basement_top_off_charger_session_charge_net       V0.7: Session Charge less the Start idle offset x elapsed, net in the firmware; restored at boot (FW-9). Unknown with no Start snapshot, and for a V0.6 record
-sensor.top_off_charger_bms_trip_pre_step_current         FW-5; NaN unless the last session ended in a BMS trip
-sensor.top_off_charger_bms_trip_pre_step_vbus            FW-5; NaN unless the last session ended in a BMS trip
-sensor.top_off_charger_charge_after_settle               FW-14, this session's charge after the settle, raw; net twin Charge After Settle Net (V0.7)
-sensor.top_off_charger_charge_current                    INA228, signed, raw (idle offset about -0.1 mA); 1 Hz copy of the 500 ms tick
-sensor.top_off_charger_charge_power                      signed V x raw I (idle offset included), not the INA228's unsigned POWER register; net twin Charge Power Net (V0.7)
-sensor.top_off_charger_charger_state                     the state machine's state (design, States)
-sensor.top_off_charger_edge_off_current_after            FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_off_current_before           FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_off_vbus_after               FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_off_vbus_before              FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_on_current_after             FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_on_current_before            FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_on_vbus_after                FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_edge_on_vbus_before               FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
-sensor.top_off_charger_fault_reason                      text, e.g. done: time at voltage reached
-sensor.top_off_charger_idle_current_offset               current read with the switch off, raw
-sensor.top_off_charger_ina228_die_temperature            enclosure proxy, report-only (FW-10)
-sensor.top_off_charger_last_session_charge               session record, restored at boot (FW-9); raw, as Session Charge
-sensor.top_off_charger_last_session_charge_after_settle  session record, restored at boot (FW-9)
-sensor.top_off_charger_last_session_elapsed              session record, restored at boot (FW-9)
-sensor.top_off_charger_last_session_end                  session record, restored at boot (FW-9); how the last session ended
-sensor.top_off_charger_last_session_final_window_mean    session record, restored at boot (FW-9); FW-14, raw
-sensor.top_off_charger_last_session_idle_offset          session record, restored at boot (FW-9)
-sensor.top_off_charger_last_session_tail_floor           session record, restored at boot (FW-9); FW-14, raw
-sensor.top_off_charger_last_session_time_at_voltage      session record, restored at boot (FW-9)
-sensor.top_off_charger_led_mode                          FW-11 LED mode, so a test can check the LED against the state
-sensor.top_off_charger_reset_reason                      ESPHome debug reset reason (V0.4)
-sensor.top_off_charger_session_charge                    this session's charge, Ah: the INA228 CHARGE register, raw (idle offset included); net twin Session Charge Net (V0.7)
-sensor.top_off_charger_session_elapsed                   time since Start
-sensor.top_off_charger_session_idle_offset               idle offset taken for this session
-sensor.top_off_charger_tail_floor                        FW-14 tail floor, raw (subtract the idle offset), report-only
-sensor.top_off_charger_tail_window_mean                  FW-14 tail window mean, raw, report-only
-sensor.top_off_charger_time_at_voltage                   FW-6; counts whenever VBUS >= V_hold, even at 0 A (design O18)
-sensor.top_off_charger_time_remaining_at_voltage         FW-6, T_hold less time at voltage
-sensor.top_off_charger_uptime                            s since boot, every 60 s; with Reset Reason, tells a reset from a Wi-Fi gap
-sensor.top_off_charger_vbus                              INA228 VBUS = VIN+, after U4 and U5 (pack side), raw
+binary_sensor.top_off_charger_charge_switch                         commanded state of U4, read-only; GPIO4 reaches ON by the pad 1 to pad 8 rework (design §7.2)
+binary_sensor.top_off_charger_start_permitted                       FW-3 start check, as the firmware evaluates it
+button.top_off_charger_acknowledge                                  clears a latched DONE or FAULT; the charger stays latched until pressed
+button.top_off_charger_start                                        requests a session; only the control tick turns the switch on (FW-1)
+button.top_off_charger_stop                                         ends a session as stopped: user (proven 2026-10-28, design §11.1)
+sensor.basement_top_off_charger_block_current_net                   V0.8: each 10 s CHARGE block mean, net. Charging: the FW-5 block less the Start offset. Switch OFF: the FW-13 block less the last session's offset. NaN with no offset to subtract. In 1.907 uA steps; HA drops a repeated value (no force_update), so a 20-50 s gap in history is a repeat, not a missed block
+sensor.basement_top_off_charger_charge_after_settle_net             V0.7: Charge After Settle less the Start idle offset x the time since the settle, net in the firmware; restored at boot (FW-9). Unknown before the settle, with no Start snapshot, and for a V0.6 record
+sensor.basement_top_off_charger_charge_current_net                  V0.6: I less the idle offset in force (the Start snapshot while charging, the live EWMA otherwise); unknown until 300 s of idle after boot. V0.7 adds Charge Power Net, Session Charge Net and Charge After Settle Net; Charge Power, Session Charge and the other FW-14 figures stay raw
+sensor.basement_top_off_charger_charge_power_net                    V0.7: VBUS x Charge Current Net; unknown whenever that is, so for 300 s after boot
+sensor.basement_top_off_charger_last_session_final_window_mean_net  V0.8: session record, restored at boot (FW-9); Tail Window Mean Net at the end. Unknown for a V0.7 record
+sensor.basement_top_off_charger_last_session_tail_floor_net         V0.8: session record, restored at boot (FW-9); Tail Floor Net at the end. Unknown for a V0.7 record
+sensor.basement_top_off_charger_session_charge_net                  V0.7: Session Charge less the Start idle offset x elapsed, net in the firmware; restored at boot (FW-9). Unknown with no Start snapshot, and for a V0.6 record
+sensor.basement_top_off_charger_tail_floor_net                      V0.8: the lowest Tail Window Mean Net after settle (FW-14, report-only); restored at boot (FW-9). Unknown for a V0.7 record
+sensor.basement_top_off_charger_tail_window_mean_net                V0.8: the FW-14 window's CHARGE delta less the Start offset, net in the firmware (report-only); restored at boot (FW-9). Unknown for a V0.7 record
+sensor.top_off_charger_bms_trip_pre_step_current                    FW-5; NaN unless the last session ended in a BMS trip
+sensor.top_off_charger_bms_trip_pre_step_vbus                       FW-5; NaN unless the last session ended in a BMS trip
+sensor.top_off_charger_charge_after_settle                          FW-14, this session's charge after the settle, raw; net twin Charge After Settle Net (V0.7)
+sensor.top_off_charger_charge_current                               INA228, signed, raw (idle offset about -0.1 mA); 1 Hz copy of the 500 ms tick
+sensor.top_off_charger_charge_power                                 signed V x raw I (idle offset included), not the INA228's unsigned POWER register; net twin Charge Power Net (V0.7)
+sensor.top_off_charger_charger_state                                the state machine's state (design, States)
+sensor.top_off_charger_edge_off_current_after                       FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_off_current_before                      FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_off_vbus_after                          FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_off_vbus_before                         FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_on_current_after                        FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_on_current_before                       FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_on_vbus_after                           FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_edge_on_vbus_before                          FW-12 edge pair, raw; R_edge = dV/dI is computed downstream
+sensor.top_off_charger_fault_reason                                 text, e.g. done: time at voltage reached
+sensor.top_off_charger_idle_current_offset                          current read with the switch off, raw
+sensor.top_off_charger_ina228_die_temperature                       enclosure proxy, report-only (FW-10)
+sensor.top_off_charger_last_session_charge                          session record, restored at boot (FW-9); raw, as Session Charge
+sensor.top_off_charger_last_session_charge_after_settle             session record, restored at boot (FW-9)
+sensor.top_off_charger_last_session_elapsed                         session record, restored at boot (FW-9)
+sensor.top_off_charger_last_session_end                             session record, restored at boot (FW-9); how the last session ended
+sensor.top_off_charger_last_session_final_window_mean               session record, restored at boot (FW-9); FW-14, raw
+sensor.top_off_charger_last_session_idle_offset                     session record, restored at boot (FW-9)
+sensor.top_off_charger_last_session_tail_floor                      session record, restored at boot (FW-9); FW-14, raw
+sensor.top_off_charger_last_session_time_at_voltage                 session record, restored at boot (FW-9)
+sensor.top_off_charger_led_mode                                     FW-11 LED mode, so a test can check the LED against the state
+sensor.top_off_charger_reset_reason                                 ESPHome debug reset reason (V0.4)
+sensor.top_off_charger_session_charge                               this session's charge, Ah: the INA228 CHARGE register, raw (idle offset included); net twin Session Charge Net (V0.7)
+sensor.top_off_charger_session_elapsed                              time since Start
+sensor.top_off_charger_session_idle_offset                          idle offset taken for this session
+sensor.top_off_charger_tail_floor                                   FW-14 tail floor, raw (subtract the idle offset), report-only
+sensor.top_off_charger_tail_window_mean                             FW-14 tail window mean, raw, report-only
+sensor.top_off_charger_time_at_voltage                              FW-6; counts whenever VBUS >= V_hold, even at 0 A (design O18)
+sensor.top_off_charger_time_remaining_at_voltage                    FW-6, T_hold less time at voltage
+sensor.top_off_charger_uptime                                       s since boot, every 60 s; with Reset Reason, tells a reset from a Wi-Fi gap
+sensor.top_off_charger_vbus                                         INA228 VBUS = VIN+, after U4 and U5 (pack side), raw
 ```
 
 ## WATCHDOG (packages/watchdog.yaml)

@@ -179,6 +179,116 @@ session scratchpad, not kept.
   (report-only; no plateau [M]). Replaced by V0.8: bms_i_open, bms_i_dead and the 0.14 mA arming level. Still open:
   i_off_floor 0.050 A, a raw per-tick test that missed the 1.66 mA failed-on switch [M, design section 7.2], until T15.
 
+### Top-off charger: firmware V0.8 written to `esphome/top-off-charger.yaml`, compiled, host-tested and flashed
+
+Bill, 2026-11-24: "go on V0.8, write the firmware. agree with all items 1-7. set t_hold_s to 9 hours." The yaml is
+sha1 `3f82958602a5`, 117,099 B, 2,273 lines, CRLF (V0.7 was `116df9e36a24`) [M]. Bill flashed it 2026-11-24 (Device
+Builder > Install); the checks after the flash close this entry. Design doc rev 0.24 and the public firmware
+copy (a byte copy of the yaml) are in DIY-LiFePO4-UPS.
+
+- **FW-5 (items 1, 2).** The block mean is now the INA228 CHARGE register's change over the 10 s block, divided by
+  the block's millis() span, less the Start offset. Step 1 reads CHARGE each tick: 40 bits, big-endian, two's
+  complement, LSB = CURRENT_LSB in coulombs, 19.07 uC at `ina_max_current` 10 A [S: ESPHome 2026.11.0
+  ina2xx_base.cpp:342, 520-521, 561-573, 587-588]. The tick sum is kept for the cut log only.
+  - A block is dead when its mean is under `bms_i_dead` 0.020 mA, but only while armed. Armed means the larger of
+    the last two non-dead means is at least 0.040 mA, `2 x bms_i_dead` [S: V0.8 yaml, `BMS_I_ARM`]. The
+    reference is INFINITY at Start, as before.
+  - A cut is counted at the second dead block in a row, or at once on a trip (the reference at or above
+    `bms_i_from`). There is no low rule; `bms_i_open` is retired, and `bms_low_n` is no longer counted.
+  - 30 dead blocks in a row (`bms_open_max_s` 300 s) end the session with FAULT "BMS open", as before.
+  - Credit is withheld from a dead block and from one block either side. So Time at Voltage and the tail now run
+    one block (10 s) behind V0.7: each block is credited when the next is known not to be dead.
+- **Net tail figures (item 3).** New: "Tail Window Mean Net", "Tail Floor Net", and the record pair "Last Session
+  Tail Floor Net" and "Last Session Final Window Mean Net". Each comes from the CHARGE delta over the window's whole
+  at-voltage blocks, less the Start offset, and is NaN when there is no offset. The raw pair is kept, and so is its
+  history.
+- **"Block Current Net" (item 4).** While CHARGING it is FW-5's block mean. With the switch OFF it is FW-13's block
+  mean less `rec_idle_off`, and NaN when there is no recorded offset. It publishes every 10 s in both states.
+- **FW-13 (item 5).** The switch-OFF current test now uses a 10 s CHARGE block mean less `rec_idle_off` (the last
+  session's Start offset; 0 if there is none), not one tick against the floor. It deliberately does not use the
+  live EWMA, which takes in a failed-on current.
+  - `i_off_floor` 0.050 A (50 mA, on one tick) -> 0.00005 A (0.050 mA, on the block mean), still PLACEHOLDER
+    until T15. The old floor missed the 1.66 mA failed-on switch [M, design section 7.2].
+  - Measured on the device's history, the live EWMA less the snapshot in force reached +0.0203 mA at most, except
+    under the 10-28 seed-bug snapshot (+0.1453 mA) [M, InfluxDB 10-28..11-24, n = 17,687 rows]. That leaves about
+    0.03 mA of margin [D: 0.050 - 0.0203].
+  - A hot block restarts `idle_n`, so Start waits the 300 s settle again.
+  - Latency: a current present from the OFF edge trips one block after settle (about 11 s). A current I that starts
+    mid-block trips at the end of the first block whose mean reaches the floor F, within about 10 s x (1 + F/I) of
+    its onset [D: the block mean is the on-fraction x I]: 10.3 s at 1.66 mA, and under 20 s for any I above F.
+    T15(b)'s "~1.5 s" no longer holds.
+- **LED steady while CHARGING (item 6).** It was 500/500 ms, locked to the tick. Every other mode is unchanged.
+- **T11 labels (item 7).** These are set by the data, with the evidence beside each: `v_hold`, `t_max`, `bms_i_from`
+  and `bms_open_max_s`. `t_ol_s` and `tail_settle_s` are the owner's values. `i_off_floor` stays PLACEHOLDER.
+- **`t_hold_s` 28,800 -> 32,400 s (owner).** The margin to `t_max` (36,000 s) is now 3,165 s (S22) to 3,590 s (S18,
+  S20) [D: margin.py on the sessions' credit rates, extrapolated about 1 h past sessions of about 8 h]. Bill,
+  2026-11-24: "leave t_max at 10 h", so `t_max` stays 36,000 s.
+- **R13: `cfg_read` was never in `valid` (V0.4-V0.7).** A failed ADC_CONFIG or SHUNT_CAL read-back therefore kept
+  the tick valid, and the read-back branch could not run [source read].
+  - V0.8 puts `cfg_read` in `valid`, and the CHARGE read is part of `cfg_read`.
+  - Behaviour change: a failed configuration or CHARGE read now ends a session with FAULT "sensor", and latches FAULT
+    in IDLE. V0.7 charged on [M, harness test 6b].
+  - Recorded at the site in the yaml.
+- **Verified.**
+  - Compile: on ESPHome 2026.11.0, the add-on's version, in order [M]: V0.7, V0.8, then V0.8 with a planted lambda fault.
+    - V0.7: EXIT 0, config hash 0x5fdd1b3c, the hash on the device.
+    - V0.8 (`a6b914d0d7c9`): EXIT 0, with main.cpp.obj and firmware.ota.bin rebuilt; config hash 0xa441962d;
+      RAM 33.9 %, flash 54.8 % (V0.7: 33.7 %, 54.6 %) [M].
+    - The planted fault, an undeclared identifier in FW-5's block mean, failed: EXIT 1, "top-off-charger.yaml:
+      1952:54: error: 'off0_planted' was not declared in this scope" [M].
+    - After that build, the FW-13 latency comments were amended twice. Both changes are comment-only: the header
+      first (`62d5655e7fdf`, which kept config hash 0xa441962d), then the header and the lambda (the latency bound
+      below).
+    - The installed file, `3f82958602a5`, recompiled: EXIT 0, both artifacts rebuilt, config hash 0x5a2cb048 (a
+      lambda's text is in the hash), and the same RAM and flash bytes [M]. The harness was then re-run on it: 33
+      tests, 0 failed [M]. After the flash, the version sensor should read 0x5a2cb048.
+  - R3: undoing the 57 spans (53 edits plus 4 comment amendments) gives V0.7 byte for byte, equal to H: before
+    the first install. 1,774 of the 2,273 lines are outside the spans [M: r3_v08.py].
+  - Host harness on the real lambdas: "TOTAL 33 tests, 0 failed" [M].
+    - The replays use the eight block-firmware sessions (S7, S15, S17-S22), rebuilt from InfluxDB blocks. In each,
+      the firmware equals the rule, written separately in Python on the quantised CHARGE in float32, at every
+      sampled block boundary: cuts, dead count, time at voltage, and the raw and net tails.
+    - Cuts: S7 2, S15 1, S21 1, S22 1, and the rest 0, the same as this date's second entry found.
+    - A synthetic 9 h run with nine 60 s opens and partial blocks ends DONE at 33,450 s elapsed, with 32,400 s
+      credited.
+    - FW-13 with the switch OFF:
+      - silent on 2 h of clean idle (drift to +0.020 mA, tick sd 0.022 mA);
+      - trips 2 ticks after a 1.66 mA onset;
+      - trips 22 ticks after a +0.06 mA onset;
+      - silent at +0.03 mA;
+      - a 0.2 mA ramp over 30 min trips at 922 ticks;
+      - an Ack while the current persists re-latches on the same tick.
+  - 20 planted faults, each caught by at least one test.
+    - MUT 08 (off_hot cleared at the latch) survived the first run. That run's Ack came 58 ticks after the latch,
+      when off_hot had been set again. Test 2k now presses Ack inside the latch block, and catches it.
+  - Four checks failed on their first run because of harness errors, not firmware. They were fixed in the harness:
+    - float32 values were compared as doubles;
+    - V0.7 trips at 0.05 mA net (`bms_i_open` 0.07 mA with the INFINITY reference), so the LED and read-back
+      comparisons now charge at 0.5 A;
+    - a 2-block latency was expected in 1 block;
+    - the no-offset case was run at 0.05 mA, which is raw.
+  - R13, my error, found before the commit. The first FW-13 latency comment had a current at or above
+    20 x the floor [D: 20 ticks a block] tripping in the block it starts in. That holds only if the current is on
+    for one tick of that block, because CHARGE integrates continuously [D: block mean = on-fraction x I]. It is
+    now the bound above.
+- **After the flash** (Bill, 2026-11-24, Device Builder > Install):
+  - The version sensor reads "2026.11.0 (config hash 0x5a2cb048, ...)", the local compile's hash. It booted about
+    17:51:31 EST, reset reason "Reboot request from esphome" [M].
+  - R5: the five new ids are live [M]: sensor.basement_top_off_charger_block_current_net, _tail_window_mean_net,
+    _tail_floor_net, _last_session_tail_floor_net and _last_session_final_window_mean_net. The last four read unknown,
+    because no V0.8 session has run and the V0.7 record has no net fields.
+  - DoD 1b: the five are annotated in entity_notes.yaml, and ENTITIES.md is regenerated (437 annotated entities).
+  - DoD 5 in IDLE: Block Current Net, 107 rows over 24.5 min [M, HA history, 22:51:41-23:16:11Z]. Every interval
+    is within 0.037 s of a multiple of 10 s (1 to 5 blocks). It reads -0.0052 to +0.0043 mA in 1.907 uA steps
+    [M; D: 19.07 uC / 10 s]. fault_reason none, IDLE, LED mode Waiting [M].
+  - The gaps over 10 s are repeats, not missed blocks. HA drops a SensorState equal to the current one unless
+    force_update is set [S: HA 2026.11.2 homeassistant/components/esphome/entry_data.py 495-506,
+    `async_update_state`]. A 95 s poll of last_reported saw no same-value write reach HA [M].
+  - Time Remaining at Voltage reads 3,599.98 s [M]. The boot re-publish takes the new t_hold, 32,400 s, less the
+    V0.7 session's 28,800 s [D: the yaml's boot publish]. Cosmetic, and it clears when the next session ends; recorded,
+    not fixed.
+  - Not verified: the LED steady while CHARGING (Bill, at the next session), and any V0.8 session.
+
 ## [2026.11.23] - 2026-11-23
 
 ### Top-off charger: S20 and S21 read; firmware V0.6 written to `esphome/top-off-charger.yaml` and flashed; design rev 0.22

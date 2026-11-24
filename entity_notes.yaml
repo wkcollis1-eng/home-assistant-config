@@ -553,6 +553,9 @@ sensor.basement_router_peak_watts:
 sensor.basement_router_today_s_consumption:
   group: KASA PLUGS
   note: ''
+sensor.basement_top_off_charger_block_current_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.8: each 10 s CHARGE block mean, net. Charging: the FW-5 block less the Start offset. Switch OFF: the FW-13 block less the last session''s offset. NaN with no offset to subtract. In 1.907 uA steps; HA drops a repeated value (no force_update), so a 20-50 s gap in history is a repeat, not a missed block'
 sensor.basement_top_off_charger_charge_after_settle_net:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'V0.7: Charge After Settle less the Start idle offset x the time since the settle, net in the firmware; restored at boot (FW-9). Unknown before the settle, with no Start snapshot, and for a V0.6 record'
@@ -562,9 +565,21 @@ sensor.basement_top_off_charger_charge_current_net:
 sensor.basement_top_off_charger_charge_power_net:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'V0.7: VBUS x Charge Current Net; unknown whenever that is, so for 300 s after boot'
+sensor.basement_top_off_charger_last_session_final_window_mean_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.8: session record, restored at boot (FW-9); Tail Window Mean Net at the end. Unknown for a V0.7 record'
+sensor.basement_top_off_charger_last_session_tail_floor_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.8: session record, restored at boot (FW-9); Tail Floor Net at the end. Unknown for a V0.7 record'
 sensor.basement_top_off_charger_session_charge_net:
   group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
   note: 'V0.7: Session Charge less the Start idle offset x elapsed, net in the firmware; restored at boot (FW-9). Unknown with no Start snapshot, and for a V0.6 record'
+sensor.basement_top_off_charger_tail_floor_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.8: the lowest Tail Window Mean Net after settle (FW-14, report-only); restored at boot (FW-9). Unknown for a V0.7 record'
+sensor.basement_top_off_charger_tail_window_mean_net:
+  group: TOP-OFF CHARGER (esphome/top-off-charger.yaml; design in DIY-LiFePO4-UPS)
+  note: 'V0.8: the FW-14 window''s CHARGE delta less the Start offset, net in the firmware (report-only); restored at boot (FW-9). Unknown for a V0.7 record'
 sensor.climate_norms_status:
   group: CLIMATE NORMS
   note: ''
